@@ -1,0 +1,202 @@
+<script>
+/**
+ * MODULO 3: CHART.JS RENDERING (Zero Latenza)
+ */
+let chartInstances = {};
+
+// 1. La Top 10 degli Asset (Inventory)
+function renderLiveChart(labels, budgets, costs) {
+    const ctxElement = document.getElementById('liveSheetsChart');
+    if(!ctxElement) return;
+    if (chartInstances.live) chartInstances.live.destroy();
+
+    chartInstances.live = new Chart(ctxElement.getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                { label: 'Budget FY27', data: budgets, backgroundColor: '#0F766E', borderRadius: 3, barPercentage: 0.6, categoryPercentage: 0.8 },
+                { label: 'Outlook FY27', data: costs, backgroundColor: '#E11D48', borderRadius: 3, barPercentage: 0.6, categoryPercentage: 0.8 }
+            ]
+        },
+        options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } },
+            scales: {
+                x: { ticks: { callback: function (v) { return v >= 1000000 ? '€ ' + (v / 1000000).toFixed(1) + 'M' : '€ ' + (v / 1000).toFixed(0) + 'k'; } } },
+                y: { grid: { drawOnChartArea: false } }
+            }
+        }
+    });
+}
+
+// 2. Doughnut Multi-Uso (Supplier, Cost Center, Legal Entity)
+function renderGenericDoughnut(canvasId, contracts, columnKey, instanceKey) {
+    const ctxElement = document.getElementById(canvasId);
+    if (!ctxElement) return;
+
+    const dataMap = {};
+    contracts.forEach(c => {
+        const key = c[columnKey] || `Other`;
+        const val = parseFloat(c["Annual Value"]) || 0;
+        dataMap[key] = (dataMap[key] || 0) + val;
+    });
+
+    const sortedData = Object.entries(dataMap).sort((a, b) => b[1] - a[1]);
+    const labels = []; const data = []; let others = 0;
+
+    sortedData.forEach((item, i) => {
+        if (i < 4) { labels.push(item[0]); data.push(item[1]); } else { others += item[1]; }
+    });
+    if (others > 0) { labels.push("Others"); data.push(others); }
+
+    if (chartInstances[instanceKey]) chartInstances[instanceKey].destroy();
+    chartInstances[instanceKey] = new Chart(ctxElement.getContext('2d'), {
+        type: 'doughnut',
+        data: { labels: labels, datasets: [{ data: data, backgroundColor: ['#0f766e', '#0d9488', '#14b8a6', '#475569', '#94a3b8', '#cbd5e1'], borderWidth: 2, borderColor: '#fff' }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 9 } } } } }
+    });
+}
+
+// 3. Calcolo Offline Cumulato (Sostituisce la chiamata API!)
+function renderOfflineCumulativeSavings(initiatives) {
+    const labels = []; const activeData = [];
+    let startDate = new Date(2025, 6, 1); // Luglio 2025
+    
+    for (let i = 0; i < 36; i++) {
+        let d = new Date(startDate.getFullYear(), startDate.getMonth() + i, 1);
+        labels.push(d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
+        activeData.push(0);
+    }
+
+    initiatives.forEach(row => {
+        let targetDate = new Date(row["Target Date"] || row["Actual Date"]);
+        if (isNaN(targetDate.getTime())) return;
+        let saving = parseFloat(row["Actual Saving (Annualized)"]) || parseFloat(row["Target Saving (Annualized)"]) || 0;
+        if (saving <= 0) return;
+        let monthly = saving / 12;
+        for (let i = 0; i < 12; i++) {
+            let curr = new Date(targetDate.getFullYear(), targetDate.getMonth() + i, 1);
+            let diff = (curr.getFullYear() - startDate.getFullYear()) * 12 + (curr.getMonth() - startDate.getMonth());
+            if (diff >= 0 && diff < 36) activeData[diff] += monthly;
+        }
+    });
+
+    const cumulativeData = []; let runTotal = 0;
+    for (let i = 0; i < 36; i++) { runTotal += activeData[i]; cumulativeData.push(runTotal); }
+
+    const ctx = document.getElementById('cumulativeSavingsChart');
+    if(!ctx) return;
+    if (chartInstances.cumul) chartInstances.cumul.destroy();
+    
+    chartInstances.cumul = new Chart(ctx.getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                { type: 'bar', label: 'Monthly Run-Rate', data: activeData, backgroundColor: '#A8A29E', yAxisID: 'y' },
+                { type: 'line', label: 'Cumulative Total', data: cumulativeData, borderColor: '#10B981', fill: false, tension: 0.4, yAxisID: 'y1' }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom' } },
+            scales: {
+                y: { position: 'left', ticks: { callback: v => '€ ' + (v / 1000).toFixed(0) + 'k' } },
+                y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => '€ ' + (v / 1000000).toFixed(1) + 'M' } }
+            }
+        }
+    });
+}
+
+// 4. Calcolo Offline Trend Macro (Sostituisce API!)
+function renderOfflineTrendChart(projections) {
+    if(!projections || projections.length === 0) return;
+    const trend = { FY26: {g:0, o:0}, FY27: {g:0, o:0}, FY28: {g:0, o:0} };
+    
+    projections.forEach(row => {
+        trend.FY26.g += parseFloat(row["FY26 Gross"]) || 0; trend.FY26.o += parseFloat(row["FY26 Optimized"]) || 0;
+        trend.FY27.g += parseFloat(row["FY27 Gross"]) || 0; trend.FY27.o += parseFloat(row["FY27 Optimized"]) || 0;
+        trend.FY28.g += parseFloat(row["FY28 Gross"]) || 0; trend.FY28.o += parseFloat(row["FY28 Optimized"]) || 0;
+    });
+
+    const grossData = [trend.FY26.g, trend.FY27.g, trend.FY28.g];
+    const optimizedData = [trend.FY26.o, trend.FY27.o, trend.FY28.o];
+    const savingsData = [trend.FY26.g - trend.FY26.o, trend.FY27.g - trend.FY27.o, trend.FY28.g - trend.FY28.o];
+
+    const ctx = document.getElementById('efficiencyTrendChart');
+    if(!ctx) return;
+    if(chartInstances.trend) chartInstances.trend.destroy();
+
+    chartInstances.trend = new Chart(ctx.getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: ['FY26', 'FY27', 'FY28'],
+            datasets: [
+                { type: 'bar', label: 'Spend without Initiatives', data: grossData, backgroundColor: '#A8A29E', order: 2 },
+                { type: 'bar', label: 'Optimized Spend', data: optimizedData, backgroundColor: '#0F766E', order: 3 },
+                { type: 'line', label: 'Cost Avoidance', data: savingsData, borderColor: '#10B981', borderWidth: 2, fill: false, order: 1 }
+            ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { ticks: { callback: v => '€ ' + (v / 1000000).toFixed(1) + 'M' } } } }
+    });
+}
+
+// 5. Renewal Pipeline (Scadenze Trimestrali)
+function renderRenewalPipeline(activeContracts) {
+    const ctxElement = document.getElementById('renewalPipelineChart');
+    if (!ctxElement) return;
+
+    const quarterMap = {};
+    const now = new Date();
+
+    activeContracts.forEach(c => {
+        if (!c["End Date"]) return;
+        const endDate = new Date(c["End Date"]);
+        if (isNaN(endDate) || endDate < new Date(now.getFullYear() - 1, 0, 1)) return;
+
+        const year = endDate.getFullYear();
+        const quarter = Math.floor(endDate.getMonth() / 3) + 1;
+        const label = `Q${quarter} ${year}`;
+
+        const val = parseFloat(c["Annual Value"]) || 0;
+        quarterMap[label] = (quarterMap[label] || 0) + val;
+    });
+
+    const sortedQuarters = Object.entries(quarterMap).sort((a, b) => {
+        const [qA, yA] = a[0].replace('Q','').split(' ');
+        const [qB, yB] = b[0].replace('Q','').split(' ');
+        if (yA !== yB) return parseInt(yA) - parseInt(yB);
+        return parseInt(qA) - parseInt(qB);
+    });
+
+    const displayData = sortedQuarters.slice(0, 8);
+    const labels = displayData.map(d => d[0]);
+    const data = displayData.map(d => d[1]);
+
+    if (chartInstances.renewal) chartInstances.renewal.destroy();
+
+    chartInstances.renewal = new Chart(ctxElement.getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Expiring Spend (€)',
+                data: data,
+                backgroundColor: '#0d9488',
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, ticks: { callback: v => '€ ' + (v/1000).toFixed(0) + 'k' } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+</script>

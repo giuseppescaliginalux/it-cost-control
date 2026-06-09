@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <base target="_top">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <?!= include('css'); ?>
+</head>
+
+<body class="antialiased min-h-screen bg-slate-50/50">
+    <nav class="gradient-bg border-b border-teal-800 text-white sticky top-0 z-50 shadow-md bg-teal-900">
+        <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-14">
+
+                <div class="flex items-center space-x-3 w-1/3">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                        stroke="currentColor" class="w-7 h-7 text-teal-200">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M20.25 14.15v4.25c0 .621-.504 1.125-1.125 1.125H4.875c-.621 0-1.125-.504-1.125-1.125v-4.25" />
+                    </svg>
+                    <div>
+                        <span class="font-black text-base tracking-tight block">IT Cost Control</span>
+                        <span
+                            class="text-[10px] text-teal-200/80 block -mt-0.5 uppercase tracking-wider font-medium">FinOps
+                            Ledger</span>
+                    </div>
+                </div>
+
+                <div
+                    class="flex space-x-1 bg-teal-950/50 p-1 rounded-lg border border-teal-800/50 justify-center w-fit">
+                    <button onclick="switchTab('tab-dashboard')" id="btn-tab-dashboard"
+                        class="flex items-center gap-2 px-4 py-1.5 text-[11px] uppercase tracking-wider font-black rounded-md bg-teal-700 text-white shadow-sm transition-all pointer-events-none">
+                        Dashboard
+                    </button>
+                    <button onclick="switchTab('tab-inventory')" id="btn-tab-inventory"
+                        class="flex items-center gap-2 px-4 py-1.5 text-[11px] uppercase tracking-wider font-bold rounded-md text-teal-300 hover:text-white hover:bg-teal-800/50 transition-all cursor-pointer">
+                        Inventory
+                    </button>
+                    <button onclick="switchTab('tab-operations')" id="btn-tab-operations"
+                        class="flex items-center gap-2 px-4 py-1.5 text-[11px] uppercase tracking-wider font-bold rounded-md text-teal-300 hover:text-white hover:bg-teal-800/50 transition-all cursor-pointer">
+                        Operations
+                    </button>
+                </div>
+
+                <div class="flex justify-end w-1/3">
+                    <button onclick="fetchLiveData()"
+                        class="group bg-teal-800/80 hover:bg-teal-700 text-teal-100 border border-teal-600/50 px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor"
+                            class="w-3.5 h-3.5 group-active:rotate-180 transition-transform duration-500">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                        </svg>
+                        Sync
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <div id="loading-state" class="flex flex-col items-center justify-center py-20 space-y-4">
+            <div class="w-10 h-10 border-4 border-teal-600/20 border-t-teal-600 rounded-full animate-spin"></div>
+            <p class="text-slate-400 text-xs font-bold uppercase tracking-widest">Synchronizing Ledger...</p>
+        </div>
+
+        <div id="error-state"
+            class="hidden bg-rose-50 border border-rose-200 rounded-2xl p-6 text-center max-w-lg mx-auto">
+            <div class="bg-rose-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                    stroke="currentColor" class="w-6 h-6 text-rose-600">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                </svg>
+            </div>
+            <h3 class="text-sm font-bold text-rose-900 uppercase">System Error</h3>
+            <p class="text-xs text-rose-700 mt-1" id="error-message"></p>
+        </div>
+
+        <div id="dashboard-content" class="hidden">
+
+            <div id="tab-dashboard" class="space-y-6 block">
+
+                <section class="grid grid-cols-1 md:grid-cols-4 gap-4">
+
+                    <div
+                        class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between relative overflow-hidden">
+                        <div class="absolute top-0 right-0 p-4 opacity-10">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                                stroke="currentColor" class="w-16 h-16">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-1">FY27
+                                Projection</p>
+                            <p class="text-3xl font-black text-slate-900 tracking-tight" id="total-cost-kpi">€ 0</p>
+                        </div>
+                        <div
+                            class="mt-3 inline-flex items-center gap-1.5 px-2 py-1 bg-slate-50 border border-slate-100 rounded text-[10px] font-bold text-slate-500 w-fit">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                                stroke="currentColor" class="w-3 h-3">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                            </svg>
+                            <span id="active-contracts-count">0</span> Active Contracts
+                        </div>
+                    </div>
+
+                    <div class="p-4 rounded-xl border border-emerald-200 shadow-sm bg-emerald-50 text-emerald-900 flex flex-col justify-between"
+                        id="global-variance-card">
+                        <div>
+                            <p class="text-[10px] uppercase font-black tracking-widest opacity-70 mb-1">Net Variance</p>
+                            <p class="text-3xl font-black tracking-tight" id="total-variance-kpi">€ 0</p>
+                        </div>
+                        <div class="mt-3 flex items-center gap-2 text-[10px] font-bold opacity-80">
+                            <span>vs Budget:</span>
+                            <span class="font-mono tracking-tighter" id="total-budget-kpi">€ 0</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
+                        <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-3">Savings Pipeline
+                        </p>
+                        <div class="flex gap-4">
+                            <div class="flex-1">
+                                <p class="text-lg font-black text-emerald-600 tracking-tight leading-none"
+                                    id="actual-savings-kpi">€ 0</p>
+                                <p class="text-[9px] text-slate-500 uppercase font-bold mt-1">Secured</p>
+                            </div>
+                            <div class="w-px bg-slate-100"></div>
+                            <div class="flex-1">
+                                <p class="text-lg font-bold text-amber-500 tracking-tight leading-none"
+                                    id="target-savings-kpi">€ 0</p>
+                                <p class="text-[9px] text-slate-500 uppercase font-bold mt-1">To Secure</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
+                        <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-2">Portfolio
+                            Savings</p>
+                        <div class="flex items-end gap-3">
+                            <p class="text-3xl font-black text-teal-600 tracking-tight leading-none"
+                                id="efficiency-kpi">0%</p>
+                            <p class="text-[9px] text-slate-500 pb-0.5 font-bold uppercase tracking-tighter">of
+                                total<br>IT Budget</p>
+                        </div>
+                    </div>
+
+                </section>
+
+                <div
+                    class="mb-6 bg-slate-100 p-1 rounded-xl border border-slate-200 inline-flex w-full lg:w-auto shadow-sm">
+                    <button id="btn-chart-tab-general" onclick="switchChartTab('general')"
+                        class="px-4 py-1.5 text-xs font-black uppercase tracking-wider rounded-lg transition-all text-slate-700 bg-white shadow-sm cursor-pointer">General</button>
+                    <button id="btn-chart-tab-savings" onclick="switchChartTab('savings')"
+                        class="px-4 py-1.5 text-xs font-black uppercase tracking-wider rounded-lg transition-all text-slate-500 hover:text-slate-800 cursor-pointer">Savings</button>
+                    <button id="btn-chart-tab-breakdown" onclick="switchChartTab('breakdown')"
+                        class="px-4 py-1.5 text-xs font-black uppercase tracking-wider rounded-lg transition-all text-slate-500 hover:text-slate-800 cursor-pointer">Cost
+                        Breakdown</button>
+                    <button id="btn-chart-tab-contracts" onclick="switchChartTab('contracts')"
+                        class="px-4 py-1.5 text-xs font-black uppercase tracking-wider rounded-lg transition-all text-slate-500 hover:text-slate-800 cursor-pointer">Contracts
+                        Insights</button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+
+                    <div id="chart-sec-general" class="contents">
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm md:col-span-2">
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Top 10 Assets
+                                Portfolio</h3>
+                            <div style="position: relative; height:280px; width:100%;"><canvas
+                                    id="liveSheetsChart"></canvas></div>
+                        </div>
+                    </div>
+
+                    <div id="chart-sec-savings" class="contents hidden">
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Savings
+                                Performance</h3>
+                            <div style="position: relative; height:280px; width:100%;"><canvas
+                                    id="cumulativeSavingsChart"></canvas></div>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Efficiency Trend
+                            </h3>
+                            <div style="position: relative; height:280px; width:100%;"><canvas
+                                    id="efficiencyTrendChart"></canvas></div>
+                        </div>
+                    </div>
+
+                    <div id="chart-sec-breakdown" class="contents hidden">
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Spend by Cost
+                                Center</h3>
+                            <div style="position: relative; height:240px; width:100%;"><canvas
+                                    id="costCenterChart"></canvas></div>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Spend by Legal
+                                Entity</h3>
+                            <div style="position: relative; height:240px; width:100%;"><canvas
+                                    id="legalEntityChart"></canvas></div>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm md:col-span-2">
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Spend by
+                                Expenditure Type (CAPEX / OPEX / Not Specified)</h3>
+                            <div style="position: relative; height:240px; width:100%;"><canvas
+                                    id="capexOpexChart"></canvas></div>
+                        </div>
+                    </div>
+
+                    <div id="chart-sec-contracts" class="contents hidden">
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Spend by Supplier
+                            </h3>
+                            <div style="position: relative; height:240px; width:100%;"><canvas
+                                    id="supplierConcentrationChart"></canvas></div>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Renewal Pipeline
+                                (FY)</h3>
+                            <div style="position: relative; height:240px; width:100%;"><canvas
+                                    id="renewalPipelineChart"></canvas></div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div id="tab-inventory" class="hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+
+                    <div class="lg:col-span-1 space-y-4 sticky top-20">
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                            <div class="flex justify-between items-center pb-2 border-b border-slate-200 mb-4">
+                                <h2 class="text-xs font-black text-slate-700 uppercase tracking-widest">Inventory
+                                    Filters</h2>
+                                <button onclick="resetAllFilters()"
+                                    class="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded transition-colors flex items-center gap-1 cursor-pointer">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none"
+                                        viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    Reset All
+                                </button>
+                            </div>
+
+                            <div class="bg-slate-50 rounded-xl border border-slate-200 p-3 mb-6 shadow-inner">
+                                <div class="flex items-center justify-between border-b border-slate-200 pb-2 mb-2">
+                                    <span
+                                        class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5 text-teal-600">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+                                        </svg>
+                                        Current View
+                                    </span>
+                                    <span
+                                        class="bg-teal-100 text-teal-800 text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider"
+                                        id="asset-count-badge">0 Assets</span>
+                                </div>
+                                <div class="space-y-1.5 px-1">
+                                    <div class="flex justify-between items-end">
+                                        <span
+                                            class="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Total
+                                            Run Rate</span>
+                                        <span class="font-mono text-xs font-black text-slate-700"
+                                            id="filter-runrate-val">€ 0</span>
+                                    </div>
+                                    <div class="flex justify-between items-end">
+                                        <span
+                                            class="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">FY27
+                                            Outlook</span>
+                                        <span class="font-mono text-xs font-black text-teal-700"
+                                            id="filter-outlook-val">€ 0</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="space-y-4 mb-6">
+                                <div>
+                                    <label
+                                        class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Search
+                                        Asset</label>
+                                    <div class="relative">
+                                        <svg xmlns="http://www.w3.org/2000/svg"
+                                            class="h-4 w-4 absolute left-3 top-2.5 text-slate-400" fill="none"
+                                            viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                        </svg>
+                                        <input type="text" id="search-input" onkeyup="applyFiltersAndSort()"
+                                            placeholder="Name or Manufacturer..."
+                                            class="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-shadow">
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label
+                                        class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Sort
+                                        By</label>
+                                    <select id="sort-select" onchange="applyFiltersAndSort()"
+                                        class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 cursor-pointer">
+                                        <option value="runrate-desc">Run Rate (High to Low)</option>
+                                        <option value="assetname-asc">Asset Name (A-Z)</option>
+                                        <option value="expiry-asc">Next Expiry Date</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="border-t-2 border-slate-200 pt-4 bg-slate-50/50 -mx-4 px-4 pb-4">
+                                <div class="flex items-center gap-1.5 mb-4 px-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                        stroke-width="2.5" stroke="currentColor" class="w-4 h-4 text-slate-600">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+                                    </svg>
+                                    <h3 class="text-[10px] font-black text-slate-800 uppercase tracking-widest">Asset
+                                        Attributes</h3>
+                                </div>
+
+                                <div class="mb-4">
+                                    <div class="flex justify-between items-end mb-2">
+                                        <span class="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Min
+                                            Run Rate</span>
+                                        <span
+                                            class="text-xs font-mono font-black text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200"
+                                            id="budget-val">0</span>
+                                    </div>
+                                    <input type="range" id="budget-slider" min="0" max="100000" step="5000" value="0"
+                                        class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-teal-600"
+                                        oninput="applyFiltersAndSort()">
+                                    <div class="flex justify-between text-[9px] font-bold text-slate-400 mt-1 px-0.5">
+                                        <span>€0</span>
+                                        <span id="slider-max-label">MAX</span>
+                                    </div>
+                                </div>
+
+                                <details
+                                    class="group border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
+                                    <summary
+                                        class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2.5 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">
+                                        Current Status
+                                        <svg class="w-3 h-3 text-slate-400 transition group-open:rotate-180" fill="none"
+                                            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </summary>
+                                    <div class="p-3 border-t border-slate-100 max-h-48 overflow-y-auto flex flex-col gap-2 bg-slate-50/50 pr-2"
+                                        id="status-filter-container">
+                                    </div>
+                                </details>
+
+                                <details
+                                    class="group border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm mt-2">
+                                    <summary
+                                        class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2.5 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">
+                                        Budget Status
+                                        <svg class="w-3 h-3 text-slate-400 transition group-open:rotate-180" fill="none"
+                                            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </summary>
+                                    <div class="p-3 border-t border-slate-100 max-h-48 overflow-y-auto flex flex-col gap-2 bg-slate-50/50 pr-2"
+                                        id="budget-status-filter-container">
+                                    </div>
+                                </details>
+                            </div>
+
+                            <div class="border-t-2 border-slate-200 pt-4 bg-slate-100/40 -mx-4 px-4 pb-4 rounded-b-2xl">
+                                <div class="flex items-center gap-1.5 mb-3 px-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                        stroke-width="2.5" stroke="currentColor" class="w-4 h-4 text-teal-800">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                    </svg>
+                                    <h3 class="text-[10px] font-black text-slate-800 uppercase tracking-widest">Contract
+                                        Attributes</h3>
+                                </div>
+
+                                <div class="space-y-1.5">
+                                    <details
+                                        class="group border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
+                                        <summary
+                                            class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">
+                                            Billing Channel <svg
+                                                class="w-3 h-3 text-slate-400 transition group-open:rotate-180"
+                                                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round"
+                                                    d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </summary>
+                                        <div class="p-2.5 border-t border-slate-100 max-h-36 overflow-y-auto flex flex-col gap-1.5 bg-slate-50/30"
+                                            id="filter-container-channel"></div>
+                                    </details>
+                                    <details
+                                        class="group border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
+                                        <summary
+                                            class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">
+                                            Expenditure Type <svg
+                                                class="w-3 h-3 text-slate-400 transition group-open:rotate-180"
+                                                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round"
+                                                    d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </summary>
+                                        <div class="p-2.5 border-t border-slate-100 max-h-36 overflow-y-auto flex flex-col gap-1.5 bg-slate-50/30"
+                                            id="filter-container-exp"></div>
+                                    </details>
+                                    <details
+                                        class="group border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
+                                        <summary
+                                            class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">
+                                            Legal Entity <svg
+                                                class="w-3 h-3 text-slate-400 transition group-open:rotate-180"
+                                                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round"
+                                                    d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </summary>
+                                        <div class="p-2.5 border-t border-slate-100 max-h-36 overflow-y-auto flex flex-col gap-1.5 bg-slate-50/30"
+                                            id="filter-container-legal"></div>
+                                    </details>
+                                    <details
+                                        class="group border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
+                                        <summary
+                                            class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">
+                                            Supplier <svg
+                                                class="w-3 h-3 text-slate-400 transition group-open:rotate-180"
+                                                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round"
+                                                    d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </summary>
+                                        <div class="p-2.5 border-t border-slate-100 max-h-44 overflow-y-auto flex flex-col gap-1.5 bg-slate-50/30"
+                                            id="filter-container-supplier"></div>
+                                    </details>
+                                    <details
+                                        class="group border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
+                                        <summary
+                                            class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">
+                                            Cost Center <svg
+                                                class="w-3 h-3 text-slate-400 transition group-open:rotate-180"
+                                                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round"
+                                                    d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </summary>
+                                        <div class="p-2.5 border-t border-slate-100 max-h-36 overflow-y-auto flex flex-col gap-1.5 bg-slate-50/30"
+                                            id="filter-container-costcenter"></div>
+                                    </details>
+                                    <details
+                                        class="group border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
+                                        <summary
+                                            class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">
+                                            Location <svg
+                                                class="w-3 h-3 text-slate-400 transition group-open:rotate-180"
+                                                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round"
+                                                    d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </summary>
+                                        <div class="p-2.5 border-t border-slate-100 bg-slate-50/30 space-y-2">
+                                            <div id="location-country-quick-select"
+                                                class="flex flex-wrap gap-1 pb-2 border-b border-slate-100"></div>
+                                            <div class="max-h-36 overflow-y-auto flex flex-col gap-1.5"
+                                                id="filter-container-location"></div>
+                                        </div>
+                                    </details>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        class="lg:col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[800px]">
+                        <div class="divide-y divide-slate-100 table-container h-full" id="live-table-body"></div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div id="tab-operations" class="hidden">
+                <div class="mb-6 flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4">
+                    <div>
+                        <h2 class="text-xl font-black text-slate-800 uppercase tracking-widest">Operations Center</h2>
+                        <p class="text-slate-500 text-xs font-medium mt-1">Manage savings initiatives, track deadlines,
+                            and monitor negotiation power.</p>
+                    </div>
+
+                    <div class="flex items-center gap-3 w-full lg:w-auto relative">
+                        <div class="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                            <button type="button" id="ops-view-btn" onclick="toggleOpsViewMode()"
+                                class="relative flex items-center gap-1 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-md bg-white text-teal-950 shadow-sm transition-all duration-200">
+                                <span id="ops-view-label">Standard View</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                                    stroke="currentColor"
+                                    class="w-3 h-3 text-teal-600 transition-transform duration-200" id="ops-view-icon">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div
+                            class="flex items-center bg-slate-50 p-2 rounded-xl border border-slate-200 shadow-sm w-full lg:w-64">
+                            <div class="relative w-full">
+                                <svg xmlns="http://www.w3.org/2000/svg"
+                                    class="h-4 w-4 absolute left-2.5 top-1.5 text-slate-400" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                                <input type="text" id="ops-search" onkeyup="renderOperationsHub(windowPayload)"
+                                    placeholder="Search keyword..."
+                                    class="w-full pl-8 pr-3 py-1.5 text-[11px] font-bold bg-white border border-slate-300 rounded focus:ring-1 focus:ring-teal-500">
+                            </div>
+                        </div>
+
+                        <div class="relative z-[100]">
+                            <button onclick="toggleOpsDropdownMenu(event)" id="ops-dropdown-btn"
+                                class="px-4 py-2.5 bg-white border border-slate-300 hover:border-slate-400 text-slate-700 font-black text-[11px] uppercase tracking-wider rounded-xl shadow-sm flex items-center gap-2 cursor-pointer select-none">
+                                <span>Tags</span>
+                                <span id="ops-active-tags-count"
+                                    class="hidden bg-teal-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-[9px]">0</span>
+                                <svg class="w-3 h-3 text-slate-400 transition-transform" id="ops-dropdown-arrow"
+                                    fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+
+                            <div id="ops-dropdown-menu"
+                                class="hidden absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl p-3 flex flex-col gap-2">
+                                <div id="ops-dropdown-checkboxes-list"
+                                    class="flex flex-col gap-1.5 max-h-60 overflow-y-auto"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+
+                    <div class="bg-slate-50/80 rounded-2xl p-4 border border-slate-200">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3
+                                class="text-xs font-black text-sky-700 uppercase tracking-widest flex items-center gap-1.5 shrink-0">
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5"
+                                    stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.82 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.496 1.509 1.333 1.509 2.316V18" />
+                                </svg>
+                                Pipeline
+                            </h3>
+                            <div class="flex items-center gap-2">
+                                <div class="text-right leading-tight">
+                                    <span
+                                        class="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Target</span>
+                                    <span id="ops-sum-col1"
+                                        class="font-mono font-black text-sky-600 text-[11px] mt-0.5 block">€0k</span>
+                                </div>
+                                <span id="ops-count-overdue"
+                                    class="bg-sky-100 text-sky-800 text-[10px] font-black px-1.5 py-1 rounded border border-sky-200 shadow-sm shrink-0 min-w-[24px] text-center">0</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1.5 mb-4 pb-3 border-b border-sky-200">
+                            <select id="ops-filter-backlog" onchange="renderOperationsHub(windowPayload)"
+                                class="w-1/2 text-[9px] font-black uppercase tracking-wider text-slate-500 bg-white border border-slate-200 rounded px-1 py-1 cursor-pointer hover:border-sky-300">
+                                <option value="all">All Future</option>
+                                <option value="30">Next 30 Days</option>
+                                <option value="60">Next 60 Days</option>
+                                <option value="90" selected>Next 90 Days</option>
+                            </select>
+                            <select id="ops-filter-status" onchange="renderOperationsHub(windowPayload)"
+                                class="w-1/2 text-[9px] font-black uppercase tracking-wider text-slate-500 bg-white border border-slate-200 rounded px-1 py-1 cursor-pointer hover:border-sky-300">
+                                <option value="all">All Status</option>
+                                <option value="IDEA">Idea</option>
+                                <option value="INCOMING">Incoming</option>
+                                <option value="PLANNED">Planned</option>
+                            </select>
+                        </div>
+                        <div id="ops-col-overdue" class="block space-y-3"></div>
+                    </div>
+
+                    <div class="bg-slate-50/80 rounded-2xl p-4 border border-slate-200">
+                        <div class="flex items-center justify-between mb-3 border-b border-amber-200 pb-3">
+                            <h3
+                                class="text-xs font-black text-amber-700 uppercase tracking-widest flex items-center gap-1.5 shrink-0">
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5"
+                                    stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                </svg>
+                                In Progress
+                            </h3>
+                            <div class="flex items-center gap-2">
+                                <div class="text-right leading-tight">
+                                    <span
+                                        class="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Target</span>
+                                    <span id="ops-sum-col2"
+                                        class="font-mono font-black text-amber-600 text-[11px] mt-0.5 block">€0k</span>
+                                </div>
+                                <span id="ops-count-upcoming"
+                                    class="bg-amber-100 text-amber-800 text-[10px] font-black px-1.5 py-1 rounded border border-amber-200 shadow-sm shrink-0 min-w-[24px] text-center">0</span>
+                            </div>
+                        </div>
+                        <div id="ops-col-upcoming" class="block space-y-3 mt-4"></div>
+                    </div>
+
+                    <div class="bg-slate-50/80 rounded-2xl p-4 border border-slate-200">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3
+                                class="text-xs font-black text-emerald-700 uppercase tracking-widest flex items-center gap-1.5 shrink-0">
+                                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                                    <path fill-rule="evenodd"
+                                        d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 00-1.14-.094l3.75-5.25z"
+                                        clip-rule="evenodd" />
+                                </svg>
+                                Realized
+                            </h3>
+                            <div class="flex items-center gap-2">
+                                <div class="text-right leading-tight">
+                                    <span
+                                        class="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Actual</span>
+                                    <div class="flex items-center gap-1.5 justify-end mt-0.5">
+                                        <span id="ops-delta-col3" class="shrink-0"></span>
+                                        <span id="ops-sum-col3"
+                                            class="font-mono font-black text-emerald-600 text-[11px]">€0k</span>
+                                    </div>
+                                </div>
+                                <span id="ops-count-completed"
+                                    class="bg-emerald-100 text-emerald-800 text-[10px] font-black px-1.5 py-1 rounded border border-emerald-200 shadow-sm shrink-0 min-w-[24px] text-center">0</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1.5 mb-4 pb-3 border-b border-emerald-200">
+                            <select id="ops-filter-savings" onchange="renderOperationsHub(windowPayload)"
+                                class="w-full text-[9px] font-black uppercase tracking-wider text-slate-500 bg-white border border-slate-200 rounded px-1 py-1 cursor-pointer hover:border-emerald-300">
+                                <option value="all">All History</option>
+                                <option value="30">Past 30 Days</option>
+                                <option value="90" selected>Past 90 Days</option>
+                                <option value="180">Past 180 Days</option>
+                            </select>
+                        </div>
+                        <div id="ops-col-completed" class="block space-y-3"></div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <?!= include('js_core'); ?>
+    <?!= include('js_filters'); ?>
+    <?!= include('js_charts'); ?>
+    <?!= include('js_ui_render'); ?>
+    <?!= include('js_dashboard'); ?>
+    <?!= include('js_inventory'); ?>
+    <?!= include('js_ops_hub'); ?>
+</body>
+
+</html>

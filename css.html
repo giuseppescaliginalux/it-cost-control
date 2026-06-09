@@ -1,0 +1,65 @@
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+body { font-family: 'Inter', sans-serif; background-color: #F8F6F2; color: #1F2937; margin: 0; padding: 0; }
+.gradient-bg { background: linear-gradient(135deg, #0F766E 0%, #115E59 100%); }
+.table-container { max-height: 800px; overflow-y: auto; overflow-x: visible !important; }
+
+/* --- TOOLTIP ENGINE (Versione ultra-stabile) --- */
+.tt-wrapper {
+    position: relative !important;
+    display: inline-flex !important;
+    align-items: center;
+    cursor: help;
+}
+
+.tt-content {
+    /* Fondamentale: display none e position absolute */
+    display: none;
+    position: absolute !important;
+    z-index: 99999 !important;
+    bottom: 100%;
+    margin-bottom: 8px;
+    
+    /* Stile */
+    width: 260px;
+    background-color: #1e293b;
+    color: #f8fafc;
+    padding: 12px;
+    border-radius: 8px;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.4);
+    border: 1px solid #334155;
+    font-size: 11px;
+    line-height: 1.4;
+    font-weight: 400;
+    pointer-events: none;
+}
+
+/* Mostra al passaggio del mouse */
+.tt-wrapper:hover .tt-content {
+    display: block !important;
+}
+
+/* Tooltip per il lato sinistro (Asset Name) - Si ancora a sinistra */
+.tt-left { left: 0; text-align: left; }
+.tt-left::after {
+    content: ""; position: absolute; top: 100%; left: 10px;
+    border-width: 6px; border-style: solid; border-color: #1e293b transparent transparent transparent;
+}
+
+/* Tooltip per il lato destro (Share %) - Si ancora a destra */
+.tt-right { right: 0; text-align: left; }
+.tt-right::after {
+    content: ""; position: absolute; top: 100%; right: 10px;
+    border-width: 6px; border-style: solid; border-color: #1e293b transparent transparent transparent;
+}
+
+/* --- FIX TABELLE --- */
+.detail-table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.detail-table td { vertical-align: top; }
+
+/* Stili vari */
+.status-pill { display: inline-block; padding: 4px 10px; font-size: 10px; font-weight: 700; border-radius: 6px; border: 1px solid #e2e8f0; background-color: #f8fafc; color: #64748b; text-transform: uppercase; }
+.status-pill.active { background-color: #0d9488; border-color: #0d9488; color: #ffffff; }
+.rotate-90 { transform: rotate(90deg); color: #0d9488 !important; }
+</style>

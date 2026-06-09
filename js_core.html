@@ -1,0 +1,82 @@
+<script>
+/**
+ * MODULO 1: CORE & DATA FETCHING
+ */
+let globalCachedData = [];
+let windowPayload = { assets: [], contracts: [], initiatives: [], bridge: [], projections: [] };
+let selectedStatuses = [];
+
+// Formattazioni
+Number.prototype.formatCurrency = function () {
+    return this.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+Date.prototype.formatDashboardDate = function () {
+    if (isNaN(this.getTime())) return "-";
+    return this.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+String.prototype.formatDashboardDate = function () {
+    if (!this.trim() || this === "-") return "-";
+    const parsedDate = new Date(this);
+    if (isNaN(parsedDate.getTime())) return this;
+    return parsedDate.formatDashboardDate();
+};
+function safeFormatStringDate(rawDate) {
+    if (!rawDate || rawDate.toString().trim() === "") return "—";
+    try {
+        if (rawDate.toString().includes('/') && rawDate.toString().length <= 10) return rawDate.toString().trim();
+        const parsed = new Date(rawDate);
+        if (isNaN(parsed.getTime())) return rawDate.toString().split('T')[0];
+        return parsed.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    } catch (e) { return "—"; }
+}
+
+// Chiamata Server (Singola)
+function apiFetchFullPayload() {
+    return new Promise((resolve, reject) => {
+        google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)
+            .getFullPayload_Internal(); 
+    });
+}
+
+// Avvio Iniziale (Solo Orchestrazione)
+async function fetchLiveData() {
+    document.getElementById('loading-state').classList.remove('hidden');
+    document.getElementById('error-state').classList.add('hidden');
+    document.getElementById('dashboard-content').classList.add('hidden');
+    
+    try {
+        // 1. Scarica e salva tutto in memoria globale
+        const payload = await apiFetchFullPayload();
+        windowPayload = payload; 
+        globalCachedData = (payload.assets || []).filter(r => (r["Asset Name"] || "").toString().trim() !== "");
+        
+        // 2. Sveglia il responsabile dell'Inventory
+        if (typeof initInventoryTab === "function") {
+            initInventoryTab();
+        }
+        
+        // 3. Sveglia il responsabile della Dashboard
+        if (typeof updateExecutiveDashboard === "function") {
+            updateExecutiveDashboard(payload);
+        }
+
+        // 4. Sveglia il responsabile delle Operations
+        if (typeof renderOperationsHub === "function") {
+            renderOperationsHub(payload);
+        }
+
+        // Tutto pronto, accendiamo lo schermo!
+        document.getElementById('loading-state').classList.add('hidden');
+        document.getElementById('dashboard-content').classList.remove('hidden');
+        window.dispatchEvent(new Event('resize'));
+        
+    } catch (e) {
+        document.getElementById('error-message').textContent = e.toString();
+        document.getElementById('error-state').classList.remove('hidden');
+    }
+}
+
+window.onload = fetchLiveData;
+</script>

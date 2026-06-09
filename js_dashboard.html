@@ -1,0 +1,45 @@
+<script>
+    /**
+     * MODULO DASHBOARD: EXECUTIVE KPI
+     */
+    function updateExecutiveDashboard(payload) {
+        const assets = payload.assets || [];
+        const contracts = payload.contracts || [];
+        const initiatives = payload.initiatives || [];
+
+        let totalBudget = 0; let totalProjection = 0;
+        assets.forEach(a => { totalBudget += parseFloat(a["Effective Budget"]) || 0; totalProjection += parseFloat(a["Fiscal Projection"]) || 0; });
+
+        const activeContracts = contracts.filter(c => (c["Status"] || "").toString().trim().toUpperCase() === "ACTIVE");
+        document.getElementById('active-contracts-count').textContent = activeContracts.length;
+
+        let totalActualSaving = 0; let totalTargetSaving = 0;
+        initiatives.forEach(init => { totalActualSaving += parseFloat(init["Actual Saving (Annualized)"]) || 0; totalTargetSaving += parseFloat(init["Target Saving (Annualized)"]) || 0; });
+        const remainingToSecure = Math.max(0, totalTargetSaving - totalActualSaving);
+
+        document.getElementById('actual-savings-kpi').textContent = "€ " + (totalActualSaving / 1000000).toFixed(1) + "M";
+        document.getElementById('target-savings-kpi').textContent = "€ " + (remainingToSecure / 1000000).toFixed(1) + "M";
+
+        renderGenericDoughnut('supplierConcentrationChart', activeContracts, 'Supplier', 'supplier');
+        renderGenericDoughnut('costCenterChart', activeContracts, 'Cost Center', 'costCenter');
+        renderGenericDoughnut('legalEntityChart', activeContracts, 'Legal Entity', 'legalEntity');
+        renderGenericDoughnut('capexOpexChart', activeContracts, 'Expenditure Type', 'capexOpex');
+
+        const top10 = [...assets].sort((a, b) => (parseFloat(b["Run Rate"]) || 0) - (parseFloat(a["Run Rate"]) || 0)).slice(0, 10);
+        renderLiveChart(top10.map(r => r["Asset Name"]), top10.map(r => parseFloat(r["Effective Budget"]) || 0), top10.map(r => parseFloat(r["Fiscal Projection"]) || 0));
+        renderRenewalPipeline(activeContracts);
+
+        renderStaticKpis(globalCachedData);
+        renderOfflineTrendChart(payload.projections || []);
+        renderOfflineCumulativeSavings(payload.initiatives || []);
+    }
+
+    function renderStaticKpis(data) {
+        let b = 0, c = 0;
+        data.forEach(row => { b += parseFloat(row["Effective Budget"]) || 0; c += parseFloat(row["Fiscal Projection"]) || 0; });
+        const net = b - c;
+        if (document.getElementById('total-budget-kpi')) document.getElementById('total-budget-kpi').textContent = '€ ' + b.toLocaleString('en-US', { maximumFractionDigits: 0 });
+        if (document.getElementById('total-cost-kpi')) document.getElementById('total-cost-kpi').textContent = '€ ' + c.toLocaleString('en-US', { maximumFractionDigits: 0 });
+        if (document.getElementById('total-variance-kpi')) document.getElementById('total-variance-kpi').textContent = (net >= 0 ? '+' : '') + '€ ' + net.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    }
+</script>

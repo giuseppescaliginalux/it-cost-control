@@ -1,0 +1,887 @@
+<script>
+    /**
+     * MODULO 4: UI RENDERING E TABELLE
+     */
+
+    // Badge per lo Stato Corrente (es. RUNNING)
+    function getCurrentStatusBadge(status) {
+        const val = (status || "").toUpperCase().trim();
+        const styles = {
+            'RUNNING': 'text-emerald-700 bg-emerald-50 border-emerald-100',
+            'OPTIMIZING': 'text-amber-700 bg-amber-50 border-amber-100',
+            'EXITING': 'text-orange-700 bg-orange-50 border-orange-100',
+            'TRANSFERRED': 'text-sky-700 bg-sky-50 border-sky-100',
+            'EXPIRED': 'text-rose-700 bg-rose-50 border-rose-100',
+            'DISMISSED': 'text-slate-500 bg-slate-50 border-slate-200'
+        };
+        const style = styles[val] || 'text-slate-400 bg-slate-50 border-slate-100';
+        return `<span class="px-2 py-0.5 text-[9px] font-bold rounded-full border ${style}">${val}</span>`;
+    }
+
+    // Stile per la Strategia (es. RETAIN)
+    function getTargetStatusText(target) {
+        const val = (target || "").toUpperCase().trim();
+        const colors = { 'RETAIN': 'text-emerald-600', 'EXIT': 'text-rose-600', 'HANDOVER': 'text-sky-600' };
+        const color = colors[val] || 'text-slate-400';
+        return `<span class="text-[10px] font-black tracking-widest uppercase ${color}">${val}</span>`;
+    }
+
+    // Badge per il Budget Status (es. SECURED)
+    function getBudgetStatusBadge(budgetStatus) {
+        const val = (budgetStatus || "").toUpperCase().trim();
+        if (val === "SECURED") return `<span class="flex items-center gap-1.5 text-slate-600 font-medium"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> SECURED</span>`;
+        if (val === "AT RISK") return `<span class="flex items-center gap-1.5 text-slate-600 font-medium"><span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> AT RISK</span>`;
+        return `<span class="text-slate-300">—</span>`;
+    }
+
+    function switchTab(tabId) {
+        const tabs = ['tab-dashboard', 'tab-inventory', 'tab-operations'];
+        const activeClass = "bg-teal-700 text-white shadow-sm pointer-events-none font-black".split(" ");
+        const inactiveClass = "text-teal-300 hover:text-white hover:bg-teal-800/50 cursor-pointer font-bold".split(" ");
+
+        tabs.forEach(t => {
+            const tabEl = document.getElementById(t);
+            const btnEl = document.getElementById('btn-' + t);
+
+            if (t === tabId) {
+                tabEl.classList.replace('hidden', 'block');
+                btnEl.classList.remove(...inactiveClass);
+                btnEl.classList.add(...activeClass);
+                if (t === 'tab-dashboard') window.dispatchEvent(new Event('resize'));
+            } else {
+                tabEl.classList.replace('block', 'hidden');
+                btnEl.classList.remove(...activeClass);
+                btnEl.classList.add(...inactiveClass);
+            }
+        });
+    }
+
+    // Disegna Tabella (Layout Originale Completo)
+    function renderMainTable(filteredData) {
+        const tableBody = document.getElementById('live-table-body');
+        let tableHtml = '';
+
+        const today = new Date();
+        const alertThreshold = new Date();
+        alertThreshold.setDate(today.getDate() + 30);
+
+        filteredData.forEach((row) => {
+            const name = row["Asset Name"] || row.asset_name || "Unknown Asset";
+            const manufacturer = row["Manufacturer"] || "";
+            const status = (row["Current Status"] || "Active").toUpperCase().trim();
+            const target = row["Target Status"] || "-";
+            const budgetStatus = row["Budget Status (FY27)"] || row["Budget Status"] || "";
+
+            const exitDate = row["Exit Date"] || "";
+            const lastEndDate = row["Last End Date"] ? new Date(row["Last End Date"]) : null;
+
+            const runRate = parseFloat(row["Run Rate"]) || 0;
+            const costImprovement = parseFloat(row["Cost Improvement"]) || 0;
+            const fiscalProjection = parseFloat(row["Fiscal Projection (FY27)"] || row["Fiscal FY27"] || row["Fiscal Projection"] || 0);
+
+            const isActiveGroup = ["RUNNING", "EXPIRED", "OPTIMIZNG", "ACTIVE"].includes(status);
+            const isInactiveGroup = ["DISMISSED", "TRANSFERRED", "EXTNG", "EXITING"].includes(status);
+
+            const safeDOMId = btoa(encodeURIComponent(name)).replace(/=/g, "");
+            const targetHtmlContent = getTargetStatusText(target);
+            const showBudgetBadge = budgetStatus && budgetStatus.toUpperCase().trim() !== "NOT BUDGETED" && budgetStatus.trim() !== "-";
+
+            let alertClass = "";
+            let alertLabel = "";
+
+            if (lastEndDate) {
+                if (lastEndDate <= today && ["RUNNING", "OPTIMIZNG", "ACTIVE"].includes(status)) {
+                    alertClass = "border-l-4 border-l-rose-500 bg-rose-50/20";
+                    alertLabel = `<span class="ml-2 text-[8px] font-black uppercase tracking-widest text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded">Overdue</span>`;
+                } else if (lastEndDate <= alertThreshold && lastEndDate > today) {
+                    alertClass = "border-l-4 border-l-amber-500 bg-amber-50/20";
+                    alertLabel = `<span class="ml-2 text-[8px] font-black uppercase tracking-widest text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded animate-pulse">Expiring</span>`;
+                }
+            }
+
+            tableHtml += `
+<div class="group hover:bg-slate-50/50 transition-all border-b border-slate-100 w-full text-xs ${alertClass}">
+    <div onclick="toggleAssetDetails('${name.replace(/'/g, "\\'")}', '${safeDOMId}')" 
+         class="px-5 py-3 flex justify-between items-center cursor-pointer w-full gap-4">
+
+        <div class="w-[40%] min-w-0 flex flex-col justify-center text-left">
+            <div class="flex items-center w-full min-w-0">
+                <div class="mr-2 flex-shrink-0 flex items-center justify-center" style="width: 14px !important; height: 14px !important; min-width: 14px !important;">
+                    <svg id="arrow-${safeDOMId}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" class="w-3.5 h-3.5 text-slate-300 transition-transform duration-200"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+                </div>
+                
+                <div class="font-bold text-slate-900 text-sm truncate shrink">${name}</div>
+
+                <div class="flex items-center gap-1 shrink-0 ml-2">
+                    ${alertLabel}
+                    <span class="tt-wrapper text-slate-300 hover:text-slate-500" onclick="event.stopPropagation()">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
+                        <div class="tt-content tt-left">
+                            <p class="font-bold text-teal-400 uppercase text-[9px] mb-1">Description</p>
+                            ${row["Description"] || "No description available."}
+                        </div>
+                    </span>
+                </div>
+            </div>
+            
+            <div class="mt-1" style="padding-left: 25px;">
+                <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest truncate leading-tight" style="padding-left: 10px;">${manufacturer}</p>
+                <div class="mt-1.5 flex items-center gap-3">
+                    ${getCurrentStatusBadge(status)}
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                        ${isActiveGroup && lastEndDate ? `<span>End: <span class="text-slate-600">${lastEndDate.formatDashboardDate()}</span></span>` : ''}
+                        ${isInactiveGroup && exitDate ? `<span>Exit: <span class="text-slate-600">${exitDate.formatDashboardDate()}</span></span>` : ''}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="w-[30%] flex items-center justify-center gap-6 px-2 flex-shrink-0 border-l border-r border-slate-100/70">
+            <div class="flex flex-col items-center text-center">
+                <span class="block text-[8px] text-slate-400 uppercase font-black tracking-widest mb-1.5">Strategy</span>
+                <div class="inline-block">${targetHtmlContent}</div>
+            </div>
+            <div class="flex flex-col items-center text-center border-l border-slate-100 pl-6">
+                <span class="block text-[8px] text-slate-400 uppercase font-black tracking-widest mb-1.5">Budget FY27</span>
+                <div class="text-[10px] font-bold uppercase">${showBudgetBadge ? getBudgetStatusBadge(budgetStatus) : '<span class="text-slate-300 font-mono select-none">—</span>'}</div>
+            </div>
+        </div>
+
+        <div class="w-[30%] text-right flex flex-col justify-center items-end gap-1.5">
+            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                Outlook FY27: <span class="font-mono text-slate-900">€ ${fiscalProjection.formatCurrency()}</span>
+            </div>
+            <div class="flex flex-col items-end mt-auto">
+                ${isInactiveGroup ? `
+                    <span class="font-mono text-base text-emerald-600 font-black">€ ${costImprovement.formatCurrency()}</span>
+                    <span class="block text-[8px] text-emerald-500 uppercase font-black tracking-widest mt-0.5">Cost Improvement</span>
+                ` : `
+                    <span class="font-mono text-base text-slate-900 font-black">€ ${runRate.formatCurrency()}</span>
+                    <span class="block text-[8px] text-slate-400 uppercase font-black tracking-widest mt-0.5">Annual Run Rate</span>
+                `}
+            </div>
+        </div>
+    </div>
+    
+    <div id="details-${safeDOMId}" class="hidden px-8 pb-6 pt-2 bg-slate-50 border-t border-slate-100 shadow-inner">
+         <div class="flex gap-4 border-b border-slate-200 mb-4">
+            <button id="tab-btn-contracts-${safeDOMId}" onclick="switchDetailTab('${safeDOMId}', 'contracts')" class="pb-2 font-bold text-[10px] uppercase border-b-2 border-teal-700 text-teal-700 transition-all">1. Contracts</button>
+            <button id="tab-btn-alloc-${safeDOMId}" onclick="switchDetailTab('${safeDOMId}', 'alloc')" class="pb-2 font-bold text-[10px] uppercase border-b-2 border-transparent text-slate-400 hover:text-slate-700 transition-all">2. Budget</button>
+            <button id="tab-btn-initiatives-${safeDOMId}" onclick="switchDetailTab('${safeDOMId}', 'initiatives')" class="pb-2 font-bold text-[10px] uppercase border-b-2 border-transparent text-slate-400 hover:text-slate-700 transition-all">3. Initiatives</button>
+         </div>
+         <div id="tab-content-${safeDOMId}" class="animate-fade-in"></div>
+    </div>
+</div>`;
+        });
+        tableBody.innerHTML = tableHtml;
+    }
+
+    // Apertura Dettaglio (OFFLINE)
+    function toggleAssetDetails(name, safeDOMId) {
+        const container = document.getElementById(`details-${safeDOMId}`);
+        const arrow = document.getElementById(`arrow-${safeDOMId}`);
+
+        if (!container.classList.contains('hidden')) {
+            container.classList.add('hidden');
+            arrow.style.transform = "rotate(0deg)";
+            arrow.classList.remove('text-teal-600');
+            return;
+        }
+
+        container.classList.remove('hidden');
+        arrow.style.transform = "rotate(90deg)";
+        arrow.classList.add('text-teal-600');
+
+        const targetName = (name || "").toString().trim().toLowerCase();
+
+        const bridge = windowPayload.bridge || [];
+        const aliasMap = new Map();
+        bridge.forEach(r => {
+            if (!r["Allocation Alias"]) return;
+            if (!aliasMap.has(r["Allocation Alias"])) aliasMap.set(r["Allocation Alias"], []);
+            aliasMap.get(r["Allocation Alias"]).push({ asset_name: r["Asset Name"], split_pct: r["Allocation Split %"] || 0 });
+        });
+
+        const offlineAllocations = bridge.filter(r => (r["Asset Name"] || "").toString().trim().toLowerCase() === targetName)
+            .map(r => ({ ...r, co_allocated_assets: (aliasMap.get(r["Allocation Alias"]) || []).filter(a => (a.asset_name || "").toString().trim().toLowerCase() !== targetName) }));
+
+        window.currentDrillDown = {
+            contracts: (windowPayload.contracts || []).filter(c => (c["Asset Name"] || "").toString().trim().toLowerCase() === targetName),
+            initiatives: (windowPayload.initiatives || []).filter(i => (i["Asset Name"] || "").toString().trim().toLowerCase() === targetName),
+            allocations: offlineAllocations
+        };
+
+        switchDetailTab(safeDOMId, 'contracts');
+    }
+
+    function switchDetailTab(safeDOMId, tabType) {
+        const contentDiv = document.getElementById(`tab-content-${safeDOMId}`);
+        const assetPayload = window.currentDrillDown;
+        contentDiv.innerHTML = '';
+
+        ['contracts', 'alloc', 'initiatives'].forEach(t => {
+            const btn = document.getElementById(`tab-btn-${t}-${safeDOMId}`);
+            if (btn) {
+                btn.className = (t === tabType)
+                    ? "pb-2 font-bold text-[10px] uppercase border-b-2 border-teal-700 text-teal-700 transition-all"
+                    : "pb-2 font-bold text-[10px] uppercase border-b-2 border-transparent text-slate-400 hover:text-slate-600 transition-all";
+            }
+        });
+
+        if (tabType === 'contracts') {
+            const dataList = assetPayload.contracts || [];
+            dataList.sort((a, b) => {
+                const dA = a["End Date"] ? new Date(a["End Date"]).getTime() : new Date(2099, 11, 31).getTime();
+                const dB = b["End Date"] ? new Date(b["End Date"]).getTime() : new Date(2099, 11, 31).getTime();
+                return dB - dA;
+            });
+
+            if (dataList.length === 0) { contentDiv.innerHTML = '<p class="text-slate-400 italic py-4 text-center text-xs">No active contracts found.</p>'; return; }
+
+            let html = `<div class="overflow-hidden border border-slate-200 rounded-xl bg-white shadow-sm">
+            <table class="w-full text-left text-[11px]">
+            <thead>
+                <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-black uppercase tracking-widest">
+                    <th class="p-3">Supplier</th>
+                    <th class="p-3 text-center">Commitment</th>
+                    <th class="p-3 text-right bg-teal-50/40 text-teal-900">Annual Value</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">`;
+
+            dataList.forEach(log => {
+                const cStatus = (log["Status"] || log["Contract Status"] || "").toUpperCase().trim();
+                let rowStyles = "hover:bg-slate-50/20";
+                let statusBadge = "";
+
+                if (cStatus === "EXPIRED") {
+                    rowStyles = "opacity-50 grayscale";
+                    statusBadge = `<span class="ml-2 text-[7px] font-black uppercase border border-slate-300 text-slate-400 px-1 rounded">Expired</span>`;
+                } else if (cStatus === "ACTIVE") {
+                    statusBadge = `<span class="ml-2 text-[7px] font-black uppercase bg-emerald-50 text-emerald-600 border border-emerald-100 px-1 rounded">Active</span>`;
+                } else if (cStatus === "INCOMING" || cStatus === "UPCOMING") {
+                    statusBadge = `<span class="ml-2 text-[7px] font-black uppercase bg-sky-50 text-sky-600 border border-sky-100 px-1 rounded">Incoming</span>`;
+                }
+                html += `
+                <tr class="text-slate-600 font-medium ${rowStyles} transition-all">
+                    <td class="p-3 align-top">
+                        <div class="flex items-center">
+                          <div class="text-sm font-black text-slate-900 leading-none">${log["Supplier"]}</div>
+                          ${statusBadge}
+                        </div>
+                        <div class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">${log["Legal Entity"] || 'N/A'}</div>
+                    </td>
+                    <td class="p-3 text-center align-top">
+                        <div class="font-mono text-slate-700 font-bold mb-1">€ ${parseFloat(log["Total Commitment"] || 0).formatCurrency()}</div>
+                        <div class="flex items-center justify-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-tighter">
+                            <span>${safeFormatStringDate(log["Start Date"])} → ${log["End Date"] ? safeFormatStringDate(log["End Date"]) : 'Active'}</span>
+                        </div>
+                    </td>
+                    <td class="p-3 text-right bg-teal-50/10 align-top font-black font-mono text-teal-800 text-sm">
+                        € ${parseFloat(log["Annual Value"] || 0).formatCurrency()}
+                    </td>
+                </tr>`;
+            });
+            contentDiv.innerHTML = html + '</tbody></table></div>';
+        }
+
+        else if (tabType === 'alloc') {
+            const dataList = assetPayload.allocations || [];
+            if (dataList.length === 0) { contentDiv.innerHTML = '<p class="text-slate-400 italic py-4 text-center text-xs">No allocations.</p>'; return; }
+
+            let html = `<div class="overflow-hidden border border-slate-200 rounded-xl bg-white shadow-sm">
+            <table class="w-full text-left text-[11px] border-collapse">
+            <thead>
+                <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-black uppercase tracking-widest">
+                    <th class="p-3 w-1/2">Budget Entry</th>
+                    <th class="p-3 text-right w-1/4">Original Amount</th>
+                    <th class="p-3 text-right w-1/4">Allocated Share</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">`;
+
+            let sumOriginal = 0; let sumEffective = 0;
+
+            dataList.forEach(log => {
+                const origBudget = parseFloat(log["Original Budget"]) || 0;
+                const effBudget = parseFloat(log["Effective Budget"]) || 0;
+                const coAssets = log.co_allocated_assets || [];
+                sumOriginal += origBudget; sumEffective += effBudget;
+
+                let split = (parseFloat(log["Allocation Split %"]) || 0);
+                if (split > 0 && split <= 1) split *= 100;
+
+                html += `
+                <tr class="text-slate-600 font-medium hover:bg-slate-50/30">
+                    <td class="p-3 align-top">
+                        <div class="font-bold text-slate-900 leading-tight">${log["Allocation Alias"] || "N/A"}</div>
+                        <div class="text-[9px] text-slate-400 mt-1 uppercase font-bold">${safeFormatStringDate(log["Valid From"])} → ${safeFormatStringDate(log["Valid To"])}</div>
+                    </td>
+                    <td class="p-3 text-right align-top font-mono text-slate-400 italic">€ ${origBudget.formatCurrency()}</td>
+                    <td class="p-3 text-right align-top">
+                        <div class="text-teal-900 font-black font-mono text-sm">€ ${effBudget.formatCurrency()}</div>
+                        <div class="mt-1"><span class="px-2 py-0.5 rounded border text-[9px] font-black uppercase ${split >= 99.9 ? 'text-emerald-600 bg-emerald-50 border-emerald-100' : 'text-teal-600 bg-teal-50 border-teal-100'}">${split.toFixed(1)}%</span></div>
+                    </td>
+                </tr>`;
+
+                if (split < 99.9 && coAssets.length > 0) {
+                    const sharedList = coAssets.map(co => `<span class="text-slate-700 font-bold">${co.asset_name}</span> <span class="text-teal-600 font-mono">(${(parseFloat(co.split_pct) * 100).toFixed(0)}%)</span>`).join('<span class="mx-3 text-slate-300">|</span>');
+                    html += `<tr class="bg-slate-50/50"><td colspan="3" class="px-4 py-2 border-b border-slate-100 text-left"><div class="text-[10px] leading-relaxed"><span class="font-black text-slate-400 uppercase tracking-widest mr-2">↳ Co-allocated with:</span>${sharedList}</div></td></tr>`;
+                }
+            });
+
+            const totalRatio = sumOriginal > 0 ? (sumEffective / sumOriginal) * 100 : 0;
+            html += `</tbody><tfoot>
+                <tr class="bg-slate-100/50 font-bold border-t-2 border-slate-200">
+                    <td class="p-3 text-slate-500 uppercase tracking-widest font-black text-[9px]">Total Portfolio Allocation</td>
+                    <td class="p-3 text-right font-mono text-slate-400 italic"></td>
+                    <td class="p-3 text-right bg-teal-100/10">
+                        <div class="text-teal-900 font-black text-sm font-mono">€ ${sumEffective.formatCurrency()}</div>
+                        <div class="text-[9px] text-teal-600 uppercase tracking-tighter mt-0.5">${totalRatio.toFixed(1)}% of total budget</div>
+                    </td>
+                </tr>
+            </tfoot></table></div>`;
+            contentDiv.innerHTML = html;
+        }
+
+        else if (tabType === 'initiatives') {
+            const dataList = assetPayload.initiatives || [];
+            dataList.sort((a, b) => {
+                const dA = a["Target Date"] ? new Date(a["Target Date"]).getTime() : new Date(2099, 11, 31).getTime();
+                const dB = b["Target Date"] ? new Date(b["Target Date"]).getTime() : new Date(2099, 11, 31).getTime();
+                return dA - dB;
+            });
+
+            if (dataList.length === 0) { contentDiv.innerHTML = '<p class="text-slate-400 italic py-4 text-center text-xs">No initiatives linked to this asset.</p>'; return; }
+
+            let html = '<div class="flex flex-col gap-2">';
+            dataList.forEach(log => {
+                const isActual = (parseFloat(log["Actual Saving (Annualized)"]) || 0) > 0;
+                const savingVal = isActual ? parseFloat(log["Actual Saving (Annualized)"]) : parseFloat(log["Target Saving (Annualized)"]);
+                const baselineVal = parseFloat(log["Baseline Spend (Annualized)"]) || 0;
+                const savingPct = baselineVal > 0 ? Math.round((savingVal / baselineVal) * 100) : 0;
+                const borderClass = isActual ? "border-emerald-500 shadow-emerald-50" : "border-amber-500 shadow-amber-50";
+
+                html += `
+                <div class="bg-white p-3 rounded-xl border-l-4 ${borderClass} border-slate-100 shadow-sm flex justify-between items-center gap-4 hover:shadow-md transition-shadow">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="font-black text-slate-900 text-xs uppercase truncate">${log["Decision"]}</span>
+                            <span class="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-widest">${log["Initiative Status"]}</span>
+                        </div>
+                        <p class="text-[10px] text-slate-500 italic truncate opacity-80">"${log["Description"] || "No description."}"</p>
+                    </div>
+                    <div class="flex gap-3 items-center shrink-0">
+                        <div class="text-center px-3 border-r border-slate-100">
+                            <p class="text-[8px] text-slate-400 font-black uppercase mb-0.5 tracking-tighter">Target Date</p>
+                            <p class="font-mono font-bold text-slate-800 text-[10px]">${safeFormatStringDate(log["Target Date"] || log["Actual Date"])}</p>
+                        </div>
+                        <div class="text-right px-3 border-r border-slate-100 hidden sm:block">
+                            <p class="text-[8px] text-slate-400 font-black uppercase mb-0.5 tracking-tighter">Baseline Spend</p>
+                            <p class="font-mono font-bold text-slate-600 text-[10px]">€${baselineVal.formatCurrency()}</p>
+                        </div>
+                        <div class="text-right min-w-[85px]">
+                            <p class="text-[8px] text-emerald-500 font-black uppercase mb-0.5 tracking-tighter">${isActual ? 'Actual Saving' : 'Target Saving'}</p>
+                            <div class="flex flex-col items-end gap-0.5">
+                                <p class="font-mono font-black text-emerald-700 text-xs">€${savingVal.formatCurrency()}</p>
+                                ${savingPct > 0 ? `<span class="bg-emerald-100 text-emerald-700 text-[8px] font-bold px-1 py-0.5 rounded leading-none">-${savingPct}%</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            });
+            contentDiv.innerHTML = html + '</div>';
+        }
+    }
+
+    function updateExecutiveDashboard(payload) {
+        const assets = payload.assets || [];
+        const contracts = payload.contracts || [];
+        const initiatives = payload.initiatives || [];
+
+        let totalBudget = 0; let totalProjection = 0;
+        assets.forEach(a => { totalBudget += parseFloat(a["Effective Budget"]) || 0; totalProjection += parseFloat(a["Fiscal Projection"]) || 0; });
+
+        const activeContracts = contracts.filter(c => (c["Status"] || "").toString().trim().toUpperCase() === "ACTIVE");
+        document.getElementById('active-contracts-count').textContent = activeContracts.length;
+
+        let totalActualSaving = 0; let totalTargetSaving = 0;
+        initiatives.forEach(init => { totalActualSaving += parseFloat(init["Actual Saving (Annualized)"]) || 0; totalTargetSaving += parseFloat(init["Target Saving (Annualized)"]) || 0; });
+        const remainingToSecure = Math.max(0, totalTargetSaving - totalActualSaving);
+
+        document.getElementById('actual-savings-kpi').textContent = "€ " + (totalActualSaving / 1000000).toFixed(1) + "M";
+        document.getElementById('target-savings-kpi').textContent = "€ " + (remainingToSecure / 1000000).toFixed(1) + "M";
+
+        // RIUTILIZZO GENERIC DOUGHNUT: Istanzia visivamente tutte le ciambelle bucate al 70%
+        renderGenericDoughnut('supplierConcentrationChart', activeContracts, 'Supplier', 'supplier');
+        renderGenericDoughnut('costCenterChart', activeContracts, 'Cost Center', 'costCenter');
+        renderGenericDoughnut('legalEntityChart', activeContracts, 'Legal Entity', 'legalEntity');
+
+        // NUOVO: Genera il grafico a ciambella Expenditure Type (CAPEX / OPEX / Not Specified)
+        renderGenericDoughnut('capexOpexChart', activeContracts, 'Expenditure Type', 'capexOpex');
+
+        const top10 = [...assets].sort((a, b) => (parseFloat(b["Run Rate"]) || 0) - (parseFloat(a["Run Rate"]) || 0)).slice(0, 10);
+        renderLiveChart(top10.map(r => r["Asset Name"]), top10.map(r => parseFloat(r["Effective Budget"]) || 0), top10.map(r => parseFloat(r["Fiscal Projection"]) || 0));
+        renderRenewalPipeline(activeContracts);
+
+        renderStaticKpis(globalCachedData);
+        renderOfflineTrendChart(payload.projections || []);
+        renderOfflineCumulativeSavings(payload.initiatives || []);
+    }
+
+    function renderStaticKpis(data) {
+        let b = 0, c = 0;
+        data.forEach(row => { b += parseFloat(row["Effective Budget"]) || 0; c += parseFloat(row["Fiscal Projection"]) || 0; });
+        const net = b - c;
+        if (document.getElementById('total-budget-kpi')) document.getElementById('total-budget-kpi').textContent = '€ ' + b.toLocaleString('en-US', { maximumFractionDigits: 0 });
+        if (document.getElementById('total-cost-kpi')) document.getElementById('total-cost-kpi').textContent = '€ ' + c.toLocaleString('en-US', { maximumFractionDigits: 0 });
+        if (document.getElementById('total-variance-kpi')) document.getElementById('total-variance-kpi').textContent = (net >= 0 ? '+' : '') + '€ ' + net.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    }
+
+    function formatOpsCurrency(num) {
+        const parsed = parseFloat(num);
+        if (isNaN(parsed) || parsed === 0) return '€0k';
+        const valueInK = Math.round(parsed / 1000);
+        return '€' + valueInK.formatCurrency() + 'k';
+    }
+
+    function formatNameInitials(fullName) {
+        if (!fullName || fullName.trim() === "" || fullName === "TBD" || fullName === "N/A") return "TBD";
+        const parts = fullName.trim().split(" ");
+        if (parts.length === 1) return parts[0];
+        return parts[0].charAt(0).toUpperCase() + ". " + parts.slice(1).join(" ");
+    }
+
+    function buildOpsCard(data, colName, assets, contracts) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const isCompleted = data.status === 'COMPLETED';
+        let rawDateStr = typeof safeFormatStringDate === 'function' ? safeFormatStringDate(data.targetDateStr) : data.targetDateStr;
+
+        let finalDateStr = "NO DATE";
+        if (rawDateStr && rawDateStr.toString().trim() !== "" && rawDateStr.toString().toLowerCase() !== "invalid date") {
+            finalDateStr = rawDateStr.toString().trim();
+        }
+
+        const targetSaving = parseFloat(data["Target Saving (Annualized)"]) || 0;
+        const actualSaving = parseFloat(data["Actual Saving (Annualized)"]) || 0;
+
+        let borderColor = colName === 'col1' ? 'border-sky-400' : (colName === 'col2' ? 'border-amber-400' : 'border-emerald-400');
+
+        const assetName = (data["Asset Name"] || "").toString().trim();
+        const relatedAsset = assets.find(a => (a["Asset Name"] || "").toString().trim().toLowerCase() === assetName.toLowerCase()) || {};
+        const relatedContract = contracts.find(c => (c["Asset Name"] || "").toString().trim().toLowerCase() === assetName.toLowerCase()) || {};
+
+        const manufacturer = (relatedAsset["Manufacturer"] || "Unknown Manufacturer").toString().trim();
+
+        const budgetY = parseFloat(relatedAsset["Effective Budget"] || 0);
+        const baselineCostX = parseFloat(relatedContract["Annual Value"] || 0);
+        const baselineGap = budgetY - baselineCostX;
+
+        const appliedSaving = isCompleted ? actualSaving : targetSaving;
+        const optimizedCostZ = Math.max(0, baselineCostX - appliedSaving);
+        const finalGap = budgetY - optimizedCostZ;
+
+        const sOwner = formatNameInitials(data["Service Owner"] || relatedAsset["Service Owner"]);
+        const pPoint = formatNameInitials(data["Procurement Point"] || data["Procurement Point Focal"]);
+
+        const isOverdue = !isCompleted && data.targetDateStr && data.targetDate < today;
+        let overdueAlertBadge = isOverdue ? `<span class="text-[9px] font-black uppercase tracking-widest text-rose-700 bg-rose-100 border border-rose-300 px-1.5 py-0.5 rounded animate-pulse shadow-sm">⚠️ OVERDUE</span>` : '';
+
+        const strategy = (data["Strategy"] || "").toString().trim().toUpperCase();
+        const decision = (data["Decision"] || "").toString().trim().toUpperCase();
+
+        let strategyBadge = "";
+        if (strategy && decision && strategy !== decision) {
+            strategyBadge = `<span class="text-[9px] font-black uppercase tracking-widest text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 flex items-center gap-1 shadow-sm">❌ SHIFT: ${strategy} &rarr; ${decision}</span>`;
+        } else {
+            const finalStrategy = decision || strategy || "N/A";
+            strategyBadge = `<span class="text-[9px] font-black uppercase tracking-widest text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 shadow-sm">${finalStrategy}</span>`;
+        }
+
+        // 1. CALCOLO BASELINE
+        const addressableSpend = parseFloat(data["Baseline Spend (Annualized)"] || data["Baseline Spend"] || 0);
+
+        let savingPercentText = "0%";
+        if (addressableSpend > 0 && appliedSaving > 0) {
+            const pct = Math.round((appliedSaving / addressableSpend) * 100);
+            savingPercentText = `-${pct}%`;
+        }
+
+        const fmtAddressable = addressableSpend > 0 ? formatOpsCurrency(addressableSpend) : '—';
+        const fmtSaving = appliedSaving > 0 ? formatOpsCurrency(appliedSaving) : '—';
+        const pctBadgeClass = appliedSaving > 0 ? (isCompleted ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-teal-50 text-teal-700 border-teal-200") : "bg-slate-50 text-slate-500 border-slate-200";
+
+        // 2. SEZIONE FINANZIARIA AD UNA COLONNA PER I SAVING
+        let horizontalSavingsDisplay = `
+        <div class="flex items-center gap-3 text-right shrink-0">
+            <div class="flex flex-col">
+                <span class="text-[8px] font-bold text-slate-400 uppercase tracking-tight">Baseline</span>
+                <span class="font-mono font-black text-slate-700 text-[11px]">${fmtAddressable}</span>
+            </div>
+            <div class="flex flex-col border-l border-slate-100 pl-3">
+                <span class="text-[8px] font-bold text-slate-400 uppercase tracking-tight">${isCompleted ? 'Actual Saving' : 'Target Saving'}</span>
+                <div class="flex items-center gap-1.5 mt-0.5">
+                    <span class="font-mono font-black ${isCompleted ? 'text-emerald-600' : 'text-teal-600'} text-[11px]">${fmtSaving}</span>
+                    <span class="text-[9px] font-black border rounded px-1 py-0.5 leading-none text-center ${pctBadgeClass}">${savingPercentText}</span>
+                </div>
+            </div>
+        </div>`;
+
+        const footerDateColor = isOverdue ? "#e11d48" : "#64748b";
+
+        return `
+    <div id="ops-card-parent-${data._id}" class="block bg-white rounded-xl border border-slate-200 border-l-4 ${borderColor} shadow-sm cursor-pointer group hover:shadow-md transition-all overflow-hidden" 
+         onclick="handleOpsCardClick(event, '${data._id}')">
+        
+        <div class="p-3">
+            
+            <div class="flex justify-between items-start gap-4 mb-2">
+                <div class="flex-1 min-w-0">
+                    <h4 class="font-black text-slate-900 text-[13px] leading-tight mb-0.5 truncate">${assetName || "Unknown Asset"}</h4>
+                    <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">${manufacturer}</div>
+                </div>
+                <div class="shrink-0">${horizontalSavingsDisplay}</div>
+            </div>
+            
+            <div class="flex justify-between items-center text-[11px] mb-0.5">
+                <span class="font-black tracking-wide text-[9px] uppercase px-1.5 py-0.5 rounded bg-slate-50 text-slate-600 border border-slate-200">${strategy}</span>
+                <div class="flex items-center gap-1">${overdueAlertBadge}</div>
+            </div>
+
+            <div class="ops-card-extended-section flex flex-col gap-2 mt-2 pt-2 border-t border-slate-100/60">
+                
+                <div class="text-[11px] font-medium text-slate-500 truncate">
+                    🏢 Supplier: <span class="text-slate-800 font-bold">${data["Supplier"] || relatedContract["Supplier"] || "Generic Supplier"}</span>
+                </div>
+
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    ${strategyBadge}
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-1.5 text-[9px] font-bold text-slate-500 uppercase tracking-wider truncate" title="Service Owner: ${sOwner}">
+                        <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                        <span class="truncate max-w-[100px]">${sOwner}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 text-[9px] font-bold text-slate-500 uppercase tracking-wider truncate" title="Procurement Focal: ${pPoint}">
+                        <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                        <span class="truncate max-w-[100px]">${pPoint}</span>
+                    </div>
+                </div>
+
+                <p class="text-[10px] text-slate-500 italic leading-relaxed line-clamp-2">
+                    ${data["Description"] || "No description provided."}
+                </p>
+
+                <div class="flex justify-between items-center w-full pt-1.5 border-t border-slate-50">
+                    <div class="flex items-center gap-1.5" style="color: ${footerDateColor}; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.05em;">
+                        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span>Target: ${finalDateStr}</span>
+                    </div>
+                    <span class="text-[9px] font-black uppercase tracking-widest text-slate-400">${data.status || "DRAFT"}</span>
+                </div>
+            </div>
+            </div>
+        
+        <div id="ops-detail-${data._id}" class="hidden bg-slate-50 border-t border-slate-200 p-3">
+            <div class="mb-3 pb-3 border-b border-slate-200/60">
+                <div class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13h14M3 13v6a2 2 0 002 2h14a2 2 0 002-2v-6" /></svg>
+                    Baseline Scenario (As-Is)
+                </div>
+                <div class="flex justify-between items-center bg-white p-2 rounded-lg border border-slate-100 shadow-sm text-[10px]">
+                    <div class="flex flex-col">
+                        <span class="text-[8px] font-bold text-slate-400 uppercase">Budget</span>
+                        <span class="font-mono font-bold text-slate-700">${formatOpsCurrency(budgetY)}</span>
+                    </div>
+                    <div class="text-slate-300 font-black">-</div>
+                    <div class="flex flex-col">
+                        <span class="text-[8px] font-bold text-slate-400 uppercase">Baseline</span>
+                        <span class="font-mono font-bold text-slate-700">${formatOpsCurrency(baselineCostX)}</span>
+                    </div>
+                    <div class="text-slate-300 font-black">=</div>
+                    <div class="flex flex-col items-end">
+                        <span class="text-[8px] font-black ${baselineGap >= 0 ? 'text-emerald-500' : 'text-rose-500'} uppercase">
+                            ${baselineGap >= 0 ? 'Headroom' : 'Deficit'}
+                        </span>
+                        <span class="font-mono font-black ${baselineGap >= 0 ? 'text-emerald-600' : 'text-rose-600'}">
+                            ${baselineGap >= 0 ? '+' : '-'}${formatOpsCurrency(Math.abs(baselineGap))}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div class="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-2 flex items-center justify-between">
+                    <div class="flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                        Strategy Simulation (To-Be)
+                    </div>
+                    <span class="text-[8px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
+                        Saving: ${formatOpsCurrency(appliedSaving)}
+                    </span>
+                </div>
+                <div class="flex justify-between items-center bg-indigo-50/50 p-2 rounded-lg border border-indigo-100 shadow-sm text-[10px]">
+                    <div class="flex flex-col">
+                        <span class="text-[8px] font-bold text-indigo-500 uppercase">Optimized Cost</span>
+                        <span class="font-mono font-black text-indigo-700">${formatOpsCurrency(optimizedCostZ)}</span>
+                    </div>
+                    <div class="flex flex-col items-end">
+                        <span class="text-[8px] font-black ${finalGap >= 0 ? 'text-emerald-600' : 'text-rose-600'} uppercase">
+                            Final vs Budget
+                        </span>
+                        <div class="flex items-center gap-1 mt-0.5">
+                            <span class="font-mono font-black ${finalGap >= 0 ? 'text-emerald-600 bg-emerald-100' : 'text-rose-600 bg-rose-100'} px-1.5 py-0.5 rounded border ${finalGap >= 0 ? 'border-emerald-200' : 'border-rose-200'} text-[11px]">
+                                ${finalGap >= 0 ? '+' : '-'}${formatOpsCurrency(Math.abs(finalGap))}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>`;
+    }
+
+    // Stato e gestione dei filtri dei Chip nel Kanban
+    let selectedOpsTags = [];
+
+    function toggleOpsTagFilter(tag) {
+        const idx = selectedOpsTags.indexOf(tag);
+        if (idx > -1) { selectedOpsTags.splice(idx, 1); } else { selectedOpsTags.push(tag); }
+        renderOperationsHub(windowPayload);
+    }
+
+    // MOTORE PRINCIPALE KANBAN
+    function renderOperationsHub(payload) {
+        const initiatives = payload.initiatives || [];
+        const contracts = payload.contracts || [];
+        const assets = payload.assets || [];
+
+        // --- AGGIUNTA POPOLAMENTO DINAMICO DELLA TENDINA ---
+        const listContainer = document.getElementById('ops-dropdown-checkboxes-list');
+        if (listContainer && listContainer.innerHTML === "") {
+            const uniqueTags = new Set();
+            initiatives.forEach(init => {
+                // Legge la colonna esatta 'Tags' di Google Sheets
+                const raw = init["Tags"] || "";
+                raw.toString().split(',').forEach(t => {
+                    const clean = t.trim();
+                    if (clean !== "") uniqueTags.add(clean);
+                });
+            });
+
+            // Inietta i checkbox reali dentro l'HTML fluttuante
+            listContainer.innerHTML = Array.from(uniqueTags).sort().map(tag => `
+            <label class="flex items-center gap-2 px-2 py-1 hover:bg-slate-50 rounded cursor-pointer text-[11px] font-bold text-slate-700">
+                <input type="checkbox" value="${tag}" onchange="handleOpsDropdownCheckboxChange()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
+                <span>${tag}</span>
+            </label>
+        `).join('');
+        }
+
+        const searchInput = document.getElementById('ops-search');
+        const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+        const elBacklog = document.getElementById('ops-filter-backlog');
+        const elSavings = document.getElementById('ops-filter-savings');
+        const horizonDays = elBacklog ? elBacklog.value : '90';
+        const lookbackDays = elSavings ? elSavings.value : '90';
+
+        const elStatusFilter = document.getElementById('ops-filter-status');
+        const pipelineStatusFilter = elStatusFilter ? elStatusFilter.value.toUpperCase() : 'ALL';
+
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        let backlogLimit = horizonDays !== 'all' ? new Date(today.getTime() + parseInt(horizonDays) * 24 * 60 * 60 * 1000) : null;
+        let savingsLimit = lookbackDays !== 'all' ? new Date(today.getTime() - parseInt(lookbackDays) * 24 * 60 * 60 * 1000) : null;
+
+        const cols = { col1: [], col2: [], col3: [] };
+
+        initiatives.forEach((init, idx) => {
+            const status = (init["Initiative Status"] || "").toString().toUpperCase().trim();
+            const targetDateStr = (init["Target Date"] || init["Target date"] || init["target date"] || init["Data Target"] || init["Data target"] || "").toString().trim();
+
+            // --- APPLICAZIONE FILTRO TENDINA TAGS ---
+            const rawTags = (init["Tags"] || "").toString();
+            const currentItemTags = rawTags.split(',').map(t => t.trim());
+
+            if (selectedOpsTags.length > 0) {
+                const hasMatchingTag = selectedOpsTags.some(selectedTag => currentItemTags.includes(selectedTag));
+                if (!hasMatchingTag) return;
+            }
+
+            const targetDate = targetDateStr ? new Date(targetDateStr) : new Date(2099, 11, 31);
+            if (targetDateStr) targetDate.setHours(0, 0, 0, 0);
+
+            const item = { ...init, _id: idx, targetDate, targetDateStr, status };
+
+            const assetName = (init["Asset Name"] || "").toString().trim();
+            const relatedAsset = assets.find(a => (a["Asset Name"] || "").toString().trim().toLowerCase() === assetName.toLowerCase()) || {};
+            const relatedContract = contracts.find(c => (c["Asset Name"] || "").toString().trim().toLowerCase() === assetName.toLowerCase()) || {};
+
+            const serviceOwner = (init["Service Owner"] || relatedAsset["Service Owner"] || "").toString();
+            const procurementPoint = (init["Procurement Point"] || init["Procurement Point Focal"] || "").toString();
+
+            const searchString = `${assetName} ${init["Description"] || ""} ${relatedAsset["Manufacturer"] || ""} ${relatedContract["Supplier"] || ""} ${serviceOwner} ${procurementPoint}`.toLowerCase();
+
+            if (searchTerm && !searchString.includes(searchTerm)) return;
+
+            if (status === "IDEA" || status === "INCOMING" || status === "PLANNED" || status === "") {
+                let passesStatus = true;
+                if (pipelineStatusFilter !== 'ALL') {
+                    passesStatus = (status === pipelineStatusFilter);
+                    if (pipelineStatusFilter === 'IDEA' && status === "") passesStatus = true;
+                }
+                if (passesStatus) {
+                    if (!targetDateStr || targetDate < today) {
+                        cols.col1.push(item);
+                    } else {
+                        if (backlogLimit) {
+                            if (targetDate <= backlogLimit) cols.col1.push(item);
+                        } else {
+                            cols.col1.push(item);
+                        }
+                    }
+                }
+            } else if (status === "IN PROGRESS") {
+                cols.col2.push(item);
+            } else if (status === "COMPLETED") {
+                if (!targetDateStr) {
+                    if (lookbackDays === 'all') cols.col3.push(item);
+                } else {
+                    if (savingsLimit) {
+                        if (targetDate >= savingsLimit && targetDate <= today) cols.col3.push(item);
+                    } else {
+                        cols.col3.push(item);
+                    }
+                }
+            }
+        });
+
+        cols.col1.sort((a, b) => {
+            if (a.status === "INCOMING" && b.status !== "INCOMING") return -1;
+            if (b.status === "INCOMING" && a.status !== "INCOMING") return 1;
+            return a.targetDate - b.targetDate;
+        });
+        cols.col2.sort((a, b) => a.targetDate - b.targetDate);
+        cols.col3.sort((a, b) => b.targetDate - a.targetDate);
+
+        if (document.getElementById('ops-count-overdue')) document.getElementById('ops-count-overdue').textContent = cols.col1.length;
+        if (document.getElementById('ops-count-upcoming')) document.getElementById('ops-count-upcoming').textContent = cols.col2.length;
+        if (document.getElementById('ops-count-completed')) document.getElementById('ops-count-completed').textContent = cols.col3.length;
+
+        let sumCol1 = 0, sumCol2 = 0, sumCol3Target = 0, sumCol3Actual = 0;
+        cols.col1.forEach(d => sumCol1 += parseFloat(d["Target Saving (Annualized)"]) || 0);
+        cols.col2.forEach(d => sumCol2 += parseFloat(d["Target Saving (Annualized)"]) || 0);
+        cols.col3.forEach(d => {
+            sumCol3Target += parseFloat(d["Target Saving (Annualized)"]) || 0;
+            sumCol3Actual += parseFloat(d["Actual Saving (Annualized)"]) || 0;
+        });
+        const deltaCol3 = sumCol3Actual - sumCol3Target;
+
+        if (document.getElementById('ops-sum-col1')) document.getElementById('ops-sum-col1').textContent = formatOpsCurrency(sumCol1);
+        if (document.getElementById('ops-sum-col2')) document.getElementById('ops-sum-col2').textContent = formatOpsCurrency(sumCol2);
+        if (document.getElementById('ops-sum-col3')) document.getElementById('ops-sum-col3').textContent = formatOpsCurrency(sumCol3Actual);
+
+        if (document.getElementById('ops-delta-col3')) {
+            let deltaColor = deltaCol3 >= 0 ? "text-emerald-600 bg-emerald-50 border-emerald-200" : "text-rose-600 bg-rose-50 border-rose-200";
+            let deltaSign = deltaCol3 >= 0 ? "+" : "";
+            const formattedDelta = `${deltaSign}€${Math.round(Math.abs(deltaCol3) / 1000).toLocaleString('en-US')}k`;
+            document.getElementById('ops-delta-col3').className = `text-[9px] font-black px-1.5 py-0.5 rounded border shadow-sm ${deltaColor}`;
+            document.getElementById('ops-delta-col3').textContent = formattedDelta;
+        }
+
+        const elCol1 = document.getElementById('ops-col-overdue');
+        const elCol2 = document.getElementById('ops-col-upcoming');
+        const elCol3 = document.getElementById('ops-col-completed');
+
+        if (elCol1) elCol1.innerHTML = cols.col1.map(d => buildOpsCard(d, 'col1', assets, contracts)).join('') || '<p class="text-xs text-slate-400 italic text-center py-4">No Idea/Incoming tasks.</p>';
+        if (elCol2) elCol2.innerHTML = cols.col2.map(d => buildOpsCard(d, 'col2', assets, contracts)).join('') || '<p class="text-xs text-slate-400 italic text-center py-4">No In Progress tasks.</p>';
+        if (elCol3) elCol3.innerHTML = cols.col3.map(d => buildOpsCard(d, 'col3', assets, contracts)).join('') || '<p class="text-xs text-slate-400 italic text-center py-4">No Completed tasks.</p>';
+
+        // Mantiene la compattezza attiva anche se l'utente usa la barra di ricerca o i filtri della tendina
+        if (opsViewMode === "compact") {
+            document.querySelectorAll('.ops-card-extended-section').forEach(s => s.style.display = "none");
+        }
+    }
+
+    function toggleOpsCard(id) {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('hidden');
+    }
+
+    // --- NUOVE FUNZIONI ISOLATE PER LA TENDINA FLUTTUANTE DEI TAG ---
+    function toggleOpsDropdownMenu(event) {
+        if (event) event.stopPropagation();
+        const menu = document.getElementById('ops-dropdown-menu');
+        const arrow = document.getElementById('ops-dropdown-arrow');
+        if (!menu) return;
+
+        menu.classList.toggle('hidden');
+        if (arrow) arrow.style.transform = menu.classList.contains('hidden') ? "rotate(0deg)" : "rotate(180deg)";
+    }
+
+    function handleOpsDropdownCheckboxChange() {
+        const container = document.getElementById('ops-dropdown-checkboxes-list');
+        if (!container) return;
+
+        const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+        selectedOpsTags = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+
+        const badge = document.getElementById('ops-active-tags-count');
+        if (badge) {
+            badge.textContent = selectedOpsTags.length;
+            if (selectedOpsTags.length > 0) badge.classList.remove('hidden');
+            else badge.classList.add('hidden');
+        }
+        renderOperationsHub(windowPayload); // Rinfresca il Kanban
+    }
+
+    // Chiude la tendina automaticamente se si clicca fuori
+    document.addEventListener('click', function (e) {
+        const menu = document.getElementById('ops-dropdown-menu');
+        const btn = document.getElementById('ops-dropdown-btn');
+        if (menu && !menu.classList.contains('hidden') && btn && !btn.contains(e.target) && !menu.contains(e.target)) {
+            menu.classList.add('hidden');
+            const arrow = document.getElementById('ops-dropdown-arrow');
+            if (arrow) arrow.style.transform = "rotate(0deg)";
+        }
+    });
+
+    // --- CONTROLLO DELLO SWITCH MODERNO PER LA COMPATTEZZA DELLE CARD ---
+    let opsViewMode = "standard"; // Stato iniziale di default
+
+    function toggleOpsViewMode() {
+        const label = document.getElementById('ops-view-label');
+        const icon = document.getElementById('ops-view-icon');
+
+        // Seleziona tutti i blocchi estesi inferiori delle card presenti nel DOM
+        const extendedSections = document.querySelectorAll('.ops-card-extended-section');
+
+        if (opsViewMode === "standard") {
+            // PASSA ALLA MODALITÀ COMPATTA
+            opsViewMode = "compact";
+            if (label) label.textContent = "Compact View";
+            if (icon) icon.style.transform = "rotate(180deg)"; // Ruota l'icona per dare feedback visivo
+
+            // Nasconde istantaneamente la parte inferiore di tutte le card
+            extendedSections.forEach(section => {
+                section.style.display = "none";
+            });
+        } else {
+            // TORNA ALLA MODALITÀ STANDARD COMPLETA
+            opsViewMode = "standard";
+            if (label) label.textContent = "Standard View";
+            if (icon) icon.style.transform = "rotate(0deg)";
+
+            // Mostra nuovamente tutti i dettagli originali
+            extendedSections.forEach(section => {
+                section.style.display = "flex";
+            });
+        }
+    }
+
+</script>

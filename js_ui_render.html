@@ -1,0 +1,27 @@
+<script>
+    /**
+     * MODULO RACCORDO UI GENERICA E BADGE CONDIVISI
+     */
+    function switchTab(tabId) {
+        const tabs = ['tab-dashboard', 'tab-inventory', 'tab-operations'];
+        const activeClass = "bg-teal-700 text-white shadow-sm pointer-events-none font-black".split(" ");
+        const inactiveClass = "text-teal-300 hover:text-white hover:bg-teal-800/50 cursor-pointer font-bold".split(" ");
+
+        tabs.forEach(t => {
+            const tabEl = document.getElementById(t);
+            const btnEl = document.getElementById('btn-' + t);
+
+            if (t === tabId) {
+                tabEl.classList.replace('hidden', 'block');
+                btnEl.classList.remove(...inactiveClass);
+                btnEl.classList.add(...activeClass);
+                if (t === 'tab-dashboard') window.dispatchEvent(new Event('resize'));
+            } else {
+                tabEl.classList.replace('block', 'hidden');
+                btnEl.classList.remove(...activeClass);
+                btnEl.classList.add(...inactiveClass);
+            }
+        });
+    }
+
+</script>
