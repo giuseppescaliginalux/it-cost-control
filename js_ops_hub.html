@@ -207,6 +207,28 @@
         if (document.getElementById('ops-sum-col2')) document.getElementById('ops-sum-col2').textContent = formatOpsCurrency(sumCol2);
         if (document.getElementById('ops-sum-col3')) document.getElementById('ops-sum-col3').textContent = formatOpsCurrency(sumCol3Actual);
 
+        // === INSERIMENTO: Iniezione fisica delle card HTML generata all'interno dei contenitori delle colonne ===
+        const overdueContainer = document.getElementById('ops-col-overdue');
+        const upcomingContainer = document.getElementById('ops-col-upcoming');
+        const completedContainer = document.getElementById('ops-col-completed');
+
+        if (overdueContainer) {
+            overdueContainer.innerHTML = cols.col1.length === 0
+                ? '<p class="text-slate-400 italic text-[11px] text-center py-4">No items in Pipeline.</p>'
+                : cols.col1.map(item => buildOpsCard(item, 'col1', assets, contracts)).join('');
+        }
+        if (upcomingContainer) {
+            upcomingContainer.innerHTML = cols.col2.length === 0
+                ? '<p class="text-slate-400 italic text-[11px] text-center py-4">No items In Progress.</p>'
+                : cols.col2.map(item => buildOpsCard(item, 'col2', assets, contracts)).join('');
+        }
+        if (completedContainer) {
+            completedContainer.innerHTML = cols.col3.length === 0
+                ? '<p class="text-slate-400 italic text-[11px] text-center py-4">No Realized items.</p>'
+                : cols.col3.map(item => buildOpsCard(item, 'col3', assets, contracts)).join('');
+        }
+        // === FINE INSERIMENTO ===
+
         const ball = document.getElementById('ops-toggle-ball');
         if (opsViewMode === "compact") {
             if (ball) ball.style.left = "65px"; // Cambiato da 73px a 65px per allineamento millimetrico
