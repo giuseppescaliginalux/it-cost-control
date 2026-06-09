@@ -209,7 +209,7 @@
 
         const ball = document.getElementById('ops-toggle-ball');
         if (opsViewMode === "compact") {
-            if (ball) ball.style.left = "73px";
+            if (ball) ball.style.left = "65px"; // Cambiato da 73px a 65px per allineamento millimetrico
             document.querySelectorAll('.ops-card-extended-section').forEach(s => s.style.display = "none");
         } else {
             if (ball) ball.style.left = "3px";
@@ -239,15 +239,22 @@
     });
 
     function toggleOpsViewMode() {
-        const ball = document.getElementById('ops-toggle-ball'); const txtStd = document.getElementById('ops-txt-std'); const txtCmp = document.getElementById('ops-txt-cmp');
+        const ball = document.getElementById('ops-toggle-ball');
+        const txtStd = document.getElementById('ops-txt-std');
+        const txtCmp = document.getElementById('ops-txt-cmp');
         const extendedSections = document.querySelectorAll('.ops-card-extended-section');
+
         if (opsViewMode === "standard") {
-            opsViewMode = "compact"; if (ball) ball.style.left = "73px";
-            if (txtStd) txtStd.className = "w-1/2 text-slate-400 transition-colors duration-200"; if (txtCmp) txtCmp.className = "w-1/2 text-white transition-colors duration-200";
+            opsViewMode = "compact";
+            if (ball) ball.style.left = "65px"; // Sposta la pallina a destra su 'Cmp' (adattato ai 36px/144px di larghezza totale dello switch)
+            if (txtStd) txtStd.className = "w-1/2 text-slate-400 transition-colors duration-200";
+            if (txtCmp) txtCmp.className = "w-1/2 text-white transition-colors duration-200";
             extendedSections.forEach(section => section.style.display = "none");
         } else {
-            opsViewMode = "standard"; if (ball) ball.style.left = "3px";
-            if (txtStd) txtStd.className = "w-1/2 text-white transition-colors duration-200"; if (txtCmp) txtCmp.className = "w-1/2 text-slate-400 transition-colors duration-200";
+            opsViewMode = "standard";
+            if (ball) ball.style.left = "3px"; // Riporta la pallina a sinistra su 'Std'
+            if (txtStd) txtStd.className = "w-1/2 text-white transition-colors duration-200";
+            if (txtCmp) txtCmp.className = "w-1/2 text-slate-400 transition-colors duration-200";
             extendedSections.forEach(section => section.style.display = "flex");
         }
     }
