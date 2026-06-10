@@ -3,7 +3,12 @@
      * MODULO DASHBOARD: EXECUTIVE KPI
      */
     function updateExecutiveDashboard(payload) {
-        const assets = payload.assets || [];
+        // CORREZIONE CRITICA: Filtriamo immediatamente l'array per eliminare righe vuote o di "Total" dello Sheet
+        const assets = (payload.assets || []).filter(r => {
+            const name = (r["Asset Name"] || "").toString().trim();
+            return name !== "" && name.toLowerCase() !== "total" && name.toLowerCase() !== "totale";
+        });
+
         const contracts = payload.contracts || [];
         const initiatives = payload.initiatives || [];
 
@@ -12,12 +17,6 @@
 
         const activeContracts = contracts.filter(c => (c["Status"] || "").toString().trim().toUpperCase() === "ACTIVE");
         document.getElementById('active-contracts-count').textContent = activeContracts.length;
-
-        // ACCOPPIAMENTO FILTRO EXTRA: Associa il driver dell'asset ad ogni rispettivo contratto
-        activeContracts.forEach(c => {
-            const asset = assets.find(a => (a["Asset Name"] || "").toString().trim().toLowerCase() === (c["Asset Name"] || "").toString().trim().toLowerCase());
-            c["Business Driver"] = asset ? (asset["Business Driver"] || "Technology") : "Technology";
-        });
 
         let totalActualSaving = 0; let totalTargetSaving = 0;
         initiatives.forEach(init => { totalActualSaving += parseFloat(init["Actual Saving (Annualized)"]) || 0; totalTargetSaving += parseFloat(init["Target Saving (Annualized)"]) || 0; });
@@ -30,8 +29,6 @@
         renderGenericDoughnut('costCenterChart', activeContracts, 'Cost Center', 'costCenter');
         renderGenericDoughnut('legalEntityChart', activeContracts, 'Legal Entity', 'legalEntity');
         renderGenericDoughnut('capexOpexChart', activeContracts, 'Expenditure Type', 'capexOpex');
-        // LOGICA DI RENDERING ATTIVATA
-        renderGenericDoughnut('businessDriverChart', activeContracts, 'Business Driver', 'businessDriver');
 
         const top10 = [...assets].sort((a, b) => (parseFloat(b["Run Rate"]) || 0) - (parseFloat(a["Run Rate"]) || 0)).slice(0, 10);
         renderLiveChart(top10.map(r => r["Asset Name"]), top10.map(r => parseFloat(r["Effective Budget"]) || 0), top10.map(r => parseFloat(r["Fiscal Projection"]) || 0));
@@ -44,11 +41,54 @@
 
     function renderStaticKpis(data) {
         let b = 0, c = 0;
-        data.forEach(row => { b += parseFloat(row["Effective Budget"]) || 0; c += parseFloat(row["Fiscal Projection"]) || 0; });
+        data.forEach(row => {
+            b += parseFloat(row["Effective Budget"]) || 0;
+            c += parseFloat(row["Fiscal Projection"]) || 0;
+        });
         const net = b - c;
-        if (document.getElementById('total-budget-kpi')) document.getElementById('total-budget-kpi').textContent = '€ ' + b.toLocaleString('en-US', { maximumFractionDigits: 0 });
-        if (document.getElementById('total-cost-kpi')) document.getElementById('total-cost-kpi').textContent = '€ ' + c.toLocaleString('en-US', { maximumFractionDigits: 0 });
-        if (document.getElementById('total-variance-kpi')) document.getElementById('total-variance-kpi').textContent = (net >= 0 ? '+' : '') + '€ ' + net.toLocaleString('en-US', { maximumFractionDigits: 0 });
+
+        // Funzione di utilità interna per l'approssimazione in Milioni (allineata al box 3 e 4)
+        const formatToMillions = (val, includePlus = false) => {
+            const absVal = Math.abs(val);
+            const sign = val < 0 ? "-" : (includePlus && val > 0 ? "+" : "");
+            if (absVal >= 1000000) return sign + "€ " + (absVal / 1000000).toFixed(1) + "M";
+            if (absVal >= 1000) return sign + "€ " + (absVal / 1000).toFixed(0) + "k";
+            return sign + "€ " + absVal.toFixed(0);
+        };
+
+        // BOX 2 (Dettaglio sotto a destra: vs Budget) - Ora formattato compatto in Milioni (es: € 12.7M)
+        if (document.getElementById('total-budget-kpi')) {
+            document.getElementById('total-budget-kpi').textContent = formatToMillions(b);
+        }
+
+        // BOX 1 (FY27 Projection) - Numero Grande formattato in Milioni
+        if (document.getElementById('total-cost-kpi')) {
+            document.getElementById('total-cost-kpi').textContent = formatToMillions(c);
+        }
+
+        // BOX 2 (Net Variance) - Numero Grande formattato in Milioni con segno condizionale (+/-)
+        if (document.getElementById('total-variance-kpi')) {
+            document.getElementById('total-variance-kpi').textContent = formatToMillions(net, true);
+        }
+
+        // Logica di controllo colori e badge del secondo box (Net Variance)
+        const varKpi = document.getElementById('total-variance-kpi');
+        const varBadge = document.getElementById('variance-status-badge');
+        if (varKpi) {
+            if (net >= 0) {
+                varKpi.className = "text-3xl font-black tracking-tight leading-none text-emerald-600";
+                if (varBadge) {
+                    varBadge.textContent = "Surplus";
+                    varBadge.className = "text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[8px] font-black tracking-widest uppercase";
+                }
+            } else {
+                varKpi.className = "text-3xl font-black tracking-tight leading-none text-rose-600";
+                if (varBadge) {
+                    varBadge.textContent = "Deficit";
+                    varBadge.className = "text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded text-[8px] font-black tracking-widest uppercase";
+                }
+            }
+        }
     }
 
     function switchChartTab(tabType) {

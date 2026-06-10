@@ -112,44 +112,56 @@
                         </div>
                     </div>
 
-                    <div class="p-4 rounded-xl border border-emerald-200 shadow-sm bg-emerald-50 text-emerald-900 flex flex-col justify-between"
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between relative overflow-hidden"
                         id="global-variance-card">
                         <div>
-                            <p class="text-[10px] uppercase font-black tracking-widest opacity-70 mb-1">Net Variance</p>
-                            <p class="text-3xl font-black tracking-tight" id="total-variance-kpi">€ 0</p>
+                            <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-1">Net Variance
+                            </p>
+                            <p class="text-3xl font-black tracking-tight leading-none text-emerald-600"
+                                id="total-variance-kpi">€ 0</p>
                         </div>
-                        <div class="mt-3 flex items-center gap-2 text-[10px] font-bold opacity-80">
-                            <span>vs Budget:</span>
-                            <span class="font-mono tracking-tighter" id="total-budget-kpi">€ 0</span>
-                        </div>
-                    </div>
-
-                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
-                        <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-3">Savings Pipeline
-                        </p>
-                        <div class="flex gap-4">
-                            <div class="flex-1">
-                                <p class="text-lg font-black text-emerald-600 tracking-tight leading-none"
-                                    id="actual-savings-kpi">€ 0</p>
-                                <p class="text-[9px] text-slate-500 uppercase font-bold mt-1">Secured</p>
-                            </div>
-                            <div class="w-px bg-slate-100"></div>
-                            <div class="flex-1">
-                                <p class="text-lg font-bold text-amber-500 tracking-tight leading-none"
-                                    id="target-savings-kpi">€ 0</p>
-                                <p class="text-[9px] text-slate-500 uppercase font-bold mt-1">To Secure</p>
-                            </div>
+                        <div
+                            class="mt-3 flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                            <span id="variance-status-badge"
+                                class="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[8px] font-black tracking-widest uppercase">Surplus</span>
+                            <span>vs Budget: <span class="font-mono text-slate-600 font-black" id="total-budget-kpi">€
+                                    0</span></span>
                         </div>
                     </div>
 
-                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
-                        <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-2">Portfolio
-                            Savings</p>
-                        <div class="flex items-end gap-3">
-                            <p class="text-3xl font-black text-teal-600 tracking-tight leading-none"
-                                id="efficiency-kpi">0%</p>
-                            <p class="text-[9px] text-slate-500 pb-0.5 font-bold uppercase tracking-tighter">of
-                                total<br>IT Budget</p>
+                    <div
+                        class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between relative overflow-hidden">
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest">Savings
+                                    Pipeline</p>
+                                <span
+                                    class="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[7px] font-black tracking-widest uppercase leading-none">Secured</span>
+                            </div>
+                            <p class="text-3xl font-black tracking-tight leading-none text-emerald-600"
+                                id="actual-savings-kpi">€ 0</p>
+                        </div>
+                        <div
+                            class="mt-3 flex items-center justify-end text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                            <span>To Secure: <span class="font-mono text-slate-600 font-black" id="target-savings-kpi">€
+                                    0</span></span>
+                        </div>
+                    </div>
+
+                    <div
+                        class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between relative overflow-hidden">
+                        <div>
+                            <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-1">Realized
+                                Performance</p>
+                            <p class="text-3xl font-black tracking-tight leading-none text-slate-900"
+                                id="savings-perf-pct">0%</p>
+                        </div>
+                        <div
+                            class="mt-3 flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                            <span>Actual: <span class="font-mono text-slate-700 font-black" id="savings-perf-actual">€
+                                    0</span></span>
+                            <span>Target: <span class="font-mono text-slate-600" id="savings-perf-target">€
+                                    0</span></span>
                         </div>
                     </div>
 
@@ -197,20 +209,28 @@
 
                     <div id="chart-sec-breakdown" class="contents hidden">
                         <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Spend by Cost Center</h3>
-                            <div style="position: relative; height:240px; width:100%;"><canvas id="costCenterChart"></canvas></div>
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Spend by Cost
+                                Center</h3>
+                            <div style="position: relative; height:240px; width:100%;"><canvas
+                                    id="costCenterChart"></canvas></div>
                         </div>
                         <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Spend by Legal Entity</h3>
-                            <div style="position: relative; height:240px; width:100%;"><canvas id="legalEntityChart"></canvas></div>
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Spend by Legal
+                                Entity</h3>
+                            <div style="position: relative; height:240px; width:100%;"><canvas
+                                    id="legalEntityChart"></canvas></div>
                         </div>
                         <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Spend by Expenditure Type</h3>
-                            <div style="position: relative; height:240px; width:100%;"><canvas id="capexOpexChart"></canvas></div>
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Spend by
+                                Expenditure Type</h3>
+                            <div style="position: relative; height:240px; width:100%;"><canvas
+                                    id="capexOpexChart"></canvas></div>
                         </div>
                         <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Spend by Business Driver</h3>
-                            <div style="position: relative; height:240px; width:100%;"><canvas id="businessDriverChart"></canvas></div>
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Spend by Business
+                                Driver</h3>
+                            <div style="position: relative; height:240px; width:100%;"><canvas
+                                    id="businessDriverChart"></canvas></div>
                         </div>
                     </div>
 
