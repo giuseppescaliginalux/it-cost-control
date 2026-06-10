@@ -13,6 +13,12 @@
         const activeContracts = contracts.filter(c => (c["Status"] || "").toString().trim().toUpperCase() === "ACTIVE");
         document.getElementById('active-contracts-count').textContent = activeContracts.length;
 
+        // ACCOPPIAMENTO FILTRO EXTRA: Associa il driver dell'asset ad ogni rispettivo contratto
+        activeContracts.forEach(c => {
+            const asset = assets.find(a => (a["Asset Name"] || "").toString().trim().toLowerCase() === (c["Asset Name"] || "").toString().trim().toLowerCase());
+            c["Business Driver"] = asset ? (asset["Business Driver"] || "Technology") : "Technology";
+        });
+
         let totalActualSaving = 0; let totalTargetSaving = 0;
         initiatives.forEach(init => { totalActualSaving += parseFloat(init["Actual Saving (Annualized)"]) || 0; totalTargetSaving += parseFloat(init["Target Saving (Annualized)"]) || 0; });
         const remainingToSecure = Math.max(0, totalTargetSaving - totalActualSaving);
@@ -24,6 +30,8 @@
         renderGenericDoughnut('costCenterChart', activeContracts, 'Cost Center', 'costCenter');
         renderGenericDoughnut('legalEntityChart', activeContracts, 'Legal Entity', 'legalEntity');
         renderGenericDoughnut('capexOpexChart', activeContracts, 'Expenditure Type', 'capexOpex');
+        // LOGICA DI RENDERING ATTIVATA
+        renderGenericDoughnut('businessDriverChart', activeContracts, 'Business Driver', 'businessDriver');
 
         const top10 = [...assets].sort((a, b) => (parseFloat(b["Run Rate"]) || 0) - (parseFloat(a["Run Rate"]) || 0)).slice(0, 10);
         renderLiveChart(top10.map(r => r["Asset Name"]), top10.map(r => parseFloat(r["Effective Budget"]) || 0), top10.map(r => parseFloat(r["Fiscal Projection"]) || 0));
