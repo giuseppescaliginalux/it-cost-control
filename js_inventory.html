@@ -12,6 +12,7 @@
         filteredData.forEach((row) => {
             const name = row["Asset Name"] || row.asset_name || "Unknown Asset";
             const manufacturer = row["Manufacturer"] || "";
+            const businessDriver = row["Business Driver"] || "Technology"; // default se vuoto
             const status = (row["Current Status"] || "Active").toUpperCase().trim();
             const target = row["Target Status"] || "-";
             const budgetStatus = row["Budget Status (FY27)"] || row["Budget Status"] || "";
@@ -57,7 +58,9 @@
                 </div>
             </div>
             <div class="mt-1" style="padding-left: 25px;">
-                <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest truncate leading-tight" style="padding-left: 10px;">${manufacturer}</p>
+                <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest truncate leading-tight" style="padding-left: 10px;">
+                    ${manufacturer} <span class="text-slate-300 font-normal mx-1 select-none">•</span> <span class="text-indigo-600 font-bold">Driver: ${businessDriver}</span>
+                </p>
                 <div class="mt-1.5 flex items-center gap-3">
                     ${getCurrentStatusBadge(status)}
                     <div class="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
@@ -119,7 +122,7 @@
         });
 
         const offlineAllocations = bridge.filter(r => (r["Asset Name"] || "").toString().trim().toLowerCase() === targetName)
-            .map(r => ({ ...r, co_allocated_assets: (aliasMap.get(r["Allocation Alias"])||[]).filter(a => (a.asset_name || "").toString().trim().toLowerCase() !== targetName) }));
+            .map(r => ({ ...r, co_allocated_assets: (aliasMap.get(r["Allocation Alias"]) || []).filter(a => (a.asset_name || "").toString().trim().toLowerCase() !== targetName) }));
 
         window.currentDrillDown = {
             contracts: (windowPayload.contracts || []).filter(c => (c["Asset Name"] || "").toString().trim().toLowerCase() === targetName),
@@ -168,7 +171,7 @@
                 let split = (parseFloat(log["Allocation Split %"]) || 0); if (split > 0 && split <= 1) split *= 100;
                 html += `<tr class="text-slate-600 font-medium hover:bg-slate-50/30"><td class="p-3 align-top"><div class="font-bold text-slate-900 leading-tight">${log["Allocation Alias"] || "N/A"}</div><div class="text-[9px] text-slate-400 mt-1 uppercase font-bold">${safeFormatStringDate(log["Valid From"])} → ${safeFormatStringDate(log["Valid To"])}</div></td><td class="p-3 text-right align-top font-mono text-slate-400 italic">€ ${origBudget.formatCurrency()}</td><td class="p-3 text-right align-top"><div class="text-teal-900 font-black font-mono text-sm">€ ${effBudget.formatCurrency()}</div><div class="mt-1"><span class="px-2 py-0.5 rounded border text-[9px] font-black uppercase ${split >= 99.9 ? 'text-emerald-600 bg-emerald-50 border-emerald-100' : 'text-teal-600 bg-teal-50 border-teal-100'}">${split.toFixed(1)}%</span></div></td></tr>`;
                 if (split < 99.9 && coAssets.length > 0) {
-                    const sharedList = coAssets.map(co => `<span class="text-slate-700 font-bold">${co.asset_name}</span> <span class="text-teal-600 font-mono">(${(parseFloat(co.split_pct)*100).toFixed(0)}%)</span>`).join('<span class="mx-3 text-slate-300">|</span>');
+                    const sharedList = coAssets.map(co => `<span class="text-slate-700 font-bold">${co.asset_name}</span> <span class="text-teal-600 font-mono">(${(parseFloat(co.split_pct) * 100).toFixed(0)}%)</span>`).join('<span class="mx-3 text-slate-300">|</span>');
                     html += `<tr class="bg-slate-50/50"><td colspan="3" class="px-4 py-2 border-b border-slate-100 text-left"><div class="text-[10px] leading-relaxed"><span class="font-black text-slate-400 uppercase tracking-widest mr-2">↳ Co-allocated with:</span>${sharedList}</div></td></tr>`;
                 }
             });

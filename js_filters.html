@@ -51,6 +51,18 @@ function populateAssetFilters() {
             <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val}</span>
         </label>
     `).join('');
+
+    // NUOVO: Estrazione e rendering dei Business Driver
+    const uniqueDrivers = [...new Set(assets.map(a => (a["Business Driver"] || "").toString().trim()).filter(v => v !== ""))].sort();
+    const driverContainer = document.getElementById("driver-filter-container");
+    if (driverContainer) {
+        driverContainer.innerHTML = uniqueDrivers.map(val => `
+            <label class="flex items-center gap-2 cursor-pointer group/cb">
+                <input type="checkbox" value="${val}" onchange="applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
+                <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val}</span>
+            </label>
+        `).join('');
+    }
 }
 
 function setupDynamicSlider(allRows) {
@@ -94,17 +106,20 @@ function applyFiltersAndSort() {
     const selLegal = Array.from(document.querySelectorAll('#filter-container-legal input:checked')).map(cb => cb.value);
     const selSupplier = Array.from(document.querySelectorAll('#filter-container-supplier input:checked')).map(cb => cb.value);
     const selCostCenter = Array.from(document.querySelectorAll('#filter-container-costcenter input:checked')).map(cb => cb.value);
+    const selDriver = Array.from(document.querySelectorAll('#driver-filter-container input:checked')).map(cb => cb.value.toUpperCase());
 
     let filteredData = globalCachedData.filter(row => {
         const name = (row["Asset Name"] || "").toLowerCase();
         const manufacturer = (row["Manufacturer"] || "").toLowerCase();
         const runRate = parseFloat(row["Run Rate"]) || 0;
         const currentStatus = (row["Current Status"] || "").toUpperCase().trim();
+        const currentDriver = (row["Business Driver"] || "").toUpperCase().trim();
         
         // Check Standard (Sull'Asset)
         const matchesSearch = name.includes(searchTerm) || manufacturer.includes(searchTerm);
         const matchesRunRate = runRate >= minVal;
         const matchesStatus = selStatus.length === 0 || selStatus.includes(currentStatus);
+        const matchesDriver = selDriver.length === 0 || selDriver.includes(currentDriver);
 
         // Check Relazionale (JOIN Multiplo sui Contratti)
         let matchesChannel = true;
@@ -139,7 +154,7 @@ function applyFiltersAndSort() {
         }
 
         // Deve passare TUTTI i controlli
-        return matchesSearch && matchesRunRate && matchesStatus && matchesChannel && matchesExp && matchesLegal && matchesSupplier && matchesCostCenter;
+        return matchesSearch && matchesRunRate && matchesStatus && matchesChannel && matchesExp && matchesLegal && matchesSupplier && matchesCostCenter && matchesDriver;
     });
 
     filteredData.sort((a, b) => {
