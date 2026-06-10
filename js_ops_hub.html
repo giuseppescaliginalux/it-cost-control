@@ -79,33 +79,28 @@
     <div id="ops-card-parent-${data._id}" class="block bg-white rounded-xl border border-slate-200 border-l-4 ${borderColor} shadow-sm cursor-pointer group hover:shadow-md transition-all overflow-hidden" onclick="handleOpsCardClick(event, '${data._id}')">
         <div class="p-3">
             
-            <div class="flex justify-between items-stretch gap-4 w-full">
-                
-                <div class="min-w-0 flex-1 flex flex-col justify-between">
-                    <div>
-                        <h4 class="font-black text-slate-900 text-[13px] leading-tight mb-0.5 truncate">${assetName || "Unknown Asset"}</h4>
-                        <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate mb-3">${manufacturer}</div>
-                    </div>
-                    
-                    <div class="flex items-center gap-2 text-[10px] h-5 mt-1">
-                        <div class="shrink-0">${strategyBadge}</div>
-                        <span class="text-slate-300 font-normal select-none shrink-0">•</span>
-                        <span class="text-slate-400 font-bold text-[9px] tracking-wide shrink-0">
-                            TARGET: ${finalDateStr}
-                        </span>
-                    </div>
+            <div class="flex justify-between items-start gap-4 w-full">
+                <div class="min-w-0 flex-1">
+                    <h4 class="font-black text-slate-900 text-[13px] leading-tight mb-0.5 truncate">${assetName || "Unknown Asset"}</h4>
+                    <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">${manufacturer}</div>
                 </div>
-                
-                <div class="shrink-0 flex flex-col justify-between items-end text-right">
-                    <div class="shrink-0">
-                        ${horizontalSavingsDisplay}
-                    </div>
-                    
-                    <div class="mt-2 h-5 flex items-center justify-end shrink-0">
-                        ${overdueAlertBadge}
-                    </div>
+                <div class="shrink-0 text-right">
+                    ${horizontalSavingsDisplay}
                 </div>
+            </div>
 
+            <div class="flex items-center justify-between w-full h-5 mt-3 text-[10px]">
+                <div class="flex items-center gap-2 shrink-0">
+                    <div class="shrink-0">${strategyBadge}</div>
+                    <span class="text-slate-300 font-normal select-none shrink-0">•</span>
+                    <span class="text-slate-400 font-bold text-[9px] tracking-wide shrink-0">
+                        TARGET: ${finalDateStr}
+                    </span>
+                </div>
+                
+                <div class="shrink-0 flex items-center justify-end pl-2">
+                    ${overdueAlertBadge}
+                </div>
             </div>
 
             <div class="ops-card-extended-section flex flex-col gap-2 pt-2 border-t border-slate-100/60 mt-2.5">
@@ -272,9 +267,21 @@
     }
 
     document.addEventListener('click', function (e) {
+        // 1. Logica preesistente per i Tags
         const menu = document.getElementById('ops-dropdown-menu'); const btn = document.getElementById('ops-dropdown-btn');
         if (menu && !menu.classList.contains('hidden') && btn && !btn.contains(e.target) && !menu.contains(e.target)) {
             menu.classList.add('hidden'); const arrow = document.getElementById('ops-dropdown-arrow'); if (arrow) arrow.style.transform = "rotate(0deg)";
+        }
+
+        // 2. NUOVO: Logica unificata per i filtri a scomparsa del Kanban
+        const pipelineDrop = document.getElementById('dropdown-pipeline');
+        const realizedDrop = document.getElementById('dropdown-realized');
+
+        if (pipelineDrop && !pipelineDrop.classList.contains('hidden') && !pipelineDrop.contains(e.target)) {
+            pipelineDrop.classList.add('hidden');
+        }
+        if (realizedDrop && !realizedDrop.classList.contains('hidden') && !realizedDrop.contains(e.target)) {
+            realizedDrop.classList.add('hidden');
         }
     });
 
@@ -307,4 +314,22 @@
             if (targetSection) targetSection.style.display = (targetSection.style.display === "none" || targetSection.style.display === "") ? "flex" : "none";
         }
     }
+
+    // Funzione per mostrare/nascondere i dropdown fluttuanti dei filtri Kanban
+    function toggleOpsDropdown(event, id) {
+        if (event) event.stopPropagation(); // Impedisce la chiusura immediata causata dal listener del document
+
+        const dropdowns = ['dropdown-pipeline', 'dropdown-realized'];
+        dropdowns.forEach(dId => {
+            const el = document.getElementById(dId);
+            if (el) {
+                if (dId === id) {
+                    el.classList.toggle('hidden');
+                } else {
+                    el.classList.add('hidden');
+                }
+            }
+        });
+    }
+
 </script>

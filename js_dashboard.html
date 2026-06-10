@@ -42,4 +42,27 @@
         if (document.getElementById('total-cost-kpi')) document.getElementById('total-cost-kpi').textContent = '€ ' + c.toLocaleString('en-US', { maximumFractionDigits: 0 });
         if (document.getElementById('total-variance-kpi')) document.getElementById('total-variance-kpi').textContent = (net >= 0 ? '+' : '') + '€ ' + net.toLocaleString('en-US', { maximumFractionDigits: 0 });
     }
+
+    function switchChartTab(tabType) {
+        // Nasconde tutti i contenuti dei grafici
+        const tabs = ['general', 'savings', 'breakdown', 'contracts'];
+        tabs.forEach(t => {
+            const sec = document.getElementById('chart-sec-' + t);
+            const btn = document.getElementById('btn-chart-tab-' + t);
+            if (sec) sec.classList.add('hidden');
+            if (btn) {
+                btn.classList.remove('bg-white', 'shadow-sm', 'text-slate-700');
+                btn.classList.add('text-slate-500');
+            }
+        });
+
+        // Mostra quello selezionato
+        const activeSec = document.getElementById('chart-sec-' + tabType);
+        const activeBtn = document.getElementById('btn-chart-tab-' + tabType);
+        if (activeSec) activeSec.classList.remove('hidden');
+        if (activeBtn) {
+            activeBtn.classList.add('bg-white', 'shadow-sm', 'text-slate-700');
+            activeBtn.classList.remove('text-slate-500');
+        }
+    }
 </script>

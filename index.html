@@ -61,7 +61,7 @@
         </div>
     </nav>
 
-    <main class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+    <main class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 pt-2 pb-6 space-y-3">
 
         <div id="loading-state" class="flex flex-col items-center justify-center py-20 space-y-4">
             <div class="w-10 h-10 border-4 border-teal-600/20 border-t-teal-600 rounded-full animate-spin"></div>
@@ -210,7 +210,7 @@
                         </div>
                         <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm md:col-span-2">
                             <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Spend by
-                                Expenditure Type (CAPEX / OPEX / Not Specified)</h3>
+                                Expenditure Type</h3>
                             <div style="position: relative; height:240px; width:100%;"><canvas
                                     id="capexOpexChart"></canvas></div>
                         </div>
@@ -491,7 +491,7 @@
             </div>
 
             <div id="tab-operations" class="hidden">
-                <div class="mb-6 flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4">
+                <div class="mb-3 flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4">
                     <div>
                         <h2 class="text-xl font-black text-slate-800 uppercase tracking-widest">Operations Center</h2>
                         <p class="text-slate-500 text-xs font-medium mt-1">Manage savings initiatives, track deadlines,
@@ -499,11 +499,17 @@
                     </div>
 
                     <div class="flex items-center gap-3 w-full lg:w-auto relative">
-                        <div onclick="toggleOpsViewMode()" class="relative flex items-center bg-slate-200/80 p-1 rounded-xl border border-slate-300 w-36 h-7 cursor-pointer select-none">
-                            <div id="ops-toggle-ball" class="absolute bg-teal-700 w-[68px] h-5 rounded-lg shadow-sm transition-all duration-200 ease-out z-10" style="left: 3px;"></div>
-                            <div class="flex w-full text-center text-[10px] font-black uppercase tracking-wider z-20 pointer-events-none">
-                                <span id="ops-txt-std" class="w-1/2 text-white transition-colors duration-200">Std</span>
-                                <span id="ops-txt-cmp" class="w-1/2 text-slate-400 transition-colors duration-200">Cmp</span>
+                        <div onclick="toggleOpsViewMode()"
+                            class="relative flex items-center bg-slate-200/80 p-1 rounded-xl border border-slate-300 w-36 h-7 cursor-pointer select-none">
+                            <div id="ops-toggle-ball"
+                                class="absolute bg-teal-700 w-[68px] h-5 rounded-lg shadow-sm transition-all duration-200 ease-out z-10"
+                                style="left: 3px;"></div>
+                            <div
+                                class="flex w-full text-center text-[10px] font-black uppercase tracking-wider z-20 pointer-events-none">
+                                <span id="ops-txt-std"
+                                    class="w-1/2 text-white transition-colors duration-200">Std</span>
+                                <span id="ops-txt-cmp"
+                                    class="w-1/2 text-slate-400 transition-colors duration-200">Cmp</span>
                             </div>
                         </div>
 
@@ -545,8 +551,9 @@
 
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
-                    <div class="bg-slate-50/80 rounded-2xl p-4 border border-slate-200">
-                        <div class="flex items-center justify-between mb-3">
+                    <div class="bg-slate-50/80 rounded-2xl p-4 border border-slate-200 relative">
+                        <div
+                            class="flex items-center justify-between mb-1.5 pb-1 border-b border-sky-200 relative w-full">
                             <h3
                                 class="text-xs font-black text-sky-700 uppercase tracking-widest flex items-center gap-1.5 shrink-0">
                                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5"
@@ -565,29 +572,48 @@
                                 </div>
                                 <span id="ops-count-overdue"
                                     class="bg-sky-100 text-sky-800 text-[10px] font-black px-1.5 py-1 rounded border border-sky-200 shadow-sm shrink-0 min-w-[24px] text-center">0</span>
+
+                                <button onclick="toggleOpsDropdown(event, 'dropdown-pipeline')"
+                                    class="p-1 hover:bg-slate-200 rounded transition-colors text-slate-400 hover:text-slate-600 focus:outline-none ml-1">
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                                        stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <div id="dropdown-pipeline"
+                                class="hidden absolute right-0 top-full mt-1 w-44 bg-white rounded-lg shadow-xl border border-slate-200 z-50 p-2.5 flex flex-col gap-2">
+                                <div>
+                                    <label
+                                        class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 select-none">Horizon</label>
+                                    <select id="ops-filter-backlog" onchange="renderOperationsHub(windowPayload)"
+                                        class="w-full text-[10px] font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded px-1.5 py-1 cursor-pointer focus:outline-none">
+                                        <option value="all">All Future</option>
+                                        <option value="30">Next 30 Days</option>
+                                        <option value="60">Next 60 Days</option>
+                                        <option value="90" selected>Next 90 Days</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label
+                                        class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 select-none">Status</label>
+                                    <select id="ops-filter-status" onchange="renderOperationsHub(windowPayload)"
+                                        class="w-full text-[10px] font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded px-1.5 py-1 cursor-pointer focus:outline-none">
+                                        <option value="all">All Status</option>
+                                        <option value="IDEA">Idea</option>
+                                        <option value="INCOMING">Incoming</option>
+                                        <option value="PLANNED">Planned</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
-                        <div class="flex items-center gap-1.5 mb-4 pb-3 border-b border-sky-200">
-                            <select id="ops-filter-backlog" onchange="renderOperationsHub(windowPayload)"
-                                class="w-1/2 text-[9px] font-black uppercase tracking-wider text-slate-500 bg-white border border-slate-200 rounded px-1 py-1 cursor-pointer hover:border-sky-300">
-                                <option value="all">All Future</option>
-                                <option value="30">Next 30 Days</option>
-                                <option value="60">Next 60 Days</option>
-                                <option value="90" selected>Next 90 Days</option>
-                            </select>
-                            <select id="ops-filter-status" onchange="renderOperationsHub(windowPayload)"
-                                class="w-1/2 text-[9px] font-black uppercase tracking-wider text-slate-500 bg-white border border-slate-200 rounded px-1 py-1 cursor-pointer hover:border-sky-300">
-                                <option value="all">All Status</option>
-                                <option value="IDEA">Idea</option>
-                                <option value="INCOMING">Incoming</option>
-                                <option value="PLANNED">Planned</option>
-                            </select>
-                        </div>
-                        <div id="ops-col-overdue" class="block space-y-3"></div>
+                        <div id="ops-col-overdue" class="block space-y-3 mt-2"></div>
                     </div>
 
                     <div class="bg-slate-50/80 rounded-2xl p-4 border border-slate-200">
-                        <div class="flex items-center justify-between mb-3 border-b border-amber-200 pb-3">
+                        <div class="flex items-center justify-between mb-1.5 border-b border-amber-200 pb-1">
                             <h3
                                 class="text-xs font-black text-amber-700 uppercase tracking-widest flex items-center gap-1.5 shrink-0">
                                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5"
@@ -608,11 +634,12 @@
                                     class="bg-amber-100 text-amber-800 text-[10px] font-black px-1.5 py-1 rounded border border-amber-200 shadow-sm shrink-0 min-w-[24px] text-center">0</span>
                             </div>
                         </div>
-                        <div id="ops-col-upcoming" class="block space-y-3 mt-4"></div>
+                        <div id="ops-col-upcoming" class="block space-y-3 mt-2"></div>
                     </div>
 
-                    <div class="bg-slate-50/80 rounded-2xl p-4 border border-slate-200">
-                        <div class="flex items-center justify-between mb-3">
+                    <div class="bg-slate-50/80 rounded-2xl p-4 border border-slate-200 relative">
+                        <div
+                            class="flex items-center justify-between mb-1.5 pb-1 border-b border-emerald-200 relative w-full">
                             <h3
                                 class="text-xs font-black text-emerald-700 uppercase tracking-widest flex items-center gap-1.5 shrink-0">
                                 <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -634,18 +661,33 @@
                                 </div>
                                 <span id="ops-count-completed"
                                     class="bg-emerald-100 text-emerald-800 text-[10px] font-black px-1.5 py-1 rounded border border-emerald-200 shadow-sm shrink-0 min-w-[24px] text-center">0</span>
+
+                                <button onclick="toggleOpsDropdown(event, 'dropdown-realized')"
+                                    class="p-1 hover:bg-slate-200 rounded transition-colors text-slate-400 hover:text-slate-600 focus:outline-none ml-1">
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                                        stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <div id="dropdown-realized"
+                                class="hidden absolute right-0 top-full mt-1 w-44 bg-white rounded-lg shadow-xl border border-slate-200 z-50 p-2.5 flex flex-col gap-2">
+                                <div>
+                                    <label
+                                        class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 select-none">History</label>
+                                    <select id="ops-filter-savings" onchange="renderOperationsHub(windowPayload)"
+                                        class="w-full text-[10px] font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded px-1.5 py-1 cursor-pointer focus:outline-none">
+                                        <option value="all">All History</option>
+                                        <option value="30">Past 30 Days</option>
+                                        <option value="90" selected>Past 90 Days</option>
+                                        <option value="180">Past 180 Days</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
-                        <div class="flex items-center gap-1.5 mb-4 pb-3 border-b border-emerald-200">
-                            <select id="ops-filter-savings" onchange="renderOperationsHub(windowPayload)"
-                                class="w-full text-[9px] font-black uppercase tracking-wider text-slate-500 bg-white border border-slate-200 rounded px-1 py-1 cursor-pointer hover:border-emerald-300">
-                                <option value="all">All History</option>
-                                <option value="30">Past 30 Days</option>
-                                <option value="90" selected>Past 90 Days</option>
-                                <option value="180">Past 180 Days</option>
-                            </select>
-                        </div>
-                        <div id="ops-col-completed" class="block space-y-3"></div>
+                        <div id="ops-col-completed" class="block space-y-3 mt-2"></div>
                     </div>
 
                 </div>
