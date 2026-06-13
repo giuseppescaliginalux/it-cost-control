@@ -1,12 +1,12 @@
 <script>
-    // Stato dell'applicazione contratti in-memory
+    // In-memory local state tracking
     let currentSelectedAsset = null;
     let currentAssetGroupIds = [];
     let currentMasterData = null;
-    let currentDetailItems = []; // Array di tracciamento dello stato locale delle righe
+    let currentDetailItems = [];
     let isMasterEditable = false;
 
-    // Intercettore nativo al cambio di tab per la sincronizzazione immediata da memoria
+    // Hook into global SPA tab router
     const originalSwitchTab = switchTab;
     switchTab = function (tabId) {
         originalSwitchTab(tabId);
@@ -16,7 +16,7 @@
         }
     };
 
-    // Estrattore univoco e pulito delle colonne di lookup (Risolve il bug dei duplicati)
+    // Safe extraction mechanism for unique key headers across configuration entities
     function extractUniqueField(payloadArray, keyName) {
         if (!payloadArray || payloadArray.length === 0) return [];
         return [...new Set(payloadArray.map(item => {
@@ -25,7 +25,7 @@
         }))].filter(v => v !== "").sort();
     }
 
-    // STEP 1: Ricerca ed esplorazione Asset Client-Side
+    // STEP 1: Client-side search optimization against memory cache
     function renderAssetSearchList() {
         const query = document.getElementById('mgmt-asset-search-input').value.toLowerCase().trim();
         const container = document.getElementById('mgmt-asset-results-list');
@@ -56,7 +56,7 @@
         }).join('');
     }
 
-    // Al click dell'Asset, mappa i Master e i Group ID associati
+    // Map contracts and compile active Group IDs for the targeted Asset context
     function selectAssetForManagement(assetName, assetId) {
         currentSelectedAsset = { name: assetName, id: assetId };
         isMasterEditable = false;
@@ -159,7 +159,7 @@
                         <span class="text-[10px] font-mono bg-teal-900 text-white px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">${currentMasterData["Master Contract ID"] || 'NEW MASTER'}</span>
                         <h4 class="text-sm font-black text-slate-800 mt-1">Vendor: <span class="text-teal-700">${currentMasterData["Supplier"] || 'Not Specified'}</span></h4>
                     </div>
-                    <button onclick="toggleMasterEditState(true)" class="px-3 py-1 bg-slate-100 border border-slate-200 text-slate-700 font-black text-[10px] uppercase tracking-wider rounded-lg hover:bg-slate-200 transition-colors">Modifica Anagrafica</button>
+                    <button onclick="toggleMasterEditState(true)" class="px-3 py-1 bg-slate-100 border border-slate-200 text-slate-700 font-black text-[10px] uppercase tracking-wider rounded-lg hover:bg-slate-200 transition-colors">Edit Master Details</button>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
                     <div><span class="text-slate-400 font-bold uppercase text-[9px] block">Master Scope:</span> <span class="text-slate-700 font-medium">${currentMasterData["Scope"] || '—'}</span></div>
@@ -171,7 +171,7 @@
             container.innerHTML = `
                 <div class="flex justify-between items-center border-b border-slate-200 pb-2 mb-4">
                     <h3 class="text-xs font-black text-slate-700 uppercase tracking-widest">Master Info Setup</h3>
-                    ${!isNew ? `<button onclick="toggleMasterEditState(false)" class="text-[10px] font-bold text-slate-400 hover:text-slate-600">Annulla</button>` : ''}
+                    ${!isNew ? `<button onclick="toggleMasterEditState(false)" class="text-[10px] font-bold text-slate-400 hover:text-slate-600">Cancel</button>` : ''}
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                     <div>
@@ -181,7 +181,7 @@
                     <div>
                         <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Supplier</label>
                         <select id="ins-masterSupplier" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 font-bold text-slate-800 bg-white text-xs">
-                            <option value="">-- Seleziona Fornitore --</option>
+                            <option value="">-- Select Supplier --</option>
                             ${suppliersList.map(s => `<option value="${s}" ${s === currentMasterData["Supplier"] ? 'selected' : ''}>${s}</option>`).join('')}
                         </select>
                     </div>
@@ -198,7 +198,7 @@
                 </div>
                 ${!isNew ? `
                 <div class="mt-3 flex justify-end">
-                    <button onclick="confirmMasterEditLocalChanges()" class="px-4 py-1.5 bg-slate-800 text-white rounded-lg font-black text-[10px] uppercase tracking-wider">Conferma Modifiche</button>
+                    <button onclick="confirmMasterEditLocalChanges()" class="px-4 py-1.5 bg-slate-800 text-white rounded-lg font-black text-[10px] uppercase tracking-wider">Confirm Changes</button>
                 </div>` : ''}
             `;
         }
@@ -217,21 +217,20 @@
         renderMasterFormBox();
     }
 
-    // STEP 3 RENDERING: Costruzione dell'elenco contratti tramite CARD FLESSIBILI (Addio vecchia tabella rigida!)
+    // STEP 3 RENDERING: Fluid Client-side Cards Rendering logic (No nested backticks inside map arrays)
     function renderDetailItemsTable() {
         const container = document.getElementById('mgmt-detailRowsContainer');
         if (!container) return;
 
         if (currentDetailItems.length === 0) {
             container.innerHTML = `
-                <div class="text-center py-8 border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/20">
-                    <p class="text-slate-400 text-xs italic">Nessun dettaglio di allocazione o ramificazione presente per questo Master Contract.</p>
+                <div class="text-center py-8 border-2 border-dashed border-dashed border-slate-100 rounded-2xl bg-slate-50/20">
+                    <p class="text-slate-400 text-xs italic">No allocation or ramping detail records found for this Master Agreement.</p>
                 </div>
             `;
             return;
         }
 
-        // Genera una lista verticale fluida di card
         container.innerHTML = `<div id="mgmt-flexible-cards-list" class="space-y-2.5"></div>`;
         const listWrapper = document.getElementById('mgmt-flexible-cards-list');
 
@@ -240,7 +239,7 @@
 
             if (!item.isEditing) {
                 // ==========================================
-                // VISTA COMPATTA IN-MEMORY FLUIDA (READ-ONLY)
+                // COMPACT FLUID UI (READ-ONLY VIEW)
                 // ==========================================
                 const d = item.data;
                 const effCommit = typeof d["Effective Commitment"] === 'number' ? d["Effective Commitment"].formatCurrency() : (parseFloat(d["Effective Commitment"]) || 0).formatCurrency();
@@ -279,41 +278,43 @@
                         </div>
 
                         <div class="flex justify-end shrink-0 pl-2">
-                            <button onclick="toggleRowEditMode(${item.id}, true)" class="px-3 py-1 bg-teal-50 hover:bg-teal-700 text-teal-700 hover:text-white font-black rounded-lg text-[10px] uppercase tracking-wider border border-teal-100 transition-all">Modifica</button>
+                            <button onclick="toggleRowEditMode(${item.id}, true)" class="px-3 py-1 bg-teal-50 hover:bg-teal-700 text-teal-700 hover:text-white font-black rounded-lg text-[10px] uppercase tracking-wider border border-teal-100 transition-all">Edit</button>
                         </div>
                     </div>
 
                     <div class="pt-1.5 border-t border-slate-100 text-[11px] flex items-start gap-1">
                         <span class="text-slate-400 font-black uppercase text-[8px] tracking-widest mt-0.5 bg-slate-100 px-1 rounded">Scope</span>
-                        <span class="text-slate-600 font-medium break-words flex-1">${d["Scope"] || '<span class="text-slate-300 italic">Nessuno scope specificato riga</span>'}</span>
+                        <span class="text-slate-600 font-medium break-words flex-1">${d["Scope"] || '<span class="text-slate-300 italic">No specific line scope defined</span>'}</span>
                     </div>
                 `;
                 listWrapper.appendChild(cardDiv);
             } else {
                 // ==========================================
-                // VISTA ESPANSA DI EDITING (FORM RIGIDO)
+                // EXPANDED ROW EDITING FORM BLOCK (VSCode Safe Sintax)
                 // ==========================================
                 cardDiv.className = "bg-slate-50/50 border border-slate-200 rounded-xl p-4 shadow-inner relative space-y-4";
                 cardDiv.innerHTML = `
                     <div class="absolute top-3 right-3 flex gap-2">
-                        <button onclick="saveRowLocalChanges(${item.id})" class="text-[10px] font-black bg-emerald-600 text-white px-2.5 py-1 rounded-lg shadow-sm hover:bg-emerald-700">Applica</button>
-                        <button onclick="toggleRowEditMode(${item.id}, false)" class="text-[10px] font-black bg-slate-200 text-slate-600 px-2.5 py-1 rounded-lg hover:bg-slate-300">Annulla</button>
-                        <button onclick="removeRowFromLocalArchitecture(${item.id})" class="text-[10px] font-black bg-rose-50 border border-rose-200 text-rose-600 px-2.5 py-1 rounded-lg hover:bg-rose-100">Rimuovi</button>
+                        <button onclick="saveRowLocalChanges(${item.id})" class="text-[10px] font-black bg-emerald-600 text-white px-2.5 py-1 rounded-lg shadow-sm hover:bg-emerald-700">Apply</button>
+                        <button onclick="toggleRowEditMode(${item.id}, false)" class="text-[10px] font-black bg-slate-200 text-slate-600 px-2.5 py-1 rounded-lg hover:bg-slate-300">Cancel</button>
+                        <button onclick="removeRowFromLocalArchitecture(${item.id})" class="text-[10px] font-black bg-rose-50 border border-rose-200 text-rose-600 px-2.5 py-1 rounded-lg hover:bg-rose-100">Remove</button>
                     </div>
                     
-                    <div class="text-[10px] font-black text-teal-800 uppercase tracking-widest border-b border-slate-200 pb-1 w-fit">Modifica Riga Contrattuale</div>
+                    <div class="text-[10px] font-black text-teal-800 uppercase tracking-widest border-b border-slate-200 pb-1 w-fit">Modify Allocation Row</div>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                         <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Group ID</label>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Group ID (Type or select)</label>
                             <input type="text" id="edit-groupId-${item.id}" class="w-full p-1.5 border border-slate-300 rounded font-mono font-bold" value="${item.data["Group ID"] || ''}" list="dl-assetGroupIds">
-                            <datalist id="dl-assetGroupIds">${currentAssetGroupIds.map(g => `<option value="${g}">`).join('')}</datalist>
+                            <datalist id="dl-assetGroupIds">
+                                ${currentAssetGroupIds.map(g => '<option value="' + g + '">').join('')}
+                            </datalist>
                         </div>
                         <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Target Group ID (Rinnovo)</label>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Target Group ID (Renewal)</label>
                             <select id="edit-targetGroupId-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white font-mono">
-                                <option value="">-- Nessun Rinnovo --</option>
-                                ${currentAssetGroupIds.map(g => `<option value="${g}" ${g === item.data["Target Group ID"] ? 'selected' : ''}>${g}</option>`).join('')}
+                                <option value="">-- No Renewal Future Target --</option>
+                                ${currentAssetGroupIds.map(g => '<option value="' + g + '" ' + (g === item.data["Target Group ID"] ? 'selected' : '') + '>' + g + '</option>').join('')}
                             </select>
                         </div>
                     </div>
@@ -322,26 +323,28 @@
                         <div>
                             <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Legal Entity</label>
                             <select id="edit-legalEntity-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white">
-                                <option value="">-- Seleziona Società --</option>
-                                ${extractUniqueField(windowPayload.legalEntities, "Legal Entity").map(le => `<option value="${le}" ${le === item.data["Legal Entity"] ? 'selected' : ''}>${le}</option>`).join('')}
+                                <option value="">-- Select Legal Entity --</option>
+                                ${extractUniqueField(windowPayload.legalEntities, "Legal Entity").map(le => '<option value="' + le + '" ' + (le === item.data["Legal Entity"] ? 'selected' : '') + '>' + le + '</option>').join('')}
                             </select>
                         </div>
                         <div>
                             <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Location</label>
                             <select id="edit-location-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white">
-                                <option value="">-- Seleziona Area --</option>
-                                ${extractUniqueField(windowPayload.locations, "Location").map(loc => `<option value="${loc}" ${loc === item.data["Location"] ? 'selected' : ''}>${loc}</option>`).join('')}
+                                <option value="">-- Select Location --</option>
+                                ${extractUniqueField(windowPayload.locations, "Location").map(loc => '<option value="' + loc + '" ' + (loc === item.data["Location"] ? 'selected' : '') + '>' + loc + '</option>').join('')}
                             </select>
                         </div>
                         <div>
                             <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Service Owner</label>
                             <input type="text" id="edit-serviceOwner-${item.id}" class="w-full p-1.5 border border-slate-300 rounded" value="${item.data["Service Owner"] || ''}" list="dl-owners">
-                            <datalist id="dl-owners">${[...new Set((windowPayload.contracts || []).map(c => (c["Service Owner"] || "").toString().trim()).filter(v => v !== ""))].sort().map(so => `<option value="${so}">`).join('')}</datalist>
+                            <datalist id="dl-owners">
+                                ${[...new Set((windowPayload.contracts || []).map(c => (c["Service Owner"] || "").toString().trim()).filter(v => v !== ""))].sort().map(so => '<option value="' + so + '">').join('')}
+                            </datalist>
                         </div>
                     </div>
 
                     <div class="text-xs">
-                        <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Scope / Perimetro di riga</label>
+                        <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Scope / Description perimeter</label>
                         <input type="text" id="edit-scope-${item.id}" class="w-full p-1.5 border border-slate-300 rounded" value="${item.data["Scope"] || ''}">
                     </div>
 
@@ -360,7 +363,7 @@
                         <div>
                             <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Expenditure Type</label>
                             <select id="edit-expenditureType-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white">
-                                <option value="">-- Opzionale --</option>
+                                <option value="">-- Optional --</option>
                                 <option value="OPEX" ${item.data["Expenditure Type"] === 'OPEX' ? 'selected' : ''}>OPEX</option>
                                 <option value="CAPEX" ${item.data["Expenditure Type"] === 'CAPEX' ? 'selected' : ''}>CAPEX</option>
                                 <option value="ROU" ${item.data["Expenditure Type"] === 'ROU' ? 'selected' : ''}>ROU</option>
@@ -369,8 +372,8 @@
                         <div>
                             <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Cost Center</label>
                             <select id="edit-costCenter-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white font-mono">
-                                <option value="">-- Seleziona CC --</option>
-                                ${extractUniqueField(windowPayload.costCenters, "Cost Center").map(cc => `<option value="${cc}" ${cc === item.data["Cost Center"] ? 'selected' : ''}>${cc}</option>`).join('')}
+                                <option value="">-- Select Cost Center --</option>
+                                ${extractUniqueField(windowPayload.costCenters, "Cost Center").map(cc => '<option value="' + cc + '" ' + (cc === item.data["Cost Center"] ? 'selected' : '') + '>' + cc + '</option>').join('')}
                             </select>
                         </div>
                     </div>
@@ -390,31 +393,31 @@
                         </div>
                         <div>
                             <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Notice Period (Days)</label>
-                            <input type="number" id="edit-noticePeriod-${item.id}" class="w-full p-1.5 border border-slate-300 rounded" value="${item.data["Notice Period (Days)"] || ''}" placeholder="Opzionale">
+                            <input type="number" id="edit-noticePeriod-${item.id}" class="w-full p-1.5 border border-slate-300 rounded" value="${item.data["Notice Period (Days)"] || ''}" placeholder="Optional">
                         </div>
                         <div>
                             <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Auto-Renewal</label>
                             <select id="edit-autoRenewal-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white">
-                                <option value="" ${!item.data["Auto-Renewal"] ? 'selected' : ''}>Opzionale</option>
+                                <option value="" ${!item.data["Auto-Renewal"] ? 'selected' : ''}>Optional</option>
                                 <option value="No" ${item.data["Auto-Renewal"] === 'No' ? 'selected' : ''}>No</option>
                                 <option value="Yes" ${item.data["Auto-Renewal"] === 'Yes' ? 'selected' : ''}>Yes</option>
                             </select>
                         </div>
                     </div>
 
-                    <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs shadow-inner">
+                    <div class="bg-white p-2.5 rounded-xl border border-slate-200/60 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs shadow-inner">
                         <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">BL ID (Index Vecchio Tool)</label>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">BL ID (Legacy Index)</label>
                             <input type="text" id="edit-blId-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white" value="${item.data["BL ID"] || ''}">
                         </div>
                         <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Request Code</label>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Request Code (Legacy Link)</label>
                             <input type="text" id="edit-requestCode-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white" value="${item.data["Request Code"] || ''}">
                         </div>
                     </div>
 
                     <div class="text-xs">
-                        <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Comments di riga</label>
+                        <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Row Comments</label>
                         <input type="text" id="edit-comments-${item.id}" class="w-full p-1.5 border border-slate-200 rounded italic text-slate-500" value="${item.data["Comments"] || ''}">
                     </div>
                 `;
@@ -431,7 +434,6 @@
         }
     }
 
-    // Salva le modifiche dei campi di input della riga nell'array di stato locale (in-memory)
     function saveRowLocalChanges(id) {
         const item = currentDetailItems.find(i => i.id === id);
         if (!item) return;
@@ -463,7 +465,7 @@
         const newId = currentDetailItems.length > 0 ? Math.max(...currentDetailItems.map(i => i.id)) + 1 : 0;
         currentDetailItems.push({
             id: newId,
-            isEditing: true, // Nasce direttamente aperto in modalità form
+            isEditing: true,
             data: { "Status": "ACTIVE", "Cost Recurrence": "Recurrent", "Total Commitment": 0 }
         });
         renderDetailItemsTable();
@@ -474,11 +476,10 @@
         renderDetailItemsTable();
     }
 
-    // COMMIT GENERALE: Invia l'intero pacchetto consolidato (Master + Righe di Dettaglio) al foglio Google
+    // SERVER TRANSACTION COMMIT
     function saveCurrentContract() {
-        if (!currentSelectedAsset) return alert('Seleziona un asset dallo Step 1 prima di procedere.');
+        if (!currentSelectedAsset) return alert('Please select a target asset from Step 1 first.');
 
-        // Se l'anagrafica Master è ancora aperta in editing, forza il recupero dei campi
         if (isMasterEditable) {
             currentMasterData["Supplier"] = document.getElementById('ins-masterSupplier').value;
             currentMasterData["Scope"] = document.getElementById('ins-masterScope').value.trim();
@@ -497,16 +498,15 @@
             supplier: currentMasterData["Supplier"],
             masterScope: currentMasterData["Scope"],
             masterComments: currentMasterData["Comments"],
-            details: currentDetailItems.map(item => item.data) // Estrae i dati localmente validati
+            details: currentDetailItems.map(item => item.data)
         };
 
-        if (!payload.masterId) return alert('Il campo Master Contract ID è strettamente obbligatorio.');
-        if (!payload.supplier) return alert('Il campo Supplier a livello Master è bloccante.');
+        if (!payload.masterId) return alert('Master Contract ID is strictly mandatory.');
+        if (!payload.supplier) return alert('Supplier selection at Master level is required.');
 
-        // Chiama il server, esegue la riscrittura protetta e forza il sync in-memory di tutta l'app
         google.script.run.withSuccessHandler(function (res) {
             if (res === "SUCCESS") {
-                alert('Architettura contrattuale consolidata con successo sul database.');
+                alert('Contract hierarchy compiled and committed successfully.');
                 if (typeof fetchLiveData === 'function') {
                     fetchLiveData().then(() => {
                         selectAssetForManagement(currentSelectedAsset.name, currentSelectedAsset.id);
@@ -518,12 +518,12 @@
 
     function deleteCurrentContract() {
         const id = currentMasterData ? currentMasterData["Master Contract ID"] : "";
-        if (!id) return alert('Nessun accordo quadro caricato da poter eliminare.');
-        if (!confirm('Confermi l\'eliminazione a cascata? Verrà rimosso l\'accordo quadro e tutte le sue righe in Contracts.')) return;
+        if (!id) return alert('No active Master Agreement loaded for deletion.');
+        if (!confirm('Are you sure you want to trigger a cascading delete? This purges the Master Agreement record and all correlated lines from the Contracts table.')) return;
 
         google.script.run.withSuccessHandler(function (res) {
             if (res === "DELETED") {
-                alert('Contratto e ramificazioni rimosse.');
+                alert('Master record and sub-allocations successfully dropped.');
                 if (typeof fetchLiveData === 'function') {
                     fetchLiveData().then(() => {
                         selectAssetForManagement(currentSelectedAsset.name, currentSelectedAsset.id);
