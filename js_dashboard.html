@@ -25,6 +25,50 @@
         document.getElementById('actual-savings-kpi').textContent = "€ " + (totalActualSaving / 1000000).toFixed(1) + "M";
         document.getElementById('target-savings-kpi').textContent = "€ " + (remainingToSecure / 1000000).toFixed(1) + "M";
 
+        // ============================================================================
+        // CALCOLO PERFORMANCE INIZIATIVE REALIZZATE (COMPLETED)
+        // ============================================================================
+        let realizedActual = 0;
+        let realizedTarget = 0;
+        initiatives.forEach(init => {
+            const status = (init["Initiative Status"] || "").toString().toUpperCase().trim();
+            if (status === "COMPLETED") {
+                realizedActual += parseFloat(init["Actual Saving (Annualized)"]) || 0;
+                realizedTarget += parseFloat(init["Target Saving (Annualized)"]) || 0;
+            }
+        });
+
+        let perfPct = 0;
+        if (realizedTarget > 0) {
+            perfPct = ((realizedActual - realizedTarget) / realizedTarget) * 100;
+        }
+
+        const pctEl = document.getElementById('savings-perf-pct');
+        if (pctEl) {
+            const sign = perfPct >= 0 ? "+" : "";
+            pctEl.textContent = sign + perfPct.toFixed(1) + "%";
+            // Colore dinamico condizionale (Verde se in surplus, rosso se sotto target)
+            if (perfPct >= 0) {
+                pctEl.className = "text-3xl font-black text-emerald-600 tracking-tight leading-none";
+            } else {
+                pctEl.className = "text-3xl font-black text-rose-600 tracking-tight leading-none";
+            }
+        }
+
+        const formatKpiValue = (val) => {
+            if (val >= 1000000) return "€ " + (val / 1000000).toFixed(1) + "M";
+            if (val >= 1000) return "€ " + (val / 1000).toFixed(0) + "k";
+            return "€ " + val.toFixed(0);
+        };
+
+        if (document.getElementById('savings-perf-actual')) {
+            document.getElementById('savings-perf-actual').textContent = formatKpiValue(realizedActual);
+        }
+        if (document.getElementById('savings-perf-target')) {
+            document.getElementById('savings-perf-target').textContent = formatKpiValue(realizedTarget);
+        }
+        // ============================================================================
+
         renderGenericDoughnut('supplierConcentrationChart', activeContracts, 'Supplier', 'supplier');
         renderGenericDoughnut('costCenterChart', activeContracts, 'Cost Center', 'costCenter');
         renderGenericDoughnut('legalEntityChart', activeContracts, 'Legal Entity', 'legalEntity');

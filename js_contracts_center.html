@@ -1,0 +1,535 @@
+<script>
+    // Stato dell'applicazione contratti in-memory
+    let currentSelectedAsset = null;
+    let currentAssetGroupIds = [];
+    let currentMasterData = null;
+    let currentDetailItems = []; // Array di tracciamento dello stato locale delle righe
+    let isMasterEditable = false;
+
+    // Intercettore nativo al cambio di tab per la sincronizzazione immediata da memoria
+    const originalSwitchTab = switchTab;
+    switchTab = function (tabId) {
+        originalSwitchTab(tabId);
+        if (tabId === 'tab-contracts') {
+            document.getElementById('mgmt-asset-search-input').value = '';
+            renderAssetSearchList();
+        }
+    };
+
+    // Estrattore univoco e pulito delle colonne di lookup (Risolve il bug dei duplicati)
+    function extractUniqueField(payloadArray, keyName) {
+        if (!payloadArray || payloadArray.length === 0) return [];
+        return [...new Set(payloadArray.map(item => {
+            const val = item[keyName] !== undefined ? item[keyName] : Object.values(item)[0];
+            return (val || "").toString().trim();
+        }))].filter(v => v !== "").sort();
+    }
+
+    // STEP 1: Ricerca ed esplorazione Asset Client-Side
+    function renderAssetSearchList() {
+        const query = document.getElementById('mgmt-asset-search-input').value.toLowerCase().trim();
+        const container = document.getElementById('mgmt-asset-results-list');
+        if (!container) return;
+
+        const matchedAssets = (windowPayload.assets || []).filter(a => {
+            return (a["Asset Name"] || "").toLowerCase().includes(query) || (a["Manufacturer"] || "").toLowerCase().includes(query);
+        });
+
+        if (matchedAssets.length === 0) {
+            container.innerHTML = `<p class="text-slate-400 italic text-[11px] text-center py-2">No matching assets in memory.</p>`;
+            return;
+        }
+
+        container.innerHTML = matchedAssets.map(asset => {
+            const name = asset["Asset Name"] || "Unknown Asset";
+            const id = asset["Asset ID"] || "N/A";
+            return `
+                <div onclick="selectAssetForManagement('${name.replace(/'/g, "\\'")}', '${id}')" 
+                     class="p-2 border-b border-slate-100 hover:bg-teal-50/60 cursor-pointer transition-colors flex justify-between items-center text-xs group">
+                    <div>
+                        <div class="font-black text-slate-800 group-hover:text-teal-900">${name}</div>
+                        <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">${asset["Manufacturer"] || 'Generic'}</div>
+                    </div>
+                    <span class="bg-slate-100 text-slate-500 font-mono text-[9px] px-1.5 py-0.5 rounded">ID: ${id}</span>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // Al click dell'Asset, mappa i Master e i Group ID associati
+    function selectAssetForManagement(assetName, assetId) {
+        currentSelectedAsset = { name: assetName, id: assetId };
+        isMasterEditable = false;
+
+        document.getElementById('mgmt-selected-asset-header').innerHTML = `
+            <div class="bg-teal-50 border border-teal-200 rounded-xl p-3 flex justify-between items-center">
+                <div>
+                    <span class="text-[8px] font-black text-teal-600 uppercase tracking-widest block">Active Target Asset</span>
+                    <span class="font-black text-slate-800 text-sm">${assetName}</span>
+                </div>
+                <span class="font-mono text-[10px] bg-white border border-teal-100 px-2 py-1 rounded-lg text-slate-600">ID: ${assetId}</span>
+            </div>
+        `;
+
+        const allContracts = windowPayload.contracts || [];
+        const filteredGroupIds = allContracts.filter(c => (c["Asset Name"] || "").toString().toLowerCase() === assetName.toLowerCase())
+            .map(c => (c["Group ID"] || "").toString().trim())
+            .filter(g => g !== "");
+        currentAssetGroupIds = [...new Set(filteredGroupIds)].sort();
+
+        document.getElementById('mgmt-master-form-container').classList.add('hidden');
+        document.getElementById('mgmt-detailRowsContainer').innerHTML = '';
+
+        const allMasterContracts = windowPayload.masterContracts || [];
+        const assetMasters = allMasterContracts.filter(m => (m["Asset Name"] || "").toString().toLowerCase().trim() === assetName.toLowerCase().trim());
+
+        renderMasterContractsList(assetMasters);
+    }
+
+    function renderMasterContractsList(list) {
+        const container = document.getElementById('mgmt-master-list-container');
+        let html = `
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Linked Master Agreements</span>
+                <button onclick="setupNewMasterAgreement()" class="text-[9px] font-black bg-teal-50 border border-teal-200 text-teal-700 px-2 py-1 rounded-md hover:bg-teal-100">+ New Master</button>
+            </div>
+        `;
+
+        if (list.length === 0) {
+            html += `<p class="text-slate-400 italic text-[11px] text-center py-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl">No Master Agreements linked.</p>`;
+            container.innerHTML = html;
+            return;
+        }
+
+        html += `<div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">`;
+        list.forEach(m => {
+            const mId = m["Master Contract ID"];
+            const supplier = m["Supplier"] || "No Supplier";
+            html += `
+                <div class="flex justify-between items-center p-2.5 bg-white border border-slate-100 hover:border-teal-200 rounded-xl shadow-sm group">
+                    <div class="min-w-0 flex-1">
+                        <div class="font-black text-slate-800 text-xs">${mId}</div>
+                        <div class="text-[9px] text-slate-400 font-bold mt-0.5">Vendor: <span class="text-slate-600">${supplier}</span></div>
+                    </div>
+                    <button onclick="loadFullMasterDetailArchitecture('${mId}')" class="px-2.5 py-1 bg-slate-100 hover:bg-teal-700 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-all">Manage</button>
+                </div>
+            `;
+        });
+        html += `</div>`;
+        container.innerHTML = html;
+    }
+
+    function loadFullMasterDetailArchitecture(masterId) {
+        const allMasterContracts = windowPayload.masterContracts || [];
+        const allContracts = windowPayload.contracts || [];
+
+        currentMasterData = allMasterContracts.find(m => m["Master Contract ID"].toString().trim() === masterId.toString().trim());
+        const rawDetails = allContracts.filter(c => c["Master Contract ID"].toString().trim() === masterId.toString().trim());
+
+        currentDetailItems = rawDetails.map((row, index) => ({
+            id: index,
+            isEditing: false,
+            data: row
+        }));
+
+        isMasterEditable = false;
+        renderMasterFormBox();
+        renderDetailItemsTable();
+    }
+
+    function setupNewMasterAgreement() {
+        currentMasterData = { "Master Contract ID": "", "Supplier": "", "Scope": "", "Comments": "" };
+        currentDetailItems = [];
+        isMasterEditable = true;
+        renderMasterFormBox();
+        renderDetailItemsTable();
+    }
+
+    function renderMasterFormBox() {
+        document.getElementById('mgmt-master-form-container').classList.remove('hidden');
+        const container = document.getElementById('mgmt-master-form-box-inner');
+        if (!container) return;
+
+        const suppliersList = extractUniqueField(windowPayload.suppliers, "Supplier");
+
+        if (!isMasterEditable) {
+            container.innerHTML = `
+                <div class="flex justify-between items-start border-b border-slate-100 pb-2 mb-3">
+                    <div>
+                        <span class="text-[10px] font-mono bg-teal-900 text-white px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">${currentMasterData["Master Contract ID"] || 'NEW MASTER'}</span>
+                        <h4 class="text-sm font-black text-slate-800 mt-1">Vendor: <span class="text-teal-700">${currentMasterData["Supplier"] || 'Not Specified'}</span></h4>
+                    </div>
+                    <button onclick="toggleMasterEditState(true)" class="px-3 py-1 bg-slate-100 border border-slate-200 text-slate-700 font-black text-[10px] uppercase tracking-wider rounded-lg hover:bg-slate-200 transition-colors">Modifica Anagrafica</button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                    <div><span class="text-slate-400 font-bold uppercase text-[9px] block">Master Scope:</span> <span class="text-slate-700 font-medium">${currentMasterData["Scope"] || '—'}</span></div>
+                    <div><span class="text-slate-400 font-bold uppercase text-[9px] block">Master Comments:</span> <span class="text-slate-500 italic font-medium">${currentMasterData["Comments"] || '—'}</span></div>
+                </div>
+            `;
+        } else {
+            const isNew = currentMasterData["Master Contract ID"] === "";
+            container.innerHTML = `
+                <div class="flex justify-between items-center border-b border-slate-200 pb-2 mb-4">
+                    <h3 class="text-xs font-black text-slate-700 uppercase tracking-widest">Master Info Setup</h3>
+                    ${!isNew ? `<button onclick="toggleMasterEditState(false)" class="text-[10px] font-bold text-slate-400 hover:text-slate-600">Annulla</button>` : ''}
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    <div>
+                        <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Master Contract ID</label>
+                        <input type="text" id="ins-masterId" ${!isNew ? 'disabled' : ''} value="${currentMasterData["Master Contract ID"]}" placeholder="e.g., M-XYZ-01" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 font-bold uppercase text-xs">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Supplier</label>
+                        <select id="ins-masterSupplier" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 font-bold text-slate-800 bg-white text-xs">
+                            <option value="">-- Seleziona Fornitore --</option>
+                            ${suppliersList.map(s => `<option value="${s}" ${s === currentMasterData["Supplier"] ? 'selected' : ''}>${s}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs mt-3">
+                    <div>
+                        <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Master Scope</label>
+                        <input type="text" id="ins-masterScope" value="${currentMasterData["Scope"] || ''}" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Master Comments</label>
+                        <input type="text" id="ins-masterComments" value="${currentMasterData["Comments"] || ''}" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 italic text-slate-500 text-xs">
+                    </div>
+                </div>
+                ${!isNew ? `
+                <div class="mt-3 flex justify-end">
+                    <button onclick="confirmMasterEditLocalChanges()" class="px-4 py-1.5 bg-slate-800 text-white rounded-lg font-black text-[10px] uppercase tracking-wider">Conferma Modifiche</button>
+                </div>` : ''}
+            `;
+        }
+    }
+
+    function toggleMasterEditState(editable) {
+        isMasterEditable = editable;
+        renderMasterFormBox();
+    }
+
+    function confirmMasterEditLocalChanges() {
+        currentMasterData["Supplier"] = document.getElementById('ins-masterSupplier').value;
+        currentMasterData["Scope"] = document.getElementById('ins-masterScope').value.trim();
+        currentMasterData["Comments"] = document.getElementById('ins-masterComments').value.trim();
+        isMasterEditable = false;
+        renderMasterFormBox();
+    }
+
+    // STEP 3 RENDERING: Costruzione dell'elenco contratti tramite CARD FLESSIBILI (Addio vecchia tabella rigida!)
+    function renderDetailItemsTable() {
+        const container = document.getElementById('mgmt-detailRowsContainer');
+        if (!container) return;
+
+        if (currentDetailItems.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-8 border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/20">
+                    <p class="text-slate-400 text-xs italic">Nessun dettaglio di allocazione o ramificazione presente per questo Master Contract.</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Genera una lista verticale fluida di card
+        container.innerHTML = `<div id="mgmt-flexible-cards-list" class="space-y-2.5"></div>`;
+        const listWrapper = document.getElementById('mgmt-flexible-cards-list');
+
+        currentDetailItems.forEach((item) => {
+            const cardDiv = document.createElement('div');
+
+            if (!item.isEditing) {
+                // ==========================================
+                // VISTA COMPATTA IN-MEMORY FLUIDA (READ-ONLY)
+                // ==========================================
+                const d = item.data;
+                const effCommit = typeof d["Effective Commitment"] === 'number' ? d["Effective Commitment"].formatCurrency() : (parseFloat(d["Effective Commitment"]) || 0).formatCurrency();
+                const annVal = typeof d["Annual Value"] === 'number' ? d["Annual Value"].formatCurrency() : (parseFloat(d["Annual Value"]) || 0).formatCurrency();
+                const cleanStart = d["Start Date"] ? d["Start Date"].toString().split('T')[0] : '—';
+                const cleanEnd = d["End Date"] ? d["End Date"].toString().split('T')[0] : '—';
+
+                cardDiv.className = "p-3 bg-white border border-slate-200/80 rounded-xl hover:border-teal-200 hover:shadow-sm transition-all flex flex-col gap-2";
+                cardDiv.innerHTML = `
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                        <div class="grid grid-cols-1 md:grid-cols-3 flex-1 gap-4 items-center">
+                            
+                            <div class="flex items-center gap-2.5 min-w-0">
+                                <span class="font-black text-slate-900 truncate tracking-wide text-[13px]">${d["Legal Entity"] || '—'}</span>
+                                <span class="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider shrink-0 ${d["Status"] === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' : d["Status"] === 'EXPIRED' ? 'bg-rose-50 text-rose-600 border border-rose-200/50' : 'bg-amber-50 text-amber-700 border border-amber-200/50'}">${d["Status"] || 'ACTIVE'}</span>
+                            </div>
+
+                            <div class="text-slate-500 font-mono text-[11px] flex items-center gap-1.5 whitespace-nowrap">
+                                <span class="bg-slate-50 border border-slate-100 rounded px-1.5 text-slate-600">${cleanStart}</span>
+                                <span class="text-slate-300 font-sans">➔</span>
+                                <span class="bg-slate-50 border border-slate-100 rounded px-1.5 text-slate-600">${cleanEnd}</span>
+                                <span class="ml-1 bg-slate-100 font-sans font-black text-[10px] px-1.5 py-0.5 rounded-md text-slate-700">${d["Contract Term (Months)"] || '—'} M</span>
+                            </div>
+
+                            <div class="flex items-center gap-5 justify-start md:justify-end">
+                                <div class="text-right">
+                                    <span class="text-[8px] text-slate-400 block uppercase font-black tracking-wider">Eff. Commitment</span>
+                                    <span class="font-mono font-bold text-teal-800 text-[12px]">€${effCommit}</span>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-[8px] text-slate-400 block uppercase font-black tracking-wider">Annual Value</span>
+                                    <span class="font-mono font-bold text-slate-800 text-[12px]">€${annVal}</span>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="flex justify-end shrink-0 pl-2">
+                            <button onclick="toggleRowEditMode(${item.id}, true)" class="px-3 py-1 bg-teal-50 hover:bg-teal-700 text-teal-700 hover:text-white font-black rounded-lg text-[10px] uppercase tracking-wider border border-teal-100 transition-all">Modifica</button>
+                        </div>
+                    </div>
+
+                    <div class="pt-1.5 border-t border-slate-100 text-[11px] flex items-start gap-1">
+                        <span class="text-slate-400 font-black uppercase text-[8px] tracking-widest mt-0.5 bg-slate-100 px-1 rounded">Scope</span>
+                        <span class="text-slate-600 font-medium break-words flex-1">${d["Scope"] || '<span class="text-slate-300 italic">Nessuno scope specificato riga</span>'}</span>
+                    </div>
+                `;
+                listWrapper.appendChild(cardDiv);
+            } else {
+                // ==========================================
+                // VISTA ESPANSA DI EDITING (FORM RIGIDO)
+                // ==========================================
+                cardDiv.className = "bg-slate-50/50 border border-slate-200 rounded-xl p-4 shadow-inner relative space-y-4";
+                cardDiv.innerHTML = `
+                    <div class="absolute top-3 right-3 flex gap-2">
+                        <button onclick="saveRowLocalChanges(${item.id})" class="text-[10px] font-black bg-emerald-600 text-white px-2.5 py-1 rounded-lg shadow-sm hover:bg-emerald-700">Applica</button>
+                        <button onclick="toggleRowEditMode(${item.id}, false)" class="text-[10px] font-black bg-slate-200 text-slate-600 px-2.5 py-1 rounded-lg hover:bg-slate-300">Annulla</button>
+                        <button onclick="removeRowFromLocalArchitecture(${item.id})" class="text-[10px] font-black bg-rose-50 border border-rose-200 text-rose-600 px-2.5 py-1 rounded-lg hover:bg-rose-100">Rimuovi</button>
+                    </div>
+                    
+                    <div class="text-[10px] font-black text-teal-800 uppercase tracking-widest border-b border-slate-200 pb-1 w-fit">Modifica Riga Contrattuale</div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Group ID</label>
+                            <input type="text" id="edit-groupId-${item.id}" class="w-full p-1.5 border border-slate-300 rounded font-mono font-bold" value="${item.data["Group ID"] || ''}" list="dl-assetGroupIds">
+                            <datalist id="dl-assetGroupIds">${currentAssetGroupIds.map(g => `<option value="${g}">`).join('')}</datalist>
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Target Group ID (Rinnovo)</label>
+                            <select id="edit-targetGroupId-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white font-mono">
+                                <option value="">-- Nessun Rinnovo --</option>
+                                ${currentAssetGroupIds.map(g => `<option value="${g}" ${g === item.data["Target Group ID"] ? 'selected' : ''}>${g}</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Legal Entity</label>
+                            <select id="edit-legalEntity-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+                                <option value="">-- Seleziona Società --</option>
+                                ${extractUniqueField(windowPayload.legalEntities, "Legal Entity").map(le => `<option value="${le}" ${le === item.data["Legal Entity"] ? 'selected' : ''}>${le}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Location</label>
+                            <select id="edit-location-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+                                <option value="">-- Seleziona Area --</option>
+                                ${extractUniqueField(windowPayload.locations, "Location").map(loc => `<option value="${loc}" ${loc === item.data["Location"] ? 'selected' : ''}>${loc}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Service Owner</label>
+                            <input type="text" id="edit-serviceOwner-${item.id}" class="w-full p-1.5 border border-slate-300 rounded" value="${item.data["Service Owner"] || ''}" list="dl-owners">
+                            <datalist id="dl-owners">${[...new Set((windowPayload.contracts || []).map(c => (c["Service Owner"] || "").toString().trim()).filter(v => v !== ""))].sort().map(so => `<option value="${so}">`).join('')}</datalist>
+                        </div>
+                    </div>
+
+                    <div class="text-xs">
+                        <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Scope / Perimetro di riga</label>
+                        <input type="text" id="edit-scope-${item.id}" class="w-full p-1.5 border border-slate-300 rounded" value="${item.data["Scope"] || ''}">
+                    </div>
+
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Cost Recurrence</label>
+                            <select id="edit-costRecurrence-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white font-bold text-teal-800">
+                                <option value="Recurrent" ${item.data["Cost Recurrence"] !== 'One-Shot' ? 'selected' : ''}>Recurrent</option>
+                                <option value="One-Shot" ${item.data["Cost Recurrence"] === 'One-Shot' ? 'selected' : ''}>One-Shot</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Total Commitment (€)</label>
+                            <input type="number" step="0.01" id="edit-totalCommitment-${item.id}" class="w-full p-1.5 border border-slate-300 rounded font-mono font-bold text-emerald-700" value="${item.data["Total Commitment"] || ''}">
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Expenditure Type</label>
+                            <select id="edit-expenditureType-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+                                <option value="">-- Opzionale --</option>
+                                <option value="OPEX" ${item.data["Expenditure Type"] === 'OPEX' ? 'selected' : ''}>OPEX</option>
+                                <option value="CAPEX" ${item.data["Expenditure Type"] === 'CAPEX' ? 'selected' : ''}>CAPEX</option>
+                                <option value="ROU" ${item.data["Expenditure Type"] === 'ROU' ? 'selected' : ''}>ROU</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Cost Center</label>
+                            <select id="edit-costCenter-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white font-mono">
+                                <option value="">-- Seleziona CC --</option>
+                                ${extractUniqueField(windowPayload.costCenters, "Cost Center").map(cc => `<option value="${cc}" ${cc === item.data["Cost Center"] ? 'selected' : ''}>${cc}</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Start Date</label>
+                            <input type="date" id="edit-startDate-${item.id}" class="w-full p-1 border border-slate-300 rounded font-mono" value="${item.data["Start Date"] ? item.data["Start Date"].toString().split('T')[0] : ''}">
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Contract End Date</label>
+                            <input type="date" id="edit-contractEndDate-${item.id}" class="w-full p-1 border border-slate-300 rounded font-mono" value="${item.data["Contract End Date"] ? item.data["Contract End Date"].toString().split('T')[0] : ''}">
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Adjusted End Date</label>
+                            <input type="date" id="edit-adjustedEndDate-${item.id}" class="w-full p-1 border border-slate-300 rounded font-mono bg-amber-50/20" value="${item.data["Adjusted End Date"] ? item.data["Adjusted End Date"].toString().split('T')[0] : ''}">
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Notice Period (Days)</label>
+                            <input type="number" id="edit-noticePeriod-${item.id}" class="w-full p-1.5 border border-slate-300 rounded" value="${item.data["Notice Period (Days)"] || ''}" placeholder="Opzionale">
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Auto-Renewal</label>
+                            <select id="edit-autoRenewal-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+                                <option value="" ${!item.data["Auto-Renewal"] ? 'selected' : ''}>Opzionale</option>
+                                <option value="No" ${item.data["Auto-Renewal"] === 'No' ? 'selected' : ''}>No</option>
+                                <option value="Yes" ${item.data["Auto-Renewal"] === 'Yes' ? 'selected' : ''}>Yes</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs shadow-inner">
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">BL ID (Index Vecchio Tool)</label>
+                            <input type="text" id="edit-blId-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white" value="${item.data["BL ID"] || ''}">
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Request Code</label>
+                            <input type="text" id="edit-requestCode-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white" value="${item.data["Request Code"] || ''}">
+                        </div>
+                    </div>
+
+                    <div class="text-xs">
+                        <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Comments di riga</label>
+                        <input type="text" id="edit-comments-${item.id}" class="w-full p-1.5 border border-slate-200 rounded italic text-slate-500" value="${item.data["Comments"] || ''}">
+                    </div>
+                `;
+                listWrapper.appendChild(cardDiv);
+            }
+        });
+    }
+
+    function toggleRowEditMode(id, editable) {
+        const item = currentDetailItems.find(i => i.id === id);
+        if (item) {
+            item.isEditing = editable;
+            renderDetailItemsTable();
+        }
+    }
+
+    // Salva le modifiche dei campi di input della riga nell'array di stato locale (in-memory)
+    function saveRowLocalChanges(id) {
+        const item = currentDetailItems.find(i => i.id === id);
+        if (!item) return;
+
+        item.data["Group ID"] = document.getElementById(`edit-groupId-${id}`).value.trim();
+        item.data["Target Group ID"] = document.getElementById(`edit-targetGroupId-${id}`).value;
+        item.data["Legal Entity"] = document.getElementById(`edit-legalEntity-${id}`).value;
+        item.data["Location"] = document.getElementById(`edit-location-${id}`).value;
+        item.data["Service Owner"] = document.getElementById(`edit-serviceOwner-${id}`).value.trim();
+        item.data["Scope"] = document.getElementById(`edit-scope-${id}`).value.trim();
+        item.data["Cost Recurrence"] = document.getElementById(`edit-costRecurrence-${id}`).value;
+        item.data["Total Commitment"] = parseFloat(document.getElementById(`edit-totalCommitment-${id}`).value) || 0;
+        item.data["Expenditure Type"] = document.getElementById(`edit-expenditureType-${id}`).value;
+        item.data["Cost Center"] = document.getElementById(`edit-costCenter-${id}`).value;
+        item.data["Start Date"] = document.getElementById(`edit-startDate-${id}`).value;
+        item.data["Contract End Date"] = document.getElementById(`edit-contractEndDate-${id}`).value;
+        item.data["Adjusted End Date"] = document.getElementById(`edit-adjustedEndDate-${id}`).value;
+        item.data["Notice Period (Days)"] = document.getElementById(`edit-noticePeriod-${id}`).value.trim();
+        item.data["Auto-Renewal"] = document.getElementById(`edit-autoRenewal-${id}`).value;
+        item.data["BL ID"] = document.getElementById(`edit-blId-${id}`).value.trim();
+        item.data["Request Code"] = document.getElementById(`edit-requestCode-${id}`).value.trim();
+        item.data["Comments"] = document.getElementById(`edit-comments-${id}`).value.trim();
+
+        item.isEditing = false;
+        renderDetailItemsTable();
+    }
+
+    function addNewDetailRowItem() {
+        const newId = currentDetailItems.length > 0 ? Math.max(...currentDetailItems.map(i => i.id)) + 1 : 0;
+        currentDetailItems.push({
+            id: newId,
+            isEditing: true, // Nasce direttamente aperto in modalità form
+            data: { "Status": "ACTIVE", "Cost Recurrence": "Recurrent", "Total Commitment": 0 }
+        });
+        renderDetailItemsTable();
+    }
+
+    function removeRowFromLocalArchitecture(id) {
+        currentDetailItems = currentDetailItems.filter(i => i.id !== id);
+        renderDetailItemsTable();
+    }
+
+    // COMMIT GENERALE: Invia l'intero pacchetto consolidato (Master + Righe di Dettaglio) al foglio Google
+    function saveCurrentContract() {
+        if (!currentSelectedAsset) return alert('Seleziona un asset dallo Step 1 prima di procedere.');
+
+        // Se l'anagrafica Master è ancora aperta in editing, forza il recupero dei campi
+        if (isMasterEditable) {
+            currentMasterData["Supplier"] = document.getElementById('ins-masterSupplier').value;
+            currentMasterData["Scope"] = document.getElementById('ins-masterScope').value.trim();
+            currentMasterData["Comments"] = document.getElementById('ins-masterComments').value.trim();
+        } else {
+            const domMasterId = document.getElementById('mgmt-masterId') ? document.getElementById('mgmt-masterId').value.trim() : "";
+            if (domMasterId && currentMasterData["Master Contract ID"] === "") {
+                currentMasterData["Master Contract ID"] = domMasterId;
+            }
+        }
+
+        const payload = {
+            assetName: currentSelectedAsset.name,
+            assetId: currentSelectedAsset.id,
+            masterId: currentMasterData["Master Contract ID"] || (document.getElementById('ins-masterId') ? document.getElementById('ins-masterId').value.trim() : ""),
+            supplier: currentMasterData["Supplier"],
+            masterScope: currentMasterData["Scope"],
+            masterComments: currentMasterData["Comments"],
+            details: currentDetailItems.map(item => item.data) // Estrae i dati localmente validati
+        };
+
+        if (!payload.masterId) return alert('Il campo Master Contract ID è strettamente obbligatorio.');
+        if (!payload.supplier) return alert('Il campo Supplier a livello Master è bloccante.');
+
+        // Chiama il server, esegue la riscrittura protetta e forza il sync in-memory di tutta l'app
+        google.script.run.withSuccessHandler(function (res) {
+            if (res === "SUCCESS") {
+                alert('Architettura contrattuale consolidata con successo sul database.');
+                if (typeof fetchLiveData === 'function') {
+                    fetchLiveData().then(() => {
+                        selectAssetForManagement(currentSelectedAsset.name, currentSelectedAsset.id);
+                    });
+                }
+            }
+        }).saveMasterDetailContract(payload);
+    }
+
+    function deleteCurrentContract() {
+        const id = currentMasterData ? currentMasterData["Master Contract ID"] : "";
+        if (!id) return alert('Nessun accordo quadro caricato da poter eliminare.');
+        if (!confirm('Confermi l\'eliminazione a cascata? Verrà rimosso l\'accordo quadro e tutte le sue righe in Contracts.')) return;
+
+        google.script.run.withSuccessHandler(function (res) {
+            if (res === "DELETED") {
+                alert('Contratto e ramificazioni rimosse.');
+                if (typeof fetchLiveData === 'function') {
+                    fetchLiveData().then(() => {
+                        selectAssetForManagement(currentSelectedAsset.name, currentSelectedAsset.id);
+                    });
+                }
+            }
+        }).deleteMasterDetailContract(id);
+    }
+</script>
