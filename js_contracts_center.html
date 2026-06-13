@@ -217,14 +217,14 @@
         renderMasterFormBox();
     }
 
-    // STEP 3 RENDERING: Fluid Client-side Cards Rendering logic (No nested backticks inside map arrays)
+    // STEP 3 RENDERING: Fluid Client-side Cards Rendering logic (VSCode parser safe string maps)
     function renderDetailItemsTable() {
         const container = document.getElementById('mgmt-detailRowsContainer');
         if (!container) return;
 
         if (currentDetailItems.length === 0) {
             container.innerHTML = `
-                <div class="text-center py-8 border-2 border-dashed border-dashed border-slate-100 rounded-2xl bg-slate-50/20">
+                <div class="text-center py-8 border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/20">
                     <p class="text-slate-400 text-xs italic">No allocation or ramping detail records found for this Master Agreement.</p>
                 </div>
             `;
