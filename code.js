@@ -86,7 +86,7 @@ function saveMasterDetailContract(payload) {
   const detailSheet = ss.getSheetByName(CONFIG.SHEETS.CONTRACTS);
   const masterId = payload.masterId;
 
-  // 1. Scrittura Dinamica e selettiva su MasterContracts
+  // 1. Dynamic and selective writing on MasterContracts
   const mHeaders = masterSheet.getRange(1, 1, 1, masterSheet.getLastColumn()).getValues()[0].map(h => h.toString().trim());
   const mData = masterSheet.getDataRange().getValues();
   let mRowIdx = -1;
@@ -104,7 +104,7 @@ function saveMasterDetailContract(payload) {
     else if (header === "Supplier") mRow[idx] = payload.supplier;
     else if (header === "Scope") mRow[idx] = payload.masterScope;
     else if (header === "Comments") mRow[idx] = payload.masterComments;
-    else if (mRowIdx === -1) { mRow[idx] = ""; } 
+    else if (mRowIdx === -1) { mRow[idx] = ""; }
   });
 
   if (mRowIdx > -1) {
@@ -113,8 +113,28 @@ function saveMasterDetailContract(payload) {
     masterSheet.appendRow(mRow);
   }
 
-  // 2. Rimozione a cascata (Cascading Delete) su Contracts
+  // 2. Pre-calculate baseline sequential counter for the Supplier from existing sheet data
   const dData = detailSheet.getDataRange().getValues();
+  const supplierGlobalCounts = {};
+
+  if (dData.length > 1) {
+    const headers = dData[0].map(h => h.toString().trim());
+    const sIdx = headers.indexOf("Supplier");
+    const mIdx = headers.indexOf("Master Contract ID");
+
+    for (let i = 1; i < dData.length; i++) {
+      // Exclude rows from this specific masterId since we are overwriting them
+      if (dData[i][mIdx].toString().trim() === masterId.toString().trim()) {
+        continue;
+      }
+      let existingSupplier = dData[i][sIdx].toString().trim().toLowerCase();
+      if (existingSupplier !== "") {
+        supplierGlobalCounts[existingSupplier] = (supplierGlobalCounts[existingSupplier] || 0) + 1;
+      }
+    }
+  }
+
+  // 3. Cascading Delete of current records for this masterId
   for (let j = dData.length - 1; j >= 1; j--) {
     if (dData[j][1].toString().trim() === masterId.toString().trim()) {
       detailSheet.deleteRow(j + 1);
@@ -123,13 +143,41 @@ function saveMasterDetailContract(payload) {
 
   if (payload.details.length === 0) return "SUCCESS";
 
-  // 3. Iniezione controllata dei dettagli manuali in Contracts
+  // 4. Controlled injection of details with Code-Generated Static Contract ID
   const dHeaders = detailSheet.getRange(1, 1, 1, detailSheet.getLastColumn()).getValues()[0].map(h => h.toString().trim());
-  
+
   payload.details.forEach(detail => {
     let newRow = new Array(dHeaders.length).fill("");
+
+    // Resolve or generate immutable static Contract ID
+    let finalContractId = "";
+    if (detail.contractId && detail.contractId.trim() !== "") {
+      finalContractId = detail.contractId.trim();
+    } else {
+      let targetSupplier = (payload.supplier || "GENERIC");
+      let sLower = targetSupplier.trim().toLowerCase();
+
+      // Increment historical counter
+      supplierGlobalCounts[sLower] = (supplierGlobalCounts[sLower] || 0) + 1;
+      let sequentialNumber = supplierGlobalCounts[sLower];
+      let formattedCounter = sequentialNumber < 10 ? "0" + sequentialNumber : sequentialNumber.toString();
+
+      // Mirroring sheet regex logic: remove vowels, dots, spaces case-insensitively
+      let cleanSupplier = targetSupplier.replace(/[aeiou.\s]/gi, "").toUpperCase().substring(0, 5);
+      let cleanAsset = (payload.assetName || "ASST").replace(/[aeiou.\s]/gi, "").toUpperCase().substring(0, 4);
+
+      let year = "YYYY";
+      if (detail.startDate) {
+        let dateParts = detail.startDate.split("-");
+        if (dateParts.length > 0) year = dateParts[0];
+      }
+
+      finalContractId = "CTR-" + cleanSupplier + "-" + cleanAsset + "-" + year + "-" + formattedCounter;
+    }
+
     dHeaders.forEach((header, idx) => {
-      if (header === "Master Contract ID") newRow[idx] = masterId;
+      if (header === "Contract ID" || header === "Contract Ref") newRow[idx] = finalContractId;
+      else if (header === "Master Contract ID") newRow[idx] = masterId;
       else if (header === "Group ID") newRow[idx] = detail.groupId;
       else if (header === "Target Group ID") newRow[idx] = detail.targetGroupId;
       else if (header === "Legal Entity") newRow[idx] = detail.legalEntity;
@@ -148,7 +196,7 @@ function saveMasterDetailContract(payload) {
       else if (header === "Expenditure Type") newRow[idx] = detail.expenditureType;
       else if (header === "Cost Center") newRow[idx] = detail.costCenter;
       else if (header === "Comments") newRow[idx] = detail.comments;
-      else { newRow[idx] = ""; } 
+      else { newRow[idx] = ""; } // Formulas (MAP/LAMBDA) will catch empty fields automatically
     });
     detailSheet.appendRow(newRow);
   });
@@ -160,12 +208,12 @@ function deleteMasterDetailContract(masterId) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const masterSheet = ss.getSheetByName(CONFIG.SHEETS.MASTER_CONTRACTS);
   const detailSheet = ss.getSheetByName(CONFIG.SHEETS.CONTRACTS);
-  
+
   const masterData = masterSheet.getDataRange().getValues();
   for (let i = masterData.length - 1; i >= 1; i--) {
     if (masterData[i][0].toString().trim() === masterId.toString().trim()) masterSheet.deleteRow(i + 1);
   }
-  
+
   const detailData = detailSheet.getDataRange().getValues();
   for (let j = detailData.length - 1; j >= 1; j--) {
     if (detailData[j][1].toString().trim() === masterId.toString().trim()) detailSheet.deleteRow(j + 1);

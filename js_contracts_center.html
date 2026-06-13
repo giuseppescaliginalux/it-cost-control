@@ -159,7 +159,7 @@
                         <span class="text-[10px] font-mono bg-teal-900 text-white px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">${currentMasterData["Master Contract ID"] || 'NEW MASTER'}</span>
                         <h4 class="text-sm font-black text-slate-800 mt-1">Vendor: <span class="text-teal-700">${currentMasterData["Supplier"] || 'Not Specified'}</span></h4>
                     </div>
-                    <button onclick="toggleMasterEditState(true)" class="px-3 py-1 bg-slate-100 border border-slate-200 text-slate-700 font-black text-[10px] uppercase tracking-wider rounded-lg hover:bg-slate-200 transition-colors">Edit Master Details</button>
+                    <button onclick="toggleMasterEditState(true)" class="px-3 py-1 bg-slate-100 border border-slate-200 text-slate-700 font-black text-[10px] uppercase tracking-wider rounded-lg hover:bg-slate-200 transition-colors">Edit Master Info</button>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
                     <div><span class="text-slate-400 font-bold uppercase text-[9px] block">Master Scope:</span> <span class="text-slate-700 font-medium">${currentMasterData["Scope"] || '—'}</span></div>
@@ -198,7 +198,7 @@
                 </div>
                 ${!isNew ? `
                 <div class="mt-3 flex justify-end">
-                    <button onclick="confirmMasterEditLocalChanges()" class="px-4 py-1.5 bg-slate-800 text-white rounded-lg font-black text-[10px] uppercase tracking-wider">Confirm Changes</button>
+                    <button onclick="confirmMasterEditLocalChanges()" class="px-4 py-1.5 bg-slate-800 text-white rounded-lg font-black text-[10px] uppercase tracking-wider">Confirm Master Changes</button>
                 </div>` : ''}
             `;
         }
@@ -290,7 +290,7 @@
                 listWrapper.appendChild(cardDiv);
             } else {
                 // ==========================================
-                // EXPANDED ROW EDITING FORM BLOCK (VSCode Safe Sintax)
+                // EXPANDED ROW EDITING FORM BLOCK (VSCode Safe Syntax)
                 // ==========================================
                 cardDiv.className = "bg-slate-50/50 border border-slate-200 rounded-xl p-4 shadow-inner relative space-y-4";
                 cardDiv.innerHTML = `
@@ -300,7 +300,7 @@
                         <button onclick="removeRowFromLocalArchitecture(${item.id})" class="text-[10px] font-black bg-rose-50 border border-rose-200 text-rose-600 px-2.5 py-1 rounded-lg hover:bg-rose-100">Remove</button>
                     </div>
                     
-                    <div class="text-[10px] font-black text-teal-800 uppercase tracking-widest border-b border-slate-200 pb-1 w-fit">Modify Allocation Row</div>
+                    <div class="text-[10px] font-black text-teal-800 uppercase tracking-widest border-b border-slate-200 pb-1 w-fit">Edit Allocation Line</div>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                         <div>
@@ -466,7 +466,7 @@
         currentDetailItems.push({
             id: newId,
             isEditing: true,
-            data: { "Status": "ACTIVE", "Cost Recurrence": "Recurrent", "Total Commitment": 0 }
+            data: { "Status": "ACTIVE", "Cost Recurrence": "Recurrent", "Total Commitment": 0, "Contract ID": "", "Contract Ref": "" }
         });
         renderDetailItemsTable();
     }
@@ -476,9 +476,16 @@
         renderDetailItemsTable();
     }
 
-    // SERVER TRANSACTION COMMIT
+    // BULLETPROOF IN-MEMORY COMMIT LOGIC (Bypasses DOM exceptions)
     function saveCurrentContract() {
-        if (!currentSelectedAsset) return alert('Please select a target asset from Step 1 first.');
+        if (!currentSelectedAsset) return alert('Please select a target asset from Step 1 before proceeding.');
+
+        // Programmatically flush open card forms to local array state before serialization
+        currentDetailItems.forEach(item => {
+            if (item.isEditing) {
+                saveRowLocalChanges(item.id);
+            }
+        });
 
         if (isMasterEditable) {
             currentMasterData["Supplier"] = document.getElementById('ins-masterSupplier').value;
@@ -498,7 +505,30 @@
             supplier: currentMasterData["Supplier"],
             masterScope: currentMasterData["Scope"],
             masterComments: currentMasterData["Comments"],
-            details: currentDetailItems.map(item => item.data)
+            details: currentDetailItems.map(item => {
+                return {
+                    contractId: item.data["Contract ID"] || "",
+                    contractRef: item.data["Contract Ref"] || "",
+                    groupId: item.data["Group ID"] || "",
+                    targetGroupId: item.data["Target Group ID"] || "",
+                    legalEntity: item.data["Legal Entity"] || "",
+                    location: item.data["Location"] || "",
+                    serviceOwner: item.data["Service Owner"] || "",
+                    scope: item.data["Scope"] || "",
+                    costRecurrence: item.data["Cost Recurrence"] || "",
+                    totalCommitment: item.data["Total Commitment"] || 0,
+                    expenditureType: item.data["Expenditure Type"] || "",
+                    costCenter: item.data["Cost Center"] || "",
+                    startDate: item.data["Start Date"] || "",
+                    contractEndDate: item.data["Contract End Date"] || "",
+                    adjustedEndDate: item.data["Adjusted End Date"] || "",
+                    noticePeriod: item.data["Notice Period (Days)"] || "",
+                    autoRenewal: item.data["Auto-Renewal"] || "",
+                    blId: item.data["BL ID"] || "",
+                    requestCode: item.data["Request Code"] || "",
+                    comments: item.data["Comments"] || ""
+                };
+            })
         };
 
         if (!payload.masterId) return alert('Master Contract ID is strictly mandatory.');
@@ -506,7 +536,7 @@
 
         google.script.run.withSuccessHandler(function (res) {
             if (res === "SUCCESS") {
-                alert('Contract hierarchy compiled and committed successfully.');
+                alert('Contract architecture compiled and committed successfully.');
                 if (typeof fetchLiveData === 'function') {
                     fetchLiveData().then(() => {
                         selectAssetForManagement(currentSelectedAsset.name, currentSelectedAsset.id);
