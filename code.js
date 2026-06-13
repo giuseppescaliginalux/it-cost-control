@@ -80,146 +80,237 @@ function getAssetsControlCenter(ss) {
 // ==========================================
 // 3. ENGINE CRUDS MASTER-DETAIL PER LE TABELLE
 // ==========================================
-function saveMasterDetailContract(payload) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const masterSheet = ss.getSheetByName(CONFIG.SHEETS.MASTER_CONTRACTS);
-  const detailSheet = ss.getSheetByName(CONFIG.SHEETS.CONTRACTS);
-  const masterId = payload.masterId;
+const EDITABLE_MASTER = ["Supplier", "Scope", "Comments"];
+const EDITABLE_CONTRACTS = [
+  "Group ID", "Target Group ID", "Legal Entity", "BL ID", "Request Code",
+  "Location", "Service Owner", "Scope", "Cost Recurrence",
+  "Total Commitment", "Expenditure Type", "Cost Center",
+  "Start Date", "Contract End Date", "Adjusted End Date",
+  "Notice Period (Days)", "Auto-Renewal", "Comments"
+];
 
-  // 1. Dynamic and selective writing on MasterContracts
-  const mHeaders = masterSheet.getRange(1, 1, 1, masterSheet.getLastColumn()).getValues()[0].map(h => h.toString().trim());
-  const mData = masterSheet.getDataRange().getValues();
-  let mRowIdx = -1;
-  for (let i = 1; i < mData.length; i++) {
-    if (mData[i][0].toString().trim() === masterId.toString().trim()) {
-      mRowIdx = i + 1; break;
-    }
-  }
+const MASTER_FIELD_MAP = {
+    "Master Contract ID": "masterId",
+    "Supplier": "supplier",
+    "Scope": "masterScope",
+    "Comments": "masterComments"
+    // Nota: startDate è gestito a parte nel payload master o non serve? 
+    // Se serve, aggiungilo qui: "Start Date": "startDate"
+};
 
-  let mRow = mRowIdx > -1 ? mData[mRowIdx - 1] : new Array(mHeaders.length).fill("");
-  mHeaders.forEach((header, idx) => {
-    if (header === "Master Contract ID") mRow[idx] = masterId;
-    else if (header === "Asset Name") mRow[idx] = payload.assetName;
-    else if (header === "Asset ID") mRow[idx] = payload.assetId;
-    else if (header === "Supplier") mRow[idx] = payload.supplier;
-    else if (header === "Scope") mRow[idx] = payload.masterScope;
-    else if (header === "Comments") mRow[idx] = payload.masterComments;
-    else if (mRowIdx === -1) { mRow[idx] = ""; }
-  });
+const CONTRACT_FIELD_MAP = {
+    "Contract ID": "contractId",
+    "Group ID": "groupId",
+    "Target Group ID": "targetGroupId",
+    "Legal Entity": "legalEntity",
+    "Location": "location",
+    "Service Owner": "serviceOwner",
+    "Scope": "scope", // Qui è 'scope', non 'masterScope'!
+    "Cost Recurrence": "costRecurrence",
+    "Total Commitment": "totalCommitment",
+    "Expenditure Type": "expenditureType",
+    "Cost Center": "costCenter",
+    "Start Date": "startDate",
+    "Contract End Date": "contractEndDate",
+    "Adjusted End Date": "adjustedEndDate",
+    "Notice Period (Days)": "noticePeriod",
+    "Auto-Renewal": "autoRenewal",
+    "BL ID": "blId",
+    "Request Code": "requestCode",
+    "Comments": "comments" // Qui è 'comments', non 'masterComments'!
+};
 
-  if (mRowIdx > -1) {
-    masterSheet.getRange(mRowIdx, 1, 1, mHeaders.length).setValues([mRow]);
-  } else {
-    masterSheet.appendRow(mRow);
-  }
+/* ==========================================================================
+   1. ENTRY POINT (ROUTER)
+   ========================================================================== */
+function processMasterDetailSync(payload) {
+  const masterCtx = getSheetContext(CONFIG.SHEETS.MASTER_CONTRACTS);
+  const detailCtx = getSheetContext(CONFIG.SHEETS.CONTRACTS);
 
-  // 2. Pre-calculate baseline sequential counter for the Supplier from existing sheet data
-  const dData = detailSheet.getDataRange().getValues();
-  const supplierGlobalCounts = {};
+  // 1. Delega la sincronizzazione del Master
+  syncMasterTable(masterCtx, payload);
 
-  if (dData.length > 1) {
-    const headers = dData[0].map(h => h.toString().trim());
-    const sIdx = headers.indexOf("Supplier");
-    const mIdx = headers.indexOf("Master Contract ID");
-
-    for (let i = 1; i < dData.length; i++) {
-      // Exclude rows from this specific masterId since we are overwriting them
-      if (dData[i][mIdx].toString().trim() === masterId.toString().trim()) {
-        continue;
-      }
-      let existingSupplier = dData[i][sIdx].toString().trim().toLowerCase();
-      if (existingSupplier !== "") {
-        supplierGlobalCounts[existingSupplier] = (supplierGlobalCounts[existingSupplier] || 0) + 1;
-      }
-    }
-  }
-
-  // 3. Cascading Delete of current records for this masterId
-  for (let j = dData.length - 1; j >= 1; j--) {
-    if (dData[j][1].toString().trim() === masterId.toString().trim()) {
-      detailSheet.deleteRow(j + 1);
-    }
-  }
-
-  if (payload.details.length === 0) return "SUCCESS";
-
-  // 4. Controlled injection of details with Code-Generated Static Contract ID
-  const dHeaders = detailSheet.getRange(1, 1, 1, detailSheet.getLastColumn()).getValues()[0].map(h => h.toString().trim());
-
-  payload.details.forEach(detail => {
-    let newRow = new Array(dHeaders.length).fill("");
-
-    // Resolve or generate immutable static Contract ID
-    let finalContractId = "";
-    if (detail.contractId && detail.contractId.trim() !== "") {
-      finalContractId = detail.contractId.trim();
-    } else {
-      let targetSupplier = (payload.supplier || "GENERIC");
-      let sLower = targetSupplier.trim().toLowerCase();
-
-      // Increment historical counter
-      supplierGlobalCounts[sLower] = (supplierGlobalCounts[sLower] || 0) + 1;
-      let sequentialNumber = supplierGlobalCounts[sLower];
-      let formattedCounter = sequentialNumber < 10 ? "0" + sequentialNumber : sequentialNumber.toString();
-
-      // Mirroring sheet regex logic: remove vowels, dots, spaces case-insensitively
-      let cleanSupplier = targetSupplier.replace(/[aeiou.\s]/gi, "").toUpperCase().substring(0, 5);
-      let cleanAsset = (payload.assetName || "ASST").replace(/[aeiou.\s]/gi, "").toUpperCase().substring(0, 4);
-
-      let year = "YYYY";
-      if (detail.startDate) {
-        let dateParts = detail.startDate.split("-");
-        if (dateParts.length > 0) year = dateParts[0];
-      }
-
-      finalContractId = "CTR-" + cleanSupplier + "-" + cleanAsset + "-" + year + "-" + formattedCounter;
-    }
-
-    dHeaders.forEach((header, idx) => {
-      if (header === "Contract ID" || header === "Contract Ref") newRow[idx] = finalContractId;
-      else if (header === "Master Contract ID") newRow[idx] = masterId;
-      else if (header === "Group ID") newRow[idx] = detail.groupId;
-      else if (header === "Target Group ID") newRow[idx] = detail.targetGroupId;
-      else if (header === "Legal Entity") newRow[idx] = detail.legalEntity;
-      else if (header === "BL ID") newRow[idx] = detail.blId;
-      else if (header === "Request Code") newRow[idx] = detail.requestCode;
-      else if (header === "Location") newRow[idx] = detail.location;
-      else if (header === "Service Owner") newRow[idx] = detail.serviceOwner;
-      else if (header === "Scope") newRow[idx] = detail.scope;
-      else if (header === "Start Date") newRow[idx] = detail.startDate;
-      else if (header === "Contract End Date") newRow[idx] = detail.contractEndDate;
-      else if (header === "Adjusted End Date") newRow[idx] = detail.adjustedEndDate;
-      else if (header === "Notice Period (Days)") newRow[idx] = detail.noticePeriod ? parseInt(detail.noticePeriod) : "";
-      else if (header === "Auto-Renewal") newRow[idx] = detail.autoRenewal;
-      else if (header === "Cost Recurrence") newRow[idx] = detail.costRecurrence;
-      else if (header === "Total Commitment") newRow[idx] = parseFloat(detail.totalCommitment) || 0;
-      else if (header === "Expenditure Type") newRow[idx] = detail.expenditureType;
-      else if (header === "Cost Center") newRow[idx] = detail.costCenter;
-      else if (header === "Comments") newRow[idx] = detail.comments;
-      else { newRow[idx] = ""; } // Formulas (MAP/LAMBDA) will catch empty fields automatically
-    });
-    detailSheet.appendRow(newRow);
-  });
+  // 2. Delega la sincronizzazione dei Contratti (Dettagli)
+  syncDetailTable(detailCtx, payload);
 
   return "SUCCESS";
 }
 
-function deleteMasterDetailContract(masterId) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const masterSheet = ss.getSheetByName(CONFIG.SHEETS.MASTER_CONTRACTS);
-  const detailSheet = ss.getSheetByName(CONFIG.SHEETS.CONTRACTS);
-
-  const masterData = masterSheet.getDataRange().getValues();
-  for (let i = masterData.length - 1; i >= 1; i--) {
-    if (masterData[i][0].toString().trim() === masterId.toString().trim()) masterSheet.deleteRow(i + 1);
+function syncMasterTable(ctx, payload) {
+  const { sheet, data, headers } = ctx;
+  const masterIdCol = headers.indexOf("Master Contract ID");
+  
+  let rowIdx = -1;
+  for(let i = 1; i < data.length; i++) {
+    if(data[i][masterIdCol].toString().trim() === payload.masterId.toString().trim()) {
+      rowIdx = i + 1;
+      break;
+    }
   }
 
-  const detailData = detailSheet.getDataRange().getValues();
-  for (let j = detailData.length - 1; j >= 1; j--) {
-    if (detailData[j][1].toString().trim() === masterId.toString().trim()) detailSheet.deleteRow(j + 1);
+  if (rowIdx > 0) {
+    console.log("MASTER: Aggiorno riga " + rowIdx);
+    console.log(JSON.stringify(payload, null, 2));
+    // Aggiornamento sicuro
+    updateRowSafe(sheet, rowIdx, headers, payload, EDITABLE_MASTER, MASTER_FIELD_MAP);
+  } else {
+    console.log("MASTER: Creo nuovo record.");
+
+    // Generiamo l'ID usando il conteggio appena calcolato
+    const newMasterId = generateMasterIdFromSequence(payload, nextSequence);
+
+    // Creazione nuova riga
+    let newRow = new Array(headers.length).fill("");
+    newRow[masterIdCol] = newMasterId;
+    payload.masterId = newMasterId; // Aggiorniamo il payload per i dettagli
+
+    sheet.appendRow(newRow);
+    updateRowSafe(sheet, sheet.getLastRow(), headers, payload, EDITABLE_MASTER, MASTER_FIELD_MAP);
   }
-  return "DELETED";
 }
+
+function syncDetailTable(ctx, payload) {
+  const { sheet, data, headers } = ctx;
+  const masterIdCol = headers.indexOf("Master Contract ID");
+  const contractIdCol = headers.indexOf("Contract ID");
+  const supplierCol = headers.indexOf("Supplier");
+
+  // Calcolo contatori globali per la sequenzialità (One-shot)
+  const supplierGlobalCounts = {};
+  for (let i = 1; i < data.length; i++) {
+    let s = (data[i][supplierCol] || "GENERIC").toString().trim().toLowerCase();
+    supplierGlobalCounts[s] = (supplierGlobalCounts[s] || 0) + 1;
+  }
+
+  // Mappa dei contratti esistenti per questo Master
+  const dbMap = new Map();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][masterIdCol] == payload.masterId) {
+      dbMap.set(data[i][contractIdCol].toString(), i + 1);
+    }
+  }
+
+  // Confronto: Update o Insert
+  payload.details.forEach(detail => {
+    // SE L'ID MANCA, LO GENERIAMO QUI
+    if (!detail.contractId || detail.contractId.trim() === "") {
+        detail.contractId = generateContractId(detail, payload, supplierGlobalCounts);
+        console.log("ID GENERATO: " + detail.contractId);
+    }
+    const cid = detail.contractId.toString();
+    if (dbMap.has(cid)) {
+      console.log("UPDATE: Aggiorno contratto ID " + cid + " alla riga " + dbMap.get(cid));
+      updateRowSafe(sheet, dbMap.get(cid), headers, detail, EDITABLE_CONTRACTS, CONTRACT_FIELD_MAP);
+      dbMap.delete(cid);
+    } else {
+      console.log("INSERT: Aggiungo nuovo contratto ID " + cid);
+      appendNewContractRow(sheet, headers, detail, payload.masterId);
+    }
+  });
+
+  // DELETE: Ciò che resta nella dbMap non era nel payload -> va cancellato
+  const rowsToDelete = Array.from(dbMap.values()).sort((a, b) => b - a);
+  rowsToDelete.forEach(rowIdx => sheet.deleteRow(rowIdx));
+}
+
+function getSheetContext(sheetName) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(sheetName);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0].map(h => h.toString().trim());
+
+  return {
+    sheet: sheet,
+    data: data,
+    headers: headers
+  };
+}
+
+function updateRowSafe(sheet, rowIdx, headers, detailData, editableFields, fieldMap) {
+  headers.forEach((header, idx) => {
+    // 1. Controlliamo se la colonna è editabile
+    if (editableFields.includes(header)) {
+      
+      // 2. Troviamo la chiave corrispondente nel dizionario
+      const frontendKey = fieldMap[header];
+      const value = detailData[frontendKey];
+
+      // LOG DI DEBUG - QUESTO TI DIRÀ TUTTO
+      console.log("Controllo colonna: " + header + " | Chiave attesa: " + frontendKey + " | Valore trovato: " + value);
+
+      // 3. BLINDATURA: Scriviamo solo se il valore ESISTE ed è pieno.
+      // Se il payload invia undefined, null o "" (vuoto), la funzione ignora la cella.
+      // Così le formule (es. MAP/ARRAYFORMULA) restano intatte!
+      if (value !== undefined && value !== null && value !== "") {
+        
+        let finalValue = value;
+        
+        // Formattazione Date
+        if (["Start Date", "Contract End Date", "Adjusted End Date"].includes(header)) {
+           finalValue = new Date(value);
+        }
+        
+        sheet.getRange(rowIdx, idx + 1).setValue(finalValue);
+      }
+    }
+  });
+}
+
+function appendNewContractRow(sheet, headers, data, masterId) {
+  let newRow = new Array(headers.length).fill("");
+  // Inseriamo le chiavi di default
+  const masterIdIdx = headers.indexOf("Master Contract ID");
+  const contractIdIdx = headers.indexOf("Contract ID");
+  
+  if (masterIdIdx > -1) newRow[masterIdIdx] = masterId;
+  if (contractIdIdx > -1) newRow[contractIdIdx] = data.contractId;
+
+  sheet.appendRow(newRow);
+  // Popoliamo il resto con l'update safe
+  updateRowSafe(sheet, sheet.getLastRow(), headers, data, EDITABLE_CONTRACTS, CONTRACT_FIELD_MAP);
+}
+
+function generateContractId(detail, payload, counts) {
+    let targetSupplier = (payload.supplier || "GENERIC");
+    let sLower = targetSupplier.trim().toLowerCase();
+    
+    counts[sLower] = (counts[sLower] || 0) + 1;
+    let formattedCounter = counts[sLower] < 10 ? "0" + counts[sLower] : counts[sLower].toString();
+    
+    let cleanSupplier = targetSupplier.replace(/[aeiou.\s]/gi, "").toUpperCase().substring(0, 5);
+    let cleanAsset = (payload.assetName || "ASST").replace(/[aeiou.\s]/gi, "").toUpperCase().substring(0, 4);
+    
+    let year = detail.startDate ? detail.startDate.split("-")[0] : "YYYY";
+    
+    return "CTR-" + cleanSupplier + "-" + cleanAsset + "-" + year + "-" + formattedCounter;
+}
+
+function generateMasterId(payload, allMasters) {
+    // 1. Contatore: Quanti master ha già questo fornitore?
+    const supplierCount = allMasters.filter(m => 
+        (m["Supplier"] || "").toString().trim().toLowerCase() === payload.supplier.trim().toLowerCase()
+    ).length + 1;
+    
+    const formattedCounter = supplierCount < 10 ? "0" + supplierCount : supplierCount.toString();
+
+    // 2. Pulizia Supplier (regex replace, uppercase, max 5 char)
+    const cleanSupplier = payload.supplier.replace(/[aeiou.\s]/gi, "").toUpperCase().substring(0, 5);
+    
+    // 3. Pulizia Asset Name (regex replace, uppercase, max 4 char)
+    const cleanAsset = (payload.assetName || "ASST").replace(/[aeiou.\s]/gi, "").toUpperCase().substring(0, 4);
+    
+    // 4. Anno (estratto dalla data, se presente nel payload)
+    let year = "YYYY";
+    if (payload.startDate) { // Assicurati di passare startDate dal frontend
+        year = payload.startDate.split("-")[0];
+    }
+
+    return "MCT-" + cleanSupplier + "-" + cleanAsset + "-" + year + "-" + formattedCounter;
+}
+
+/* ==========================================================================
+   UTILITIES
+   ========================================================================== */
 
 function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
@@ -251,3 +342,4 @@ function sanitizeForJSON(data) {
 function jsonResponse(d) {
   return ContentService.createTextOutput(JSON.stringify(d)).setMimeType(ContentService.MimeType.JSON);
 }
+

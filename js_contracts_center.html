@@ -480,24 +480,20 @@
     function saveCurrentContract() {
         if (!currentSelectedAsset) return alert('Please select a target asset from Step 1 before proceeding.');
 
-        // Programmatically flush open card forms to local array state before serialization
+        // 1. Flush forzato delle righe in editing
         currentDetailItems.forEach(item => {
-            if (item.isEditing) {
-                saveRowLocalChanges(item.id);
-            }
+            if (item.isEditing) saveRowLocalChanges(item.id);
         });
 
+        // 2. Preparazione dei dati del Master
         if (isMasterEditable) {
             currentMasterData["Supplier"] = document.getElementById('ins-masterSupplier').value;
             currentMasterData["Scope"] = document.getElementById('ins-masterScope').value.trim();
             currentMasterData["Comments"] = document.getElementById('ins-masterComments').value.trim();
-        } else {
-            const domMasterId = document.getElementById('mgmt-masterId') ? document.getElementById('mgmt-masterId').value.trim() : "";
-            if (domMasterId && currentMasterData["Master Contract ID"] === "") {
-                currentMasterData["Master Contract ID"] = domMasterId;
-            }
         }
+        // Nota: Se non è editabile, currentMasterData è già aggiornato dalla memoria.
 
+        // 3. Costruzione del Payload (con i nomi che il backend si aspetta)
         const payload = {
             assetName: currentSelectedAsset.name,
             assetId: currentSelectedAsset.id,
@@ -508,7 +504,6 @@
             details: currentDetailItems.map(item => {
                 return {
                     contractId: item.data["Contract ID"] || "",
-                    contractRef: item.data["Contract Ref"] || "",
                     groupId: item.data["Group ID"] || "",
                     targetGroupId: item.data["Target Group ID"] || "",
                     legalEntity: item.data["Legal Entity"] || "",
@@ -534,32 +529,20 @@
         if (!payload.masterId) return alert('Master Contract ID is strictly mandatory.');
         if (!payload.supplier) return alert('Supplier selection at Master level is required.');
 
-        google.script.run.withSuccessHandler(function (res) {
-            if (res === "SUCCESS") {
-                alert('Contract architecture compiled and committed successfully.');
-                if (typeof fetchLiveData === 'function') {
+        // 4. CHIAMATA AL NUOVO ROUTER
+        google.script.run
+            .withSuccessHandler(function (res) {
+                if (res === "SUCCESS") {
+                    alert('Architettura sincronizzata con successo.');
                     fetchLiveData().then(() => {
                         selectAssetForManagement(currentSelectedAsset.name, currentSelectedAsset.id);
                     });
                 }
-            }
-        }).saveMasterDetailContract(payload);
+            })
+            .withFailureHandler((err) => {
+                alert('Errore durante il sync: ' + err.message);
+            })
+            .processMasterDetailSync(payload);
     }
 
-    function deleteCurrentContract() {
-        const id = currentMasterData ? currentMasterData["Master Contract ID"] : "";
-        if (!id) return alert('No active Master Agreement loaded for deletion.');
-        if (!confirm('Are you sure you want to trigger a cascading delete? This purges the Master Agreement record and all correlated lines from the Contracts table.')) return;
-
-        google.script.run.withSuccessHandler(function (res) {
-            if (res === "DELETED") {
-                alert('Master record and sub-allocations successfully dropped.');
-                if (typeof fetchLiveData === 'function') {
-                    fetchLiveData().then(() => {
-                        selectAssetForManagement(currentSelectedAsset.name, currentSelectedAsset.id);
-                    });
-                }
-            }
-        }).deleteMasterDetailContract(id);
-    }
 </script>
