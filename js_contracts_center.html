@@ -457,8 +457,21 @@
         item.data["Request Code"] = document.getElementById(`edit-requestCode-${id}`).value.trim();
         item.data["Comments"] = document.getElementById(`edit-comments-${id}`).value.trim();
 
-        item.isEditing = false;
-        renderDetailItemsTable();
+        // 2. CHIAMATA AL SERVER (Invece di calcolare localmente)
+        // Inviamo i dati grezzi, il server li calcola e ci rimanda l'oggetto arricchito
+        google.script.run
+            .withSuccessHandler(function (calculatedItem) {
+                // 3. AGGIORNAMENTO UI (Solo dopo che il server ha risposto)
+                item.data = calculatedItem;
+                item.isEditing = false;
+
+                // Ridisegniamo la tabella
+                renderDetailItemsTable();
+            })
+            .withFailureHandler(function (err) {
+                alert("Errore durante il calcolo: " + err.message);
+            })
+            .calculateContractLogic(item.data);
     }
 
     function addNewDetailRowItem() {
