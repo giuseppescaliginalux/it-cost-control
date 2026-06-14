@@ -292,138 +292,129 @@
                 // ==========================================
                 // EXPANDED ROW EDITING FORM BLOCK (VSCode Safe Syntax)
                 // ==========================================
-                cardDiv.className = "bg-slate-50/50 border border-slate-200 rounded-xl p-4 shadow-inner relative space-y-4";
+                cardDiv.className = "bg-white border border-slate-200 rounded-2xl p-8 shadow-xl relative space-y-8";
                 cardDiv.innerHTML = `
-                    <div class="absolute top-3 right-3 flex gap-2">
-                        <button onclick="saveRowLocalChanges(${item.id})" class="text-[10px] font-black bg-emerald-600 text-white px-2.5 py-1 rounded-lg shadow-sm hover:bg-emerald-700">Apply</button>
-                        <button onclick="toggleRowEditMode(${item.id}, false)" class="text-[10px] font-black bg-slate-200 text-slate-600 px-2.5 py-1 rounded-lg hover:bg-slate-300">Cancel</button>
-                        <button onclick="removeRowFromLocalArchitecture(${item.id})" class="text-[10px] font-black bg-rose-50 border border-rose-200 text-rose-600 px-2.5 py-1 rounded-lg hover:bg-rose-100">Remove</button>
+                    <div class="flex justify-between items-start border-b border-slate-100 pb-6">
+                        <div>
+                            <h2 class="text-lg font-black text-slate-800 tracking-tight">Edit Allocation Line</h2>
+                            <p class="text-xs text-slate-400 mt-1">Manage core contract terms and auxiliary metadata.</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="saveRowLocalChanges(${item.id})" class="px-5 py-2 bg-emerald-600 text-white font-black text-[11px] uppercase tracking-wider rounded-lg shadow-sm hover:bg-emerald-700 transition-all">Apply</button>
+                            <button onclick="toggleRowEditMode(${item.id}, false)" class="px-5 py-2 bg-slate-100 text-slate-600 font-black text-[11px] uppercase tracking-wider rounded-lg hover:bg-slate-200 transition-all">Cancel</button>
+                            <button onclick="removeRowFromLocalArchitecture(${item.id})" class="px-5 py-2 bg-rose-50 text-rose-600 font-black text-[11px] uppercase tracking-wider rounded-lg hover:bg-rose-100 border border-rose-100 transition-all">Remove</button>
+                        </div>
                     </div>
                     
-                    <div class="text-[10px] font-black text-teal-800 uppercase tracking-widest border-b border-slate-200 pb-1 w-fit">Edit Allocation Line</div>
-                    
-                    <!-- ERROR MESSAGE CONTAINER: Inserito qui per coerenza visiva -->
-                    <div id="error-message-${item.id}" class="hidden bg-rose-50 text-rose-600 p-2.5 rounded-lg border border-rose-200 text-[10px] font-bold items-center gap-2">
+                    <div id="error-message-${item.id}" class="hidden bg-rose-50 text-rose-600 p-3 rounded-lg border border-rose-200 text-[11px] font-bold items-center gap-2 -mt-4">
                         <span>⚠️</span><span id="error-text-${item.id}"></span>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                        <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Group ID (Type or select)</label>
-                            <input type="text" id="edit-groupId-${item.id}" class="w-full p-1.5 border border-slate-300 rounded font-mono font-bold" value="${item.data["Group ID"] || ''}" list="dl-assetGroupIds">
-                            <datalist id="dl-assetGroupIds">
-                                ${currentAssetGroupIds.map(g => '<option value="' + g + '">').join('')}
-                            </datalist>
+                    <div class="space-y-6">
+                        <h3 class="text-[10px] font-black text-teal-800 uppercase tracking-widest bg-teal-50 px-3 py-1 rounded-full w-fit">Primary Terms</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-900">Legal Entity</label>
+                                <select id="edit-legalEntity-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs text-slate-900 has-placeholder">
+                                    <option value="" disabled selected class="text-slate-400 italic">Select Legal Entity...</option>
+                                    ${extractUniqueField(windowPayload.legalEntities, "Legal Entity").map(le => '<option value="' + le + '" ' + (le === item.data["Legal Entity"] ? 'selected' : '') + '>' + le + '</option>').join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-900">Total Commitment (€)</label>
+                                <input type="number" step="0.01" id="edit-totalCommitment-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs text-slate-900 font-bold" value="${item.data["Total Commitment"] || ''}">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-900">Start Date</label>
+                                <input type="date" id="edit-startDate-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs text-slate-900 font-mono" value="${item.data["Start Date"] ? item.data["Start Date"].toString().split('T')[0] : ''}">
+                            </div>
+                            <div>
+                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-900">End Date</label>
+                                <input type="date" id="edit-contractEndDate-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs text-slate-900 font-mono" value="${item.data["Contract End Date"] ? item.data["Contract End Date"].toString().split('T')[0] : ''}">
+                            </div>
+                            <div>
+                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-900">Recurrence</label>
+                                <select id="edit-costRecurrence-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs text-slate-900">
+                                    <option value="Recurrent" ${item.data["Cost Recurrence"] !== 'One-Shot' ? 'selected' : ''}>Recurrent</option>
+                                    <option value="One-Shot" ${item.data["Cost Recurrence"] === 'One-Shot' ? 'selected' : ''}>One-Shot</option>
+                                </select>
+                            </div>
                         </div>
                         <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Target Group ID (Renewal)</label>
-                            <select id="edit-targetGroupId-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white font-mono">
-                                <option value="">-- No Renewal Future Target --</option>
-                                ${currentAssetGroupIds.map(g => '<option value="' + g + '" ' + (g === item.data["Target Group ID"] ? 'selected' : '') + '>' + g + '</option>').join('')}
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                        <div>
-                            <label class="required-label block text-[9px] font-black text-slate-400 uppercase mb-0.5">Legal Entity</label>
-                            <select id="edit-legalEntity-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white">
-                                <option value="">-- Select Legal Entity --</option>
-                                ${extractUniqueField(windowPayload.legalEntities, "Legal Entity").map(le => '<option value="' + le + '" ' + (le === item.data["Legal Entity"] ? 'selected' : '') + '>' + le + '</option>').join('')}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Location</label>
-                            <select id="edit-location-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white">
-                                <option value="">-- Select Location --</option>
-                                ${extractUniqueField(windowPayload.locations, "Location").map(loc => '<option value="' + loc + '" ' + (loc === item.data["Location"] ? 'selected' : '') + '>' + loc + '</option>').join('')}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Service Owner</label>
-                            <input type="text" id="edit-serviceOwner-${item.id}" class="w-full p-1.5 border border-slate-300 rounded" value="${item.data["Service Owner"] || ''}" list="dl-owners">
-                            <datalist id="dl-owners">
-                                ${[...new Set((windowPayload.contracts || []).map(c => (c["Service Owner"] || "").toString().trim()).filter(v => v !== ""))].sort().map(so => '<option value="' + so + '">').join('')}
-                            </datalist>
+                            <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-900">Scope</label>
+                            <input type="text" id="edit-scope-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs text-slate-900" value="${item.data["Scope"] || ''}">
                         </div>
                     </div>
 
-                    <div class="text-xs">
-                        <label class="required-label block text-[9px] font-black text-slate-400 uppercase mb-0.5">Scope / Description perimeter</label>
-                        <input type="text" id="edit-scope-${item.id}" class="w-full p-1.5 border border-slate-300 rounded" value="${item.data["Scope"] || ''}">
-                    </div>
+                    <div class="border-t-2 border-slate-100 border-dashed my-8"></div>
 
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                        <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Cost Recurrence</label>
-                            <select id="edit-costRecurrence-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white font-bold text-teal-800">
-                                <option value="Recurrent" ${item.data["Cost Recurrence"] !== 'One-Shot' ? 'selected' : ''}>Recurrent</option>
-                                <option value="One-Shot" ${item.data["Cost Recurrence"] === 'One-Shot' ? 'selected' : ''}>One-Shot</option>
-                            </select>
+                    <div class="space-y-6">
+                        <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-3 py-1 rounded-full w-fit">Secondary Details (Optional)</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Group ID</label>
+                                <input type="text" id="edit-groupId-${item.id}" placeholder="Optional" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs placeholder:italic placeholder:text-slate-400" value="${item.data["Group ID"] || ''}">
+                            </div>
+                            <div>
+                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Target Group ID</label>
+                                <select id="edit-targetGroupId-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs has-placeholder">
+                                    <option value="" disabled selected class="text-slate-400 italic">Optional - Select Target</option>
+                                    ${currentAssetGroupIds.map(g => '<option value="' + g + '" ' + (g === item.data["Target Group ID"] ? 'selected' : '') + '>' + g + '</option>').join('')}
+                                </select>
+                            </div>
                         </div>
-                        <div>
-                            <label class="required-label block text-[9px] font-black text-slate-400 uppercase mb-0.5">Total Commitment (€)</label>
-                            <input type="number" step="0.01" id="edit-totalCommitment-${item.id}" class="w-full p-1.5 border border-slate-300 rounded font-mono font-bold text-emerald-700" value="${item.data["Total Commitment"] || ''}">
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Location</label>
+                                <select id="edit-location-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs has-placeholder">
+                                    <option value="" disabled selected class="text-slate-400 italic">Optional - Select Location</option>
+                                    ${extractUniqueField(windowPayload.locations, "Location").map(loc => '<option value="' + loc + '" ' + (loc === item.data["Location"] ? 'selected' : '') + '>' + loc + '</option>').join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Service Owner</label>
+                                <input type="text" id="edit-serviceOwner-${item.id}" placeholder="Optional" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs placeholder:italic placeholder:text-slate-400" value="${item.data["Service Owner"] || ''}">
+                            </div>
+                            <div>
+                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Cost Center</label>
+                                <select id="edit-costCenter-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs has-placeholder">
+                                    <option value="" disabled selected class="text-slate-400 italic">Optional - Select CC</option>
+                                    ${extractUniqueField(windowPayload.costCenters, "Cost Center").map(cc => '<option value="' + cc + '" ' + (cc === item.data["Cost Center"] ? 'selected' : '') + '>' + cc + '</option>').join('')}
+                                </select>
+                            </div>
                         </div>
-                        <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Expenditure Type</label>
-                            <select id="edit-expenditureType-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white">
-                                <option value="">-- Optional --</option>
-                                <option value="OPEX" ${item.data["Expenditure Type"] === 'OPEX' ? 'selected' : ''}>OPEX</option>
-                                <option value="CAPEX" ${item.data["Expenditure Type"] === 'CAPEX' ? 'selected' : ''}>CAPEX</option>
-                                <option value="ROU" ${item.data["Expenditure Type"] === 'ROU' ? 'selected' : ''}>ROU</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Cost Center</label>
-                            <select id="edit-costCenter-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white font-mono">
-                                <option value="">-- Select Cost Center --</option>
-                                ${extractUniqueField(windowPayload.costCenters, "Cost Center").map(cc => '<option value="' + cc + '" ' + (cc === item.data["Cost Center"] ? 'selected' : '') + '>' + cc + '</option>').join('')}
-                            </select>
-                        </div>
-                    </div>
 
-                    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
-                        <div>
-                            <label class="required-label block text-[9px] font-black text-slate-400 uppercase mb-0.5">Start Date</label>
-                            <input type="date" id="edit-startDate-${item.id}" class="w-full p-1 border border-slate-300 rounded font-mono" value="${item.data["Start Date"] ? item.data["Start Date"].toString().split('T')[0] : ''}">
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                            <div>
+                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Expenditure Type</label>
+                                <select id="edit-expenditureType-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs">
+                                    <option value="">Optional</option>
+                                    <option value="OPEX" ${item.data["Expenditure Type"] === 'OPEX' ? 'selected' : ''}>OPEX</option>
+                                    <option value="CAPEX" ${item.data["Expenditure Type"] === 'CAPEX' ? 'selected' : ''}>CAPEX</option>
+                                    <option value="ROU" ${item.data["Expenditure Type"] === 'ROU' ? 'selected' : ''}>ROU</option>
+                                </select>
+                            </div>
+                            <div class="relative">
+                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Adjusted End</label>
+                                <input type="date" id="edit-adjustedEndDate-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs font-mono text-slate-900" value="${item.data["Adjusted End Date"] ? item.data["Adjusted End Date"].toString().split('T')[0] : ''}">
+                                <div class="absolute top-[28px] right-2"><span class="flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span></span></div>
+                            </div>
+                            <div>
+                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Notice (Days)</label>
+                                <input type="number" id="edit-noticePeriod-${item.id}" placeholder="Optional" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs placeholder:italic placeholder:text-slate-400" value="${item.data["Notice Period (Days)"] || ''}">
+                            </div>
+                            <div>
+                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Auto-Renewal</label>
+                                <select id="edit-autoRenewal-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs">
+                                    <option value="" ${!item.data["Auto-Renewal"] ? 'selected' : ''}>Optional</option>
+                                    <option value="No" ${item.data["Auto-Renewal"] === 'No' ? 'selected' : ''}>No</option>
+                                    <option value="Yes" ${item.data["Auto-Renewal"] === 'Yes' ? 'selected' : ''}>Yes</option>
+                                </select>
+                            </div>
                         </div>
-                        <div>
-                            <label class="required-label block text-[9px] font-black text-slate-400 uppercase mb-0.5">Contract End Date</label>
-                            <input type="date" id="edit-contractEndDate-${item.id}" class="w-full p-1 border border-slate-300 rounded font-mono" value="${item.data["Contract End Date"] ? item.data["Contract End Date"].toString().split('T')[0] : ''}">
-                        </div>
-                        <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Adjusted End Date</label>
-                            <input type="date" id="edit-adjustedEndDate-${item.id}" class="w-full p-1 border border-slate-300 rounded font-mono bg-amber-50/20" value="${item.data["Adjusted End Date"] ? item.data["Adjusted End Date"].toString().split('T')[0] : ''}">
-                        </div>
-                        <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Notice Period (Days)</label>
-                            <input type="number" id="edit-noticePeriod-${item.id}" class="w-full p-1.5 border border-slate-300 rounded" value="${item.data["Notice Period (Days)"] || ''}" placeholder="Optional">
-                        </div>
-                        <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Auto-Renewal</label>
-                            <select id="edit-autoRenewal-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white">
-                                <option value="" ${!item.data["Auto-Renewal"] ? 'selected' : ''}>Optional</option>
-                                <option value="No" ${item.data["Auto-Renewal"] === 'No' ? 'selected' : ''}>No</option>
-                                <option value="Yes" ${item.data["Auto-Renewal"] === 'Yes' ? 'selected' : ''}>Yes</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="bg-white p-2.5 rounded-xl border border-slate-200/60 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs shadow-inner">
-                        <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">BL ID (Legacy Index)</label>
-                            <input type="text" id="edit-blId-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white" value="${item.data["BL ID"] || ''}">
-                        </div>
-                        <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Request Code (Legacy Link)</label>
-                            <input type="text" id="edit-requestCode-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white" value="${item.data["Request Code"] || ''}">
-                        </div>
-                    </div>
-
-                    <div class="text-xs">
-                        <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Row Comments</label>
-                        <input type="text" id="edit-comments-${item.id}" class="w-full p-1.5 border border-slate-200 rounded italic text-slate-500" value="${item.data["Comments"] || ''}">
                     </div>
                 `;
                 listWrapper.appendChild(cardDiv);
