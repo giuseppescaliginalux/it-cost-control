@@ -114,6 +114,10 @@ function calculateMasterMetricsInMemory(payload) {
     // FASE 1: CALCOLO DEI SINGOLI CONTRATTI (Con adattamento chiavi)
     // ==========================================
     details.forEach(detailRow => {
+        // NUOVO: Iniettiamo l'ereditarietà dal Master prima di convertire l'oggetto
+        detailRow.assetName = payload.assetName || "";
+        detailRow.supplier = payload.supplier || "";
+
         // 1a. Convertiamo da camelCase a Intestazioni del Foglio per darlo in pasto alla logica nativa
         const itemHeaderObj = {};
         for (let header in CONTRACT_FIELD_MAP) {
@@ -139,16 +143,15 @@ function calculateMasterMetricsInMemory(payload) {
     });
 
     // ==========================================
-    // FASE 2: AGGREGAZIONI FINOPS SUL MASTER (Lavorando su camelCase con dati calcolati)
+    // FASE 2: AGGREGAZIONI FINOPS SUL MASTER
     // ==========================================
     let minStartDate = null;
     let maxEndDate = null;
     let totalEffectiveCommitment = 0;
-    let recurrentTotalCommitment = 0;
+    let recurrentEffectiveCommitment = 0; // CORREZIONE: Cambiato da nominale a effettivo
     let hasActiveContracts = false;
 
     details.forEach(c => {
-        // Calcolo Start Date Minima del Master (da stringa a data)
         if (c.startDate) {
             const sDate = new Date(c.startDate);
             if (!isNaN(sDate.getTime()) && (!minStartDate || sDate < minStartDate)) {
@@ -156,7 +159,6 @@ function calculateMasterMetricsInMemory(payload) {
             }
         }
 
-        // Calcolo End Date Massima del Master (usando l'endDate appena calcolata dal motore contratti)
         if (c.endDate) {
             const eDate = new Date(c.endDate);
             if (!isNaN(eDate.getTime()) && (!maxEndDate || eDate > maxEndDate)) {
@@ -164,15 +166,13 @@ function calculateMasterMetricsInMemory(payload) {
             }
         }
 
-        // Accumulo dell'Effective Commitment reale calcolato per il Master Contract
         totalEffectiveCommitment += parseFloat(c.effectiveCommitment) || 0;
 
-        // Accumulo del Total Commitment per i soli contratti ricorrenti (Base di calcolo del Run Rate)
+        // Accumuliamo l'effectiveCommitment (già scalato su adjusted date)
         if (String(c.costRecurrence).trim().toLowerCase() === "recurrent") {
-            recurrentTotalCommitment += parseFloat(c.totalCommitment) || 0;
+            recurrentEffectiveCommitment += parseFloat(c.effectiveCommitment) || 0;
         }
 
-        // Intercettazione presenza contratti attivi per calcolo di stato del Master
         if (String(c.status).trim().toUpperCase() === "ACTIVE") {
             hasActiveContracts = true;
         }
@@ -181,7 +181,7 @@ function calculateMasterMetricsInMemory(payload) {
     const computedMasterStartDateStr = minStartDate ? minStartDate.toISOString().split('T')[0] : "";
     const computedMasterEndDateStr = maxEndDate ? maxEndDate.toISOString().split('T')[0] : "";
 
-    // 2. Contract Term (Months) del Master via DATEDIF inclusivo (+1 giorno)
+    // 2. Contract Term (Months)
     let computedContractTerm = 0;
     if (computedMasterStartDateStr && computedMasterEndDateStr) {
         const sDate = new Date(computedMasterStartDateStr);
@@ -193,10 +193,11 @@ function calculateMasterMetricsInMemory(payload) {
         if (computedContractTerm < 0) computedContractTerm = 0;
     }
 
-    // 3. Run Rate del Master = (Recurrent_Total / Months) * 12
+    // 3. Run Rate del Master basato sull'Effective Commitment reale
     let computedRunRate = 0;
-    if (recurrentTotalCommitment > 0 && computedContractTerm > 0) {
-        computedRunRate = parseFloat(((recurrentTotalCommitment / computedContractTerm) * 12).toFixed(2));
+    if (recurrentEffectiveCommitment > 0 && computedContractTerm > 0) {
+        // Calcolo pulito: riflette il burn rate reale spalmato sulla durata effettiva
+        computedRunRate = parseFloat(((recurrentEffectiveCommitment / computedContractTerm) * 12).toFixed(2));
     }
 
     // 4. Billing Channel (Lookup in memoria sull'array filtrato spedito dal client)
@@ -210,19 +211,22 @@ function calculateMasterMetricsInMemory(payload) {
     let checkTerminated = 0;
     let checkNeg = 0;
 
-    initiatives.forEach(init => {
-        if (String(init["Master Contract ID"]).trim() === String(masterId).trim()) {
-            const initStatus = String(init["Initiative Status"]).trim().toUpperCase();
-            const decision = String(init["Decision"]).trim().toUpperCase();
+    // Il controllo gira SOLO se il master ha un ID reale, evitando falsi positivi su stringhe vuote
+    if (masterId && masterId.trim() !== "") {
+        initiatives.forEach(init => {
+            if (String(init["Master Contract ID"]).trim() === String(masterId).trim()) {
+                const initStatus = String(init["Initiative Status"]).trim().toUpperCase();
+                const decision = String(init["Decision"]).trim().toUpperCase();
 
-            if (initStatus === "COMPLETED" && ["TERMINATE", "REPLACE", "TRANSFER"].includes(decision)) {
-                checkTerminated++;
+                if (initStatus === "COMPLETED" && ["TERMINATE", "REPLACE", "TRANSFER"].includes(decision)) {
+                    checkTerminated++;
+                }
+                if (initStatus === "IN PROGRESS") {
+                    checkNeg++;
+                }
             }
-            if (initStatus === "IN PROGRESS") {
-                checkNeg++;
-            }
-        }
-    });
+        });
+    }
 
     let computedStatus = "EXPIRED";
     if (checkTerminated > 0) computedStatus = "TERMINATED";
@@ -284,10 +288,15 @@ function generateMasterId(payload, allMasters) {
     // 3. Pulizia Asset Name (regex replace, uppercase, max 4 char)
     const cleanAsset = (payload.assetName || "ASST").replace(/[aeiou.\s]/gi, "").toUpperCase().substring(0, 4);
 
-    // 4. Anno (estratto dalla data, se presente nel payload)
+    // 4. Anno (estratto dalla data calcolata, se assente usa l'anno corrente)
     let year = "YYYY";
-    if (payload.startDate) { // Assicurati di passare startDate dal frontend
-        year = payload.startDate.split("-")[0];
+    const dateSource = payload.masterStartDate || payload.startDate;
+
+    if (dateSource && dateSource.trim() !== "") {
+        year = dateSource.split("-")[0];
+    } else {
+        // Fallback automatico sull'anno corrente (2026) se non ci sono contratti sotto
+        year = new Date().getFullYear().toString();
     }
 
     return "MCT-" + cleanSupplier + "-" + cleanAsset + "-" + year + "-" + formattedCounter;

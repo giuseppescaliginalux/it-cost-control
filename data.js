@@ -1,8 +1,8 @@
-const EDITABLE_MASTER = ["Supplier", "Scope", "Comments", "Status", "Master Start Date", "Master End Date",
+const EDITABLE_MASTER = ["Asset Name", "Supplier", "Scope", "Comments", "Status", "Master Start Date", "Master End Date",
   "Contract Term (Months)", "Total Commitment", "Run Rate", "Billing Channel"];
 
 const EDITABLE_CONTRACTS = [
-  "Group ID", "Target Group ID", "Legal Entity", "BL ID", "Request Code",
+  "Asset Name", "Supplier", "Group ID", "Target Group ID", "Legal Entity", "BL ID", "Request Code",
   "Location", "Service Owner", "Scope", "Cost Recurrence",
   "Total Commitment", "Expenditure Type", "Cost Center",
   "Start Date", "Contract End Date", "Adjusted End Date",
@@ -12,6 +12,7 @@ const EDITABLE_CONTRACTS = [
 
 const MASTER_FIELD_MAP = {
   "Master Contract ID": "masterId",
+  "Asset Name": "assetName",
   "Supplier": "supplier",
   "Scope": "masterScope",
   "Comments": "masterComments",
@@ -26,6 +27,8 @@ const MASTER_FIELD_MAP = {
 
 const CONTRACT_FIELD_MAP = {
   "Contract ID": "contractId",
+  "Asset Name": "assetName",
+  "Supplier": "supplier",
   "Group ID": "groupId",
   "Target Group ID": "targetGroupId",
   "Legal Entity": "legalEntity",
@@ -93,13 +96,21 @@ function syncMasterTable(ctx, payload) {
   } else {
     console.log("MASTER: Creo nuovo record.");
 
-    // Generiamo l'ID usando il conteggio appena calcolato
-    const newMasterId = generateMasterIdFromSequence(payload, nextSequence);
+    // CORREZIONE BUG C: Verifica se l'ID è stato digitato a mano o se va auto-generato
+    let finalMasterId = payload.masterId ? payload.masterId.toString().trim() : "";
 
-    // Creazione nuova riga
+    if (finalMasterId === "") {
+      // Carichiamo al volo i master esistenti per calcolare la sequenza corretta
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const allMasters = getSheetDataAsObjects(ss, CONFIG.SHEETS.MASTER_CONTRACTS) || [];
+      // Richiamo della tua funzione nativa in logic.gs
+      finalMasterId = generateMasterId(payload, allMasters);
+    }
+
+    // Creazione nuova riga con l'ID definitivo
     let newRow = new Array(headers.length).fill("");
-    newRow[masterIdCol] = newMasterId;
-    payload.masterId = newMasterId; // Aggiorniamo il payload per i dettagli
+    newRow[masterIdCol] = finalMasterId;
+    payload.masterId = finalMasterId; // Aggiorna il payload per referenza (così i dettagli prendono l'ID corretto!)
 
     sheet.appendRow(newRow);
     updateRowSafe(sheet, sheet.getLastRow(), headers, payload, EDITABLE_MASTER, MASTER_FIELD_MAP);

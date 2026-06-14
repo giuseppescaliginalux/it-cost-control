@@ -174,11 +174,13 @@
                     ${!isNew ? `<button onclick="toggleMasterEditState(false)" class="text-[10px] font-bold text-slate-400 hover:text-slate-600">Cancel</button>` : ''}
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    ${!isNew ? `
                     <div>
                         <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Master Contract ID</label>
-                        <input type="text" id="ins-masterId" ${!isNew ? 'disabled' : ''} value="${currentMasterData["Master Contract ID"]}" placeholder="e.g., M-XYZ-01" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 font-bold uppercase text-xs">
+                        <input type="text" id="ins-masterId" disabled value="${currentMasterData["Master Contract ID"]}" class="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg font-bold uppercase text-xs text-slate-500">
                     </div>
-                    <div>
+                    ` : ''}
+                    <div class="${isNew ? 'md:col-span-2' : ''}">
                         <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Supplier</label>
                         <select id="ins-masterSupplier" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 font-bold text-slate-800 bg-white text-xs">
                             <option value="">-- Select Supplier --</option>
@@ -740,7 +742,8 @@
         if (!currentSelectedAsset) return;
 
         // 1. BLOCCO DI SICUREZZA AL CLICK: Intercetta form aperti sul Master o sui Dettagli
-        const hasOpenEdits = isMasterEditable || currentDetailItems.some(item => item.isEditing);
+        const isEditingExistingMaster = isMasterEditable && currentMasterData["Master Contract ID"] !== "";
+        const hasOpenEdits = isEditingExistingMaster || currentDetailItems.some(item => item.isEditing);
         if (hasOpenEdits) {
             showMgmtBannerStatus("There are active forms still in edit mode. Please click 'Apply' or 'Confirm Master Changes' before performing the global push.", "warning");
             return;
@@ -768,7 +771,7 @@
 
             // OTTIMIZZAZIONE: Inviamo solo il fornitore target e le iniziative collegate a questo Master ID
             suppliers: (windowPayload.suppliers || []).filter(s => String(s["Supplier"]).trim().toLowerCase() === String(spl).trim().toLowerCase()),
-            initiatives: (windowPayload.initiatives || []).filter(i => String(i["Master Contract ID"]).trim().toLowerCase() === String(mId).trim().toLowerCase()),
+            initiatives: mId && mId.trim() !== "" ? (windowPayload.initiatives || []).filter(i => String(i["Master Contract ID"]).trim().toLowerCase() === mId.trim().toLowerCase()) : [],
 
             details: currentDetailItems.map(item => {
                 return {
@@ -795,11 +798,6 @@
             })
         };
 
-        // Validazioni di sbarramento dirette sul banner
-        if (!payload.masterId) {
-            showMgmtBannerStatus("Master Contract ID is strictly mandatory.", "warning");
-            return;
-        }
         if (!payload.supplier) {
             showMgmtBannerStatus("Supplier selection at Master level is required.", "warning");
             return;
