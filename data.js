@@ -1,44 +1,54 @@
-const EDITABLE_MASTER = ["Supplier", "Scope", "Comments"];
+const EDITABLE_MASTER = ["Supplier", "Scope", "Comments", "Status", "Master Start Date", "Master End Date",
+  "Contract Term (Months)", "Total Commitment", "Run Rate", "Billing Channel"];
+
 const EDITABLE_CONTRACTS = [
   "Group ID", "Target Group ID", "Legal Entity", "BL ID", "Request Code",
   "Location", "Service Owner", "Scope", "Cost Recurrence",
   "Total Commitment", "Expenditure Type", "Cost Center",
   "Start Date", "Contract End Date", "Adjusted End Date",
-  "Notice Period (Days)", "Auto-Renewal", "Comments"
+  "Notice Period (Days)", "Auto-Renewal", "Comments",
+  "Status", "Annual Value", "Effective Commitment", "Contract Term (Months)", "End Date"
 ];
 
 const MASTER_FIELD_MAP = {
-    "Master Contract ID": "masterId",
-    "Supplier": "supplier",
-    "Scope": "masterScope",
-    "Comments": "masterComments"
+  "Master Contract ID": "masterId",
+  "Supplier": "supplier",
+  "Scope": "masterScope",
+  "Comments": "masterComments",
+  "Status": "status",
+  "Master Start Date": "masterStartDate",
+  "Master End Date": "masterEndDate",
+  "Contract Term (Months)": "contractTerm",
+  "Total Commitment": "totalCommitment",
+  "Run Rate": "runRate",
+  "Billing Channel": "billingChannel"
 };
 
 const CONTRACT_FIELD_MAP = {
-    "Contract ID": "contractId",
-    "Group ID": "groupId",
-    "Target Group ID": "targetGroupId",
-    "Legal Entity": "legalEntity",
-    "Location": "location",
-    "Service Owner": "serviceOwner",
-    "Scope": "scope", 
-    "Cost Recurrence": "costRecurrence",
-    "Total Commitment": "totalCommitment",
-    "Expenditure Type": "expenditureType",
-    "Cost Center": "costCenter",
-    "Start Date": "startDate",
-    "Contract End Date": "contractEndDate",
-    "Adjusted End Date": "adjustedEndDate",
-    "Notice Period (Days)": "noticePeriod",
-    "Auto-Renewal": "autoRenewal",
-    "BL ID": "blId",
-    "Request Code": "requestCode",
-    "Comments": "comments",
-    "Status": "status",
-    "Annual Value": "annualValue",
-    "Effective Commitment": "effectiveCommitment",
-    "Contract Term (Months)": "contractTerm",
-    "End Date": "endDate"
+  "Contract ID": "contractId",
+  "Group ID": "groupId",
+  "Target Group ID": "targetGroupId",
+  "Legal Entity": "legalEntity",
+  "Location": "location",
+  "Service Owner": "serviceOwner",
+  "Scope": "scope",
+  "Cost Recurrence": "costRecurrence",
+  "Total Commitment": "totalCommitment",
+  "Expenditure Type": "expenditureType",
+  "Cost Center": "costCenter",
+  "Start Date": "startDate",
+  "Contract End Date": "contractEndDate",
+  "Adjusted End Date": "adjustedEndDate",
+  "Notice Period (Days)": "noticePeriod",
+  "Auto-Renewal": "autoRenewal",
+  "BL ID": "blId",
+  "Request Code": "requestCode",
+  "Comments": "comments",
+  "Status": "status",
+  "Annual Value": "annualValue",
+  "Effective Commitment": "effectiveCommitment",
+  "Contract Term (Months)": "contractTerm",
+  "End Date": "endDate"
 };
 
 /**
@@ -66,10 +76,10 @@ function getSheetContext(sheetName) {
 function syncMasterTable(ctx, payload) {
   const { sheet, data, headers } = ctx;
   const masterIdCol = headers.indexOf("Master Contract ID");
-  
+
   let rowIdx = -1;
-  for(let i = 1; i < data.length; i++) {
-    if(data[i][masterIdCol].toString().trim() === payload.masterId.toString().trim()) {
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][masterIdCol].toString().trim() === payload.masterId.toString().trim()) {
       rowIdx = i + 1;
       break;
     }
@@ -125,8 +135,8 @@ function syncDetailTable(ctx, payload) {
   payload.details.forEach(detail => {
     // SE L'ID MANCA, LO GENERIAMO QUI
     if (!detail.contractId || detail.contractId.trim() === "") {
-        detail.contractId = generateContractId(detail, payload, supplierGlobalCounts);
-        console.log("ID GENERATO: " + detail.contractId);
+      detail.contractId = generateContractId(detail, payload, supplierGlobalCounts);
+      console.log("ID GENERATO: " + detail.contractId);
     }
     const cid = detail.contractId.toString();
     if (dbMap.has(cid)) {
@@ -152,7 +162,7 @@ function appendNewContractRow(sheet, headers, data, masterId) {
   // Inseriamo le chiavi di default
   const masterIdIdx = headers.indexOf("Master Contract ID");
   const contractIdIdx = headers.indexOf("Contract ID");
-  
+
   if (masterIdIdx > -1) newRow[masterIdIdx] = masterId;
   if (contractIdIdx > -1) newRow[contractIdIdx] = data.contractId;
 
@@ -175,7 +185,7 @@ function updateRowSafe(sheet, rowIdx, headers, detailData, editableFields, field
   headers.forEach((header, idx) => {
     // 1. Controlliamo se la colonna è editabile
     if (editableFields.includes(header)) {
-      
+
       // 2. Troviamo la chiave corrispondente nel dizionario
       const frontendKey = fieldMap[header];
       const value = detailData[frontendKey];
@@ -186,15 +196,15 @@ function updateRowSafe(sheet, rowIdx, headers, detailData, editableFields, field
       // 3. BLINDATURA: Scriviamo solo se il valore ESISTE ed è pieno.
       // Se il payload invia undefined, null o "" (vuoto), la funzione ignora la cella.
       // Così le formule (es. MAP/ARRAYFORMULA) restano intatte!
-      if (value !== undefined && value !== null && value !== "") {
-        
+      if (value !== undefined && value !== null) {
+
         let finalValue = value;
-        
+
         // Formattazione Date
-        if (["Start Date", "Contract End Date", "Adjusted End Date"].includes(header)) {
-           finalValue = new Date(value);
+        if (["Start Date", "Contract End Date", "Adjusted End Date", "End Date", "Master Start Date", "Master End Date"].includes(header)) {
+          finalValue = value ? new Date(value) : "";
         }
-        
+
         sheet.getRange(rowIdx, idx + 1).setValue(finalValue);
       }
     }

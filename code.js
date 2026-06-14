@@ -99,11 +99,14 @@ function processMasterDetailSync(payload) {
   const masterCtx = getSheetContext(CONFIG.SHEETS.MASTER_CONTRACTS);
   const detailCtx = getSheetContext(CONFIG.SHEETS.CONTRACTS);
 
+  // 1. Calcolo atomico in memoria di tutta la logica (Dettagli + KPI Master)
+  const calculatedPayload = calculateMasterMetricsInMemory(payload);
+
   // 1. Delega la sincronizzazione del Master
-  syncMasterTable(masterCtx, payload);
+  syncMasterTable(masterCtx, calculatedPayload);
 
   // 2. Delega la sincronizzazione dei Contratti (Dettagli)
-  syncDetailTable(detailCtx, payload);
+  syncDetailTable(detailCtx, calculatedPayload);
 
   return "SUCCESS";
 }

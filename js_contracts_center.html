@@ -741,24 +741,9 @@
 
         // 1. BLOCCO DI SICUREZZA AL CLICK: Intercetta form aperti sul Master o sui Dettagli
         const hasOpenEdits = isMasterEditable || currentDetailItems.some(item => item.isEditing);
-        const warningBanner = document.getElementById('mgmt-push-warning');
-
         if (hasOpenEdits) {
-            if (warningBanner) {
-                warningBanner.classList.remove('hidden');
-                warningBanner.classList.add('flex');
-                // Scompare da solo dopo 5 secondi
-                setTimeout(() => {
-                    warningBanner.classList.remove('flex');
-                    warningBanner.classList.add('hidden');
-                }, 5000);
-            }
-            return; // Blocca il push
-        }
-
-        if (warningBanner) {
-            warningBanner.classList.remove('flex');
-            warningBanner.classList.add('hidden');
+            showMgmtBannerStatus("There are active forms still in edit mode. Please click 'Apply' or 'Confirm Master Changes' before performing the global push.", "warning");
+            return;
         }
 
         // 2. Preparazione dei dati del Master
@@ -767,16 +752,24 @@
             currentMasterData["Scope"] = document.getElementById('ins-masterScope').value.trim();
             currentMasterData["Comments"] = document.getElementById('ins-masterComments').value.trim();
         }
-        // Nota: Se non è editabile, currentMasterData è già aggiornato dalla memoria.
 
-        // 3. Costruzione del Payload (con i nomi che il backend si aspetta)
+        // Estraiamo le chiavi correnti per eseguire il filtraggio preventivo
+        const mId = currentMasterData["Master Contract ID"] || (document.getElementById('ins-masterId') ? document.getElementById('ins-masterId').value.trim() : "");
+        const spl = currentMasterData["Supplier"];
+
+        // 3. Costruzione del Payload ULTRA-LIGHT (Filtriamo solo i record strettamente necessari)
         const payload = {
             assetName: currentSelectedAsset.name,
             assetId: currentSelectedAsset.id,
-            masterId: currentMasterData["Master Contract ID"] || (document.getElementById('ins-masterId') ? document.getElementById('ins-masterId').value.trim() : ""),
-            supplier: currentMasterData["Supplier"],
+            masterId: mId,
+            supplier: spl,
             masterScope: currentMasterData["Scope"],
             masterComments: currentMasterData["Comments"],
+
+            // OTTIMIZZAZIONE: Inviamo solo il fornitore target e le iniziative collegate a questo Master ID
+            suppliers: (windowPayload.suppliers || []).filter(s => String(s["Supplier"]).trim().toLowerCase() === String(spl).trim().toLowerCase()),
+            initiatives: (windowPayload.initiatives || []).filter(i => String(i["Master Contract ID"]).trim().toLowerCase() === String(mId).trim().toLowerCase()),
+
             details: currentDetailItems.map(item => {
                 return {
                     contractId: item.data["Contract ID"] || "",
@@ -802,23 +795,77 @@
             })
         };
 
-        if (!payload.masterId) return alert('Master Contract ID is strictly mandatory.');
-        if (!payload.supplier) return alert('Supplier selection at Master level is required.');
+        // Validazioni di sbarramento dirette sul banner
+        if (!payload.masterId) {
+            showMgmtBannerStatus("Master Contract ID is strictly mandatory.", "warning");
+            return;
+        }
+        if (!payload.supplier) {
+            showMgmtBannerStatus("Supplier selection at Master level is required.", "warning");
+            return;
+        }
 
-        // 4. CHIAMATA AL NUOVO ROUTER
+        showLoading();
+
+        // 4. CHIAMATA AL ROUTER ATOMICO SERVER-SIDE
         google.script.run
             .withSuccessHandler(function (res) {
+                hideLoading();
                 if (res === "SUCCESS") {
-                    alert('Architettura sincronizzata con successo.');
+                    showMgmtBannerStatus("Architecture synchronized successfully.", "success");
                     fetchLiveData().then(() => {
                         selectAssetForManagement(currentSelectedAsset.name, currentSelectedAsset.id);
                     });
+                } else {
+                    showMgmtBannerStatus("Sync failed: unexpected execution outcome from server.", "error");
                 }
             })
             .withFailureHandler((err) => {
-                alert('Errore durante il sync: ' + err.message);
+                hideLoading();
+                showMgmtBannerStatus("Sync error: " + err.message, "error");
             })
             .processMasterDetailSync(payload);
+    }
+
+    // GLOBAL UI NOTIFICATION BANNER LOGIC
+    function showMgmtBannerStatus(message, type = 'warning') {
+        const banner = document.getElementById('mgmt-push-warning');
+        if (!banner) return;
+
+        const textSpan = banner.querySelector('span');
+        const svgIcon = banner.querySelector('svg');
+        if (textSpan) textSpan.textContent = message;
+
+        // Reset e impostazione classi strutturali base
+        banner.className = "text-[11px] font-bold animate-fade-in items-center gap-2 shadow-2xs rounded-xl px-3 py-1.5 border flex";
+
+        // Switch cromatico e icone basato sul tipo di evento
+        if (type === 'success') {
+            banner.classList.add('text-emerald-700', 'bg-emerald-50', 'border-emerald-200/60');
+            if (svgIcon) {
+                svgIcon.className = "w-4 h-4 text-emerald-600 shrink-0";
+                svgIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>`;
+            }
+        } else if (type === 'error') {
+            banner.classList.add('text-rose-700', 'bg-rose-50', 'border-rose-200/60');
+            if (svgIcon) {
+                svgIcon.className = "w-4 h-4 text-rose-600 shrink-0";
+                svgIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>`;
+            }
+        } else { // warning
+            banner.classList.add('text-amber-700', 'bg-amber-50', 'border-amber-200/60');
+            if (svgIcon) {
+                svgIcon.className = "w-4 h-4 text-amber-600 shrink-0";
+                svgIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>`;
+            }
+        }
+
+        // Timeout autocollapse atomico per non lasciare la UI sporca
+        if (window.mgmtBannerTimeout) clearTimeout(window.mgmtBannerTimeout);
+        window.mgmtBannerTimeout = setTimeout(() => {
+            banner.classList.remove('flex');
+            banner.classList.add('hidden');
+        }, type === 'error' ? 7000 : 5000);
     }
 
     function validateContractData(data) {
