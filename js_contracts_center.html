@@ -302,6 +302,11 @@
                     
                     <div class="text-[10px] font-black text-teal-800 uppercase tracking-widest border-b border-slate-200 pb-1 w-fit">Edit Allocation Line</div>
                     
+                    <!-- ERROR MESSAGE CONTAINER: Inserito qui per coerenza visiva -->
+                    <div id="error-message-${item.id}" class="hidden bg-rose-50 text-rose-600 p-2.5 rounded-lg border border-rose-200 text-[10px] font-bold items-center gap-2">
+                        <span>⚠️</span><span id="error-text-${item.id}"></span>
+                    </div>
+
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                         <div>
                             <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Group ID (Type or select)</label>
@@ -321,7 +326,7 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                         <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Legal Entity</label>
+                            <label class="required-label block text-[9px] font-black text-slate-400 uppercase mb-0.5">Legal Entity</label>
                             <select id="edit-legalEntity-${item.id}" class="w-full p-1.5 border border-slate-300 rounded bg-white">
                                 <option value="">-- Select Legal Entity --</option>
                                 ${extractUniqueField(windowPayload.legalEntities, "Legal Entity").map(le => '<option value="' + le + '" ' + (le === item.data["Legal Entity"] ? 'selected' : '') + '>' + le + '</option>').join('')}
@@ -344,7 +349,7 @@
                     </div>
 
                     <div class="text-xs">
-                        <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Scope / Description perimeter</label>
+                        <label class="required-label block text-[9px] font-black text-slate-400 uppercase mb-0.5">Scope / Description perimeter</label>
                         <input type="text" id="edit-scope-${item.id}" class="w-full p-1.5 border border-slate-300 rounded" value="${item.data["Scope"] || ''}">
                     </div>
 
@@ -357,7 +362,7 @@
                             </select>
                         </div>
                         <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Total Commitment (€)</label>
+                            <label class="required-label block text-[9px] font-black text-slate-400 uppercase mb-0.5">Total Commitment (€)</label>
                             <input type="number" step="0.01" id="edit-totalCommitment-${item.id}" class="w-full p-1.5 border border-slate-300 rounded font-mono font-bold text-emerald-700" value="${item.data["Total Commitment"] || ''}">
                         </div>
                         <div>
@@ -380,11 +385,11 @@
 
                     <div class="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
                         <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Start Date</label>
+                            <label class="required-label block text-[9px] font-black text-slate-400 uppercase mb-0.5">Start Date</label>
                             <input type="date" id="edit-startDate-${item.id}" class="w-full p-1 border border-slate-300 rounded font-mono" value="${item.data["Start Date"] ? item.data["Start Date"].toString().split('T')[0] : ''}">
                         </div>
                         <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-0.5">Contract End Date</label>
+                            <label class="required-label block text-[9px] font-black text-slate-400 uppercase mb-0.5">Contract End Date</label>
                             <input type="date" id="edit-contractEndDate-${item.id}" class="w-full p-1 border border-slate-300 rounded font-mono" value="${item.data["Contract End Date"] ? item.data["Contract End Date"].toString().split('T')[0] : ''}">
                         </div>
                         <div>
@@ -434,6 +439,17 @@
         }
     }
 
+    function showErrorMessage(id, msg) {
+        const errorDiv = document.getElementById(`error-message-${id}`);
+        const errorText = document.getElementById(`error-text-${id}`);
+
+        if (errorDiv && errorText) {
+            errorText.textContent = msg;
+            errorDiv.classList.remove('hidden');
+            errorDiv.classList.add('flex'); // Assicura che sia visualizzato come flex
+        }
+    }
+
     function saveRowLocalChanges(id) {
         const item = currentDetailItems.find(i => i.id === id);
         if (!item) return;
@@ -457,21 +473,34 @@
         item.data["Request Code"] = document.getElementById(`edit-requestCode-${id}`).value.trim();
         item.data["Comments"] = document.getElementById(`edit-comments-${id}`).value.trim();
 
-        // 2. CHIAMATA AL SERVER (Invece di calcolare localmente)
-        // Inviamo i dati grezzi, il server li calcola e ci rimanda l'oggetto arricchito
-        google.script.run
-            .withSuccessHandler(function (calculatedItem) {
-                // 3. AGGIORNAMENTO UI (Solo dopo che il server ha risposto)
-                item.data = calculatedItem;
-                item.isEditing = false;
+        // Reset errore precedente
+        document.getElementById('error-message').style.display = 'none';
+        try {
+            validateContractData(item.data);
 
-                // Ridisegniamo la tabella
-                renderDetailItemsTable();
-            })
-            .withFailureHandler(function (err) {
-                alert("Errore durante il calcolo: " + err.message);
-            })
-            .calculateContractLogic(item.data);
+            showLoading();
+            // Inviamo i dati grezzi, il server li calcola e ci rimanda l'oggetto arricchito
+            google.script.run
+                .withSuccessHandler(function (calculatedItem) {
+                    // 2. Nascondiamo il caricamento quando finisce
+                    hideLoading();
+                    // 3. AGGIORNAMENTO UI (Solo dopo che il server ha risposto)
+                    item.data = calculatedItem;
+                    item.isEditing = false;
+
+                    // Ridisegniamo la tabella
+                    renderDetailItemsTable();
+                })
+                .withFailureHandler(function (err) {
+                    // 2. Nascondiamo il caricamento quando finisce
+                    hideLoading();
+                    showErrorMessage(id, "Server Error: " + err.message);
+                })
+                .calculateContractLogic(item.data);
+        } catch (e) {
+            showErrorMessage(id, e.message);
+            return;
+        }
     }
 
     function addNewDetailRowItem() {
@@ -556,6 +585,37 @@
                 alert('Errore durante il sync: ' + err.message);
             })
             .processMasterDetailSync(payload);
+    }
+
+    function validateContractData(data) {
+        // Definizione dei campi obbligatori
+        const requiredFields = {
+            "Legal Entity": "Legal Entity",
+            "Scope": "Scope",
+            "Total Commitment": "Total Commitment",
+            "Start Date": "Start Date",
+            "Contract End Date": "Contract End Date"
+        };
+
+        // Controllo campi vuoti
+        for (let field in requiredFields) {
+            const val = data[field];
+            if (val === null || val === undefined || String(val).trim() === "") {
+                throw new Error(`Field '${requiredFields[field]}' is mandatory.`);
+            }
+        }
+
+        // Controllo logico: Total Commitment deve essere > 0
+        if (parseFloat(data["Total Commitment"]) <= 0) {
+            throw new Error("Total Commitment must be greater than zero.");
+        }
+
+        // Controllo logico: date
+        if (new Date(data["Start Date"]) >= new Date(data["Contract End Date"])) {
+            throw new Error("Start Date must be before Contract End Date.");
+        }
+
+        return true;
     }
 
 </script>
