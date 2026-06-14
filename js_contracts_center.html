@@ -231,7 +231,7 @@
             return;
         }
 
-        container.innerHTML = `<div id="mgmt-flexible-cards-list" class="space-y-2.5"></div>`;
+        container.innerHTML = `<div id="mgmt-flexible-cards-list" class="space-y-2"></div>`;
         const listWrapper = document.getElementById('mgmt-flexible-cards-list');
 
         currentDetailItems.forEach((item) => {
@@ -239,20 +239,28 @@
 
             if (!item.isEditing) {
                 // ==========================================
-                // COMPACT FLUID UI (READ-ONLY VIEW)
+                // VISTA COMPATTA + ACCORDION STRUTTURATO (2 RIQUADRI + LINEA ID/NOTE)
                 // ==========================================
                 const d = item.data;
                 const effCommit = typeof d["Effective Commitment"] === 'number' ? d["Effective Commitment"].formatCurrency() : (parseFloat(d["Effective Commitment"]) || 0).formatCurrency();
                 const annVal = typeof d["Annual Value"] === 'number' ? d["Annual Value"].formatCurrency() : (parseFloat(d["Annual Value"]) || 0).formatCurrency();
+                const totCommit = typeof d["Total Commitment"] === 'number' ? d["Total Commitment"].formatCurrency() : (parseFloat(d["Total Commitment"]) || 0).formatCurrency();
                 const cleanStart = d["Start Date"] ? d["Start Date"].toString().split('T')[0] : '—';
                 const cleanEnd = d["End Date"] ? d["End Date"].toString().split('T')[0] : '—';
+                const contractEnd = d["Contract End Date"] ? d["Contract End Date"].toString().split('T')[0] : '—';
+                const adjEnd = d["Adjusted End Date"] ? d["Adjusted End Date"].toString().split('T')[0] : '—';
 
-                cardDiv.className = "p-3 bg-white border border-slate-200/80 rounded-xl hover:border-teal-200 hover:shadow-sm transition-all flex flex-col gap-2";
+                cardDiv.className = "p-3 bg-white border border-slate-200/80 rounded-xl hover:border-teal-200 hover:shadow-sm transition-all flex flex-col gap-2 cursor-pointer select-none";
+                cardDiv.setAttribute("onclick", `toggleCompactAccordion(${item.id}, event)`);
+
                 cardDiv.innerHTML = `
                     <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
                         <div class="grid grid-cols-1 md:grid-cols-3 flex-1 gap-4 items-center">
                             
                             <div class="flex items-center gap-2.5 min-w-0">
+                                <svg id="compact-chevron-${item.id}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" class="w-3.5 h-3.5 text-slate-300 transition-transform duration-200">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                                </svg>
                                 <span class="font-black text-slate-900 truncate tracking-wide text-[13px]">${d["Legal Entity"] || '—'}</span>
                                 <span class="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider shrink-0 ${d["Status"] === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' : d["Status"] === 'EXPIRED' ? 'bg-rose-50 text-rose-600 border border-rose-200/50' : 'bg-amber-50 text-amber-700 border border-amber-200/50'}">${d["Status"] || 'ACTIVE'}</span>
                             </div>
@@ -277,7 +285,8 @@
 
                         </div>
 
-                        <div class="flex justify-end shrink-0 pl-2">
+                        <div class="flex justify-end shrink-0 pl-2 gap-1.5" onclick="event.stopPropagation();">
+                            <button onclick="cloneDetailRowItem(${item.id})" class="px-2.5 py-1 bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white font-black rounded-lg text-[10px] uppercase tracking-wider border border-amber-100 transition-all">Clone</button>
                             <button onclick="toggleRowEditMode(${item.id}, true)" class="px-3 py-1 bg-teal-50 hover:bg-teal-700 text-teal-700 hover:text-white font-black rounded-lg text-[10px] uppercase tracking-wider border border-teal-100 transition-all">Edit</button>
                         </div>
                     </div>
@@ -286,129 +295,243 @@
                         <span class="text-slate-400 font-black uppercase text-[8px] tracking-widest mt-0.5 bg-slate-100 px-1 rounded">Scope</span>
                         <span class="text-slate-600 font-medium break-words flex-1">${d["Scope"] || '<span class="text-slate-300 italic">No specific line scope defined</span>'}</span>
                     </div>
+
+                    <div id="compact-accordion-${item.id}" class="hidden mt-2 pt-3 border-t border-slate-100 animate-fade-in text-[11px]" onclick="event.stopPropagation();">
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            
+                            <div class="p-2.5 bg-slate-50/60 rounded-xl border border-slate-100 flex flex-col gap-2">
+                                <div class="flex justify-between items-center border-b border-slate-100 pb-1">
+                                    <span class="text-[9px] font-black text-teal-700 uppercase tracking-wider block">🏛️ Corp Governance & Alignment</span>
+                                    <span class="text-[8px] font-black bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded uppercase tracking-widest font-mono scale-95">Elegere Context</span>
+                                </div>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <div>
+                                        <span class="block text-[8px] font-bold text-slate-400 uppercase">Cost Center</span>
+                                        <span class="font-semibold text-slate-700">${d["Cost Center"] || '—'}</span>
+                                    </div>
+                                    <div>
+                                        <span class="block text-[8px] font-bold text-slate-400 uppercase">Expenditure Type</span>
+                                        <span class="font-mono text-[10px] font-bold text-slate-600 bg-slate-100 px-1 rounded w-fit">${d["Expenditure Type"] || '—'}</span>
+                                    </div>
+                                    <div>
+                                        <span class="block text-[8px] font-bold text-slate-400 uppercase">Location</span>
+                                        <span class="font-medium text-slate-700">${d["Location"] || '—'}</span>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-3 gap-2 border-t border-slate-100/50 pt-1.5">
+                                    <div>
+                                        <span class="block text-[8px] font-bold text-slate-400 uppercase">Service Owner</span>
+                                        <span class="font-medium text-slate-700 truncate block" title="${d["Service Owner"] || ''}">${d["Service Owner"] || '—'}</span>
+                                    </div>
+                                    <div>
+                                        <span class="block text-[8px] font-bold text-slate-400 uppercase">BL ID</span>
+                                        <span class="font-mono text-[10px] font-bold text-slate-700 bg-slate-100 px-1 rounded block truncate">${d["BL ID"] || '—'}</span>
+                                    </div>
+                                    <div>
+                                        <span class="block text-[8px] font-bold text-slate-400 uppercase">Request Code</span>
+                                        <span class="font-mono text-[10px] font-bold text-slate-700 bg-slate-100 px-1 rounded block truncate">${d["Request Code"] || '—'}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="p-2.5 bg-slate-50/60 rounded-xl border border-slate-100 flex flex-col gap-2">
+                                <span class="text-[9px] font-black text-indigo-700 uppercase tracking-wider block border-b border-slate-100 pb-1">⏳ Financial Lifecycle & Commitments</span>
+                                
+                                <div class="grid grid-cols-2 gap-2 bg-white p-2 rounded-lg border border-slate-100/80 shadow-2xs">
+                                    <div class="border-r border-slate-100 pr-2">
+                                        <span class="text-[8px] font-black text-slate-400 uppercase tracking-tight block">📋 Nominal Baseline</span>
+                                        <div class="mt-1 flex justify-between items-center">
+                                            <span class="text-[8px] text-slate-400">Total Commit:</span>
+                                            <span class="font-mono font-bold text-slate-700">€${totCommit}</span>
+                                        </div>
+                                        <div class="mt-0.5 flex justify-between items-center">
+                                            <span class="text-[8px] text-slate-400">Contract End:</span>
+                                            <span class="font-mono text-slate-500 font-medium">${contractEnd}</span>
+                                        </div>
+                                    </div>
+                                    <div class="pl-2">
+                                        <span class="text-[8px] font-black text-teal-600 uppercase tracking-tight block">⚡ Actual / Mitigated</span>
+                                        <div class="mt-1 flex justify-between items-center">
+                                            <span class="text-[8px] text-teal-700">Eff. Commit:</span>
+                                            <span class="font-mono font-black text-teal-800">€${effCommit}</span>
+                                        </div>
+                                        <div class="mt-0.5 flex justify-between items-center">
+                                            <span class="text-[8px] text-rose-600">Early Term.:</span>
+                                            <span class="font-mono font-bold text-rose-700">${adjEnd}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-3 gap-2 pt-0.5 text-[10px]">
+                                    <div>
+                                        <span class="block text-[8px] font-bold text-slate-400 uppercase">Recurrence</span>
+                                        <span class="font-medium text-slate-600">${d["Cost Recurrence"] || '—'}</span>
+                                    </div>
+                                    <div>
+                                        <span class="block text-[8px] font-bold text-slate-400 uppercase">Notice Period</span>
+                                        <span class="font-medium text-slate-700">${d["Notice Period (Days)"] ? d["Notice Period (Days)"] + ' Days' : '—'}</span>
+                                    </div>
+                                    <div>
+                                        <span class="block text-[8px] font-bold text-slate-400 uppercase">Auto-Renewal</span>
+                                        <span class="font-bold ${d["Auto-Renewal"] === 'Yes' ? 'text-emerald-600' : 'text-slate-500'}">${d["Auto-Renewal"] || '—'}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
+                            
+                            <div class="p-2.5 bg-slate-50/40 rounded-xl border border-slate-100 flex flex-col gap-1 justify-between">
+                                <div>
+                                    <span class="block text-[8px] font-bold text-slate-400 uppercase">Contract ID</span>
+                                    <span class="font-mono text-[9px] text-slate-500 bg-slate-100 px-1 py-0.5 rounded block truncate select-all" title="${d["Contract ID"] || ''}">${d["Contract ID"] || '—'}</span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-1.5 border-t border-slate-100/40 pt-1">
+                                    <div>
+                                        <span class="block text-[8px] font-bold text-slate-400 uppercase">Group ID</span>
+                                        <span class="font-medium text-slate-600 truncate block" title="${d["Group ID"] || ''}">${d["Group ID"] || '—'}</span>
+                                    </div>
+                                    <div>
+                                        <span class="block text-[8px] font-bold text-slate-400 uppercase">Target Group</span>
+                                        <span class="font-medium text-slate-600 truncate block" title="${d["Target Group ID"] || ''}">${d["Target Group ID"] || '—'}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="p-2.5 bg-slate-50/40 rounded-xl border border-slate-100 md:col-span-2 flex flex-col justify-start">
+                                <span class="block text-[8px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">💬 Line Comments</span>
+                                <p class="text-slate-600 italic font-medium leading-relaxed">${d["Comments"] || '<span class="text-slate-300">No additional specific comments or logs.</span>'}</p>
+                            </div>
+
+                        </div>
+                    </div>
                 `;
                 listWrapper.appendChild(cardDiv);
             } else {
                 // ==========================================
-                // EXPANDED ROW EDITING FORM BLOCK (VSCode Safe Syntax)
+                // FORM DI MODIFICA COMPRESSO - PULIZIA BOLD E MASK VALUTA INTERA
                 // ==========================================
-                cardDiv.className = "bg-white border border-slate-200 rounded-2xl p-8 shadow-xl relative space-y-8";
+                cardDiv.className = "bg-white border border-slate-200 rounded-xl p-4 shadow-md relative space-y-3 animate-fade-in";
                 cardDiv.innerHTML = `
-                    <div class="flex justify-between items-start border-b border-slate-100 pb-6">
+                    <div class="flex justify-between items-start border-b border-slate-100 pb-2">
                         <div>
-                            <h2 class="text-lg font-black text-slate-800 tracking-tight">Edit Allocation Line</h2>
-                            <p class="text-xs text-slate-400 mt-1">Manage core contract terms and auxiliary metadata.</p>
+                            <h2 class="text-xs font-black text-slate-800 tracking-tight">Edit Allocation Line</h2>
+                            <p class="text-[9px] text-slate-400">Modify allocation thresholds and operational keys.</p>
                         </div>
-                        <div class="flex gap-2">
-                            <button onclick="saveRowLocalChanges(${item.id})" class="px-5 py-2 bg-emerald-600 text-white font-black text-[11px] uppercase tracking-wider rounded-lg shadow-sm hover:bg-emerald-700 transition-all">Apply</button>
-                            <button onclick="toggleRowEditMode(${item.id}, false)" class="px-5 py-2 bg-slate-100 text-slate-600 font-black text-[11px] uppercase tracking-wider rounded-lg hover:bg-slate-200 transition-all">Cancel</button>
-                            <button onclick="removeRowFromLocalArchitecture(${item.id})" class="px-5 py-2 bg-rose-50 text-rose-600 font-black text-[11px] uppercase tracking-wider rounded-lg hover:bg-rose-100 border border-rose-100 transition-all">Remove</button>
+                        <div class="flex gap-1">
+                            <button onclick="saveRowLocalChanges(${item.id})" class="px-2.5 py-1 bg-emerald-600 text-white font-black text-[10px] uppercase tracking-wider rounded-md shadow-sm hover:bg-emerald-700 transition-all">Apply</button>
+                            <button onclick="toggleRowEditMode(${item.id}, false)" class="px-2.5 py-1 bg-slate-100 text-slate-600 font-black text-[10px] uppercase tracking-wider rounded-md hover:bg-slate-200 transition-all">Cancel</button>
+                            <button onclick="removeRowFromLocalArchitecture(${item.id})" class="px-2.5 py-1 bg-rose-50 text-rose-600 font-black text-[10px] uppercase tracking-wider rounded-md hover:bg-rose-100 border border-rose-100 transition-all">Remove</button>
                         </div>
                     </div>
                     
-                    <div id="error-message-${item.id}" class="hidden bg-rose-50 text-rose-600 p-3 rounded-lg border border-rose-200 text-[11px] font-bold items-center gap-2 -mt-4">
+                    <div id="error-message-${item.id}" class="hidden bg-rose-50 text-rose-600 p-2 rounded-md border border-rose-200 text-[10px] font-bold items-center gap-1.5">
                         <span>⚠️</span><span id="error-text-${item.id}"></span>
                     </div>
 
-                    <div class="space-y-6">
-                        <h3 class="text-[10px] font-black text-teal-800 uppercase tracking-widest bg-teal-50 px-3 py-1 rounded-full w-fit">Primary Terms</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-2">
+                        <span class="text-[8px] font-black text-teal-800 uppercase tracking-widest bg-teal-50 px-2 py-0.5 rounded-md w-fit">Primary Terms</span>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                             <div>
-                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-900">Legal Entity</label>
-                                <select id="edit-legalEntity-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs text-slate-900 has-placeholder">
+                                <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Legal Entity</label>
+                                <select id="edit-legalEntity-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs text-slate-900">
                                     <option value="" disabled selected class="text-slate-400 italic">Select Legal Entity...</option>
                                     ${extractUniqueField(windowPayload.legalEntities, "Legal Entity").map(le => '<option value="' + le + '" ' + (le === item.data["Legal Entity"] ? 'selected' : '') + '>' + le + '</option>').join('')}
                                 </select>
                             </div>
                             <div>
-                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-900">Total Commitment (€)</label>
-                                <input type="number" step="0.01" id="edit-totalCommitment-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs text-slate-900 font-bold" value="${item.data["Total Commitment"] || ''}">
+                                <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Total Commitment (€)</label>
+                                <input type="text" id="edit-totalCommitment-${item.id}" oninput="formatInputAsIntegerCurrency(this)" placeholder="e.g. 150.000" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs text-slate-900 font-medium" value="${item.data["Total Commitment"] ? Math.round(item.data["Total Commitment"]).toLocaleString('it-IT') : ''}">
                             </div>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                             <div>
-                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-900">Start Date</label>
-                                <input type="date" id="edit-startDate-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs text-slate-900 font-mono" value="${item.data["Start Date"] ? item.data["Start Date"].toString().split('T')[0] : ''}">
+                                <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Start Date</label>
+                                <input type="date" id="edit-startDate-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs text-slate-900 font-mono" value="${item.data["Start Date"] ? item.data["Start Date"].toString().split('T')[0] : ''}">
                             </div>
                             <div>
-                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-900">End Date</label>
-                                <input type="date" id="edit-contractEndDate-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs text-slate-900 font-mono" value="${item.data["Contract End Date"] ? item.data["Contract End Date"].toString().split('T')[0] : ''}">
+                                <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">End Date</label>
+                                <input type="date" id="edit-contractEndDate-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs text-slate-900 font-mono" value="${item.data["Contract End Date"] ? item.data["Contract End Date"].toString().split('T')[0] : ''}">
                             </div>
                             <div>
-                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-900">Recurrence</label>
-                                <select id="edit-costRecurrence-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs text-slate-900">
+                                <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Recurrence</label>
+                                <select id="edit-costRecurrence-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs text-slate-900">
                                     <option value="Recurrent" ${item.data["Cost Recurrence"] !== 'One-Shot' ? 'selected' : ''}>Recurrent</option>
                                     <option value="One-Shot" ${item.data["Cost Recurrence"] === 'One-Shot' ? 'selected' : ''}>One-Shot</option>
                                 </select>
                             </div>
                         </div>
                         <div>
-                            <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-900">Scope</label>
-                            <input type="text" id="edit-scope-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs text-slate-900" value="${item.data["Scope"] || ''}">
+                            <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Scope / Line Description</label>
+                            <input type="text" id="edit-scope-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs text-slate-900" value="${item.data["Scope"] || ''}">
                         </div>
                     </div>
 
-                    <div class="border-t-2 border-slate-100 border-dashed my-8"></div>
+                    <div class="border-t border-slate-100 pt-2"></div>
 
-                    <div class="space-y-6">
-                        <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-3 py-1 rounded-full w-fit">Secondary Details (Optional)</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-2">
+                        <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded-md w-fit">Operational Allocation & FinOps</span>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                             <div>
-                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Group ID</label>
-                                <input type="text" id="edit-groupId-${item.id}" placeholder="Optional" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs placeholder:italic placeholder:text-slate-400" value="${item.data["Group ID"] || ''}">
+                                <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Group ID</label>
+                                <input type="text" id="edit-groupId-${item.id}" placeholder="Optional" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs" value="${item.data["Group ID"] || ''}">
                             </div>
                             <div>
-                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Target Group ID</label>
-                                <select id="edit-targetGroupId-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs has-placeholder">
+                                <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Target Group ID</label>
+                                <select id="edit-targetGroupId-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs">
                                     <option value="" disabled selected class="text-slate-400 italic">Optional - Select Target</option>
                                     ${currentAssetGroupIds.map(g => '<option value="' + g + '" ' + (g === item.data["Target Group ID"] ? 'selected' : '') + '>' + g + '</option>').join('')}
                                 </select>
                             </div>
                         </div>
                         
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-2.5">
                             <div>
-                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Location</label>
-                                <select id="edit-location-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs has-placeholder">
-                                    <option value="" disabled selected class="text-slate-400 italic">Optional - Select Location</option>
+                                <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Location</label>
+                                <select id="edit-location-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs">
+                                    <option value="" disabled selected class="text-slate-400 italic">Optional</option>
                                     ${extractUniqueField(windowPayload.locations, "Location").map(loc => '<option value="' + loc + '" ' + (loc === item.data["Location"] ? 'selected' : '') + '>' + loc + '</option>').join('')}
                                 </select>
                             </div>
                             <div>
-                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Service Owner</label>
-                                <input type="text" id="edit-serviceOwner-${item.id}" placeholder="Optional" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs placeholder:italic placeholder:text-slate-400" value="${item.data["Service Owner"] || ''}">
+                                <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Service Owner</label>
+                                <select id="edit-serviceOwner-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs text-slate-900 font-medium">
+                                    <option value="" disabled selected class="text-slate-400 italic">Select Owner...</option>
+                                    ${extractUniqueField(windowPayload.contracts, "Service Owner").map(so => '<option value="' + so + '" ' + (so === item.data["Service Owner"] ? 'selected' : '') + '>' + so + '</option>').join('')}
+                                </select>
                             </div>
                             <div>
-                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Cost Center</label>
-                                <select id="edit-costCenter-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs has-placeholder">
-                                    <option value="" disabled selected class="text-slate-400 italic">Optional - Select CC</option>
+                                <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Cost Center</label>
+                                <select id="edit-costCenter-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs">
+                                    <option value="" disabled selected class="text-slate-400 italic">Optional</option>
                                     ${extractUniqueField(windowPayload.costCenters, "Cost Center").map(cc => '<option value="' + cc + '" ' + (cc === item.data["Cost Center"] ? 'selected' : '') + '>' + cc + '</option>').join('')}
                                 </select>
                             </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                             <div>
-                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Expenditure Type</label>
-                                <select id="edit-expenditureType-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs">
+                                <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Expenditure Type</label>
+                                <select id="edit-expenditureType-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs">
                                     <option value="">Optional</option>
                                     <option value="OPEX" ${item.data["Expenditure Type"] === 'OPEX' ? 'selected' : ''}>OPEX</option>
                                     <option value="CAPEX" ${item.data["Expenditure Type"] === 'CAPEX' ? 'selected' : ''}>CAPEX</option>
                                     <option value="ROU" ${item.data["Expenditure Type"] === 'ROU' ? 'selected' : ''}>ROU</option>
                                 </select>
                             </div>
-                            <div class="relative">
-                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Adjusted End</label>
-                                <input type="date" id="edit-adjustedEndDate-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs font-mono text-slate-900" value="${item.data["Adjusted End Date"] ? item.data["Adjusted End Date"].toString().split('T')[0] : ''}">
-                                <div class="absolute top-[28px] right-2"><span class="flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span></span></div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                            <div>
+                                <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Early Termination</label>
+                                <input type="date" id="edit-adjustedEndDate-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs font-mono text-slate-900" value="${item.data["Adjusted End Date"] ? item.data["Adjusted End Date"].toString().split('T')[0] : ''}">
                             </div>
                             <div>
-                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Notice (Days)</label>
-                                <input type="number" id="edit-noticePeriod-${item.id}" placeholder="Optional" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs placeholder:italic placeholder:text-slate-400" value="${item.data["Notice Period (Days)"] || ''}">
+                                <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Notice (Days)</label>
+                                <input type="number" id="edit-noticePeriod-${item.id}" placeholder="Optional" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs" value="${item.data["Notice Period (Days)"] || ''}">
                             </div>
                             <div>
-                                <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Auto-Renewal</label>
-                                <select id="edit-autoRenewal-${item.id}" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs">
+                                <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Auto-Renewal</label>
+                                <select id="edit-autoRenewal-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs">
                                     <option value="" ${!item.data["Auto-Renewal"] ? 'selected' : ''}>Optional</option>
                                     <option value="No" ${item.data["Auto-Renewal"] === 'No' ? 'selected' : ''}>No</option>
                                     <option value="Yes" ${item.data["Auto-Renewal"] === 'Yes' ? 'selected' : ''}>Yes</option>
@@ -416,10 +539,93 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="border-t border-slate-100 pt-2"></div>
+
+                    <div class="space-y-2">
+                        <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded-md w-fit">Procurement Keys & Identifiers</span>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                            <div>
+                                <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">BL ID</label>
+                                <input type="text" id="edit-blId-${item.id}" placeholder="Optional" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs font-mono" value="${item.data["BL ID"] || ''}">
+                            </div>
+                            <div>
+                                <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Request Code</label>
+                                <input type="text" id="edit-requestCode-${item.id}" placeholder="Optional" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs font-mono" value="${item.data["Request Code"] || ''}">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Line Comments</label>
+                            <input type="text" id="edit-comments-${item.id}" placeholder="Add annotations..." class="w-full px-2 py-1 bg-slate-50/50 border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs italic text-slate-600" value="${item.data["Comments"] || ''}">
+                        </div>
+                    </div>
                 `;
                 listWrapper.appendChild(cardDiv);
             }
         });
+    }
+
+    function formatInputAsIntegerCurrency(el) {
+        // Rimuove tutto ciò che non è un numero intero
+        let val = el.value.replace(/[^0-9]/g, '');
+        if (val === '') {
+            el.value = '';
+            return;
+        }
+        // Formatta il numero con i punti delle migliaia
+        el.value = parseInt(val, 10).toLocaleString('it-IT');
+    }
+
+    // =========================================================================
+    // NUOVE EVOLUZIONI: DUPLICAZIONE ED ESPANSIONE COMPACT CARDS
+    // =========================================================================
+
+    function cloneDetailRowItem(id) {
+        const itemToClone = currentDetailItems.find(i => i.id === id);
+        if (!itemToClone) return;
+
+        // Calcola il nuovo ID incrementale locale seguendo la tua esatta logica di addNewDetailRowItem
+        const newId = currentDetailItems.length > 0 ? Math.max(...currentDetailItems.map(i => i.id)) + 1 : 0;
+
+        // Eseguiamo un clone profondo dell'oggetto data per rompere i riferimenti in memoria
+        const clonedData = JSON.parse(JSON.stringify(itemToClone.data));
+
+        // Pulizia dei campi richiesta dall'evoluzione aziendale
+        clonedData["Scope"] = "";
+        clonedData["Contract ID"] = ""; // Svuotato per permettere a generateContractId sul server di rigenerarlo pulito
+
+        // Forza lo stato ad ACTIVE sulla riga duplicata
+        clonedData["Status"] = "ACTIVE";
+
+        // Inseriamo l'elemento clonato nello stato locale aprendolo in modalità form (isEditing: true)
+        currentDetailItems.push({
+            id: newId,
+            isEditing: true,
+            data: clonedData
+        });
+
+        // Esegue il refresh immediato della tabella di Step 3
+        renderDetailItemsTable();
+    }
+
+    function toggleCompactAccordion(id, event) {
+        // Evitiamo che l'accordion si attivi se il click proviene da un elemento interattivo nativo interno
+        if (event.target.tagName === 'BUTTON' || event.target.closest('button') || event.target.closest('span.tt-wrapper')) {
+            return;
+        }
+
+        const accordionPanel = document.getElementById(`compact-accordion-${id}`);
+        const chevronSvg = document.getElementById(`compact-chevron-${id}`);
+        if (!accordionPanel) return;
+
+        const isHidden = accordionPanel.classList.contains('hidden');
+        if (isHidden) {
+            accordionPanel.classList.remove('hidden');
+            if (chevronSvg) chevronSvg.classList.add('rotate-90'); // Sfrutta la transizione e il colore del tuo css.html
+        } else {
+            accordionPanel.classList.add('hidden');
+            if (chevronSvg) chevronSvg.classList.remove('rotate-90');
+        }
     }
 
     function toggleRowEditMode(id, editable) {
@@ -452,7 +658,9 @@
         item.data["Service Owner"] = document.getElementById(`edit-serviceOwner-${id}`).value.trim();
         item.data["Scope"] = document.getElementById(`edit-scope-${id}`).value.trim();
         item.data["Cost Recurrence"] = document.getElementById(`edit-costRecurrence-${id}`).value;
-        item.data["Total Commitment"] = parseFloat(document.getElementById(`edit-totalCommitment-${id}`).value) || 0;
+        // CORREZIONE: Pulizia dei punti di formattazione della valuta prima del parsing numerico intero
+        const cleanCommitmentStr = document.getElementById(`edit-totalCommitment-${id}`).value.replace(/\./g, '').trim();
+        item.data["Total Commitment"] = parseInt(cleanCommitmentStr, 10) || 0;
         item.data["Expenditure Type"] = document.getElementById(`edit-expenditureType-${id}`).value;
         item.data["Cost Center"] = document.getElementById(`edit-costCenter-${id}`).value;
         item.data["Start Date"] = document.getElementById(`edit-startDate-${id}`).value;
