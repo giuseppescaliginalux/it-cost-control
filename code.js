@@ -343,3 +343,72 @@ function jsonResponse(d) {
   return ContentService.createTextOutput(JSON.stringify(d)).setMimeType(ContentService.MimeType.JSON);
 }
 
+/**
+ * Logica di Business per i contratti
+ * @param {Object} item - Oggetto con i dati grezzi dal frontend
+ * @returns {Object} - Oggetto con i campi calcolati
+ */
+function calculateContractLogic(item) {
+    const d = { ...item }; // Cloniamo per non modificare l'originale
+
+    // 1. DATE HELPERS (Per gestire le date come fa Sheets)
+    const parse = (dateStr) => dateStr ? new Date(dateStr) : null;
+    const diffDays = (start, end) => {
+        if (!start || !end) return 0;
+        return Math.round((parse(end) - parse(start)) / (1000 * 60 * 60 * 24)) + 1;
+    };
+
+    // 2. LOGICA: End Date (IF(ISBLANK(adj), end, adj))
+    d.finalEndDate = (d.adjustedEndDate && d.adjustedEndDate !== "") ? d.adjustedEndDate : d.contractEndDate;
+
+    // 3. LOGICA: Contract Term (Mesi)
+    if (d.startDate && d.finalEndDate) {
+        const start = parse(d.startDate);
+        const end = parse(d.finalEndDate);
+        // DATEDIF "M" in Sheets è complesso. Usiamo una approssimazione robusta:
+        d.contractTerm = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+        // Se il giorno di fine è inferiore al giorno di inizio, sottrai 1 mese
+        if (end.getDate() < start.getDate()) d.contractTerm--;
+    } else {
+        d.contractTerm = 0;
+    }
+
+    // 4. LOGICA: Effective Commitment
+    const origTermDays = diffDays(d.startDate, d.contractEndDate);
+    const actTermDays = diffDays(d.startDate, d.finalEndDate);
+    const totComm = parseFloat(d.totalCommitment) || 0;
+
+    if (d.costRecurrence === "One-Shot") {
+        d.effectiveCommitment = totComm;
+    } else if (d.contractEndDate === d.finalEndDate) {
+        d.effectiveCommitment = totComm;
+    } else {
+        d.effectiveCommitment = parseFloat((totComm * (actTermDays / (origTermDays || 1))).toFixed(2));
+    }
+
+    // 5. LOGICA: Annual Value
+    if (d.costRecurrence === "One-Shot") {
+        d.annualValue = parseFloat(totComm.toFixed(2));
+    } else {
+        const origTerm = Math.max(1, origTermDays);
+        d.annualValue = parseFloat(((totComm / origTerm) * 365).toFixed(2));
+    }
+
+    // 6. LOGICA: Status
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const start = parse(d.startDate);
+    const end = parse(d.finalEndDate);
+
+    if (!d.startDate) {
+        d.status = "";
+    } else if (end < today) {
+        d.status = "EXPIRED";
+    } else if (start > today) {
+        d.status = "UPCOMING";
+    } else {
+        d.status = "ACTIVE";
+    }
+
+    return d;
+}
