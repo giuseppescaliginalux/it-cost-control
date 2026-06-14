@@ -797,10 +797,22 @@
                                 <div id="mgmt-detailRowsContainer"
                                     class="space-y-4 max-h-[600px] overflow-y-auto pr-1.5 pb-2"></div>
 
-                                <div class="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                                <div class="pt-4 border-t border-slate-100 flex justify-end items-center gap-3">
+                                    <div id="mgmt-push-warning"
+                                        class="hidden text-amber-700 bg-amber-50 border border-amber-200/60 rounded-xl px-3 py-1.5 text-[11px] font-bold animate-fade-in items-center gap-2 shadow-2xs">
+                                        <svg class="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor"
+                                            stroke-width="2" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                        <span>There are active forms still in edit mode. Please click 'Apply' or
+                                            'Confirm Master Changes' before performing the global push.</span>
+                                    </div>
+
                                     <button onclick="saveCurrentContract()"
-                                        class="py-2.5 px-8 bg-teal-700 hover:bg-teal-800 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-colors">Commit
-                                        & Push Changes</button>
+                                        class="py-2.5 px-8 bg-teal-700 hover:bg-teal-800 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-colors shrink-0">
+                                        Commit & Push Changes
+                                    </button>
                                 </div>
                             </div>
 

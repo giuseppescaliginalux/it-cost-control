@@ -239,7 +239,7 @@
 
             if (!item.isEditing) {
                 // ==========================================
-                // VISTA COMPATTA + ACCORDION STRUTTURATO (2 RIQUADRI + LINEA ID/NOTE)
+                // VISTA COMPATTA + ACCORDION STRUTTURATO (ICONE MODERNE SVG)
                 // ==========================================
                 const d = item.data;
                 const effCommit = typeof d["Effective Commitment"] === 'number' ? d["Effective Commitment"].formatCurrency() : (parseFloat(d["Effective Commitment"]) || 0).formatCurrency();
@@ -301,9 +301,11 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                             
                             <div class="p-2.5 bg-slate-50/60 rounded-xl border border-slate-100 flex flex-col gap-2">
-                                <div class="flex justify-between items-center border-b border-slate-100 pb-1">
-                                    <span class="text-[9px] font-black text-teal-700 uppercase tracking-wider block">🏛️ Corp Governance & Alignment</span>
-                                    <span class="text-[8px] font-black bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded uppercase tracking-widest font-mono scale-95">Elegere Context</span>
+                                <div class="flex items-center gap-1.5 border-b border-slate-100 pb-1">
+                                    <svg class="w-4 h-4 text-teal-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                                    </svg>
+                                    <span class="text-[9px] font-black text-teal-700 uppercase tracking-wider block">Corporate governance</span>
                                 </div>
                                 <div class="grid grid-cols-3 gap-2">
                                     <div>
@@ -336,7 +338,12 @@
                             </div>
 
                             <div class="p-2.5 bg-slate-50/60 rounded-xl border border-slate-100 flex flex-col gap-2">
-                                <span class="text-[9px] font-black text-indigo-700 uppercase tracking-wider block border-b border-slate-100 pb-1">⏳ Financial Lifecycle & Commitments</span>
+                                <div class="flex items-center gap-1.5 border-b border-slate-100 pb-1">
+                                    <svg class="w-4 h-4 text-indigo-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    <span class="text-[9px] font-black text-indigo-700 uppercase tracking-wider block">Financial Lifecycle & Commitments</span>
+                                </div>
                                 
                                 <div class="grid grid-cols-2 gap-2 bg-white p-2 rounded-lg border border-slate-100/80 shadow-2xs">
                                     <div class="border-r border-slate-100 pr-2">
@@ -384,25 +391,36 @@
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
                             
                             <div class="p-2.5 bg-slate-50/40 rounded-xl border border-slate-100 flex flex-col gap-1 justify-between">
-                                <div>
-                                    <span class="block text-[8px] font-bold text-slate-400 uppercase">Contract ID</span>
+                                <div class="flex items-center gap-1">
+                                    <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                                    </svg>
+                                    <span class="text-[8px] font-bold text-slate-400 uppercase tracking-wide">System Identifiers</span>
+                                </div>
+                                <div class="mt-1">
+                                    <span class="block text-[7px] text-slate-400 uppercase font-bold">Contract ID</span>
                                     <span class="font-mono text-[9px] text-slate-500 bg-slate-100 px-1 py-0.5 rounded block truncate select-all" title="${d["Contract ID"] || ''}">${d["Contract ID"] || '—'}</span>
                                 </div>
                                 <div class="grid grid-cols-2 gap-1.5 border-t border-slate-100/40 pt-1">
                                     <div>
-                                        <span class="block text-[8px] font-bold text-slate-400 uppercase">Group ID</span>
-                                        <span class="font-medium text-slate-600 truncate block" title="${d["Group ID"] || ''}">${d["Group ID"] || '—'}</span>
+                                        <span class="block text-[7px] font-bold text-slate-400 uppercase">Group ID</span>
+                                        <span class="font-medium text-slate-600 text-[10px] truncate block" title="${d["Group ID"] || ''}">${d["Group ID"] || '—'}</span>
                                     </div>
                                     <div>
-                                        <span class="block text-[8px] font-bold text-slate-400 uppercase">Target Group</span>
-                                        <span class="font-medium text-slate-600 truncate block" title="${d["Target Group ID"] || ''}">${d["Target Group ID"] || '—'}</span>
+                                        <span class="block text-[7px] font-bold text-slate-400 uppercase">Target Group</span>
+                                        <span class="font-medium text-slate-600 text-[10px] truncate block" title="${d["Target Group ID"] || ''}">${d["Target Group ID"] || '—'}</span>
                                     </div>
                                 </div>
                             </div>
 
                             <div class="p-2.5 bg-slate-50/40 rounded-xl border border-slate-100 md:col-span-2 flex flex-col justify-start">
-                                <span class="block text-[8px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">💬 Line Comments</span>
-                                <p class="text-slate-600 italic font-medium leading-relaxed">${d["Comments"] || '<span class="text-slate-300">No additional specific comments or logs.</span>'}</p>
+                                <div class="flex items-center gap-1 mb-1">
+                                    <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                                    </svg>
+                                    <span class="block text-[8px] font-bold text-slate-400 uppercase tracking-wider">Line Comments</span>
+                                </div>
+                                <p class="text-slate-600 italic font-medium leading-relaxed">${d["Comments"] || '<span class="text-slate-300 text-[10px]">No additional localized comments.</span>'}</p>
                             </div>
 
                         </div>
@@ -411,7 +429,7 @@
                 listWrapper.appendChild(cardDiv);
             } else {
                 // ==========================================
-                // FORM DI MODIFICA COMPRESSO - PULIZIA BOLD E MASK VALUTA INTERA
+                // FORM DI MODIFICA COMPRESSO ED OTTIZZATO (PULIZIA PESI BOLD RICHIESTA)
                 // ==========================================
                 cardDiv.className = "bg-white border border-slate-200 rounded-xl p-4 shadow-md relative space-y-3 animate-fade-in";
                 cardDiv.innerHTML = `
@@ -719,12 +737,29 @@
 
     // BULLETPROOF IN-MEMORY COMMIT LOGIC (Bypasses DOM exceptions)
     function saveCurrentContract() {
-        if (!currentSelectedAsset) return alert('Please select a target asset from Step 1 before proceeding.');
+        if (!currentSelectedAsset) return;
 
-        // 1. Flush forzato delle righe in editing
-        currentDetailItems.forEach(item => {
-            if (item.isEditing) saveRowLocalChanges(item.id);
-        });
+        // 1. BLOCCO DI SICUREZZA AL CLICK: Intercetta form aperti sul Master o sui Dettagli
+        const hasOpenEdits = isMasterEditable || currentDetailItems.some(item => item.isEditing);
+        const warningBanner = document.getElementById('mgmt-push-warning');
+
+        if (hasOpenEdits) {
+            if (warningBanner) {
+                warningBanner.classList.remove('hidden');
+                warningBanner.classList.add('flex');
+                // Scompare da solo dopo 5 secondi
+                setTimeout(() => {
+                    warningBanner.classList.remove('flex');
+                    warningBanner.classList.add('hidden');
+                }, 5000);
+            }
+            return; // Blocca il push
+        }
+
+        if (warningBanner) {
+            warningBanner.classList.remove('flex');
+            warningBanner.classList.add('hidden');
+        }
 
         // 2. Preparazione dei dati del Master
         if (isMasterEditable) {
