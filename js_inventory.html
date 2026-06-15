@@ -149,7 +149,7 @@
                 return dB - dA;
             });
             if (dataList.length === 0) { contentDiv.innerHTML = '<p class="text-slate-400 italic py-4 text-center text-xs">No active contracts found.</p>'; return; }
-            let html = `<div class="overflow-hidden border border-slate-200 rounded-xl bg-white shadow-sm"><table class="w-full text-left text-[11px]"><thead><tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-black uppercase tracking-widest"><th class="p-3">Supplier</th><th class="p-3 text-center">Commitment</th><th class="p-3 text-right bg-teal-50/40 text-teal-900">Annual Value</th></tr></thead><tbody class="divide-y divide-slate-100">`;
+            let html = `<div class="overflow-hidden border border-slate-200 rounded-xl bg-white shadow-sm"><table class="w-full text-left text-[11px]"><thead><tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-black uppercase tracking-widest"><th class="p-3">Supplier</th><th class="p-3 text-center">Commitment</th><th class="p-3 text-right bg-teal-50/40 text-teal-900">Annual Run Rate</th></tr></thead><tbody class="divide-y divide-slate-100">`;
             dataList.forEach(log => {
                 const cStatus = (log["Status"] || log["Contract Status"] || "").toUpperCase().trim();
                 let rowStyles = "hover:bg-slate-50/20"; let statusBadge = "";
