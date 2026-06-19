@@ -67,6 +67,10 @@ async function fetchLiveData() {
             renderOperationsHub(payload);
         }
 
+        if (typeof renderProjectionsHub === "function") {
+            renderProjectionsHub(payload);
+        }
+
         // Tutto pronto, accendiamo lo schermo!
         document.getElementById('loading-state').classList.add('hidden');
         document.getElementById('dashboard-content').classList.remove('hidden');

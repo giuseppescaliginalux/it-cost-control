@@ -3,7 +3,8 @@
      * MODULO RACCORDO UI GENERICA E BADGE CONDIVISI
      */
     function switchTab(tabId) {
-        const tabs = ['tab-dashboard', 'tab-inventory', 'tab-operations', 'tab-contracts'];
+        // MODIFICATO: Aggiunto 'tab-projections' all'array di gestione dei tab
+        const tabs = ['tab-dashboard', 'tab-inventory', 'tab-operations', 'tab-contracts', 'tab-projections'];
         const activeClass = "bg-teal-700 text-white shadow-sm pointer-events-none font-black".split(" ");
         const inactiveClass = "text-teal-300 hover:text-white hover:bg-teal-800/50 cursor-pointer font-bold".split(" ");
 
@@ -12,14 +13,18 @@
             const btnEl = document.getElementById('btn-' + t);
 
             if (t === tabId) {
-                tabEl.classList.replace('hidden', 'block');
-                btnEl.classList.remove(...inactiveClass);
-                btnEl.classList.add(...activeClass);
-                if (t === 'tab-dashboard') window.dispatchEvent(new Event('resize'));
+                if (tabEl) tabEl.classList.replace('hidden', 'block');
+                if (btnEl) {
+                    btnEl.classList.remove(...inactiveClass);
+                    btnEl.classList.add(...activeClass);
+                }
+                if (t === 'tab-dashboard' || t === 'tab-projections') window.dispatchEvent(new Event('resize'));
             } else {
-                tabEl.classList.replace('block', 'hidden');
-                btnEl.classList.remove(...activeClass);
-                btnEl.classList.add(...inactiveClass);
+                if (tabEl) tabEl.classList.replace('block', 'hidden');
+                if (btnEl) {
+                    btnEl.classList.remove(...activeClass);
+                    btnEl.classList.add(...inactiveClass);
+                }
             }
         });
     }
