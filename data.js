@@ -211,9 +211,13 @@ function updateRowSafe(sheet, rowIdx, headers, detailData, editableFields, field
 
         let finalValue = value;
 
-        // Formattazione Date
+        // Formattazione Date senza inserire ore e minuti
         if (["Start Date", "Contract End Date", "Adjusted End Date", "End Date", "Master Start Date", "Master End Date"].includes(header)) {
-          finalValue = value ? new Date(value) : "";
+          if (value instanceof Date) {
+            finalValue = !isNaN(value.getTime()) ? Utilities.formatDate(value, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
+          } else {
+            finalValue = value; // Passa direttamente la stringa "yyyy-MM-dd" pulita
+          }
         }
 
         sheet.getRange(rowIdx, idx + 1).setValue(finalValue);

@@ -56,7 +56,7 @@ function _runCoreMigrationEngine(flags) {
 
                 // SAFE DATE CHECK: Se Apps Script ha letto un oggetto Date, lo normalizziamo in stringa YYYY-MM-DD
                 if (rawValue instanceof Date) {
-                    rawValue = !isNaN(rawValue.getTime()) ? rawValue.toISOString().split('T')[0] : "";
+                    rawValue = !isNaN(rawValue.getTime()) ? Utilities.formatDate(rawValue, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
                 }
 
                 camelCaseObj[frontendKey] = rawValue;
@@ -106,7 +106,10 @@ function _runCoreMigrationEngine(flags) {
             return masterHeaders.map(header => {
                 let val = master[header];
                 if (["Master Start Date", "Master End Date"].includes(header)) {
-                    return val ? new Date(val) : "";
+                    if (val instanceof Date) {
+                        return !isNaN(val.getTime()) ? Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
+                    }
+                    return val ? val : ""; // Se è già una stringa "yyyy-MM-dd", la scrive direttamente
                 }
                 return val !== undefined ? val : "";
             });
@@ -120,7 +123,10 @@ function _runCoreMigrationEngine(flags) {
             return detailHeaders.map(header => {
                 let val = detail[header];
                 if (["Start Date", "Contract End Date", "Adjusted End Date", "End Date"].includes(header)) {
-                    return val ? new Date(val) : "";
+                    if (val instanceof Date) {
+                        return !isNaN(val.getTime()) ? Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
+                    }
+                    return val ? val : ""; // Se è già una stringa "yyyy-MM-dd", la scrive direttamente
                 }
                 return val !== undefined ? val : "";
             });
@@ -236,4 +242,119 @@ function _calculateMasterMetricsInMemoryInternal(payload) {
     payload.billingChannel = computedBillingChannel;
 
     return payload;
+}
+
+/**
+ * RECOVERY SCRIPT: Identifica i Master ID corrotti con l'anno 1899,
+ * ricalcola l'anno reale dai contratti figli e aggiorna a cascata sia i Master che i Dettagli.
+ */
+function fixAndRegenerateMasterIds() {
+    console.log("MIGRAZIONE: Avvio ripristino Master Contract ID (Rimozione anno 1899)...");
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const masterSheet = ss.getSheetByName(CONFIG.SHEETS.MASTER_CONTRACTS);
+    const detailSheet = ss.getSheetByName(CONFIG.SHEETS.CONTRACTS);
+
+    const allMasters = getSheetDataAsObjects(ss, CONFIG.SHEETS.MASTER_CONTRACTS) || [];
+    const allDetails = getSheetDataAsObjects(ss, CONFIG.SHEETS.CONTRACTS) || [];
+
+    const masterHeaders = masterSheet.getRange(1, 1, 1, masterSheet.getLastColumn()).getValues()[0];
+    const detailHeaders = detailSheet.getRange(1, 1, 1, detailSheet.getLastColumn()).getValues()[0];
+
+    let fixedCount = 0;
+    // Mappa di dizionario: { "VECCHIO_ID_1899": "NUOVO_ID_CORRETTO" }
+    const idTranslationMap = {};
+
+    // FASE 1: RIGENERAZIONE ID SUL MASTER
+    allMasters.forEach(master => {
+        const oldId = String(master["Master Contract ID"]).trim();
+        if (!oldId) return;
+
+        // Intercettiamo solo i record affetti dal bug 1899
+        if (oldId.includes("-1899-")) {
+            // Isoliama i figli di questo master specifico per calcolare la VERA data d'inizio
+            const childDetails = allDetails.filter(d => String(d["Master Contract ID"]).trim() === oldId);
+
+            let minStartDate = null;
+            childDetails.forEach(d => {
+                let rawDate = d["Start Date"];
+                if (rawDate) {
+                    const sDate = new Date(rawDate);
+                    // BLINDATURA: La data deve essere valida e l'anno deve essere reale (> 1900)
+                    if (!isNaN(sDate.getTime()) && sDate.getFullYear() > 1900) {
+                        if (!minStartDate || sDate < minStartDate) {
+                            minStartDate = sDate;
+                        }
+                    }
+                }
+            });
+
+            // Calcolo dell'anno reale (se non ci sono figli validi, usiamo il 2026 come fallback attuale)
+            let correctYear = "2026";
+            if (minStartDate) {
+                correctYear = minStartDate.getFullYear().toString();
+            } else if (master["Master Start Date"]) {
+                const mDate = new Date(master["Master Start Date"]);
+                if (!isNaN(mDate.getTime()) && mDate.getFullYear() > 1900) {
+                    correctYear = mDate.getFullYear().toString();
+                }
+            }
+
+            // Ricostruiamo l'ID stringa sostituendo il penultimo elemento (l'anno)
+            const parts = oldId.split("-");
+            if (parts.length >= 5) {
+                parts[parts.length - 2] = correctYear; // Sostituisce '1899' con l'anno corretto (es. '2024')
+                const newId = parts.join("-");
+
+                console.log(`TRADUZIONE: '${oldId}' ---> '${newId}'`);
+
+                idTranslationMap[oldId] = newId;
+                master["Master Contract ID"] = newId;
+                fixedCount++;
+            }
+        }
+    });
+
+    if (fixedCount === 0) {
+        console.log("MIGRAZIONE: Nessun ID corrotto con anno 1899 rilevato. I fogli sono già puliti.");
+        return;
+    }
+
+    // FASE 2: AGGIORNAMENTO A CASCATA DEI DETTAGLI (Relazioni / Foreign Keys)
+    let detailUpdatedCount = 0;
+    allDetails.forEach(detail => {
+        const currentRefId = String(detail["Master Contract ID"]).trim();
+        if (idTranslationMap[currentRefId]) {
+            detail["Master Contract ID"] = idTranslationMap[currentRefId];
+            detailUpdatedCount++;
+        }
+    });
+
+    console.log(`MIGRAZIONE: Rigenerati ${fixedCount} Master ID. Aggiornati di riflesso ${detailUpdatedCount} contratti di dettaglio.`);
+
+    // FASE 3: SCRITTURA MASSIVA BULK SUI FOGLI GOOGLE
+    const masterOutputValues = allMasters.map(master => {
+        return masterHeaders.map(header => {
+            let val = master[header];
+            if (["Master Start Date", "Master End Date"].includes(header)) {
+                return val ? new Date(val) : "";
+            }
+            return val !== undefined ? val : "";
+        });
+    });
+
+    const detailOutputValues = allDetails.map(detail => {
+        return detailHeaders.map(header => {
+            let val = detail[header];
+            if (["Start Date", "Contract End Date", "Adjusted End Date", "End Date"].includes(header)) {
+                return val ? new Date(val) : "";
+            }
+            return val !== undefined ? val : "";
+        });
+    });
+
+    masterSheet.getRange(2, 1, masterOutputValues.length, masterHeaders.length).setValues(masterOutputValues);
+    detailSheet.getRange(2, 1, detailOutputValues.length, detailHeaders.length).setValues(detailOutputValues);
+
+    console.log("MIGRAZIONE COMPLETATA: Tutti i fogli sono stati riallineati con gli ID corretti.");
 }

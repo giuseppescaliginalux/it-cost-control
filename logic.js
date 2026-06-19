@@ -19,7 +19,7 @@ function calculateContractLogic(item) {
 
     // Funzione helper sicura per formattare le date per il foglio (evita TypeError)
     const formatDate = (val) => {
-        if (val instanceof Date && !isNaN(val)) return val.toISOString().split('T')[0];
+        if (val instanceof Date && !isNaN(val)) return Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd");
         if (typeof val === 'string' && val.length > 0) return val;
         return "";
     };
