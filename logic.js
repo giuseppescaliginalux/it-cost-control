@@ -110,6 +110,13 @@ function calculateMasterMetricsInMemory(payload) {
     const masterId = payload.masterId || "";
     const supplierName = payload.supplier || "";
 
+    // 1. Calcoliamo IMMEDIATAMENTE il Billing Channel dal Master
+    let computedBillingChannel = "";
+    const supplierMatch = suppliers.find(s => String(s["Supplier"]).trim().toLowerCase() === String(supplierName).trim().toLowerCase());
+    if (supplierMatch) {
+        computedBillingChannel = supplierMatch["Type"] || "";
+    }
+
     // ==========================================
     // FASE 1: CALCOLO DEI SINGOLI CONTRATTI (Con adattamento chiavi)
     // ==========================================
@@ -117,6 +124,7 @@ function calculateMasterMetricsInMemory(payload) {
         // NUOVO: Iniettiamo l'ereditarietà dal Master prima di convertire l'oggetto
         detailRow.assetName = payload.assetName || "";
         detailRow.supplier = payload.supplier || "";
+        detailRow.billingChannel = computedBillingChannel;
 
         // 1a. Convertiamo da camelCase a Intestazioni del Foglio per darlo in pasto alla logica nativa
         const itemHeaderObj = {};
@@ -198,13 +206,6 @@ function calculateMasterMetricsInMemory(payload) {
     if (recurrentEffectiveCommitment > 0 && computedContractTerm > 0) {
         // Calcolo pulito: riflette il burn rate reale spalmato sulla durata effettiva
         computedRunRate = parseFloat(((recurrentEffectiveCommitment / computedContractTerm) * 12).toFixed(2));
-    }
-
-    // 4. Billing Channel (Lookup in memoria sull'array filtrato spedito dal client)
-    let computedBillingChannel = "";
-    const supplierMatch = suppliers.find(s => String(s["Supplier"]).trim().toLowerCase() === String(supplierName).trim().toLowerCase());
-    if (supplierMatch) {
-        computedBillingChannel = supplierMatch["Type"] || "";
     }
 
     // 5. Status del Master (Incrocio logico Initiatives del Master + Righe Dettaglio Attive)

@@ -92,6 +92,7 @@ function _runCoreMigrationEngine(flags) {
             const calculatedChild = calculatedPayload.details[cIdx];
             originalDetail["Asset Name"] = calculatedChild.assetName;
             originalDetail["Supplier"] = calculatedChild.supplier;
+            originalDetail["Billing Channel"] = calculatedChild.billingChannel;
             originalDetail["Effective Commitment"] = calculatedChild.effectiveCommitment;
             originalDetail["Annual Value"] = calculatedChild.annualValue;
             originalDetail["Status"] = calculatedChild.status;
@@ -149,9 +150,16 @@ function _calculateMasterMetricsInMemoryInternal(payload) {
     const masterId = payload.masterId || "";
     const supplierName = payload.supplier || "";
 
+    // Calcolo preventivo del Billing Channel
+    let computedBillingChannel = "";
+    const supplierMatch = suppliers.find(s => String(s["Supplier"]).trim().toLowerCase() === String(supplierName).trim().toLowerCase());
+    if (supplierMatch) computedBillingChannel = supplierMatch["Type"] || "";
+
     details.forEach(detailRow => {
         detailRow.assetName = payload.assetName || "";
         detailRow.supplier = payload.supplier || "";
+        detailRow.billingChannel = computedBillingChannel;
+
         const itemHeaderObj = {};
         for (let header in CONTRACT_FIELD_MAP) {
             const frontendKey = CONTRACT_FIELD_MAP[header];
@@ -209,10 +217,6 @@ function _calculateMasterMetricsInMemoryInternal(payload) {
     if (recurrentEffectiveCommitment > 0 && computedContractTerm > 0) {
         computedRunRate = parseFloat(((recurrentEffectiveCommitment / computedContractTerm) * 12).toFixed(2));
     }
-
-    let computedBillingChannel = "";
-    const supplierMatch = suppliers.find(s => String(s["Supplier"]).trim().toLowerCase() === String(supplierName).trim().toLowerCase());
-    if (supplierMatch) computedBillingChannel = supplierMatch["Type"] || "";
 
     let checkTerminated = 0;
     let checkNeg = 0;

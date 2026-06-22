@@ -29,6 +29,7 @@ const CONTRACT_FIELD_MAP = {
   "Contract ID": "contractId",
   "Asset Name": "assetName",
   "Supplier": "supplier",
+  "Billing Channel": "billingChannel",
   "Group ID": "groupId",
   "Target Group ID": "targetGroupId",
   "Legal Entity": "legalEntity",
