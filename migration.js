@@ -98,10 +98,19 @@ function _runCoreMigrationEngine(flags) {
             originalDetail["Status"] = calculatedChild.status;
             originalDetail["Contract Term (Months)"] = calculatedChild.contractTerm;
             originalDetail["End Date"] = calculatedChild.endDate;
+
+            // --- AUTOMATED BACKFILL CONGIUNTO ---
+            // Ripristina e protegge l'integrità dei vecchi contratti popolandoli di default
+            if (!originalDetail["Commitment Allocation"] || String(originalDetail["Commitment Allocation"]).trim() === "") {
+                originalDetail["Commitment Allocation"] = "Linear";
+            }
+            if (!originalDetail["Pricing Model"] || String(originalDetail["Pricing Model"]).trim() === "") {
+                originalDetail["Pricing Model"] = "Flat";
+            }
         });
     });
 
-    // SCRITTURA MASSIVA BULK ONESHOT
+    // SCRITTURA MASSIVA BULK ONESHOT SUI FOGLI GOOGLE
     if (flags.writeMaster && allMasters.length > 0) {
         const masterOutputValues = allMasters.map(master => {
             return masterHeaders.map(header => {
@@ -110,7 +119,7 @@ function _runCoreMigrationEngine(flags) {
                     if (val instanceof Date) {
                         return !isNaN(val.getTime()) ? Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
                     }
-                    return val ? val : ""; // Se è già una stringa "yyyy-MM-dd", la scrive direttamente
+                    return val ? val : "";
                 }
                 return val !== undefined ? val : "";
             });
@@ -127,7 +136,7 @@ function _runCoreMigrationEngine(flags) {
                     if (val instanceof Date) {
                         return !isNaN(val.getTime()) ? Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
                     }
-                    return val ? val : ""; // Se è già una stringa "yyyy-MM-dd", la scrive direttamente
+                    return val ? val : "";
                 }
                 return val !== undefined ? val : "";
             });
@@ -150,7 +159,6 @@ function _calculateMasterMetricsInMemoryInternal(payload) {
     const masterId = payload.masterId || "";
     const supplierName = payload.supplier || "";
 
-    // Calcolo preventivo del Billing Channel
     let computedBillingChannel = "";
     const supplierMatch = suppliers.find(s => String(s["Supplier"]).trim().toLowerCase() === String(supplierName).trim().toLowerCase());
     if (supplierMatch) computedBillingChannel = supplierMatch["Type"] || "";
@@ -220,7 +228,6 @@ function _calculateMasterMetricsInMemoryInternal(payload) {
 
     let checkTerminated = 0;
     let checkNeg = 0;
-    // Protezione anti-falsi positivi inserita anche nel motore di migrazione
     if (masterId && masterId.trim() !== "") {
         initiatives.forEach(init => {
             if (String(init["Master Contract ID"]).trim() === String(masterId).trim()) {
@@ -249,8 +256,7 @@ function _calculateMasterMetricsInMemoryInternal(payload) {
 }
 
 /**
- * RECOVERY SCRIPT: Identifica i Master ID corrotti con l'anno 1899,
- * ricalcola l'anno reale dai contratti figli e aggiorna a cascata sia i Master che i Dettagli.
+ * RECOVERY SCRIPT: Identifica i Master ID corrotti con l'anno 1899.
  */
 function fixAndRegenerateMasterIds() {
     console.log("MIGRAZIONE: Avvio ripristino Master Contract ID (Rimozione anno 1899)...");
@@ -266,17 +272,13 @@ function fixAndRegenerateMasterIds() {
     const detailHeaders = detailSheet.getRange(1, 1, 1, detailSheet.getLastColumn()).getValues()[0];
 
     let fixedCount = 0;
-    // Mappa di dizionario: { "VECCHIO_ID_1899": "NUOVO_ID_CORRETTO" }
     const idTranslationMap = {};
 
-    // FASE 1: RIGENERAZIONE ID SUL MASTER
     allMasters.forEach(master => {
         const oldId = String(master["Master Contract ID"]).trim();
         if (!oldId) return;
 
-        // Intercettiamo solo i record affetti dal bug 1899
         if (oldId.includes("-1899-")) {
-            // Isoliama i figli di questo master specifico per calcolare la VERA data d'inizio
             const childDetails = allDetails.filter(d => String(d["Master Contract ID"]).trim() === oldId);
 
             let minStartDate = null;
@@ -284,7 +286,6 @@ function fixAndRegenerateMasterIds() {
                 let rawDate = d["Start Date"];
                 if (rawDate) {
                     const sDate = new Date(rawDate);
-                    // BLINDATURA: La data deve essere valida e l'anno deve essere reale (> 1900)
                     if (!isNaN(sDate.getTime()) && sDate.getFullYear() > 1900) {
                         if (!minStartDate || sDate < minStartDate) {
                             minStartDate = sDate;
@@ -293,7 +294,6 @@ function fixAndRegenerateMasterIds() {
                 }
             });
 
-            // Calcolo dell'anno reale (se non ci sono figli validi, usiamo il 2026 come fallback attuale)
             let correctYear = "2026";
             if (minStartDate) {
                 correctYear = minStartDate.getFullYear().toString();
@@ -304,10 +304,9 @@ function fixAndRegenerateMasterIds() {
                 }
             }
 
-            // Ricostruiamo l'ID stringa sostituendo il penultimo elemento (l'anno)
             const parts = oldId.split("-");
             if (parts.length >= 5) {
-                parts[parts.length - 2] = correctYear; // Sostituisce '1899' con l'anno corretto (es. '2024')
+                parts[parts.length - 2] = correctYear;
                 const newId = parts.join("-");
 
                 console.log(`TRADUZIONE: '${oldId}' ---> '${newId}'`);
@@ -324,7 +323,6 @@ function fixAndRegenerateMasterIds() {
         return;
     }
 
-    // FASE 2: AGGIORNAMENTO A CASCATA DEI DETTAGLI (Relazioni / Foreign Keys)
     let detailUpdatedCount = 0;
     allDetails.forEach(detail => {
         const currentRefId = String(detail["Master Contract ID"]).trim();
@@ -336,7 +334,6 @@ function fixAndRegenerateMasterIds() {
 
     console.log(`MIGRAZIONE: Rigenerati ${fixedCount} Master ID. Aggiornati di riflesso ${detailUpdatedCount} contratti di dettaglio.`);
 
-    // FASE 3: SCRITTURA MASSIVA BULK SUI FOGLI GOOGLE
     const masterOutputValues = allMasters.map(master => {
         return masterHeaders.map(header => {
             let val = master[header];
