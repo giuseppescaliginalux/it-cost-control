@@ -8,7 +8,7 @@ const EDITABLE_CONTRACTS = [
   "Start Date", "Contract End Date", "Adjusted End Date",
   "Notice Period (Days)", "Auto-Renewal", "Comments",
   "Status", "Annual Value", "Effective Commitment", "Contract Term (Months)", "End Date",
-  "Commitment Allocation", "Pricing Model"
+  "Billing Terms", "Pricing Model"
 ];
 
 const MASTER_FIELD_MAP = {
@@ -54,7 +54,7 @@ const CONTRACT_FIELD_MAP = {
   "Effective Commitment": "effectiveCommitment",
   "Contract Term (Months)": "contractTerm",
   "End Date": "endDate",
-  "Commitment Allocation": "commitmentAllocation",
+  "Billing Terms": "billingTerms",
   "Pricing Model": "pricingModel"
 };
 

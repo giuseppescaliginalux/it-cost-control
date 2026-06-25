@@ -22,7 +22,7 @@ function regenerateLedgerCalculatedProjections() {
   const cHeaders = contractData[0];
   const idxC = {
     cId: cHeaders.indexOf("Group ID"), cTotal: cHeaders.indexOf("Total Commitment"), cModel: cHeaders.indexOf("Pricing Model"),
-    allocation: cHeaders.indexOf("Commitment Allocation"), cStart: cHeaders.indexOf("Start Date"),
+    billingTerms: cHeaders.indexOf("Billing Terms"), cStart: cHeaders.indexOf("Start Date"),
     cEnd: cHeaders.indexOf("End Date") !== -1 ? cHeaders.indexOf("End Date") : cHeaders.indexOf("Contract End Date"), cStatus: cHeaders.indexOf("Status")
   };
 
@@ -46,7 +46,7 @@ function regenerateLedgerCalculatedProjections() {
 
     const gid = String(row[idxC.cId]).trim();
     const model = String(row[idxC.cModel]).trim();
-    const allocation = String(row[idxC.allocation]).trim();
+    const billingTerms = String(row[idxC.billingTerms]).trim();
     
     if (!gid) continue;
     

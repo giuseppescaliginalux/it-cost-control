@@ -112,134 +112,200 @@ function updateAllOfficialFiscalProjections() {
 }
 
 /**
- * MOTORE MATEMATICO CENTRALE (FATTORIZZATO)
+ * CORE LOGICO MATEMATICO: Ripartisce i costi differenziando Linear, Ledger-Driven e Full Upfront.
  */
 function _peCalculateCore(contract, ledgerRows, chainTransferDate, isChainTransferred, fyConfig, isOptimized, resolvedInits) {
-    const FY_S = fyConfig.start;
-    const FY_E = fyConfig.end;
+  const FY_S = fyConfig.start;
+  const FY_E = fyConfig.end;
 
-    let effectiveE;
-    let baseEnd = contract.end || new Date(2099, 11, 31);
+  let effectiveE;
+  let baseEnd = contract.end || new Date(2099, 11, 31);
 
-    if (isOptimized) {
-        const regEnd = (contract.status === "EXPIRED" || contract.recurrence === "One-Shot" || isChainTransferred) ?
-            baseEnd : new Date(Math.max(baseEnd.getTime(), FY_E.getTime()));
+  if (isOptimized) {
+    const regEnd = (contract.status === "EXPIRED" || contract.recurrence === "One-Shot" || isChainTransferred) ? 
+                   baseEnd : new Date(Math.max(baseEnd.getTime(), FY_E.getTime()));
+    
+    let absoluteCap = new Date(2099, 11, 31);
+    if (isChainTransferred && chainTransferDate < absoluteCap) absoluteCap = chainTransferDate;
+    if (resolvedInits.termInit && resolvedInits.termInit.targetDate < absoluteCap) absoluteCap = resolvedInits.termInit.targetDate;
+    
+    effectiveE = new Date(Math.min(regEnd.getTime(), absoluteCap.getTime()));
+  } else {
+    const isPastTransfer = isChainTransferred && chainTransferDate < FY_S;
+    baseEnd = isPastTransfer ? chainTransferDate : baseEnd;
+    effectiveE = (contract.status === "EXPIRED" || contract.recurrence === "One-Shot" || isChainTransferred) ? baseEnd : new Date(Math.max(baseEnd.getTime(), FY_E.getTime()));
+  }
 
-        // Capping congiunto: calcola il limite minimo tra scadenza naturale, transfer di catena e termination esplicita
-        let absoluteCap = new Date(2099, 11, 31);
-        if (isChainTransferred && chainTransferDate < absoluteCap) absoluteCap = chainTransferDate;
-        if (resolvedInits.termInit && resolvedInits.termInit.targetDate < absoluteCap) absoluteCap = resolvedInits.termInit.targetDate;
-
-        effectiveE = new Date(Math.min(regEnd.getTime(), absoluteCap.getTime()));
-    } else {
-        const isPastTransfer = isChainTransferred && chainTransferDate < FY_S;
-        baseEnd = isPastTransfer ? chainTransferDate : baseEnd;
-        effectiveE = (contract.status === "EXPIRED" || contract.recurrence === "One-Shot" || isChainTransferred) ? baseEnd : new Date(Math.max(baseEnd.getTime(), FY_E.getTime()));
-    }
-
-    const actualS = new Date(Math.max(FY_S.getTime(), contract.start.getTime()));
-    const actualE = new Date(Math.min(FY_E.getTime(), effectiveE.getTime()));
-    const daysInFY = Math.max(0, Math.floor((actualE - actualS) / 86400000) + 1);
-    const totalDays = Math.max(1, Math.floor(((contract.end || new Date(2099, 11, 31)) - contract.start) / 86400000) + 1);
-
-    if (daysInFY === 0) return 0;
-
-    const useLedger = (contract.model === "Pure Consumption" || contract.model === "Minimum Consumption" || contract.allocation === "Ledger-Driven");
-
-    // --- RAMO A: CALCOLO SU LEDGER (CONTRATTI MANUALI O A CONSUMO) ---
-    if (useLedger && ledgerRows.length > 0) {
-        let ledgerSum = 0;
-
-        ledgerRows.forEach(item => {
-            if (item.start && item.end && item.start <= FY_E && item.end >= FY_S) {
-                const overlapS = new Date(Math.max(FY_S.getTime(), item.start.getTime()));
-                const capEnd = isOptimized ? Math.min(FY_E.getTime(), effectiveE.getTime()) : FY_E.getTime();
-                const overlapE = new Date(Math.min(capEnd, item.end.getTime()));
-
-                if (overlapS <= overlapE) {
-                    const overlapDays = Math.floor((overlapE - overlapS) / 86400000) + 1;
-                    const rowTotalDays = Math.max(1, Math.floor((item.end - item.start) / 86400000) + 1);
-
-                    if (!isOptimized) {
-                        ledgerSum += item.amount * (overlapDays / rowTotalDays);
-                    } else {
-                        let rDaysPre = 0, rDaysPost = 0;
-                        if (overlapS < resolvedInits.optTargetDate) {
-                            rDaysPre = Math.floor((new Date(Math.min(overlapE.getTime(), resolvedInits.optTargetDate.getTime() - 86400000)) - overlapS) / 86400000) + 1;
-                        }
-                        if (overlapE >= resolvedInits.optTargetDate) {
-                            rDaysPost = Math.floor((overlapE.getTime() - Math.max(overlapS.getTime(), resolvedInits.optTargetDate.getTime())) / 86400000) + 1;
-                        }
-                        const dailyRatePre = item.amount / rowTotalDays;
-                        const dailyRatePost = contract.annVal > 0 ? dailyRatePre * ((contract.annVal - resolvedInits.allocatedSaving) / contract.annVal) : dailyRatePre;
-                        ledgerSum += (dailyRatePre * rDaysPre) + (dailyRatePost * rDaysPost);
-                    }
-                }
-            }
-        });
-
-        // Calcolo del Roll-Over di rinnovo virtuale per i contratti RECURRENT
-        let virtualSum = 0;
-        const contractEndDateCheck = contract.end || new Date(2099, 11, 31);
-
-        if (contract.recurrence !== "One-Shot" && contractEndDateCheck < FY_E) {
-            const virtualS = new Date(Math.max(FY_S.getTime(), contractEndDateCheck.getTime() + 86400000));
-            const capEnd = isOptimized ? Math.min(FY_E.getTime(), effectiveE.getTime()) : FY_E.getTime();
-            const virtualE = new Date(capEnd);
-
-            if (virtualS <= virtualE) {
-                const virtualDays = Math.floor((virtualE - virtualS) / 86400000) + 1;
-
-                if (!isOptimized) {
-                    virtualSum = (contract.annVal / 365) * virtualDays;
-                } else {
-                    let vDaysPre = 0, vDaysPost = 0;
-                    if (virtualS < resolvedInits.optTargetDate) {
-                        vDaysPre = Math.floor((new Date(Math.min(virtualE.getTime(), resolvedInits.optTargetDate.getTime() - 86400000)) - virtualS) / 86400000) + 1;
-                    }
-                    if (virtualE >= resolvedInits.optTargetDate) {
-                        vDaysPost = Math.floor((virtualE.getTime() - Math.max(virtualS.getTime(), resolvedInits.optTargetDate.getTime())) / 86400000) + 1;
-                    }
-                    const dailyBaseline = contract.annVal / 365;
-                    const dailyOpt = (contract.annVal - resolvedInits.allocatedSaving) / 365;
-                    virtualSum = (dailyBaseline * vDaysPre) + (dailyOpt * vDaysPost);
-                }
-            }
-        }
-        return Math.round((ledgerSum + virtualSum) * 100) / 100;
-    }
-
-    // --- RAMO B: CALCOLO LINEARE STANDARD ---
-    else {
-        if (contract.recurrence === "One-Shot") {
-            return Math.round(((contract.annVal / totalDays) * daysInFY) * 100) / 100;
+  // --- STRADA A: NUOVA LOGICA FULL UPFRONT (100% SULLA START DATE) ---
+  if (contract.billingTerms === "Full Upfront") {
+    let upfrontSum = 0;
+    
+    // Il 100% del Commitment cade nel mese di partenza (Start Date) del contratto
+    if (contract.start && contract.start >= FY_S && contract.start <= FY_E) {
+      if (!isOptimized) {
+        upfrontSum = contract.totComm;
+      } else {
+        // Se l'asset viene dismesso (Transfer/Termination) prima dello start, la spesa si azzera
+        if (contract.start > effectiveE) {
+          upfrontSum = 0;
         } else {
-            if (!isOptimized) {
-                return Math.round(((contract.annVal / 365) * daysInFY) * 100) / 100;
-            } else {
-                const dailyBaseline = contract.annVal / 365;
-                const dailyOpt = (contract.annVal - resolvedInits.allocatedSaving) / 365;
-
-                let daysPre = 0, daysPost = 0;
-                if (actualS < resolvedInits.optTargetDate) {
-                    daysPre = Math.max(0, Math.floor((new Date(Math.min(actualE.getTime(), resolvedInits.optTargetDate.getTime() - 86400000)) - actualS) / 86400000) + 1);
-                }
-                if (actualE >= resolvedInits.optTargetDate) {
-                    daysPost = Math.max(0, Math.floor((actualE.getTime() - Math.max(actualS.getTime(), resolvedInits.optTargetDate.getTime())) / 86400000) + 1);
-                }
-                return Math.round(((daysPre * dailyBaseline) + (daysPost * dailyOpt)) * 100) / 100;
-            }
+          // Se l'ottimizzazione tariffaria è attiva prima o il giorno stesso dello start, l'upfront nasce ridotto
+          if (contract.start >= resolvedInits.optTargetDate) {
+            upfrontSum = contract.totComm * ((contract.annVal - resolvedInits.allocatedSaving) / (contract.annVal || 1));
+          } else {
+            upfrontSum = contract.totComm;
+          }
         }
+      }
     }
+
+    // Se il contratto scade ed è RECURRENT, aggiunge il Run Rate virtuale di rinnovo per i mesi successivi alla scadenza
+    let virtualSum = 0;
+    const contractEndDateCheck = contract.end || new Date(2099, 11, 31);
+    
+    if (contract.recurrence !== "One-Shot" && contractEndDateCheck < FY_E) {
+      const virtualS = new Date(Math.max(FY_S.getTime(), contractEndDateCheck.getTime() + 86400000));
+      const capEnd = isOptimized ? Math.min(FY_E.getTime(), effectiveE.getTime()) : FY_E.getTime();
+      const virtualE = new Date(capEnd);
+      
+      if (virtualS <= virtualE) {
+        const virtualDays = Math.floor((virtualE - virtualS) / 86400000) + 1;
+        
+        if (!isOptimized) {
+          virtualSum = (contract.annVal / 365) * virtualDays;
+        } else {
+          let vDaysPre = 0, vDaysPost = 0;
+          if (virtualS < resolvedInits.optTargetDate) {
+            vDaysPre = Math.floor((new Date(Math.min(virtualE.getTime(), resolvedInits.optTargetDate.getTime() - 86400000)) - virtualS) / 86400000) + 1;
+          }
+          if (virtualE >= resolvedInits.optTargetDate) {
+            vDaysPost = Math.floor((virtualE.getTime() - Math.max(virtualS.getTime(), resolvedInits.optTargetDate.getTime())) / 86400000) + 1;
+          }
+          const dailyBaseline = contract.annVal / 365;
+          const dailyOpt = (contract.annVal - resolvedInits.allocatedSaving) / 365;
+          virtualSum = (dailyBaseline * vDaysPre) + (dailyOpt * vDaysPost);
+        }
+      }
+    }
+    return Math.round((upfrontSum + virtualSum) * 100) / 100;
+  }
+
+  // --- STRADA B: CALCOLO BASATO SU LEDGER (MANUALI O CONSUMI RIGIDI) ---
+  const useLedger = (contract.model === "Pure Consumption" || contract.model === "Minimum Consumption" || contract.billingTerms === "Ledger-Driven");
+  if (useLedger && ledgerRows.length > 0) {
+    let ledgerSum = 0;
+    ledgerRows.forEach(item => {
+      if (item.start && item.end && item.start <= FY_E && item.end >= FY_S) {
+        const overlapS = new Date(Math.max(FY_S.getTime(), item.start.getTime()));
+        const capEnd = isOptimized ? Math.min(FY_E.getTime(), effectiveE.getTime()) : FY_E.getTime();
+        const overlapE = new Date(Math.min(capEnd, item.end.getTime()));
+        
+        if (overlapS <= overlapE) {
+          const overlapDays = Math.floor((overlapE - overlapS) / 86400000) + 1;
+          const rowTotalDays = Math.max(1, Math.floor((item.end - item.start) / 86400000) + 1);
+          
+          if (!isOptimized) {
+            ledgerSum += item.amount * (overlapDays / rowTotalDays);
+          } else {
+            let rDaysPre = 0, rDaysPost = 0;
+            if (overlapS < resolvedInits.optTargetDate) {
+              rDaysPre = Math.floor((new Date(Math.min(overlapE.getTime(), resolvedInits.optTargetDate.getTime() - 86400000)) - overlapS) / 86400000) + 1;
+            }
+            if (overlapE >= resolvedInits.optTargetDate) {
+              rDaysPost = Math.floor((overlapE.getTime() - Math.max(overlapS.getTime(), resolvedInits.optTargetDate.getTime())) / 86400000) + 1;
+            }
+            const dailyRatePre = item.amount / rowTotalDays;
+            const dailyRatePost = contract.annVal > 0 ? dailyRatePre * ((contract.annVal - resolvedInits.allocatedSaving) / contract.annVal) : dailyRatePre;
+            ledgerSum += (dailyRatePre * rDaysPre) + (dailyRatePost * rDaysPost);
+          }
+        }
+      }
+    });
+
+    let virtualSum = 0;
+    const contractEndDateCheck = contract.end || new Date(2099, 11, 31);
+    if (contract.recurrence !== "One-Shot" && contractEndDateCheck < FY_E) {
+      const virtualS = new Date(Math.max(FY_S.getTime(), contractEndDateCheck.getTime() + 86400000));
+      const capEnd = isOptimized ? Math.min(FY_E.getTime(), effectiveE.getTime()) : FY_E.getTime();
+      const virtualE = new Date(capEnd);
+      
+      if (virtualS <= virtualE) {
+        const virtualDays = Math.floor((virtualE - virtualS) / 86400000) + 1;
+        if (!isOptimized) {
+          virtualSum = (contract.annVal / 365) * virtualDays;
+        } else {
+          let vDaysPre = 0, vDaysPost = 0;
+          if (virtualS < resolvedInits.optTargetDate) {
+            vDaysPre = Math.floor((new Date(Math.min(virtualE.getTime(), resolvedInits.optTargetDate.getTime() - 86400000)) - virtualS) / 86400000) + 1;
+          }
+          if (virtualE >= resolvedInits.optTargetDate) {
+            vDaysPost = Math.floor((virtualE.getTime() - Math.max(virtualS.getTime(), resolvedInits.optTargetDate.getTime())) / 86400000) + 1;
+          }
+          const dailyBaseline = contract.annVal / 365;
+          const dailyOpt = (contract.annVal - resolvedInits.allocatedSaving) / 365;
+          virtualSum = (dailyBaseline * vDaysPre) + (dailyOpt * vDaysPost);
+        }
+      }
+    }
+    return Math.round((ledgerSum + virtualSum) * 100) / 100;
+  } 
+  
+  // --- STRADA C: CALCOLO LINEARE STANDARD ---
+  const actualS = new Date(Math.max(FY_S.getTime(), contract.start.getTime()));
+  const actualE = new Date(Math.min(FY_E.getTime(), effectiveE.getTime()));
+  const daysInFY = Math.max(0, Math.floor((actualE - actualS) / 86400000) + 1);
+  const totalDays = Math.max(1, Math.floor(((contract.end || new Date(2099, 11, 31)) - contract.start) / 86400000) + 1);
+
+  if (daysInFY === 0) return 0;
+
+  if (contract.recurrence === "One-Shot") {
+    return Math.round(((contract.annVal / totalDays) * daysInFY) * 100) / 100;
+  } else {
+    if (!isOptimized) {
+      return Math.round(((contract.annVal / 365) * daysInFY) * 100) / 100;
+    } else {
+      const dailyBaseline = contract.annVal / 365;
+      const dailyOpt = (contract.annVal - resolvedInits.allocatedSaving) / 365;
+      
+      let daysPre = 0, daysPost = 0;
+      if (actualS < resolvedInits.optTargetDate) {
+        daysPre = Math.max(0, Math.floor((new Date(Math.min(actualE.getTime(), resolvedInits.optTargetDate.getTime() - 86400000)) - actualS) / 86400000) + 1);
+      }
+      if (actualE >= resolvedInits.optTargetDate) {
+        daysPost = Math.max(0, Math.floor((actualE.getTime() - Math.max(actualS.getTime(), resolvedInits.optTargetDate.getTime())) / 86400000) + 1);
+      }
+      return Math.round(((daysPre * dailyBaseline) + (daysPost * dailyOpt)) * 100) / 100;
+    }
+  }
 }
 
-// --- UTILITIES DI PARSING E DIZIONARIZZAZIONE ---
-function _peBuildContractsMap(d) {
-    const c = d[0]; const idx = { cId: c.indexOf("Contract ID"), status: c.indexOf("Status"), gid: c.indexOf("Group ID"), targetGid: c.indexOf("Target Group ID"), annVal: c.indexOf("Annual Value"), start: c.indexOf("Start Date"), end: c.indexOf("End Date") !== -1 ? c.indexOf("End Date") : c.indexOf("Contract End Date"), recurrence: c.indexOf("Cost Recurrence"), model: c.indexOf("Pricing Model"), allocation: c.indexOf("Commitment Allocation") };
-    const m = {}; for (let i = 1; i < d.length; i++) {
-        const r = d[i]; const id = String(r[idx.cId]).trim(); if (!id) continue;
-        m[id] = { status: String(r[idx.status]).trim().toUpperCase(), gid: String(r[idx.gid]).trim(), targetGid: String(r[idx.targetGid]).trim(), annVal: parseFloat(String(r[idx.annVal]).replace(/[^0-9.-]+/g, "")) || 0, start: _peParseDate(r[idx.start]), end: _peParseDate(r[idx.end]), recurrence: String(r[idx.recurrence]).trim(), model: String(r[idx.model]).trim(), allocation: String(r[idx.allocation]).trim() };
-    } return m;
+/**
+ * MAPPATURA DIZIONARIO CONTRATTI: Arricchita per estrarre sia Billing Terms che Total Commitment.
+ */
+function _peBuildContractsMap(data) {
+  const cHeaders = data[0];
+  const idx = {
+    cId: cHeaders.indexOf("Contract ID"), status: cHeaders.indexOf("Status"), gid: cHeaders.indexOf("Group ID"),
+    targetGid: cHeaders.indexOf("Target Group ID"), annVal: cHeaders.indexOf("Annual Value"), start: cHeaders.indexOf("Start Date"),
+    end: cHeaders.indexOf("End Date") !== -1 ? cHeaders.indexOf("End Date") : cHeaders.indexOf("Contract End Date"),
+    recurrence: cHeaders.indexOf("Cost Recurrence"), model: cHeaders.indexOf("Pricing Model"), 
+    billingTerms: cHeaders.indexOf("Billing Terms"),
+    totComm: cHeaders.indexOf("Total Commitment")
+  };
+  const map = {};
+  for (let i = 1; i < data.length; i++) {
+    const r = data[i];
+    const cId = String(r[idx.cId]).trim();
+    if (!cId) continue;
+    map[cId] = {
+      status: String(r[idx.status]).trim().toUpperCase(), gid: String(r[idx.gid]).trim(), targetGid: String(r[idx.targetGid]).trim(),
+      annVal: parseFloat(String(r[idx.annVal]).replace(/[^0-9.-]+/g, "")) || 0, start: _peParseDate(r[idx.start]),
+      end: _peParseDate(r[idx.end]), recurrence: String(r[idx.recurrence]).trim(), model: String(r[idx.model]).trim(), 
+      billingTerms: String(r[idx.billingTerms]).trim(),
+      totComm: parseFloat(String(r[idx.totComm]).replace(/[^0-9.-]+/g, "")) || 0
+    };
+  }
+  return map;
 }
 
 function _peBuildInitiativesMap(d) {

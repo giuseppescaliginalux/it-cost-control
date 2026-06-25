@@ -101,8 +101,8 @@ function _runCoreMigrationEngine(flags) {
 
             // --- AUTOMATED BACKFILL CONGIUNTO ---
             // Ripristina e protegge l'integrità dei vecchi contratti popolandoli di default
-            if (!originalDetail["Commitment Allocation"] || String(originalDetail["Commitment Allocation"]).trim() === "") {
-                originalDetail["Commitment Allocation"] = "Linear";
+            if (!originalDetail["Billing Terms"] || String(originalDetail["Billing Terms"]).trim() === "") {
+                originalDetail["Billing Terms"] = "Linear";
             }
             if (!originalDetail["Pricing Model"] || String(originalDetail["Pricing Model"]).trim() === "") {
                 originalDetail["Pricing Model"] = "Flat";
