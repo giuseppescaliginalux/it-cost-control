@@ -9,6 +9,7 @@ const CONFIG = {
     BRIDGE: "AssetAllocationBridge",
     CONTRACTS: "Contracts",
     MASTER_CONTRACTS: "MasterContracts",
+    LEDGER: "Ledger",
     ALLOCATION_SPLITS: "AllocationSplits",
     INITIATIVES: "Initiatives",
     PROJECTIONS: "FiscalProjections",
@@ -56,6 +57,7 @@ function getFullPayload_Internal(skipSanitize = false) {
     contracts: getSheetDataAsObjects(ss, CONFIG.SHEETS.CONTRACTS) || [],
     masterContracts: getSheetDataAsObjects(ss, CONFIG.SHEETS.MASTER_CONTRACTS) || [],
     allocationSplits: getSheetDataAsObjects(ss, CONFIG.SHEETS.ALLOCATION_SPLITS) || [],
+    ledger: getSheetDataAsObjects(ss, CONFIG.SHEETS.LEDGER) || [],
     initiatives: getSheetDataAsObjects(ss, CONFIG.SHEETS.INITIATIVES) || [],
     bridge: getSheetDataAsObjects(ss, CONFIG.SHEETS.BRIDGE) || [],
     projections: getSheetDataAsObjects(ss, CONFIG.SHEETS.PROJECTIONS) || [],
@@ -195,3 +197,96 @@ function uploadFilesToDrive(filesData, year, supplier, assetName) {
   }
 }
 
+/**
+ * Salva gli Allocation Splits sul foglio Google Sheets.
+ * Cancella i vecchi split legati ai Contract ID modificati e scrive i nuovi.
+ */
+function saveAllocationSplitsInternal(ss, contractIds, splitsArray) {
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.ALLOCATION_SPLITS);
+  if (!sheet) return;
+  
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  
+  // 1. Pulizia dei vecchi split per i contratti coinvolti
+  // Partiamo dal fondo per evitare problemi con gli indici di riga che cambiano
+  for (let i = data.length - 1; i >= 1; i--) {
+    const currentContractId = data[i][headers.indexOf("Contract ID")];
+    if (contractIds.includes(currentContractId)) {
+      sheet.deleteRow(i + 1);
+    }
+  }
+  
+  // 2. Scrittura dei nuovi split (se presenti)
+  if (!splitsArray || splitsArray.length === 0) return;
+  
+  const rowsToAdd = splitsArray.map((split, index) => {
+    // Genera un ID univoco incrementale se serve
+    const splitId = "SPL-" + Utilities.getUuid().substring(0, 8).toUpperCase();
+    
+    // Mappa i campi esattamente nell'ordine delle 11 colonne del foglio
+    return [
+      splitId,
+      split["Contract ID"] || "",
+      split["Target Legal Entity"] || "",
+      split["Target Cost Center"] || "",
+      split["Allocation Rule"] || "Percentage",
+      split["Percentage Share"] !== "" ? split["Percentage Share"] / 100 : "", // Sheets vuole 0.50 per il 50%
+      split["Fixed Amount"] || "",
+      split["Units Assigned"] || "",
+      split["Valid From"] ? new Date(split["Valid From"]) : "",
+      split["Valid To"] ? new Date(split["Valid To"]) : "",
+      split["Notes"] || ""
+    ];
+  });
+  
+  if (rowsToAdd.length > 0) {
+    sheet.getRowsData; // Forza il refresh interno di Apps Script
+    sheet.getRange(sheet.getLastRow() + 1, 1, rowsToAdd.length, rowsToAdd[0].length).setValues(rowsToAdd);
+  }
+}
+
+/**
+ * Salva i movimenti del Ledger manuali (ACTUAL e FORECAST) sul foglio Google.
+ * Cancella i vecchi movimenti manuali associati al Group ID e scrive i nuovi.
+ */
+function saveLedgerMovementsInternal(ss, groupIds, ledgerArray) {
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.LEDGER);
+  if (!sheet) return;
+  
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  
+  const typeIdx = headers.indexOf("Type");
+  const groupIdIdx = headers.indexOf("Group ID");
+  
+  // 1. Rimuove i vecchi record MANUALI (ACTUAL e FORECAST) per i Group ID modificati
+  for (let i = data.length - 1; i >= 1; i--) {
+    const gId = data[i][groupIdIdx];
+    const type = (data[i][typeIdx] || "").toString().toUpperCase();
+    
+    if (groupIds.includes(gId) && (type === "ACTUAL" || type === "FORECAST")) {
+      sheet.deleteRow(i + 1);
+    }
+  }
+  
+  // Filtra l'array per salvare solo i movimenti manuali inseriti dall'utente
+  const manualMovements = (ledgerArray || []).filter(l => l["Type"] === "ACTUAL" || l["Type"] === "FORECAST");
+  if (manualMovements.length === 0) return;
+  
+  // 2. Scrittura dei nuovi record
+  const rowsToAdd = manualMovements.map(mov => {
+    return [
+      mov["Group ID"] || "",
+      mov["Start Date"] ? new Date(mov["Start Date"]) : "",
+      mov["End Date"] ? new Date(mov["End Date"]) : "",
+      mov["Type"] || "ACTUAL",
+      mov["Amount"] || 0,
+      mov["Notes"] || ""
+    ];
+  });
+  
+  if (rowsToAdd.length > 0) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, rowsToAdd.length, rowsToAdd[0].length).setValues(rowsToAdd);
+  }
+}
