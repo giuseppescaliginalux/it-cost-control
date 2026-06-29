@@ -75,7 +75,7 @@ function updateAllOfficialFiscalProjections() {
         }
 
         const chainRel = _peTraverseContractChain(contract.gid, contractParentMap, initMap);
-        const ledgerRows = ledgerMap[contract.gid] || [];
+        const ledgerRows = ledgerMap[contractIdRef] || [];
         const contractInits = initMap[contract.gid] || [];
         const groupTotalValue = groupTotalValueMap[contract.gid] || 0;
         const contractWeight = groupTotalValue > 0 ? contract.annVal / groupTotalValue : 0;
@@ -318,10 +318,10 @@ function _peBuildInitiativesMap(d) {
 }
 
 function _peBuildLedgerMap(d) {
-    const c = d[0]; const idx = { gid: c.indexOf("Group ID"), start: c.indexOf("Start Date"), end: c.indexOf("End Date"), amount: c.indexOf("Amount") };
+    const c = d[0]; const idx = { cid: c.indexOf("Contract ID"), start: c.indexOf("Start Date"), end: c.indexOf("End Date"), amount: c.indexOf("Amount") };
     const m = {}; for (let i = 1; i < d.length; i++) {
-        const r = d[i]; const gid = String(r[idx.gid]).trim(); if (!gid) continue;
-        if (!m[gid]) m[gid] = []; m[gid].push({ start: _peParseDate(r[idx.start]), end: _peParseDate(r[idx.end]), amount: parseFloat(String(r[idx.amount]).replace(/[^0-9.-]+/g, "")) || 0 });
+        const r = d[i]; const cid = String(r[idx.cid]).trim(); if (!cid) continue;
+        if (!m[cid]) m[cid] = []; m[cid].push({ start: _peParseDate(r[idx.start]), end: _peParseDate(r[idx.end]), amount: parseFloat(String(r[idx.amount]).replace(/[^0-9.-]+/g, "")) || 0 });
     } return m;
 }
 

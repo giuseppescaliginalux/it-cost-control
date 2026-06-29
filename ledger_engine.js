@@ -6,7 +6,7 @@
 
 function regenerateLedgerCalculatedProjections() {
   console.log("LEDGER ENGINE: Avvio rigenerazione proiezioni predittive...");
-  
+
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ledgerSheet = ss.getSheetByName("Ledger");
   const contractSheet = ss.getSheetByName(CONFIG.SHEETS.CONTRACTS || "Contracts");
@@ -21,13 +21,21 @@ function regenerateLedgerCalculatedProjections() {
 
   const cHeaders = contractData[0];
   const idxC = {
-    cId: cHeaders.indexOf("Group ID"), cTotal: cHeaders.indexOf("Total Commitment"), cModel: cHeaders.indexOf("Pricing Model"),
+    cId: cHeaders.indexOf("Contract ID"),
+    cTotal: cHeaders.indexOf("Total Commitment"), cModel: cHeaders.indexOf("Pricing Model"),
     billingTerms: cHeaders.indexOf("Billing Terms"), cStart: cHeaders.indexOf("Start Date"),
     cEnd: cHeaders.indexOf("End Date") !== -1 ? cHeaders.indexOf("End Date") : cHeaders.indexOf("Contract End Date"), cStatus: cHeaders.indexOf("Status")
   };
 
   const lHeaders = ledgerData[0];
-  const idxL = { lId: lHeaders.indexOf("Group ID"), lStart: lHeaders.indexOf("Start Date"), lEnd: lHeaders.indexOf("End Date"), lAmount: lHeaders.indexOf("Amount"), lType: lHeaders.indexOf("Type") };
+  const idxL = {
+    lId: lHeaders.indexOf("Contract ID"),
+    lStart: lHeaders.indexOf("Start Date"), lEnd: lHeaders.indexOf("End Date"),
+    lAmount: lHeaders.indexOf("Amount"), lType: lHeaders.indexOf("Type")
+  };
+
+
+
 
   // 1. Purge massivo preventivo di tutte le vecchie righe CALCULATED
   for (let i = ledgerData.length - 1; i > 0; i--) {
@@ -47,12 +55,12 @@ function regenerateLedgerCalculatedProjections() {
     const gid = String(row[idxC.cId]).trim();
     const model = String(row[idxC.cModel]).trim();
     const billingTerms = String(row[idxC.billingTerms]).trim();
-    
+
     if (!gid) continue;
-    
+
     // SBARRAMENTO ATOMICO CONCORDATO: Rigenera solo per Minimum Consumption ad allocazione manuale.
     // I contratti Flat Upfront passano oltre senza generare costi fantasma ricorrenti mensili.
-    if (model !== "Minimum Consumption" || allocation !== "Ledger-Driven") continue; 
+    if (model !== "Minimum Consumption" || allocation !== "Ledger-Driven") continue;
 
     const contractStart = _leParseSafeDate(row[idxC.cStart]);
     const contractEnd = _leParseSafeDate(row[idxC.cEnd]);
@@ -102,7 +110,7 @@ function _leParseSafeDate(d) {
   if (!d) return null; if (d instanceof Date) return !isNaN(d.getTime()) ? d : null;
   const s = String(d).trim(); if (!s) return null;
   if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(s)) {
-    const p = s.split(/[\/\-]/); return new Date(parseInt(p[2],10), parseInt(p[1],10)-1, parseInt(p[0],10));
+    const p = s.split(/[\/\-]/); return new Date(parseInt(p[2], 10), parseInt(p[1], 10) - 1, parseInt(p[0], 10));
   }
   const prs = new Date(s); return !isNaN(prs.getTime()) ? prs : null;
 }

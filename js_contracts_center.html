@@ -25,18 +25,40 @@
         }))].filter(v => v !== "").sort();
     }
 
-    // STEP 1: Client-side search optimization against memory cache
+    // STEP 1: Client-side search optimization against memory cache (Enhanced with Supplier search)
     function renderAssetSearchList() {
         const query = document.getElementById('mgmt-asset-search-input').value.toLowerCase().trim();
         const container = document.getElementById('mgmt-asset-results-list');
         if (!container) return;
 
+        const allContracts = windowPayload.contracts || [];
+        const allMasters = windowPayload.masterContracts || [];
+
         const matchedAssets = (windowPayload.assets || []).filter(a => {
-            return (a["Asset Name"] || "").toLowerCase().includes(query) || (a["Manufacturer"] || "").toLowerCase().includes(query);
+            const assetName = (a["Asset Name"] || "").toLowerCase();
+            const manufacturer = (a["Manufacturer"] || "").toLowerCase();
+
+            // 1. Cerca nei metadati dell'Asset (Nome e Produttore)
+            if (assetName.includes(query) || manufacturer.includes(query)) return true;
+
+            // 2. Cerca nel Supplier dei Master Contracts collegati
+            const matchInMaster = allMasters.some(m =>
+                (m["Asset Name"] || "").toLowerCase() === assetName &&
+                (m["Supplier"] || "").toLowerCase().includes(query)
+            );
+            if (matchInMaster) return true;
+
+            // 3. Cerca nel Supplier dei Contratti di dettaglio collegati
+            const matchInContract = allContracts.some(c =>
+                (c["Asset Name"] || "").toLowerCase() === assetName &&
+                (c["Supplier"] || "").toLowerCase().includes(query)
+            );
+
+            return matchInContract;
         });
 
         if (matchedAssets.length === 0) {
-            container.innerHTML = `<p class="text-slate-400 italic text-[11px] text-center py-2">No matching assets in memory.</p>`;
+            container.innerHTML = `<p class="text-slate-400 italic text-[11px] text-center py-2">No matching assets or suppliers in memory.</p>`;
             return;
         }
 
@@ -147,10 +169,10 @@
 
         currentDetailItems = rawDetails.map((row, index) => {
             const cId = (row["Contract ID"] || "").toString().trim();
-            const gId = (row["Group ID"] || "").toString().trim(); // Il ledger si aggancia al Group ID
+            const gId = (row["Group ID"] || "").toString().trim();
 
             const linkedSplits = (windowPayload.allocationSplits || []).filter(s => (s["Contract ID"] || "").toString().trim() === cId);
-            const linkedLedger = (windowPayload.ledger || []).filter(l => (l["Group ID"] || "").toString().trim() === gId);
+            const linkedLedger = (windowPayload.ledger || []).filter(l => (l["Contract ID"] || "").toString().trim() === cId);
 
             return {
                 id: index,
@@ -425,8 +447,20 @@
                         </div>
 
                         <div class="flex flex-wrap gap-1.5 justify-end items-center shrink-0" onclick="event.stopPropagation();">
-                            ${item.splits && item.splits.length > 0 ? `<span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 border border-indigo-200 rounded text-[8px] font-black uppercase tracking-wider shadow-sm flex items-center gap-0.5" title="Custom Allocation Split Active"><svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg> Split</span>` : ''}
-                            ${item.ledger && item.ledger.length > 0 ? `<span class="px-1.5 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 rounded text-[8px] font-black uppercase tracking-wider shadow-sm flex items-center gap-0.5" title="Ledger Movements Present"><svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> Ledger</span>` : ''}
+                            
+                            ${item.splits && item.splits.length > 0 ? `
+                                <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 border border-indigo-200 rounded text-[8px] font-black uppercase tracking-wider shadow-sm flex items-center gap-0.5" title="Custom Allocation Split Active">
+                                    <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                                    Split (${item.splits.length})
+                                </span>
+                            ` : ''}
+                            
+                            ${item.ledger && item.ledger.length > 0 ? `
+                                <span class="px-1.5 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 rounded text-[8px] font-black uppercase tracking-wider shadow-sm flex items-center gap-0.5" title="Ledger Movements Present">
+                                    <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                    Ledger (${item.ledger.length})
+                                </span>
+                            ` : ''}
 
                             ${d["Contract Links"] ? `
                                 <div class="flex gap-1 ml-1 pl-1.5 border-l border-slate-200">
@@ -571,61 +605,68 @@
                                 </div>
                                 <p class="text-slate-600 italic font-medium leading-relaxed">${d["Comments"] || '<span class="text-slate-300 text-[10px]">No additional localized comments.</span>'}</p>
                             </div>
-
-                            ${item.splits && item.splits.length > 0 ? `
-                            <div class="mt-4 p-3.5 bg-indigo-50/40 rounded-xl border border-indigo-100 w-full shadow-sm">
-                                <span class="block text-[9px] font-black text-indigo-500 uppercase tracking-widest mb-2.5">Custom Allocation Splits</span>
-                                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2.5">
-                                    ${item.splits.map(s => `
-                                        <div class="flex flex-col justify-between bg-white px-3 py-2.5 rounded-lg border border-indigo-50/60 shadow-sm min-h-[100px]">
-                                            <div>
-                                                <span class="font-bold text-slate-700 text-[10px] leading-tight block mb-1">${s["Target Legal Entity"] || '-'}</span>
-                                                <span class="text-slate-400 font-medium text-[9px] block mb-2">${s["Target Cost Center"] || '-'}</span>
-                                                
-                                                ${s["Notes"] ? `<p class="text-[9px] text-slate-500 italic leading-snug border-l-2 border-indigo-200 pl-1.5 my-1.5">${s["Notes"]}</p>` : ''}
-                                            </div>
-                                            
-                                            <div class="flex justify-between items-center border-t border-slate-50 pt-2 mt-auto">
-                                                <span class="text-[7px] font-black text-slate-400 uppercase tracking-widest">${s["Allocation Rule"]}</span>
-                                                <span class="font-mono text-indigo-700 font-black text-[10px] bg-indigo-50 px-2 py-0.5 rounded">
-                                                    ${s["Allocation Rule"] === 'Percentage' ? (s["Percentage Share"] || 0) + '%' : (s["Allocation Rule"] === 'Fixed Amount' ? '€ ' + parseInt(s["Fixed Amount"] || 0).toLocaleString('it-IT') : (s["Units Assigned"] || 0) + ' Units')}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    `).join('')}
-                                </div>
-                            </div>
-                        ` : ''}
-
-                        ${item.ledger && item.ledger.length > 0 ? `
-                            <div class="mt-4 p-3.5 bg-amber-50/40 rounded-xl border border-amber-100 w-full shadow-sm">
-                                <span class="block text-[9px] font-black text-amber-500 uppercase tracking-widest mb-2.5">Ledger Movements</span>
-                                <div class="space-y-1.5">
-                                    ${item.ledger.map(l => `
-                                        <div class="flex flex-wrap md:flex-nowrap items-center justify-between bg-white px-3.5 py-2 rounded-lg border border-amber-50/60 shadow-sm gap-2 text-[10px]">
-                                            
-                                            <div class="flex items-center gap-2.5 min-w-[190px] shrink-0">
-                                                <span class="font-black text-[7px] w-[75px] text-center ${l["Type"] === 'ACTUAL' ? 'text-emerald-700 bg-emerald-100' : (l["Type"] === 'CALCULATED' ? 'text-slate-500 bg-slate-100' : 'text-amber-700 bg-amber-100')} px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0">${l["Type"] || '-'}</span>
-                                                <span class="font-mono text-slate-600 tracking-tight shrink-0">${l["Start Date"] ? l["Start Date"].split('T')[0] : ''} <span class="text-slate-300 mx-0.5">➔</span> ${l["End Date"] ? l["End Date"].split('T')[0] : ''}</span>
-                                            </div>
-                                            
-                                            <div class="flex-1 text-slate-500 italic px-3 border-l border-slate-100 truncate" title="${l["Notes"] || ''}">
-                                                ${l["Notes"] ? l["Notes"] : '<span class="text-slate-300 font-normal not-italic">-</span>'}
-                                            </div>
-                                            
-                                            <div class="font-mono text-slate-800 font-black text-[11px] shrink-0 text-right min-w-[90px]">
-                                                € ${parseInt(l["Amount"] || 0).toLocaleString('it-IT')}
-                                            </div>
-                                            
-                                        </div>
-                                    `).join('')}
-                                </div>
-                            </div>
-                        ` : ''}
-
                         </div>
-                    </div>
-                `;
+
+                        <div class="flex flex-col gap-3 mt-3 w-full">
+                            
+                            ${item.splits && item.splits.length > 0 ? `
+                                <div class="p-3.5 bg-indigo-50/40 rounded-xl border border-indigo-100 shadow-sm w-full">
+                                    <span class="block text-[9px] font-black text-indigo-500 uppercase tracking-widest mb-2.5">Custom Allocation Splits</span>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
+                                        ${item.splits.map(s => {
+                    let displayPct = parseFloat(s["Percentage Share"]) || 0;
+                    if (displayPct > 0 && displayPct <= 1) displayPct = Math.round(displayPct * 100);
+                    else displayPct = Math.round(displayPct);
+
+                    return `
+                                                <div class="flex flex-col justify-between bg-white px-3 py-2.5 rounded-lg border border-indigo-50/60 shadow-sm min-h-[90px]">
+                                                    <div>
+                                                        <span class="font-bold text-slate-700 text-[10px] leading-tight block mb-1">${s["Target Legal Entity"] || '-'}</span>
+                                                        <span class="text-slate-400 font-medium text-[9px] block mb-2">${s["Target Cost Center"] || '-'}</span>
+                                                        ${s["Notes"] ? `<p class="text-[9px] text-slate-500 italic leading-snug border-l-2 border-indigo-200 pl-1.5 my-1.5">${s["Notes"]}</p>` : ''}
+                                                    </div>
+                                                    <div class="flex justify-between items-center border-t border-slate-50 pt-2 mt-auto">
+                                                        <span class="text-[7px] font-black text-slate-400 uppercase tracking-widest">${s["Allocation Rule"]}</span>
+                                                        <span class="font-mono text-indigo-700 font-black text-[10px] bg-indigo-50 px-2 py-0.5 rounded">
+                                                            ${s["Allocation Rule"] === 'Percentage' ? displayPct + '%' : (s["Allocation Rule"] === 'Fixed Amount' ? '€ ' + parseInt(s["Fixed Amount"] || 0).toLocaleString('it-IT') : (s["Units Assigned"] || 0) + ' Units')}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            `;
+                }).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            ${item.ledger && item.ledger.length > 0 ? `
+                                <div class="p-3.5 bg-amber-50/40 rounded-xl border border-amber-100 shadow-sm w-full">
+                                    <span class="block text-[9px] font-black text-amber-500 uppercase tracking-widest mb-2.5">Ledger Movements</span>
+                                    <div class="space-y-1.5">
+                                        ${item.ledger.map(l => {
+                    const cleanStartDate = l["Start Date"] ? formatToEnglishCustomDate(l["Start Date"]) : "—";
+                    const cleanEndDate = l["End Date"] ? formatToEnglishCustomDate(l["End Date"]) : "—";
+
+                    return `
+                                                <div class="flex flex-wrap md:flex-nowrap items-center justify-between bg-white px-3.5 py-2 rounded-lg border border-amber-50/60 shadow-sm gap-2 text-[10px]">
+                                                    <div class="flex items-center gap-2.5 min-w-[210px] shrink-0">
+                                                        <span class="font-black text-[7px] w-[75px] text-center ${l["Type"] === 'ACTUAL' ? 'text-emerald-700 bg-emerald-100' : (l["Type"] === 'CALCULATED' ? 'text-slate-500 bg-slate-100' : 'text-amber-700 bg-amber-100')} px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0">${l["Type"] || '-'}</span>
+                                                        <span class="font-mono text-slate-600 tracking-tight shrink-0">${cleanStartDate} <span class="text-slate-300 mx-0.5">➔</span> ${cleanEndDate}</span>
+                                                    </div>
+                                                    <div class="flex-1 text-slate-500 italic px-3 border-l border-slate-100 truncate" title="${l["Notes"] || ''}">
+                                                        ${l["Notes"] ? l["Notes"] : '<span class="text-slate-300 font-normal not-italic">-</span>'}
+                                                    </div>
+                                                    <div class="font-mono text-slate-800 font-black text-[11px] shrink-0 text-right min-w-[90px]">
+                                                        € ${l["Amount"] != null ? parseInt(l["Amount"], 10).toLocaleString('it-IT') : '0'}
+                                                    </div>
+                                                </div>
+                                            `;
+                }).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+
+                    </div> `;
                 listWrapper.appendChild(cardDiv);
             } else {
                 cardDiv.className = "bg-white border border-slate-200 rounded-xl p-4 shadow-md relative space-y-3 animate-fade-in";
@@ -1010,7 +1051,7 @@
         item.ledger = Array.from(ledgerRows).map(row => {
             const rawAmtStr = row.querySelector('.ledger-amount').value.replace(/[^0-9]/g, '');
             return {
-                "Group ID": item.data["Group ID"] || "",
+                "Contract ID": item.data["Contract ID"] || "",
                 "Start Date": row.querySelector('.ledger-start').value || "",
                 "End Date": row.querySelector('.ledger-end').value || "",
                 "Type": row.querySelector('.ledger-type').value || "ACTUAL",
@@ -1111,7 +1152,9 @@
                     blId: item.data["BL ID"] || "",
                     requestCode: item.data["Request Code"] || "",
                     comments: item.data["Comments"] || "",
-                    contractLinks: item.data["Contract Links"] || ""
+                    contractLinks: item.data["Contract Links"] || "",
+                    splits: item.splits || [],
+                    ledger: item.ledger || []
                 };
             })
         };
@@ -1377,8 +1420,12 @@
         const notes = split["Notes"] || "";
 
         // FIX NaN: Controlla che il valore esista davvero prima di arrotondare
+        // FIX BLINDATO: Intercetta se la percentuale è memorizzata come frazione decimale (es. 0.11 -> 11)
         let rawVal = "";
-        if (rule === "Percentage" && split["Percentage Share"] != null && split["Percentage Share"] !== "") rawVal = Math.round(split["Percentage Share"]);
+        if (rule === "Percentage" && split["Percentage Share"] != null && split["Percentage Share"] !== "") {
+            let pShare = parseFloat(split["Percentage Share"]);
+            rawVal = (pShare > 0 && pShare <= 1) ? Math.round(pShare * 100) : Math.round(pShare);
+        }
         else if (rule === "Fixed Amount" && split["Fixed Amount"] != null && split["Fixed Amount"] !== "") rawVal = Math.round(split["Fixed Amount"]);
         else if (rule === "Units" && split["Units Assigned"] != null && split["Units Assigned"] !== "") rawVal = Math.round(split["Units Assigned"]);
 
@@ -1566,6 +1613,25 @@
                 ledgerSection.classList.add('hidden');
             }
         }
+    }
+
+    function formatToEnglishCustomDate(dateStr) {
+        if (!dateStr) return "—";
+        // Gestione sicura delle stringhe ISO o dei timestamp
+        const cleanStr = dateStr.toString().split('T')[0];
+        const parts = cleanStr.split('-');
+        if (parts.length !== 3) return dateStr; // Ritorna il valore originale se è già formattato
+
+        const year = parts[0];
+        const monthIdx = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+
+        // Mesi rigorosamente in Inglese
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        if (monthIdx >= 0 && monthIdx < 12) {
+            return `${day} ${months[monthIdx]} ${year}`;
+        }
+        return dateStr;
     }
 
 </script>

@@ -272,3 +272,126 @@ function getSheetDataAsObjects(ss, name) {
     return o;
   });
 }
+
+/**
+ * Sincronizza gli Allocation Splits sul foglio Google Sheets.
+ * @param {Object} payload - Il payload globale già processato.
+ */
+function syncAllocationSplits(payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.ALLOCATION_SPLITS);
+  if (!sheet) return;
+
+  const contractIds = payload.details.map(d => d.contractId).filter(id => id);
+  if (contractIds.length === 0) return;
+
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const contractIdIdx = headers.indexOf("Contract ID");
+
+  // 1. Pulisce i vecchi split per i contratti coinvolti
+  for (let i = data.length - 1; i >= 1; i--) {
+    if (contractIds.includes(data[i][contractIdIdx].toString().trim())) {
+      sheet.deleteRow(i + 1);
+    }
+  }
+
+  // 2. Raccoglie tutti i nuovi split
+  const allSplits = [];
+  payload.details.forEach(detail => {
+    if (detail.splits && detail.splits.length > 0) {
+      detail.splits.forEach(s => {
+        s["Contract ID"] = detail.contractId;
+        allSplits.push(s);
+      });
+    }
+  });
+
+  if (allSplits.length === 0) return;
+
+  // 3. Scrive le nuove righe forzando il formato stringa YYYY-MM-DD per le date
+  const rowsToAdd = allSplits.map(split => {
+    const splitId = "SPL-" + Utilities.getUuid().substring(0, 8).toUpperCase();
+    
+    // ESTRAZIONE SICURA DELLA STRINGA DATA SENZA ORARIO
+    const validFromStr = split["Valid From"] ? split["Valid From"].toString().split('T')[0] : "";
+    const validToStr = split["Valid To"] ? split["Valid To"].toString().split('T')[0] : "";
+
+    return [
+      splitId,
+      split["Contract ID"] || "",
+      split["Target Legal Entity"] || "",
+      split["Target Cost Center"] || "",
+      split["Allocation Rule"] || "Percentage",
+      split["Percentage Share"] !== "" ? (parseFloat(split["Percentage Share"]) / 100) : "",
+      split["Fixed Amount"] || "",
+      split["Units Assigned"] || "",
+      validFromStr, // <-- Scrittura come stringa pura: impedisce ore/minuti e salti di giorno
+      validToStr,   // <-- Scrittura come stringa pura
+      split["Notes"] || ""
+    ];
+  });
+
+  sheet.getRange(sheet.getLastRow() + 1, 1, rowsToAdd.length, rowsToAdd[0].length).setValues(rowsToAdd);
+}
+
+/**
+ * Sincronizza i movimenti manuali (ACTUAL, FORECAST) del Ledger legandoli al Contract ID.
+ * @param {Object} payload - Il payload globale già processato.
+ */
+function syncLedgerMovements(payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.LEDGER);
+  if (!sheet) return;
+
+  const contractIds = payload.details.map(d => d.contractId).filter(id => id);
+  if (contractIds.length === 0) return;
+
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const contractIdIdx = headers.indexOf("Contract ID");
+  const typeIdx = headers.indexOf("Type");
+
+  // 1. Pulisce SOLO i vecchi record manuali per i contratti coinvolti
+  for (let i = data.length - 1; i >= 1; i--) {
+    const cId = data[i][contractIdIdx].toString().trim();
+    const type = data[i][typeIdx].toString().trim().toUpperCase();
+    
+    if (contractIds.includes(cId) && (type === "ACTUAL" || type === "FORECAST")) {
+      sheet.deleteRow(i + 1);
+    }
+  }
+
+  // 2. Raccoglie i nuovi record Ledger
+  const allLedger = [];
+  payload.details.forEach(detail => {
+    if (detail.ledger && detail.ledger.length > 0) {
+      detail.ledger.forEach(l => {
+        l["Contract ID"] = detail.contractId;
+        if (l["Type"] === "ACTUAL" || l["Type"] === "FORECAST") {
+          allLedger.push(l);
+        }
+      });
+    }
+  });
+
+  if (allLedger.length === 0) return;
+
+  // 3. Scrive le nuove righe forzando il formato stringa YYYY-MM-DD
+  const rowsToAdd = allLedger.map(mov => {
+    // ESTRAZIONE SICURA DELLA STRINGA DATA
+    const startStr = mov["Start Date"] ? mov["Start Date"].toString().split('T')[0] : "";
+    const endStr = mov["End Date"] ? mov["End Date"].toString().split('T')[0] : "";
+
+    return [
+      mov["Contract ID"] || "",
+      startStr, // <-- Scrittura come stringa pura
+      endStr,   // <-- Scrittura come stringa pura
+      mov["Type"] || "ACTUAL",
+      mov["Amount"] || 0,
+      mov["Notes"] || ""
+    ];
+  });
+
+  sheet.getRange(sheet.getLastRow() + 1, 1, rowsToAdd.length, rowsToAdd[0].length).setValues(rowsToAdd);
+}
