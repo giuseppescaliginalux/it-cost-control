@@ -9,6 +9,7 @@ const CONFIG = {
     BRIDGE: "AssetAllocationBridge",
     CONTRACTS: "Contracts",
     MASTER_CONTRACTS: "MasterContracts",
+    ALLOCATION_SPLITS: "AllocationSplits",
     INITIATIVES: "Initiatives",
     PROJECTIONS: "FiscalProjections",
     SUPPLIERS: "Suppliers",
@@ -54,6 +55,7 @@ function getFullPayload_Internal(skipSanitize = false) {
     assets: getAssetsControlCenter(ss),
     contracts: getSheetDataAsObjects(ss, CONFIG.SHEETS.CONTRACTS) || [],
     masterContracts: getSheetDataAsObjects(ss, CONFIG.SHEETS.MASTER_CONTRACTS) || [],
+    allocationSplits: getSheetDataAsObjects(ss, CONFIG.SHEETS.ALLOCATION_SPLITS) || [],
     initiatives: getSheetDataAsObjects(ss, CONFIG.SHEETS.INITIATIVES) || [],
     bridge: getSheetDataAsObjects(ss, CONFIG.SHEETS.BRIDGE) || [],
     projections: getSheetDataAsObjects(ss, CONFIG.SHEETS.PROJECTIONS) || [],
@@ -143,5 +145,53 @@ function sanitizeForJSON(data) {
  */
 function jsonResponse(d) {
   return ContentService.createTextOutput(JSON.stringify(d)).setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * Helper per trovare o creare una cartella all'interno di un'altra.
+ */
+function getOrCreateFolder(folderName, parentFolder) {
+  const folders = parentFolder.getFoldersByName(folderName);
+  if (folders.hasNext()) {
+    return folders.next();
+  } else {
+    return parentFolder.createFolder(folderName);
+  }
+}
+
+/**
+ * Receives base64 files from frontend and saves them in the correct structure.
+ * Prevents duplicates by checking filename existence.
+ */
+function uploadFilesToDrive(filesData, year, supplier, assetName) {
+  try {
+    const rootItr = DriveApp.getFoldersByName("IT Cost Center");
+    const rootFolder = rootItr.hasNext() ? rootItr.next() : DriveApp.createFolder("IT Cost Center");
+
+    const contractsFolder = getOrCreateFolder("Contracts", rootFolder);
+    const yearFolder = getOrCreateFolder(year.toString(), contractsFolder);
+    const supplierFolder = getOrCreateFolder(supplier, yearFolder);
+    const assetFolder = getOrCreateFolder(assetName, supplierFolder);
+
+    const uploadedUrls = [];
+
+    filesData.forEach(file => {
+      const existingFiles = assetFolder.getFilesByName(file.filename);
+      if (existingFiles.hasNext()) {
+        // File already exists: get its URL instead of creating a duplicate
+        const existingFile = existingFiles.next();
+        uploadedUrls.push(existingFile.getUrl());
+      } else {
+        // New file: create it
+        const blob = Utilities.newBlob(Utilities.base64Decode(file.base64), file.mimeType, file.filename);
+        const newFile = assetFolder.createFile(blob);
+        uploadedUrls.push(newFile.getUrl());
+      }
+    });
+
+    return uploadedUrls;
+  } catch (error) {
+    throw new Error("Error during Drive upload: " + error.toString());
+  }
 }
 

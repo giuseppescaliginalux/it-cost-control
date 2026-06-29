@@ -188,6 +188,7 @@
 
             container.innerHTML = `
                 <div class="flex justify-between items-start border-b border-slate-100 pb-3 mb-4">
+    
                     <div>
                         <div class="flex items-center gap-2">
                             <span class="text-[10px] font-mono bg-teal-900 text-white px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">${currentMasterData["Master Contract ID"] || 'NEW MASTER'}</span>
@@ -195,7 +196,25 @@
                         </div>
                         <h4 class="text-sm font-black text-slate-800 mt-1.5">Supplier: <span class="text-teal-700">${currentMasterData["Supplier"] || 'Not Specified'}</span></h4>
                     </div>
-                    <button onclick="toggleMasterEditState(true)" class="px-3 py-1 bg-slate-100 border border-slate-200 text-slate-700 font-black text-[10px] uppercase tracking-wider rounded-lg hover:bg-slate-200 transition-colors">Edit Master Info</button>
+                    
+                    <div class="flex flex-wrap justify-end items-center gap-2">
+                        
+                        ${currentMasterData["Contract Links"] ?
+                    `<div class="flex items-center gap-1.5 mr-1 border-r border-slate-200 pr-3">
+                                ${currentMasterData["Contract Links"].split(',').map((url, idx) => `
+                                    <a href="${url.trim()}" target="_blank" class="px-2 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white border border-indigo-200 hover:border-indigo-600 rounded-md text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all shadow-sm" title="${url.trim()}">
+                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                        Doc ${idx + 1}
+                                    </a>
+                                `).join('')}
+                            </div>`
+                    : ''}
+                        
+                        <button onclick="toggleMasterEditState(true)" class="px-3 py-1.5 bg-slate-100 border border-slate-200 text-slate-700 font-black text-[10px] uppercase tracking-wider rounded-lg hover:bg-slate-200 transition-colors shadow-sm">
+                            Edit Master Info
+                        </button>
+                    </div>
+                    
                 </div>
 
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50/60 p-3 rounded-xl border border-slate-100 mb-3 text-xs">
@@ -222,7 +241,8 @@
                     <span class="font-mono font-black text-slate-900 text-sm">€${totalCommitment.formatCurrency()}</span>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs mt-3 border-t border-slate-100 pt-3">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs mt-3 border-t border-slate-100 pt-3">
+                    <div><span class="text-slate-400 font-bold uppercase text-[9px] block">Billing Channel:</span> <span class="inline-block bg-teal-50 border border-teal-100 text-teal-700 px-2 py-0.5 rounded text-[10px] font-black mt-0.5">${currentMasterData["Billing Channel"] || '—'}</span></div>
                     <div><span class="text-slate-400 font-bold uppercase text-[9px] block">Master Scope:</span> <span class="text-slate-700 font-medium">${currentMasterData["Scope"] || '—'}</span></div>
                     <div><span class="text-slate-400 font-bold uppercase text-[9px] block">Master Comments:</span> <span class="text-slate-500 italic font-medium">${currentMasterData["Comments"] || '—'}</span></div>
                 </div>
@@ -263,6 +283,36 @@
                 <div class="mt-3 flex justify-end">
                     <button onclick="confirmMasterEditLocalChanges()" class="px-4 py-1.5 bg-slate-800 text-white rounded-lg font-black text-[10px] uppercase tracking-wider">Confirm Master Changes</button>
                 </div>` : ''}
+                <div class="mt-4 border border-dashed border-slate-300 bg-slate-50 p-3 rounded-lg">
+                    <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Upload & Manage Documents</label>
+                    
+                    ${currentMasterData["Contract Links"] ? `
+                        <div class="mb-3 bg-white p-2 rounded border border-slate-200">
+                            <span class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Currently Attached Files:</span>
+                            <div class="flex flex-wrap gap-1.5">
+                                ${currentMasterData["Contract Links"].split(',').map((url, idx) => `
+                                    <div class="flex items-center gap-0 bg-indigo-50 border border-indigo-200 rounded-md shadow-sm overflow-hidden group">
+                                        <a href="${url.trim()}" target="_blank" class="px-2 py-0.5 text-indigo-700 hover:bg-indigo-600 hover:text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-1 transition-colors" title="${url.trim()}">
+                                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                            Doc ${idx + 1}
+                                        </a>
+                                        <button type="button" onclick="removeDocumentLink('${url.trim()}', true)" class="px-1.5 py-0.5 text-indigo-400 hover:bg-rose-500 hover:text-white transition-colors border-l border-indigo-200" title="Remove Document">
+                                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                        </button>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    <input type="text" id="ins-masterDocumentLink" value="${currentMasterData["Contract Links"] || ''}" class="hidden">
+                    
+                    <div class="flex items-center gap-3">
+                        <input type="file" id="upload-files" multiple class="text-xs text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-[10px] file:font-black file:uppercase file:tracking-wider file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer">
+                        <button type="button" onclick="handleFileUploads()" class="px-3 py-1.5 bg-slate-800 hover:bg-teal-700 text-white rounded-md text-[10px] font-black uppercase tracking-wider transition-all shadow-sm">Start Upload</button>
+                    </div>
+                    <div id="upload-status" class="hidden mt-2 text-[10px]"></div>
+                </div>
             `;
         }
     }
@@ -276,6 +326,7 @@
         currentMasterData["Supplier"] = document.getElementById('ins-masterSupplier').value;
         currentMasterData["Scope"] = document.getElementById('ins-masterScope').value.trim();
         currentMasterData["Comments"] = document.getElementById('ins-masterComments').value.trim();
+        currentMasterData["Contract Links"] = document.getElementById('ins-masterDocumentLink').value.trim();
         isMasterEditable = false;
         renderMasterFormBox();
     }
@@ -357,9 +408,22 @@
                         </div>
                     </div>
 
-                    <div class="pt-1.5 border-t border-slate-100 text-[11px] flex items-start gap-1">
-                        <span class="text-slate-400 font-black uppercase text-[8px] tracking-widest mt-0.5 bg-slate-100 px-1 rounded">Scope</span>
-                        <span class="text-slate-600 font-medium break-words flex-1">${d["Scope"] || '<span class="text-slate-300 italic">No specific line scope defined</span>'}</span>
+                    <div class="pt-1.5 border-t border-slate-100 text-[11px] flex justify-between items-start gap-2">
+                        <div class="flex items-start gap-1 flex-1">
+                            <span class="text-slate-400 font-black uppercase text-[8px] tracking-widest mt-0.5 bg-slate-100 px-1 rounded">Scope</span>
+                            <span class="text-slate-600 font-medium break-words">${d["Scope"] || '<span class="text-slate-300 italic">No specific line scope defined</span>'}</span>
+                        </div>
+                        
+                        ${d["Contract Links"] ? `
+                            <div class="flex flex-wrap gap-1 justify-end shrink-0" onclick="event.stopPropagation();">
+                                ${d["Contract Links"].split(',').map((url, idx) => `
+                                    <a href="${url.trim()}" target="_blank" class="px-2 py-0.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white border border-indigo-200 hover:border-indigo-600 rounded-md text-[8px] font-black uppercase tracking-wider flex items-center gap-1 transition-all shadow-sm" title="${url.trim()}">
+                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                        Doc ${idx + 1}
+                                    </a>
+                                `).join('')}
+                            </div>
+                        ` : ''}
                     </div>
 
                     <div id="compact-accordion-${item.id}" class="hidden mt-2 pt-3 border-t border-slate-100 animate-fade-in text-[11px]" onclick="event.stopPropagation();">
@@ -448,6 +512,17 @@
                                         <span class="font-bold ${d["Auto-Renewal"] === 'Yes' ? 'text-emerald-600' : 'text-slate-500'}">${d["Auto-Renewal"] || '—'}</span>
                                     </div>
                                 </div>
+
+                                <div class="grid grid-cols-2 gap-2 pt-2 mt-1.5 border-t border-slate-100/60 text-[10px]">
+                                    <div>
+                                        <span class="block text-[8px] font-bold text-slate-400 uppercase">Pricing Model</span>
+                                        <span class="font-medium text-slate-700">${d["Pricing Model"] || 'Flat'}</span>
+                                    </div>
+                                    <div>
+                                        <span class="block text-[8px] font-bold text-slate-400 uppercase">Billing Terms</span>
+                                        <span class="font-bold text-indigo-600">${d["Billing Terms"] || 'Linear'}</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -484,6 +559,7 @@
                                 </div>
                                 <p class="text-slate-600 italic font-medium leading-relaxed">${d["Comments"] || '<span class="text-slate-300 text-[10px]">No additional localized comments.</span>'}</p>
                             </div>
+
                         </div>
                     </div>
                 `;
@@ -536,6 +612,24 @@
                                 <select id="edit-costRecurrence-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs text-slate-900">
                                     <option value="Recurrent" ${item.data["Cost Recurrence"] !== 'One-Shot' ? 'selected' : ''}>Recurrent</option>
                                     <option value="One-Shot" ${item.data["Cost Recurrence"] === 'One-Shot' ? 'selected' : ''}>One-Shot</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                            <div>
+                                <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Pricing Model</label>
+                                <select id="edit-pricingModel-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs text-slate-900 shadow-sm">
+                                    <option value="Flat" ${item.data["Pricing Model"] === 'Flat' || !item.data["Pricing Model"] ? 'selected' : ''}>Flat</option>
+                                    <option value="Pure Consumption" ${item.data["Pricing Model"] === 'Pure Consumption' ? 'selected' : ''}>Pure Consumption</option>
+                                    <option value="Minimum Consumption" ${item.data["Pricing Model"] === 'Minimum Consumption' ? 'selected' : ''}>Minimum Consumption</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Billing Terms</label>
+                                <select id="edit-billingTerms-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs text-slate-900 shadow-sm">
+                                    <option value="Linear" ${item.data["Billing Terms"] === 'Linear' || !item.data["Billing Terms"] ? 'selected' : ''}>Linear</option>
+                                    <option value="Full Upfront" ${item.data["Billing Terms"] === 'Full Upfront' ? 'selected' : ''}>Full Upfront</option>
+                                    <option value="Ledger-Driven" ${item.data["Billing Terms"] === 'Ledger-Driven' ? 'selected' : ''}>Ledger-Driven</option>
                                 </select>
                             </div>
                         </div>
@@ -635,6 +729,38 @@
                             <input type="text" id="edit-comments-${item.id}" placeholder="Add annotations..." class="w-full px-2 py-1 bg-slate-50/50 border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs italic text-slate-600" value="${item.data["Comments"] || ''}">
                         </div>
                     </div>
+
+                    <div class="border-t border-slate-100 pt-3 mt-3"></div>
+                    <div class="space-y-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200 border-dashed">
+                        <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded-md w-fit">Line Documents</span>
+                        
+                        ${item.data["Contract Links"] ? `
+                            <div class="mb-2 bg-white p-2 rounded border border-slate-200">
+                                <span class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Attached Files:</span>
+                                <div class="flex flex-wrap gap-1.5">
+                                    ${item.data["Contract Links"].split(',').map((url, idx) => `
+                                        <div class="flex items-center gap-0 bg-indigo-50 border border-indigo-200 rounded-md shadow-sm overflow-hidden group">
+                                            <a href="${url.trim()}" target="_blank" class="px-2 py-0.5 text-indigo-700 hover:bg-indigo-600 hover:text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-1 transition-colors" title="${url.trim()}">
+                                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                                Doc ${idx + 1}
+                                            </a>
+                                            <button type="button" onclick="removeDocumentLink('${url.trim()}', false, ${item.id})" class="px-1.5 py-0.5 text-indigo-400 hover:bg-rose-500 hover:text-white transition-colors border-l border-indigo-200" title="Remove Document">
+                                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                            </button>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        <input type="text" id="edit-contractLinks-${item.id}" value="${item.data["Contract Links"] || ''}" class="hidden">
+                        
+                        <div class="flex items-center gap-2">
+                            <input type="file" id="upload-files-${item.id}" multiple class="w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[9px] file:font-black file:uppercase file:tracking-wider file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer">
+                            <button type="button" onclick="handleDetailFileUploads(${item.id})" class="px-3 py-1.5 bg-slate-800 hover:bg-teal-700 text-white rounded-md text-[9px] font-black uppercase tracking-wider transition-all shadow-sm shrink-0">Upload</button>
+                        </div>
+                        <div id="upload-status-${item.id}" class="hidden mt-1 text-[9px]"></div>
+                    </div>
                 `;
                 listWrapper.appendChild(cardDiv);
             }
@@ -660,6 +786,7 @@
         clonedData["Scope"] = "";
         clonedData["Contract ID"] = "";
         clonedData["Status"] = "ACTIVE";
+        clonedData["Contract Links"] = "";
 
         currentDetailItems.push({
             id: newId,
@@ -719,6 +846,8 @@
         item.data["Service Owner"] = document.getElementById(`edit-serviceOwner-${id}`).value.trim();
         item.data["Scope"] = document.getElementById(`edit-scope-${id}`).value.trim();
         item.data["Cost Recurrence"] = document.getElementById(`edit-costRecurrence-${id}`).value;
+        item.data["Pricing Model"] = document.getElementById(`edit-pricingModel-${id}`).value;
+        item.data["Billing Terms"] = document.getElementById(`edit-billingTerms-${id}`).value;
 
         const cleanCommitmentStr = document.getElementById(`edit-totalCommitment-${id}`).value.replace(/\./g, '').trim();
         item.data["Total Commitment"] = parseInt(cleanCommitmentStr, 10) || 0;
@@ -732,6 +861,7 @@
         item.data["BL ID"] = document.getElementById(`edit-blId-${id}`).value.trim();
         item.data["Request Code"] = document.getElementById(`edit-requestCode-${id}`).value.trim();
         item.data["Comments"] = document.getElementById(`edit-comments-${id}`).value.trim();
+        item.data["Contract Links"] = document.getElementById(`edit-contractLinks-${id}`).value.trim();
 
         document.getElementById('error-message').style.display = 'none';
         try {
@@ -797,6 +927,7 @@
             supplier: spl,
             masterScope: currentMasterData["Scope"],
             masterComments: currentMasterData["Comments"],
+            contractLinks: currentMasterData["Contract Links"],
             suppliers: (windowPayload.suppliers || []).filter(s => String(s["Supplier"]).trim().toLowerCase() === String(spl).trim().toLowerCase()),
             initiatives: mId && mId.trim() !== "" ? (windowPayload.initiatives || []).filter(i => String(i["Master Contract ID"]).trim().toLowerCase() === mId.trim().toLowerCase()) : [],
             details: currentDetailItems.map(item => {
@@ -809,6 +940,8 @@
                     serviceOwner: item.data["Service Owner"] || "",
                     scope: item.data["Scope"] || "",
                     costRecurrence: item.data["Cost Recurrence"] || "",
+                    pricingModel: item.data["Pricing Model"] || "",
+                    billingTerms: item.data["Billing Terms"] || "",
                     totalCommitment: item.data["Total Commitment"] || 0,
                     expenditureType: item.data["Expenditure Type"] || "",
                     costCenter: item.data["Cost Center"] || "",
@@ -819,7 +952,8 @@
                     autoRenewal: item.data["Auto-Renewal"] || "",
                     blId: item.data["BL ID"] || "",
                     requestCode: item.data["Request Code"] || "",
-                    comments: item.data["Comments"] || ""
+                    comments: item.data["Comments"] || "",
+                    contractLinks: item.data["Contract Links"] || ""
                 };
             })
         };
@@ -913,4 +1047,165 @@
 
         return true;
     }
+
+    function handleFileUploads() {
+        const fileInput = document.getElementById('upload-files');
+        if (!fileInput || fileInput.files.length === 0) {
+            showMgmtBannerStatus("Please select at least one file before uploading.", "warning");
+            return;
+        }
+
+        const supplier = document.getElementById('ins-masterSupplier').value || "Unknown_Supplier";
+        const assetName = currentSelectedAsset.name || "Unknown_Asset";
+
+        let dateStr = currentMasterData["Master Start Date"];
+        let year = dateStr ? dateStr.split('-')[0] : new Date().getFullYear().toString();
+
+        const statusDiv = document.getElementById('upload-status');
+        statusDiv.innerHTML = `<span class="text-teal-600 font-bold animate-pulse">Uploading ${fileInput.files.length} file(s)... Please do not close this window.</span>`;
+        statusDiv.classList.remove('hidden');
+
+        let filesData = [];
+        let filesProcessed = 0;
+
+        Array.from(fileInput.files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const dataUrl = e.target.result;
+                const base64 = dataUrl.split(',')[1];
+
+                filesData.push({
+                    filename: file.name,
+                    mimeType: file.type,
+                    base64: base64
+                });
+
+                filesProcessed++;
+
+                if (filesProcessed === fileInput.files.length) {
+                    google.script.run
+                        .withSuccessHandler(urls => {
+                            statusDiv.innerHTML = `<span class="text-emerald-600 font-bold">✓ Upload completed! Files saved successfully.</span>`;
+
+                            const inputLinks = document.getElementById('ins-masterDocumentLink');
+                            let currentLinks = inputLinks.value ? inputLinks.value.split(',').map(s => s.trim()).filter(s => s) : [];
+
+                            // Add only NEW urls to avoid duplicates in the cell
+                            urls.forEach(url => {
+                                if (!currentLinks.includes(url)) {
+                                    currentLinks.push(url);
+                                }
+                            });
+
+                            const finalLinks = currentLinks.join(', ');
+                            inputLinks.value = finalLinks;
+                            currentMasterData["Contract Links"] = finalLinks; // Update memory
+
+                            fileInput.value = ""; // Clear input
+
+                            // Force UI refresh to show the newly added files immediately
+                            setTimeout(() => renderMasterFormBox(), 1500);
+                        })
+                        .withFailureHandler(err => {
+                            statusDiv.innerHTML = `<span class="text-rose-600 font-bold">✗ Error: ${err.message}</span>`;
+                        })
+                        .uploadFilesToDrive(filesData, year, supplier, assetName);
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function handleDetailFileUploads(id) {
+        const fileInput = document.getElementById('upload-files-' + id);
+        if (!fileInput || fileInput.files.length === 0) {
+            showErrorMessage(id, "Please select at least one file to upload.");
+            return;
+        }
+
+        // Ricava il Supplier dal Master (sia se è in edit, sia se è in sola lettura)
+        const supplierSelect = document.getElementById('ins-masterSupplier');
+        const supplier = (supplierSelect ? supplierSelect.value : currentMasterData["Supplier"]) || "Unknown_Supplier";
+        const assetName = currentSelectedAsset.name || "Unknown_Asset";
+
+        // Anno ricavato dalla Start Date della singola riga
+        let dateStr = document.getElementById('edit-startDate-' + id).value;
+        let year = dateStr ? dateStr.split('-')[0] : new Date().getFullYear().toString();
+
+        const statusDiv = document.getElementById('upload-status-' + id);
+        statusDiv.innerHTML = `<span class="text-teal-600 font-bold animate-pulse">Uploading... Please wait.</span>`;
+        statusDiv.classList.remove('hidden');
+
+        let filesData = [];
+        let filesProcessed = 0;
+
+        Array.from(fileInput.files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const base64 = e.target.result.split(',')[1];
+                filesData.push({ filename: file.name, mimeType: file.type, base64: base64 });
+                filesProcessed++;
+
+                if (filesProcessed === fileInput.files.length) {
+                    google.script.run
+                        .withSuccessHandler(urls => {
+                            statusDiv.innerHTML = `<span class="text-emerald-600 font-bold">✓ Uploaded successfully!</span>`;
+
+                            const inputLinks = document.getElementById('edit-contractLinks-' + id);
+                            let currentLinks = inputLinks.value ? inputLinks.value.split(',').map(s => s.trim()).filter(s => s) : [];
+
+                            urls.forEach(url => {
+                                if (!currentLinks.includes(url)) currentLinks.push(url);
+                            });
+
+                            inputLinks.value = currentLinks.join(', ');
+
+                            // Aggiorna lo state per evitare che il re-render lo perda
+                            const item = currentDetailItems.find(i => i.id === id);
+                            if (item) item.data["Contract Links"] = inputLinks.value;
+
+                            fileInput.value = ""; // Svuota l'input
+
+                            // Forza il re-render dell'interfaccia dopo 1.5s
+                            setTimeout(() => renderDetailItemsTable(), 1500);
+                        })
+                        .withFailureHandler(err => {
+                            statusDiv.innerHTML = `<span class="text-rose-600 font-bold">✗ Error: ${err.message}</span>`;
+                        })
+                        .uploadFilesToDrive(filesData, year, supplier, assetName);
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    /**
+     * Rimuove un link dalla stringa dei documenti allegati.
+     * @param {string} urlToRemove - L'URL esatto da rimuovere.
+     * @param {boolean} isMaster - true se stiamo modificando il Master, false se è un Dettaglio.
+     * @param {number} detailId - L'ID della riga di dettaglio (necessario solo se isMaster è false).
+     */
+    function removeDocumentLink(urlToRemove, isMaster, detailId = null) {
+        if (isMaster) {
+            // Logica per il Master Contract
+            let links = currentMasterData["Contract Links"] ? currentMasterData["Contract Links"].split(',').map(s => s.trim()).filter(s => s) : [];
+            links = links.filter(link => link !== urlToRemove); // Rimuove l'url specifico
+            currentMasterData["Contract Links"] = links.join(', '); // Ricrea la stringa
+
+            // Ridisegna il form per mostrare il badge rimosso
+            renderMasterFormBox();
+        } else {
+            // Logica per la singola riga di Dettaglio
+            const item = currentDetailItems.find(i => i.id === detailId);
+            if (item) {
+                let links = item.data["Contract Links"] ? item.data["Contract Links"].split(',').map(s => s.trim()).filter(s => s) : [];
+                links = links.filter(link => link !== urlToRemove);
+                item.data["Contract Links"] = links.join(', ');
+
+                // Ridisegna la tabella dei dettagli per mostrare il badge rimosso
+                renderDetailItemsTable();
+            }
+        }
+    }
+
 </script>
