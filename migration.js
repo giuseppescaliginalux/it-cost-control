@@ -15,16 +15,21 @@ function backfillDetailContractsOnly() {
 }
 
 /**
- * MACRO FUNZIONE 3: Aggiorna ENTRAMBI i fogli in un colpo solo.
+ * MACRO FUNZIONE 3: Aggiorna ENTRAMBI i fogli in un colpo solo e allinea Ledger e Proiezioni.
  */
 function backfillAllSheets() {
     console.log("MIGRAZIONE: Avvio backfill globale -> MASTER + DETTAGLI.");
     _runCoreMigrationEngine({ writeMaster: true, writeDetail: true });
+
+    console.log("MIGRAZIONE: Avvio allineamento a cascata di Ledger e Proiezioni...");
+    if (typeof regenerateLedgerCalculatedProjections === "function") regenerateLedgerCalculatedProjections();
+    if (typeof updateAllOfficialFiscalProjections === "function") updateAllOfficialFiscalProjections();
+
+    console.log("MIGRAZIONE GLOBALE COMPLETATA CON SUCCESSO.");
 }
 
-
 /**
- * MOTORE CENTRALE DI CALCOLO AD ALTA AFFIDABILITÀ
+ * MOTORE CENTRALE DI CALCOLO AD ALTA AFFIDABILITÀ (Refattorizzato in logica DRY)
  * @private
  */
 function _runCoreMigrationEngine(flags) {
@@ -47,16 +52,17 @@ function _runCoreMigrationEngine(flags) {
 
         const childDetails = allDetails.filter(d => String(d["Master Contract ID"]).trim() === currentMasterId);
 
-        // Mappatura con normalizzazione dei tipi di dato (Date Object -> ISO String)
+        // Mappatura con normalizzazione dei tipi di dato (Date Object -> ISO String pura)
         const formattedDetailsForPayload = childDetails.map(d => {
             const camelCaseObj = {};
             for (let header in CONTRACT_FIELD_MAP) {
                 const frontendKey = CONTRACT_FIELD_MAP[header];
                 let rawValue = d[header];
 
-                // SAFE DATE CHECK: Se Apps Script ha letto un oggetto Date, lo normalizziamo in stringa YYYY-MM-DD
                 if (rawValue instanceof Date) {
                     rawValue = !isNaN(rawValue.getTime()) ? Utilities.formatDate(rawValue, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
+                } else if (typeof rawValue === 'string' && rawValue.includes('T')) {
+                    rawValue = rawValue.split('T')[0];
                 }
 
                 camelCaseObj[frontendKey] = rawValue;
@@ -76,8 +82,8 @@ function _runCoreMigrationEngine(flags) {
             details: formattedDetailsForPayload
         };
 
-        // Esecuzione ricalcolo logico
-        const calculatedPayload = _calculateMasterMetricsInMemoryInternal(mockPayload);
+        // CHIAMATA DIRETTA AL MOTORE IN LOGIC.JS (Applichiamo il principio DRY)
+        const calculatedPayload = calculateMasterMetricsInMemory(mockPayload);
 
         // Sincronizzazione Master locale
         for (let header in MASTER_FIELD_MAP) {
@@ -100,7 +106,6 @@ function _runCoreMigrationEngine(flags) {
             originalDetail["End Date"] = calculatedChild.endDate;
 
             // --- AUTOMATED BACKFILL CONGIUNTO ---
-            // Ripristina e protegge l'integrità dei vecchi contratti popolandoli di default
             if (!originalDetail["Billing Terms"] || String(originalDetail["Billing Terms"]).trim() === "") {
                 originalDetail["Billing Terms"] = "Linear";
             }
@@ -110,16 +115,15 @@ function _runCoreMigrationEngine(flags) {
         });
     });
 
-    // SCRITTURA MASSIVA BULK ONESHOT SUI FOGLI GOOGLE
+    // SCRITTURA MASSIVA BULK ONESHOT SUI FOGLI GOOGLE (Sicura contro il Timezone Bug)
     if (flags.writeMaster && allMasters.length > 0) {
         const masterOutputValues = allMasters.map(master => {
             return masterHeaders.map(header => {
                 let val = master[header];
                 if (["Master Start Date", "Master End Date"].includes(header)) {
-                    if (val instanceof Date) {
-                        return !isNaN(val.getTime()) ? Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
-                    }
-                    return val ? val : "";
+                    if (val instanceof Date) return !isNaN(val.getTime()) ? Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
+                    if (typeof val === 'string' && val.trim() !== "") return val.split('T')[0];
+                    return "";
                 }
                 return val !== undefined ? val : "";
             });
@@ -133,10 +137,9 @@ function _runCoreMigrationEngine(flags) {
             return detailHeaders.map(header => {
                 let val = detail[header];
                 if (["Start Date", "Contract End Date", "Adjusted End Date", "End Date"].includes(header)) {
-                    if (val instanceof Date) {
-                        return !isNaN(val.getTime()) ? Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
-                    }
-                    return val ? val : "";
+                    if (val instanceof Date) return !isNaN(val.getTime()) ? Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
+                    if (typeof val === 'string' && val.trim() !== "") return val.split('T')[0];
+                    return "";
                 }
                 return val !== undefined ? val : "";
             });
@@ -144,119 +147,11 @@ function _runCoreMigrationEngine(flags) {
         detailSheet.getRange(2, 1, detailOutputValues.length, detailHeaders.length).setValues(detailOutputValues);
         console.log("MIGRAZIONE: Foglio [CONTRACTS] sovrascritto con successo.");
     }
-
-    console.log("MIGRAZIONE: Processo completato.");
-}
-
-/**
- * Replica locale di sicurezza della pipeline di calcolo
- * @private
- */
-function _calculateMasterMetricsInMemoryInternal(payload) {
-    const details = payload.details || [];
-    const initiatives = payload.initiatives || [];
-    const suppliers = payload.suppliers || [];
-    const masterId = payload.masterId || "";
-    const supplierName = payload.supplier || "";
-
-    let computedBillingChannel = "";
-    const supplierMatch = suppliers.find(s => String(s["Supplier"]).trim().toLowerCase() === String(supplierName).trim().toLowerCase());
-    if (supplierMatch) computedBillingChannel = supplierMatch["Type"] || "";
-
-    details.forEach(detailRow => {
-        detailRow.assetName = payload.assetName || "";
-        detailRow.supplier = payload.supplier || "";
-        detailRow.billingChannel = computedBillingChannel;
-
-        const itemHeaderObj = {};
-        for (let header in CONTRACT_FIELD_MAP) {
-            const frontendKey = CONTRACT_FIELD_MAP[header];
-            if (detailRow[frontendKey] !== undefined) {
-                itemHeaderObj[header] = detailRow[frontendKey];
-            }
-        }
-        itemHeaderObj["Status"] = detailRow.status || "";
-
-        const calculatedHeaderObj = calculateContractLogic(itemHeaderObj);
-
-        detailRow.effectiveCommitment = calculatedHeaderObj["Effective Commitment"];
-        detailRow.annualValue = calculatedHeaderObj["Annual Value"];
-        detailRow.status = calculatedHeaderObj["Status"];
-        detailRow.contractTerm = calculatedHeaderObj["Contract Term (Months)"];
-        detailRow.endDate = calculatedHeaderObj["End Date"];
-    });
-
-    let minStartDate = null;
-    let maxEndDate = null;
-    let totalEffectiveCommitment = 0;
-    let recurrentEffectiveCommitment = 0;
-    let hasActiveContracts = false;
-
-    details.forEach(c => {
-        if (c.startDate) {
-            const sDate = new Date(c.startDate);
-            if (!isNaN(sDate.getTime()) && (!minStartDate || sDate < minStartDate)) minStartDate = sDate;
-        }
-        if (c.endDate) {
-            const eDate = new Date(c.endDate);
-            if (!isNaN(eDate.getTime()) && (!maxEndDate || eDate > maxEndDate)) maxEndDate = eDate;
-        }
-        totalEffectiveCommitment += parseFloat(c.effectiveCommitment) || 0;
-        if (String(c.costRecurrence).trim().toLowerCase() === "recurrent") {
-            recurrentEffectiveCommitment += parseFloat(c.effectiveCommitment) || 0;
-        }
-        if (String(c.status).trim().toUpperCase() === "ACTIVE") hasActiveContracts = true;
-    });
-
-    const computedMasterStartDateStr = minStartDate ? minStartDate.toISOString().split('T')[0] : "";
-    const computedMasterEndDateStr = maxEndDate ? maxEndDate.toISOString().split('T')[0] : "";
-
-    let computedContractTerm = 0;
-    if (computedMasterStartDateStr && computedMasterEndDateStr) {
-        const sDate = new Date(computedMasterStartDateStr);
-        const eDate = new Date(computedMasterEndDateStr);
-        const endPlusOne = new Date(eDate);
-        endPlusOne.setDate(endPlusOne.getDate() + 1);
-        computedContractTerm = (endPlusOne.getFullYear() - sDate.getFullYear()) * 12 + (endPlusOne.getMonth() - sDate.getMonth());
-        if (computedContractTerm < 0) computedContractTerm = 0;
-    }
-
-    let computedRunRate = 0;
-    if (recurrentEffectiveCommitment > 0 && computedContractTerm > 0) {
-        computedRunRate = parseFloat(((recurrentEffectiveCommitment / computedContractTerm) * 12).toFixed(2));
-    }
-
-    let checkTerminated = 0;
-    let checkNeg = 0;
-    if (masterId && masterId.trim() !== "") {
-        initiatives.forEach(init => {
-            if (String(init["Master Contract ID"]).trim() === String(masterId).trim()) {
-                const initStatus = String(init["Initiative Status"]).trim().toUpperCase();
-                const decision = String(init["Decision"]).trim().toUpperCase();
-                if (initStatus === "COMPLETED" && ["TERMINATE", "REPLACE", "TRANSFER"].includes(decision)) checkTerminated++;
-                if (initStatus === "IN PROGRESS") checkNeg++;
-            }
-        });
-    }
-
-    let computedStatus = "EXPIRED";
-    if (checkTerminated > 0) computedStatus = "TERMINATED";
-    else if (hasActiveContracts) computedStatus = "ACTIVE";
-    else if (checkNeg > 0) computedStatus = "IN NEGOTIATION";
-
-    payload.status = computedStatus;
-    payload.masterStartDate = computedMasterStartDateStr;
-    payload.masterEndDate = computedMasterEndDateStr;
-    payload.contractTerm = computedContractTerm;
-    payload.totalCommitment = parseFloat(totalEffectiveCommitment.toFixed(2));
-    payload.runRate = computedRunRate;
-    payload.billingChannel = computedBillingChannel;
-
-    return payload;
 }
 
 /**
  * RECOVERY SCRIPT: Identifica i Master ID corrotti con l'anno 1899.
+ * CORRETTO: Adesso esporta correttamente le stringhe YYYY-MM-DD senza reimmettere i bug del fuso orario.
  */
 function fixAndRegenerateMasterIds() {
     console.log("MIGRAZIONE: Avvio ripristino Master Contract ID (Rimozione anno 1899)...");
@@ -334,11 +229,14 @@ function fixAndRegenerateMasterIds() {
 
     console.log(`MIGRAZIONE: Rigenerati ${fixedCount} Master ID. Aggiornati di riflesso ${detailUpdatedCount} contratti di dettaglio.`);
 
+    // FIX DATE PER LA SCRITTURA 
     const masterOutputValues = allMasters.map(master => {
         return masterHeaders.map(header => {
             let val = master[header];
             if (["Master Start Date", "Master End Date"].includes(header)) {
-                return val ? new Date(val) : "";
+                if (val instanceof Date) return !isNaN(val.getTime()) ? Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
+                if (typeof val === 'string' && val.trim() !== "") return val.split('T')[0];
+                return "";
             }
             return val !== undefined ? val : "";
         });
@@ -348,7 +246,9 @@ function fixAndRegenerateMasterIds() {
         return detailHeaders.map(header => {
             let val = detail[header];
             if (["Start Date", "Contract End Date", "Adjusted End Date", "End Date"].includes(header)) {
-                return val ? new Date(val) : "";
+                if (val instanceof Date) return !isNaN(val.getTime()) ? Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
+                if (typeof val === 'string' && val.trim() !== "") return val.split('T')[0];
+                return "";
             }
             return val !== undefined ? val : "";
         });
