@@ -198,3 +198,10 @@ function uploadFilesToDrive(filesData, year, supplier, assetName) {
     throw new Error("Error during Drive upload: " + error.toString());
   }
 }
+
+/**
+ * API ENDPOINT: Esegue l'anteprima del Ledger in memoria senza toccare il database
+ */
+function apiPreviewLedgerAutoForecast(contractData, ledgerData) {
+  return _lePreviewLedgerAutoForecast(contractData, ledgerData);
+}
