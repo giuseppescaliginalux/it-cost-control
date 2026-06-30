@@ -50,7 +50,11 @@ function regenerateLedgerCalculatedProjections() {
     if (String(row[idxC.cStatus]).trim().toUpperCase() !== "ACTIVE") continue;
 
     const cId = String(row[idxC.cId]).trim();
-    if (!cId || String(row[idxC.cModel]).trim() !== "Minimum Consumption" || String(row[idxC.billingTerms]).trim() !== "Ledger-Driven") continue; 
+    const model = String(row[idxC.cModel]).trim();
+    const terms = String(row[idxC.billingTerms]).trim();
+    
+    // 🟢 UPDATED GATEWAY: Allows both Minimum and Capped Consumption models if they are Ledger-Driven
+    if (!cId || !["Minimum Consumption", "Capped Consumption"].includes(model) || terms !== "Ledger-Driven") continue; 
 
     // Adapter converte la riga dello sheet nel formato standard e chiama il CORE
     const newRows = _leAdapterSheetToCore(cId, row, cleanLedgerData, idxC, idxL);
