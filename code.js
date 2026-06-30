@@ -205,3 +205,47 @@ function uploadFilesToDrive(filesData, year, supplier, assetName) {
 function apiPreviewLedgerAutoForecast(contractData, ledgerData) {
   return _lePreviewLedgerAutoForecast(contractData, ledgerData);
 }
+
+/**
+ * API ENDPOINT: Resolves real-time live names of Google Drive files directly from their URLs.
+ * This guarantees that manually renamed files on Drive are dynamically tracked.
+ */
+function apiGetLiveDriveFileNames(urlsString) {
+  if (!urlsString || urlsString.trim() === "") return [];
+  const urls = urlsString.split(',').map(s => s.trim()).filter(s => s);
+  
+  return urls.map(rawUrl => {
+    // Backward compatibility: strip old 'Name||' prefix if it exists
+    let pureUrl = rawUrl.includes('||') ? rawUrl.split('||')[1].trim() : rawUrl;
+    let resolvedName = "Attached Document";
+    
+    try {
+      if (pureUrl.includes("drive.google.com")) {
+        let fileId = "";
+        if (pureUrl.includes("/d/")) {
+          fileId = pureUrl.split("/d/")[1].split("/")[0];
+        } else if (pureUrl.includes("id=")) {
+          fileId = pureUrl.split("id=")[1].split("&")[0];
+        }
+        
+        if (fileId) {
+          // Live fetch from Google Drive core servers
+          resolvedName = DriveApp.getFileById(fileId).getName();
+        }
+      } else {
+        // Fallback for standard external web links
+        let filename = new URL(pureUrl).pathname.split('/').pop();
+        resolvedName = filename ? decodeURIComponent(filename) : "External Link";
+      }
+    } catch (e) {
+      console.error("Failed real-time Drive sync for URL: " + pureUrl, e);
+      resolvedName = "Accessible Attachment"; // Fallback if file is deleted or unshared
+    }
+    
+    return {
+      raw: rawUrl,
+      url: pureUrl,
+      name: resolvedName
+    };
+  });
+}

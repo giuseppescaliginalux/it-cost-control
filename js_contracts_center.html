@@ -15,6 +15,57 @@
             renderAssetSearchList();
         }
     };
+    /*
+        // Helper to extract a user-friendly title or file name from the URL for the tooltip
+        function getFriendlyDocTitle(url, index) {
+            if (!url) return `Document ${index}`;
+            const cleanUrl = url.trim();
+            try {
+                if (cleanUrl.includes("drive.google.com")) {
+                    return `Open attachment stored on Google Drive (Doc ${index})`;
+                }
+                // If it is a standard link, try to extract the actual file name
+                const urlObj = new URL(cleanUrl);
+                const pathname = decodeURIComponent(urlObj.pathname);
+                const filename = pathname.substring(pathname.lastIndexOf('/') + 1);
+                if (filename && filename.includes('.')) {
+                    return filename;
+                }
+                return `Open attached document (Doc ${index})`;
+            } catch (e) {
+                return `Open document (Doc ${index})`;
+            }
+        }
+    */
+    /**
+     * FinOps Live Document Resolver Engine
+     * Scans the rendered DOM container for document links and asynchronously
+     * fetches their true, fresh names from Google Drive to populate the tooltips.
+     */
+    function triggerLiveDocumentNamesResolution(containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        const targetLinks = container.querySelectorAll('.live-doc-link');
+        if (targetLinks.length === 0) return;
+
+        // Raccoglie tutti gli URL unici da verificare per ottimizzare la chiamata
+        const rawUrls = Array.from(targetLinks).map(el => el.getAttribute('data-raw'));
+        const uniqueUrlsString = [...new Set(rawUrls)].join(',');
+
+        google.script.run
+            .withSuccessHandler(function (resolvedFiles) {
+                targetLinks.forEach(el => {
+                    const currentRaw = el.getAttribute('data-raw');
+                    const match = resolvedFiles.find(r => r.raw === currentRaw);
+                    if (match) {
+                        el.href = match.url;
+                        el.title = `Live File Name: ${match.name}`; // Questo imposta l'Alt text / Tooltip nativo
+                    }
+                });
+            })
+            .apiGetLiveDriveFileNames(uniqueUrlsString);
+    }
 
     // Safe extraction mechanism for unique key headers across configuration entities
     function extractUniqueField(payloadArray, keyName) {
@@ -249,16 +300,15 @@
                     
                     <div class="flex flex-wrap justify-end items-center gap-2">
                         
-                        ${currentMasterData["Contract Links"] ?
-                    `<div class="flex items-center gap-1.5 mr-1 border-r border-slate-200 pr-3">
-                                ${currentMasterData["Contract Links"].split(',').map((url, idx) => `
-                                    <a href="${url.trim()}" target="_blank" class="px-2 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white border border-indigo-200 hover:border-indigo-600 rounded-md text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all shadow-sm" title="${url.trim()}">
+                       ${currentMasterData["Contract Links"].split(',').map((url, idx) => `
+                                    <a href="#" target="_blank" 
+                                       class="live-doc-link px-2 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white border border-indigo-200 hover:border-indigo-600 rounded-md text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all shadow-sm" 
+                                       data-raw="${url.trim()}" 
+                                       title="Syncing filename with Google Drive...">
                                         <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                                         Doc ${idx + 1}
                                     </a>
                                 `).join('')}
-                            </div>`
-                    : ''}
                         
                         <button onclick="toggleMasterEditState(true)" class="px-3 py-1.5 bg-slate-100 border border-slate-200 text-slate-700 font-black text-[10px] uppercase tracking-wider rounded-lg hover:bg-slate-200 transition-colors shadow-sm">
                             Edit Master Info
@@ -342,7 +392,10 @@
                             <div class="flex flex-wrap gap-1.5">
                                 ${currentMasterData["Contract Links"].split(',').map((url, idx) => `
                                     <div class="flex items-center gap-0 bg-indigo-50 border border-indigo-200 rounded-md shadow-sm overflow-hidden group">
-                                        <a href="${url.trim()}" target="_blank" class="px-2 py-0.5 text-indigo-700 hover:bg-indigo-600 hover:text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-1 transition-colors" title="${url.trim()}">
+                                        <a href="#" target="_blank" 
+                                           class="live-doc-link px-2 py-0.5 text-indigo-700 hover:bg-indigo-600 hover:text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-1 transition-colors" 
+                                           data-raw="${url.trim()}" 
+                                           title="Syncing filename with Google Drive...">
                                             <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                                             Doc ${idx + 1}
                                         </a>
@@ -365,6 +418,9 @@
                 </div>
             `;
         }
+
+        // Trigger live document name resolution for the Master Agreement box
+        triggerLiveDocumentNamesResolution('mgmt-master-form-box-inner');
     }
 
     function toggleMasterEditState(editable) {
@@ -483,7 +539,12 @@
                             ${d["Contract Links"] ? `
                                 <div class="flex gap-1 ml-1 pl-1.5 border-l border-slate-200">
                                     ${d["Contract Links"].split(',').map((url, idx) => `
-                                        <a href="${url.trim()}" target="_blank" class="px-2 py-0.5 bg-slate-50 text-slate-600 hover:bg-slate-600 hover:text-white border border-slate-200 rounded-md text-[8px] font-black uppercase tracking-wider flex items-center gap-1 transition-all shadow-sm" title="${url.trim()}">Doc ${idx + 1}</a>
+                                        <a href="#" target="_blank" 
+                                           class="live-doc-link px-2 py-0.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white border border-indigo-200 rounded-md text-[8px] font-black uppercase tracking-wider flex items-center gap-1 transition-all shadow-sm" 
+                                           data-raw="${url.trim()}"
+                                           title="Syncing filename with Google Drive...">
+                                            Doc ${idx + 1}
+                                        </a>
                                     `).join('')}
                                 </div>
                             ` : ''}
@@ -863,18 +924,19 @@
                                 <span class="transition-transform group-open:rotate-180 text-slate-400"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg></span>
                             </summary>
                             <div class="p-3 border-t border-slate-100 bg-slate-50/50 rounded-b-lg">
-                                ${item.data["Contract Links"] ? `
-                                    <div class="mb-3 bg-white p-2 rounded border border-slate-200">
-                                        <div class="flex flex-wrap gap-1.5">
-                                            ${item.data["Contract Links"].split(',').map((url, idx) => `
+                                ${item.data["Contract Links"].split(',').map((url, idx) => `
                                                 <div class="flex items-center gap-0 bg-indigo-50 border border-indigo-200 rounded-md shadow-sm overflow-hidden group">
-                                                    <a href="${url.trim()}" target="_blank" class="px-2 py-0.5 text-indigo-700 hover:bg-indigo-600 hover:text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-1 transition-colors" title="${url.trim()}">Doc ${idx + 1}</a>
-                                                    <button type="button" onclick="removeDocumentLink('${url.trim()}', false, ${item.id})" class="px-1.5 py-0.5 text-indigo-400 hover:bg-rose-500 hover:text-white transition-colors border-l border-indigo-200"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                                                    <a href="#" target="_blank" 
+                                                       class="live-doc-link px-2 py-0.5 text-indigo-700 hover:bg-indigo-600 hover:text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-1 transition-colors" 
+                                                       data-raw="${url.trim()}"
+                                                       title="Syncing filename with Google Drive...">
+                                                        Doc ${idx + 1}
+                                                    </a>
+                                                    <button type="button" onclick="removeDocumentLink('${url.trim()}', false, ${item.id})" class="px-1.5 py-0.5 text-indigo-400 hover:bg-rose-500 hover:text-white transition-colors border-l border-indigo-200">
+                                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                                    </button>
                                                 </div>
                                             `).join('')}
-                                        </div>
-                                    </div>
-                                ` : ''}
                                 <input type="text" id="edit-contractLinks-${item.id}" value="${item.data["Contract Links"] || ''}" class="hidden">
                                 <div class="flex items-center gap-2">
                                     <input type="file" id="upload-files-${item.id}" multiple class="w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[9px] file:font-black file:uppercase file:tracking-wider file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer border border-dashed border-slate-300 bg-white p-1 rounded-md">
@@ -938,12 +1000,14 @@
             }
         });
 
-        // In fondo a renderDetailItemsTable(), prima della chiusura della funzione:
         currentDetailItems.forEach(item => {
             if (item.isEditing) {
                 toggleLedgerVisibility(item.id);
             }
         });
+
+        // Innesca la risoluzione asincrona dei nomi in tempo reale per tutto il contenitore
+        triggerLiveDocumentNamesResolution('mgmt-detailRowsContainer');
     }
 
     function formatInputAsIntegerCurrency(el) {
