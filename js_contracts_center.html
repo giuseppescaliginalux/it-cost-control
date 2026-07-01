@@ -480,13 +480,57 @@
 
             const docLinks = (item.data["Contract Links"] || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
 
-            // Calculate real consumption vs commitment
-            const ledgerActualsSum = (item.ledger || [])
-                .filter(l => (l["Type"] || "").toUpperCase() === "ACTUAL")
-                .reduce((acc, curr) => acc + (parseFloat(curr["Amount"]) || 0), 0);
-
+            // --- FINOPS DATA QUALITY ALERTS ENGINE ---
+            const ledgerTotalSum = (item.ledger || []).reduce((acc, curr) => acc + (parseFloat(curr["Amount"]) || 0), 0);
             const rawCommitment = parseFloat(item.data["Total Commitment"]) || 0;
-            const overageAmount = ledgerActualsSum > rawCommitment ? (ledgerActualsSum - rawCommitment) : 0;
+            const pricingModel = item.data["Pricing Model"] || "Flat";
+            const billingTerms = item.data["Billing Terms"] || "Linear";
+
+            let warningBadgeHTML = '';
+
+            // SCENARIO A: FULLY LEDGER-DRIVEN
+            if (billingTerms === "Ledger-Driven" && rawCommitment > 0 && !item.isEditing) {
+                if (ledgerTotalSum > rawCommitment) {
+                    const overage = ledgerTotalSum - rawCommitment;
+                    warningBadgeHTML = `
+                        <div class="text-right border-r border-rose-200 pr-3 mr-1 animate-pulse shrink-0" title="Ledger sum exceeds Total Commitment">
+                            <span class="text-[8px] text-rose-500 block uppercase font-black tracking-wider whitespace-nowrap">Overage</span>
+                            <span class="font-mono font-black text-rose-600 text-[12px] whitespace-nowrap">+ €${overage.formatCurrency()}</span>
+                        </div>`;
+                } else if (ledgerTotalSum < rawCommitment) {
+                    const gap = rawCommitment - ledgerTotalSum;
+                    if (["Minimum Consumption", "Capped Consumption"].includes(pricingModel)) {
+                        warningBadgeHTML = `
+                            <div class="text-right border-r border-amber-200 pr-3 mr-1 shrink-0" title="Missing forecasts to fulfill the contractual Commitment">
+                                <span class="text-[8px] text-amber-500 block uppercase font-black tracking-wider whitespace-nowrap">Forecast Gap</span>
+                                <span class="font-mono font-black text-amber-600 text-[12px] whitespace-nowrap">- €${gap.formatCurrency()}</span>
+                            </div>`;
+                    } else if (pricingModel === "Pure Consumption") {
+                        warningBadgeHTML = `
+                            <div class="text-right border-r border-sky-200 pr-3 mr-1 shrink-0" title="Current consumption is below the target estimate">
+                                <span class="text-[8px] text-sky-500 block uppercase font-black tracking-wider whitespace-nowrap">Under Target</span>
+                                <span class="font-mono font-black text-sky-600 text-[12px] whitespace-nowrap">- €${gap.formatCurrency()}</span>
+                            </div>`;
+                    } else { // Flat
+                        warningBadgeHTML = `
+                            <div class="text-right border-r border-orange-200 pr-3 mr-1 shrink-0" title="Logged installments do not cover the full fixed amount">
+                                <span class="text-[8px] text-orange-500 block uppercase font-black tracking-wider whitespace-nowrap">Ledger Mismatch</span>
+                                <span class="font-mono font-black text-orange-600 text-[12px] whitespace-nowrap">- €${gap.formatCurrency()}</span>
+                            </div>`;
+                    }
+                }
+            }
+            // SCENARIO B: HYBRID ON-TOP
+            else if (billingTerms !== "Ledger-Driven" && ["Minimum Consumption", "Capped Consumption", "Pure Consumption"].includes(pricingModel) && !item.isEditing) {
+                if (ledgerTotalSum > 0) {
+                    warningBadgeHTML = `
+                        <div class="text-right border-r border-rose-200 pr-3 mr-1 animate-pulse shrink-0" title="Extra consumption logged on top of the fixed baseline">
+                            <span class="text-[8px] text-rose-500 block uppercase font-black tracking-wider whitespace-nowrap">Overage Alert</span>
+                            <span class="font-mono font-black text-rose-600 text-[12px] whitespace-nowrap">+ €${ledgerTotalSum.formatCurrency()}</span>
+                        </div>`;
+                }
+            }
+            // --- END ALERTS ENGINE ---
 
             if (!item.isEditing) {
                 const d = item.data;
@@ -502,11 +546,12 @@
                 cardDiv.setAttribute("onclick", `toggleCompactAccordion(${item.id}, event)`);
 
                 cardDiv.innerHTML = `
-                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-                        <div class="grid grid-cols-1 md:grid-cols-3 flex-1 gap-4 items-center">
+                    <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4 text-xs">
+                        
+                        <div class="flex flex-col lg:flex-row lg:items-center justify-between flex-1 gap-4 min-w-0">
                             
-                            <div class="flex items-center gap-2.5 min-w-0">
-                                <svg id="compact-chevron-${item.id}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" class="w-3.5 h-3.5 text-slate-300 transition-transform duration-200">
+                            <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                                <svg id="compact-chevron-${item.id}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" class="w-3.5 h-3.5 text-slate-300 transition-transform duration-200 shrink-0">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                                 </svg>
                                 <div class="min-w-0 flex-1">
@@ -514,40 +559,35 @@
                                         <span class="font-black text-slate-900 truncate tracking-wide text-[13px]">${d["Legal Entity"] || '—'}</span>
                                         <span class="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider shrink-0 ${d["Status"] === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' : d["Status"] === 'EXPIRED' ? 'bg-rose-50 text-rose-600 border border-rose-200/50' : 'bg-amber-50 text-amber-700 border border-amber-200/50'}">${d["Status"] || 'ACTIVE'}</span>
                                         
-                                        <span class="font-mono text-[9px] font-black text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md shadow-3xs" title="Cost Center">CC: ${d["Cost Center"] || '—'}</span>
+                                        <span class="font-mono text-[9px] font-black text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md shadow-3xs truncate max-w-[150px]" title="Cost Center">CC: ${d["Cost Center"] || '—'}</span>
                                     </div>
                                 </div>
                             </div>
 
-                            <div class="text-slate-500 font-mono text-[11px] flex items-center gap-1.5 whitespace-nowrap">
+                            <div class="text-slate-500 font-mono text-[11px] flex items-center gap-1.5 whitespace-nowrap shrink-0">
                                 <span class="bg-slate-50 border border-slate-100 rounded px-1.5 text-slate-600">${cleanStart}</span>
                                 <span class="text-slate-300 font-sans">➔</span>
                                 <span class="bg-slate-50 border border-slate-100 rounded px-1.5 text-slate-600">${cleanEnd}</span>
                                 <span class="ml-1 bg-slate-100 font-sans font-black text-[10px] px-1.5 py-0.5 rounded-md text-slate-700">${d["Contract Term (Months)"] || '—'} M</span>
                             </div>
 
-                            <div class="flex items-center gap-5 justify-start md:justify-end">
-                                ${overageAmount > 0 ? `
-                                    <div class="text-right border-r border-rose-200 pr-4 mr-1 animate-pulse">
-                                        <span class="text-[8px] text-rose-500 block uppercase font-black tracking-wider">Overage Warning</span>
-                                        <span class="font-mono font-black text-rose-600 text-[12px]">+ €${overageAmount.formatCurrency()}</span>
-                                    </div>
-                                ` : ''}
-                                <div class="text-right">
-                                    <span class="text-[8px] text-slate-400 block uppercase font-black tracking-wider">Eff. Commitment</span>
-                                    <span class="font-mono font-bold text-teal-800 text-[12px]">€${effCommit}</span>
+                            <div class="flex items-center gap-4 justify-start lg:justify-end shrink-0">
+                                ${warningBadgeHTML}
+                                <div class="text-right shrink-0">
+                                    <span class="text-[8px] text-slate-400 block uppercase font-black tracking-wider whitespace-nowrap">Eff. Commitment</span>
+                                    <span class="font-mono font-bold text-teal-800 text-[12px] whitespace-nowrap">€${effCommit}</span>
                                 </div>
-                                <div class="text-right">
-                                    <span class="text-[8px] text-slate-400 block uppercase font-black tracking-wider">Run Rate</span>
-                                    <span class="font-mono font-bold text-slate-800 text-[12px]">€${annVal}</span>
+                                <div class="text-right shrink-0">
+                                    <span class="text-[8px] text-slate-400 block uppercase font-black tracking-wider whitespace-nowrap">Run Rate</span>
+                                    <span class="font-mono font-bold text-slate-800 text-[12px] whitespace-nowrap">€${annVal}</span>
                                 </div>
                             </div>
 
                         </div>
 
                         <div class="flex justify-end shrink-0 pl-2 gap-1.5" onclick="event.stopPropagation();">
-                            <button onclick="cloneDetailRowItem(${item.id})" class="px-2.5 py-1 bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white font-black rounded-lg text-[10px] uppercase tracking-wider border border-amber-100 transition-all">Clone</button>
-                            <button onclick="toggleRowEditMode(${item.id}, true)" class="px-3 py-1 bg-teal-50 hover:bg-teal-700 text-teal-700 hover:text-white font-black rounded-lg text-[10px] uppercase tracking-wider border border-teal-100 transition-all">Edit</button>
+                            <button onclick="cloneDetailRowItem(${item.id})" class="px-2.5 py-1 bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white font-black rounded-lg text-[10px] uppercase tracking-wider border border-amber-100 transition-all shadow-sm">Clone</button>
+                            <button onclick="toggleRowEditMode(${item.id}, true)" class="px-3 py-1 bg-teal-50 hover:bg-teal-700 text-teal-700 hover:text-white font-black rounded-lg text-[10px] uppercase tracking-wider border border-teal-100 transition-all shadow-sm">Edit</button>
                         </div>
                     </div>
 
@@ -1060,7 +1100,7 @@
                                 <div class="flex justify-between items-center mb-2">
                                     <p class="text-[9px] text-amber-600 italic">Auto-generate forecast or add manual entries.</p>
                                     <div class="flex gap-1.5">
-                                        <button type="button" onclick="triggerLedgerAutomationForContract(${item.id})" class="text-[9px] font-black text-amber-800 hover:text-white bg-white hover:bg-amber-600 px-2.5 py-1 border border-amber-300 rounded-md shadow-sm transition-all uppercase tracking-wider">⚡ Auto-Forecast</button>
+                                        <button type="button" id="auto-forecast-btn-${item.id}" onclick="triggerLedgerAutomationForContract(${item.id})" class="text-[9px] font-black text-amber-800 hover:text-white bg-white hover:bg-amber-600 px-2.5 py-1 border border-amber-300 rounded-md shadow-sm transition-all uppercase tracking-wider ${(['Minimum Consumption', 'Capped Consumption'].includes(item.data['Pricing Model']) && item.data['Billing Terms'] === 'Ledger-Driven') ? '' : 'hidden'}">⚡ Auto-Forecast</button>
                                         <button type="button" onclick="addLedgerRowToUI(${item.id})" class="text-[9px] font-black text-amber-700 hover:text-amber-900 bg-amber-50 px-2.5 py-1 border border-amber-200 rounded-md shadow-sm transition-all uppercase tracking-wider">+ Add Movement</button>
                                     </div>
                                 </div>
@@ -1670,15 +1710,27 @@
         const billingTermsSelect = document.getElementById(`edit-billingTerms-${detailId}`);
         const pricingModelSelect = document.getElementById(`edit-pricingModel-${detailId}`);
         const ledgerSection = document.getElementById(`ledger-section-container-${detailId}`);
+        const autoForecastBtn = document.getElementById(`auto-forecast-btn-${detailId}`);
 
         if (ledgerSection && billingTermsSelect && pricingModelSelect) {
             const isLedgerDriven = billingTermsSelect.value === "Ledger-Driven";
             const isConsumption = ["Pure Consumption", "Minimum Consumption", "Capped Consumption"].includes(pricingModelSelect.value);
 
+            // 1. Mostra o nasconde l'intero blocco Ledger
             if (isLedgerDriven || isConsumption) {
                 ledgerSection.classList.remove('hidden');
             } else {
                 ledgerSection.classList.add('hidden');
+            }
+
+            // 2. Mostra o nasconde il pulsante Auto-Forecast
+            if (autoForecastBtn) {
+                const canAutoForecast = isLedgerDriven && ["Minimum Consumption", "Capped Consumption"].includes(pricingModelSelect.value);
+                if (canAutoForecast) {
+                    autoForecastBtn.classList.remove('hidden');
+                } else {
+                    autoForecastBtn.classList.add('hidden');
+                }
             }
         }
     }
