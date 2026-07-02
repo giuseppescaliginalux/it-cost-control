@@ -1,0 +1,15 @@
+<script>
+    /**
+     * js_initiatives_api.html
+     * API SERVICE: Communicates in bulk with Google Apps Script backend framework.
+     */
+
+    const InitiativesAPI = {
+        syncInitiativesToGoogleSheets: function (payload, onSuccess, onFailure) {
+            google.script.run
+                .withSuccessHandler(onSuccess)
+                .withFailureHandler(onFailure)
+                .processInitiativesSync(payload);
+        }
+    };
+</script>

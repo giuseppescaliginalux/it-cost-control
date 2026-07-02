@@ -16,7 +16,8 @@ const CONFIG = {
     SUPPLIERS: "Suppliers",
     COST_CENTERS: "CostCenters",
     LEGAL_ENTITIES: "LegalEntities",
-    LOCATIONS: "Locations"
+    LOCATIONS: "Locations",
+    OPTIMIZATION_LEVERS: "OptimizationLevers"
   }
 };
 
@@ -117,6 +118,38 @@ function processMasterDetailSync(payload) {
   return "SUCCESS";
 }
 
+/**
+ * API ENDPOINT: Riceve le iniziative dal frontend, esegue le formule in memoria e salva in bulk.
+ */
+function processInitiativesSync(payload) {
+  const ctx = getSheetContext(CONFIG.SHEETS.INITIATIVES);
+  const { sheet, headers } = ctx;
+  if (!sheet) return "ERROR_SHEET_NOT_FOUND";
+
+  // Calcola la logica esatta usando i contratti a database
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const allContracts = getSheetDataAsObjects(ss, CONFIG.SHEETS.CONTRACTS) || [];
+  const processedInitiatives = calculateInitiativesMetrics(payload, allContracts);
+
+  if (sheet.getLastRow() > 1) {
+    sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clearContent();
+  }
+
+  if (processedInitiatives.length > 0) {
+    const rowsToAdd = processedInitiatives.map(init => {
+      return headers.map(header => {
+        let val = init[header];
+        if (["Target Date", "Actual Date"].includes(header) && val) return val.toString().split('T')[0];
+        return val !== undefined && val !== null ? val : "";
+      });
+    });
+    sheet.getRange(2, 1, rowsToAdd.length, headers.length).setValues(rowsToAdd);
+  }
+
+  if (typeof updateAllOfficialFiscalProjections === "function") updateAllOfficialFiscalProjections();
+  return "SUCCESS";
+}
+
 
 /**
  * Inserisce il contenuto di un file (HTML/CSS/JS) all'interno di un template.
@@ -213,12 +246,12 @@ function apiPreviewLedgerAutoForecast(contractData, ledgerData) {
 function apiGetLiveDriveFileNames(urlsString) {
   if (!urlsString || urlsString.trim() === "") return [];
   const urls = urlsString.split(',').map(s => s.trim()).filter(s => s);
-  
+
   return urls.map(rawUrl => {
     // Backward compatibility: strip old 'Name||' prefix if it exists
     let pureUrl = rawUrl.includes('||') ? rawUrl.split('||')[1].trim() : rawUrl;
     let resolvedName = "Attached Document";
-    
+
     try {
       if (pureUrl.includes("drive.google.com")) {
         let fileId = "";
@@ -227,7 +260,7 @@ function apiGetLiveDriveFileNames(urlsString) {
         } else if (pureUrl.includes("id=")) {
           fileId = pureUrl.split("id=")[1].split("&")[0];
         }
-        
+
         if (fileId) {
           // Live fetch from Google Drive core servers
           resolvedName = DriveApp.getFileById(fileId).getName();
@@ -241,7 +274,7 @@ function apiGetLiveDriveFileNames(urlsString) {
       console.error("Failed real-time Drive sync for URL: " + pureUrl, e);
       resolvedName = "Accessible Attachment"; // Fallback if file is deleted or unshared
     }
-    
+
     return {
       raw: rawUrl,
       url: pureUrl,

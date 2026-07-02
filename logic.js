@@ -234,3 +234,93 @@ function generateMasterId(payload, allMasters) {
 
     return "MCT-" + cleanSupplier + "-" + cleanAsset + "-" + year + "-" + formattedCounter;
 }
+
+/**
+ * Traduzione JS delle formule Excel per le Iniziative.
+ * Calcola il Cascading Baseline, i Target Savings e gli Actual Savings.
+ */
+function calculateInitiativesMetrics(initiatives, contracts) {
+    // 1. Ordina le iniziative cronologicamente per far funzionare il Cascading (previousDate)
+    const sortedInits = [...initiatives].sort((a, b) => {
+        const dA = new Date(a["Target Date"] || "2099-12-31");
+        const dB = new Date(b["Target Date"] || "2099-12-31");
+        return dA - dB;
+    });
+
+    sortedInits.forEach(init => {
+        const groupID = (init["Contracts Group ID"] || init["Group ID"] || "").toString().trim();
+        const targetDate = init["Target Date"] ? new Date(init["Target Date"]) : null;
+
+        // FORMULA 1: Original Baseline (SUMIFS Annual Value su Group ID)
+        let originalBaseline = 0;
+        contracts.forEach(c => {
+            if ((c["Group ID"] || "").toString().trim() === groupID && groupID !== "") {
+                originalBaseline += (parseFloat(c["Annual Value"]) || 0);
+            }
+        });
+
+        // FORMULA 1.2: Cascading Baseline (Cerca iniziativa precedente per prendere il suo Target Cost)
+        let startingCost = originalBaseline;
+        if (originalBaseline !== 0 && targetDate) {
+            const priorInits = sortedInits.filter(i =>
+                (i["Contracts Group ID"] || i["Group ID"] || "").toString().trim() === groupID &&
+                new Date(i["Target Date"]) < targetDate &&
+                !isNaN(parseFloat(i["Target Cost (Annualized)"]))
+            );
+
+            if (priorInits.length > 0) {
+                // Prendi la più recente (MAX Date)
+                priorInits.sort((a, b) => new Date(b["Target Date"]) - new Date(a["Target Date"]));
+                startingCost = parseFloat(priorInits[0]["Target Cost (Annualized)"]);
+            }
+        }
+        init["Baseline Spend (Annualized)"] = startingCost;
+
+        // FORMULA 2 & 3: Target Saving (Annualized) & Target Saving %
+        const targetCost = parseFloat(init["Target Cost (Annualized)"]);
+        const strategy = (init["Decision"] || init["Strategy"] || "").toString().trim().toLowerCase();
+
+        let targetSaving = 0;
+        if (!isNaN(targetCost) && targetCost >= 0) {
+            targetSaving = startingCost - targetCost;
+        } else if (["terminate", "replace", "transfer"].includes(strategy)) {
+            targetSaving = startingCost;
+        }
+        init["Target Saving (Annualized)"] = targetSaving;
+        init["Target Saving %"] = startingCost > 0 ? (targetSaving / startingCost) : 0;
+
+        // PREPARAZIONE ACTUALS (XLOOKUP Target Group ID)
+        const status = (init["Initiative Status"] || "").toString().trim().toLowerCase();
+        const sourceContract = contracts.find(c => (c["Group ID"] || "").toString().trim() === groupID);
+        const targetGroupID = sourceContract ? (sourceContract["Target Group ID"] || "").toString().trim() : "";
+
+        let actualCost = 0;
+        if (targetGroupID !== "") {
+            contracts.forEach(c => {
+                if ((c["Group ID"] || "").toString().trim() === targetGroupID) {
+                    actualCost += (parseFloat(c["Annual Value"]) || 0);
+                }
+            });
+        }
+
+        // FORMULA 4: New Actual
+        if (status === "completed") {
+            init["New Actual"] = actualCost;
+        } else {
+            init["New Actual"] = "";
+        }
+
+        // FORMULA 5: Actual Saving (Annualized)
+        if (status === "completed") {
+            if (targetGroupID !== "" && actualCost > 0) {
+                init["Actual Saving (Annualized)"] = startingCost - actualCost;
+            } else {
+                init["Actual Saving (Annualized)"] = targetSaving;
+            }
+        } else {
+            init["Actual Saving (Annualized)"] = 0;
+        }
+    });
+
+    return initiatives;
+}

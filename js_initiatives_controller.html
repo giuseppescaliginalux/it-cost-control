@@ -1,0 +1,333 @@
+<script>
+    /**
+     * js_initiatives_controller.html
+     * CONTROLLER: Gestisce gli eventi, l'API Drag & Drop, i dropdown a cascata,
+     * la creazione dei tag al volo e l'orchestrazione con il modello matematico.
+     */
+
+    function renderOperationsHub(payload) {
+        InitiativesState.loadPayload(payload);
+        // USO DEL NUOVO METODO FRONT-END
+        InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || []);
+        InitiativesController.renderKanbanBoard();
+        InitiativesController.renderGlobalTagsFilterSelectionRow();
+    }
+
+    const InitiativesController = {
+        draggedCardId: null,
+        currentLocalTagsArray: [],
+
+        renderKanbanBoard: function () {
+            const workspace = document.getElementById('tab-operations');
+            if (!workspace) return;
+
+            workspace.innerHTML = InitiativesTemplates.getKanbanMainLayout();
+
+            const lanes = {
+                "IDEA": { label: "1. Idea Strategy", color: "bg-slate-400", html: "", count: 0, sum: 0 },
+                "INCOMING": { label: "2. Incoming", color: "bg-sky-400", html: "", count: 0, sum: 0 },
+                "PLANNED": { label: "3. Planned", color: "bg-indigo-400", html: "", count: 0, sum: 0 },
+                "IN PROGRESS": { label: "4. In Progress", color: "bg-amber-500", html: "", count: 0, sum: 0 },
+                "COMPLETED": { label: "5. Realized Completed", color: "bg-emerald-500", html: "", count: 0, sum: 0 }
+            };
+
+            const list = InitiativesState.rawInitiatives;
+            const contracts = windowPayload.contracts || [];
+            const assets = windowPayload.assets || [];
+
+            list.forEach((init, idx) => {
+                let status = (init["Initiative Status"] || "IDEA").toUpperCase().trim();
+                if (!lanes[status]) status = "IDEA";
+
+                const currentItemTags = (init["Tags"] || "").split(',').map(t => t.trim()).filter(t => t);
+                if (InitiativesState.selectedTagsFilter.length > 0 && !InitiativesState.selectedTagsFilter.some(t => currentItemTags.includes(t))) return;
+
+                const assetName = (init["Asset Name"] || "").toString().trim();
+                const relatedAsset = assets.find(a => (a["Asset Name"] || "").toString().trim().toLowerCase() === assetName.toLowerCase()) || {};
+
+                const targetSaving = parseFloat(init["Target Saving (Annualized)"]) || 0;
+                const actualSaving = parseFloat(init["Actual Saving (Annualized)"]) || 0;
+                const baselineSpend = parseFloat(init["Baseline Spend (Annualized)"]) || 0;
+
+                const appliedSaving = status === "COMPLETED" ? actualSaving : targetSaving;
+
+                let savingPercentText = "0%";
+                if (baselineSpend > 0 && appliedSaving > 0) {
+                    savingPercentText = `-${Math.round((appliedSaving / baselineSpend) * 100)}%`;
+                }
+
+                const fmtSaving = '€' + Math.round(appliedSaving / 1000) + 'k';
+                const finalDateStr = init["Target Date"] ? ContractsUtils.formatToEnglishCustomDate(init["Target Date"]) : "NO DATE";
+
+                const strategy = (init["Strategy"] || "OPTIMIZATION").toUpperCase().trim();
+                const decision = (init["Decision"] || strategy).toUpperCase().trim();
+
+                let strategyBadge = (strategy !== decision)
+                    ? `<span class="text-[7px] font-black uppercase bg-rose-50 border border-rose-200 text-rose-700 px-1 rounded">Shifted</span>`
+                    : `<span class="text-[7px] font-black uppercase bg-indigo-50 border border-indigo-200 text-indigo-700 px-1 rounded">${decision}</span>`;
+
+                lanes[status].count++;
+                lanes[status].sum += appliedSaving;
+
+                lanes[status].html += InitiativesTemplates.getInitiativeCard(
+                    init, idx, fmtSaving, savingPercentText, finalDateStr, strategyBadge, assetName, relatedAsset["Manufacturer"]
+                );
+            });
+
+            let gridHtml = '';
+            for (let key in lanes) {
+                const lane = lanes[key];
+                gridHtml += InitiativesTemplates.getKanbanColumnStructure(key, lane.label, lane.color, lane.html, lane.count, lane.sum);
+            }
+            document.getElementById('initiatives-kanban-board-grid').innerHTML = gridHtml;
+        },
+
+        handleCardDragStart: function (event, id) {
+            this.draggedCardId = id;
+            event.dataTransfer.setData('text/plain', id);
+            event.dataTransfer.effectAllowed = 'move';
+        },
+
+        handleColumnDrop: function (event, targetStatus) {
+            event.preventDefault();
+            const id = this.draggedCardId;
+            if (id === null || id === undefined) return;
+
+            const initiative = InitiativesState.updateInitiativeStatus(id, targetStatus);
+            if (initiative) {
+                if (targetStatus === "COMPLETED") {
+                    initiative["Actual Date"] = initiative["Target Date"] || new Date().toISOString().split('T')[0];
+                } else {
+                    initiative["Actual Date"] = "";
+                }
+                // USO DEL NUOVO METODO FRONT-END
+                InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || []);
+                this.renderKanbanBoard();
+                ContractsUtils.showMgmtBannerStatus(`Initiative status updated to ${targetStatus}. Save to apply globally.`, "success");
+            }
+            this.draggedCardId = null;
+        },
+
+        handleAssetCascadeDropdownChange: function (selectedAssetName) {
+            const contractSelect = document.getElementById('modal-init-contract-select');
+            if (!contractSelect) return;
+
+            if (!selectedAssetName) {
+                contractSelect.innerHTML = `<option value="">-- Select Mapped Contract Ref --</option>`;
+                return;
+            }
+
+            const filteredContracts = (windowPayload.contracts || []).filter(c =>
+                String(c["Asset Name"]).trim().toLowerCase() === String(selectedAssetName).trim().toLowerCase()
+            );
+
+            if (filteredContracts.length === 0) {
+                contractSelect.innerHTML = `<option value="">⚠️ No Contracts linked to this Asset</option>`;
+                return;
+            }
+
+            contractSelect.innerHTML = `<option value="">-- Select Mapped Contract Ref --</option>` + filteredContracts.map(c => {
+                const cId = c["Contract ID"];
+                const le = c["Legal Entity"] || "N/A";
+                const val = parseFloat(c["Annual Value"]) || 0;
+                return `<option value="${cId}">[${le}] ${cId} - (RunRate: €${Math.round(val).toLocaleString('it-IT')})</option>`;
+            }).join('');
+        },
+
+        openInitiativeModalForm: function (id) {
+            const isNew = id === null;
+            InitiativesState.currentEditingInitiative = id;
+
+            let initData = { "Initiative Status": "IDEA", "Strategy": "OPTIMIZATION", "Decision": "OPTIMIZATION", "Tags": "", "Optimization Levers": "", "Target Cost (Annualized)": 0, "Description": "", "Service Owner": "", "Procurement Point Focal": "" };
+
+            if (!isNew) {
+                initData = InitiativesState.getInitiativeById(id);
+                this.currentLocalTagsArray = (initData["Tags"] || "").split(',').map(t => t.trim()).filter(t => t);
+            } else {
+                this.currentLocalTagsArray = [];
+            }
+
+            const assetsList = ContractsUtils.extractUniqueField(windowPayload.assets, "Asset Name");
+            const assetDropdownHtml = assetsList.map(a => `<option value="${a}" ${a === initData["Asset Name"] ? 'selected' : ''}>${a}</option>`).join('');
+
+            let contractDropdownHtml = '';
+            if (initData["Asset Name"]) {
+                const filtered = (windowPayload.contracts || []).filter(c => String(c["Asset Name"]).trim().toLowerCase() === String(initData["Asset Name"]).trim().toLowerCase());
+                contractDropdownHtml = filtered.map(c => `<option value="${c["Contract ID"]}" ${c["Contract ID"] === initData["Contract ID"] ? 'selected' : ''}>[${c["Legal Entity"]}] ${c["Contract ID"]} - (€${Math.round(c["Annual Value"] || 0).toLocaleString('it-IT')})</option>`).join('');
+            }
+
+            const attachedLevers = (initData["Optimization Levers"] || "").split(',').map(l => l.trim());
+            const leversHtml = InitiativesState.optimizationLevers.map(lever => `
+            <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-100 rounded cursor-pointer font-bold text-slate-700">
+                <input type="checkbox" value="${lever}" ${attachedLevers.includes(lever) ? 'checked' : ''} class="split-lever-checkbox w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600">
+                <span class="truncate">${lever}</span>
+            </label>
+        `).join('');
+
+            const mountPoint = document.getElementById('initiatives-modal-mount-point');
+            mountPoint.innerHTML = InitiativesTemplates.getModalFormStructure(isNew, assetDropdownHtml, contractDropdownHtml, leversHtml);
+
+            if (!isNew) {
+                document.getElementById('modal-init-strategy').value = initData["Strategy"] || "OPTIMIZATION";
+                document.getElementById('modal-init-decision').value = initData["Decision"] || initData["Strategy"] || "OPTIMIZATION";
+                document.getElementById('modal-init-status').value = initData["Initiative Status"] || "IDEA";
+                document.getElementById('modal-init-target-date').value = initData["Target Date"] ? initData["Target Date"].toString().split('T')[0] : "";
+                document.getElementById('modal-init-target-cost').value = initData["Target Cost (Annualized)"] ? Math.round(initData["Target Cost (Annualized)"]).toLocaleString('it-IT') : "";
+                document.getElementById('modal-init-owner').value = initData["Service Owner"] || "";
+                document.getElementById('modal-init-procurement').value = initData["Procurement Point Focal"] || initData["Procurement Point"] || "";
+                document.getElementById('modal-init-description').value = initData["Description"] || "";
+                this.rebuildModalTagsBadgesContainer();
+            }
+
+            mountPoint.classList.remove('hidden');
+            mountPoint.classList.add('flex');
+            mountPoint.querySelector('.bg-white').setAttribute('onclick', 'event.stopPropagation()');
+        },
+
+        closeInitiativeModalWindow: function () {
+            const mountPoint = document.getElementById('initiatives-modal-mount-point');
+            mountPoint.classList.remove('flex');
+            mountPoint.classList.add('hidden');
+            mountPoint.innerHTML = '';
+        },
+
+        handleTagsOnTheFlyInjection: function (event) {
+            if (event.key === ',' || event.keyCode === 188 || event.key === 'Enter') {
+                const input = document.getElementById('modal-init-tags-input');
+                let val = input.value.replace(/,/g, '').trim().toUpperCase();
+
+                if (val !== "" && !this.currentLocalTagsArray.includes(val)) {
+                    this.currentLocalTagsArray.push(val);
+                    this.rebuildModalTagsBadgesContainer();
+                }
+                input.value = '';
+            }
+        },
+
+        rebuildModalTagsBadgesContainer: function () {
+            const wrapper = document.getElementById('modal-init-tags-wrapper');
+            if (!wrapper) return;
+            wrapper.innerHTML = this.currentLocalTagsArray.map((t, idx) => `
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-teal-50 border border-teal-200 text-teal-700 rounded-md text-[9px] font-black uppercase tracking-wider shadow-3xs">
+                ${t}
+                <button type="button" onclick="InitiativesController.removeTagFromLocalInstance(${idx})" class="hover:text-rose-600 font-bold ml-0.5 text-[10px]">×</button>
+            </span>
+        `).join('');
+        },
+
+        removeTagFromLocalInstance: function (idx) {
+            this.currentLocalTagsArray.splice(idx, 1);
+            this.rebuildModalTagsBadgesContainer();
+        },
+
+        commitInitiativeFormToLocalState: function () {
+            const assetName = document.getElementById('modal-init-asset-select').value;
+            const contractId = document.getElementById('modal-init-contract-select').value;
+            const tDate = document.getElementById('modal-init-target-date').value;
+            const tCostInput = document.getElementById('modal-init-target-cost');
+            const tCostStr = tCostInput ? tCostInput.value.replace(/\./g, '').trim() : "0";
+
+            const selectedContractId = document.getElementById('modal-init-contract-select').value;
+            const selectedContract = (windowPayload.contracts || []).find(c => c["Contract ID"] === selectedContractId);
+
+            if (!assetName || !contractId || !tDate || tCostStr === "") {
+                alert("Boundary Data Integrity Error: Asset Context, Linked Contract Ref, Target Execution Date and Target Cost fields are strictly mandatory.");
+                return;
+            }
+
+            const activeId = InitiativesState.currentEditingInitiative;
+            let instance = activeId !== null ? InitiativesState.getInitiativeById(activeId) : {};
+
+            instance["Asset Name"] = assetName;
+            instance["Contract ID"] = contractId;
+            instance["Contracts Group ID"] = selectedContract ? selectedContract["Group ID"] : "";
+            instance["Strategy"] = document.getElementById('modal-init-strategy').value;
+            instance["Decision"] = document.getElementById('modal-init-decision').value;
+            instance["Initiative Status"] = document.getElementById('modal-init-status').value;
+            instance["Target Date"] = tDate;
+            instance["Target Cost (Annualized)"] = parseInt(tCostStr, 10) || 0;
+            instance["Service Owner"] = document.getElementById('modal-init-owner').value.trim();
+            instance["Procurement Point Focal"] = document.getElementById('modal-init-procurement').value.trim();
+            instance["Procurement Point"] = document.getElementById('modal-init-procurement').value.trim();
+            instance["Description"] = document.getElementById('modal-init-description').value.trim();
+
+            const checkedLevers = Array.from(document.querySelectorAll('.split-lever-checkbox:checked')).map(cb => cb.value);
+            instance["Optimization Levers"] = checkedLevers.join(', ');
+            instance["Tags"] = this.currentLocalTagsArray.join(', ');
+
+            if (instance["Initiative Status"] === "COMPLETED") {
+                instance["Actual Date"] = instance["Target Date"];
+            } else {
+                instance["Actual Date"] = "";
+            }
+
+            InitiativesState.saveInitiativeInstance(activeId, instance);
+
+            // USO DEL NUOVO METODO FRONT-END
+            InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || []);
+
+            this.closeInitiativeModalWindow();
+            this.renderKanbanBoard();
+            ContractsUtils.showMgmtBannerStatus("Initiative changes applied locally in memory cache. Commit to persist changes.", "warning");
+        },
+
+        deleteInitiativeFromArchitecture: function () {
+            if (confirm("Are you entirely sure you want to completely erase this initiative from the FinOps registry?")) {
+                InitiativesState.deleteInitiativeInstance(InitiativesState.currentEditingInitiative);
+                this.closeInitiativeModalWindow();
+                this.renderKanbanBoard();
+                ContractsUtils.showMgmtBannerStatus("Initiative purged from memory. Commit to propagate deletion.", "warning");
+            }
+        },
+
+        pushKanbanArchitectureToGoogleSheets: function () {
+            showLoading();
+            InitiativesAPI.syncInitiativesToGoogleSheets(
+                InitiativesState.rawInitiatives,
+                (res) => {
+                    hideLoading();
+                    if (res === "SUCCESS") {
+                        ContractsUtils.showMgmtBannerStatus("Kanban architecture written and versioned successfully on DB layer.", "success");
+                        fetchLiveData();
+                    } else {
+                        alert("Sync Error: DB pipeline return mismatch code.");
+                    }
+                },
+                (err) => { hideLoading(); alert("Cloud Sync Failed: " + err.message); }
+            );
+        },
+
+        renderGlobalTagsFilterSelectionRow: function () {
+            const container = document.getElementById('initiatives-global-tags-filter-lane');
+            if (!container) return;
+
+            const uniqueTags = new Set();
+            InitiativesState.rawInitiatives.forEach(init => {
+                (init["Tags"] || "").split(',').forEach(t => { if (t.trim() !== "") uniqueTags.add(t.trim().toUpperCase()); });
+            });
+
+            if (uniqueTags.size === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            container.innerHTML = Array.from(uniqueTags).sort().map(tag => {
+                const isActive = InitiativesState.selectedTagsFilter.includes(tag);
+                const btnClass = isActive
+                    ? "bg-teal-700 text-white border-teal-700 shadow-sm font-black"
+                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 font-bold";
+                return `
+                <button onclick="InitiativesController.handleGlobalTagFilterToggle(this, '${tag}')" class="text-[9px] px-2 py-1 border rounded-lg transition-all uppercase tracking-wider ${btnClass}">
+                    #${tag}
+                </button>
+            `;
+            }).join('');
+        },
+
+        handleGlobalTagFilterToggle: function (btn, tag) {
+            InitiativesState.toggleTagFilter(tag);
+            this.renderKanbanBoard();
+            this.renderGlobalTagsFilterSelectionRow();
+        }
+    };
+</script>
