@@ -785,8 +785,9 @@
 
         // --- GESTIONE LIBRERIA TAG IN ALTO ---
 
+        // --- GESTIONE LIBRERIA TAG IN ALTO ---
+
         handleGlobalNewTagCreation: function (event) {
-            // Intercettiamo il tasto Invio
             if (event.key === 'Enter' || event.keyCode === 13) {
                 event.preventDefault();
                 event.stopPropagation();
@@ -794,32 +795,24 @@
                 const input = document.getElementById('global-new-tag-input');
                 if (!input) return;
 
-                // Forza il testo in MAIUSCOLO e pulisce gli spazi vuoti
                 const newTag = input.value.trim().toUpperCase();
 
                 if (newTag) {
-                    // Inizializza l'array globale dei tag se non esiste
-                    if (!InitiativesState.globalAvailableTags) {
-                        InitiativesState.globalAvailableTags = [];
+                    if (!this.globalCustomTags) {
+                        this.globalCustomTags = [];
                     }
 
-                    // Aggiunge il tag in memoria solo se non esiste già
-                    if (!InitiativesState.globalAvailableTags.includes(newTag)) {
-                        InitiativesState.globalAvailableTags.push(newTag);
-
-                        // Se vuoi che il nuovo tag sia subito attivo nei filtri opzionalmente:
-                        // InitiativesState.globalSelectedTagsFilter.push(newTag);
+                    if (!this.globalCustomTags.includes(newTag)) {
+                        this.globalCustomTags.push(newTag);
                     }
 
-                    // Rinfresca la board e la riga dei tag per mostrare subito il risultato
+                    input.value = '';
                     this.renderGlobalTagsFilterSelectionRow();
 
-                    // Opzionale: se serve rinfrescare anche i dati complessivi
-                    // this.renderKanbanBoard(false);
-
-                    // Focus automatico di cortesia per inserire un altro tag di fila
-                    const newInput = document.getElementById('global-new-tag-input');
-                    if (newInput) newInput.focus();
+                    setTimeout(() => {
+                        const newInput = document.getElementById('global-new-tag-input');
+                        if (newInput) newInput.focus();
+                    }, 20);
                 }
             }
         },
@@ -828,52 +821,39 @@
             const lane = document.getElementById('initiatives-global-tags-filter-lane');
             if (!lane) return;
 
-            // 1. ESTRAZIONE DEI TAG ESISTENTI
-            const tagSet = new Set();
+            const totalTagSet = new Set();
+            const usedTagsSet = new Set();
+
             if (InitiativesState.rawInitiatives) {
                 Object.values(InitiativesState.rawInitiatives).forEach(init => {
                     const tagsStr = init["Tags"] || init["tags"] || "";
                     tagsStr.split(',').forEach(t => {
-                        const cleaned = t.trim();
-                        if (cleaned) tagSet.add(cleaned);
+                        const cleaned = t.trim().toUpperCase();
+                        if (cleaned) {
+                            totalTagSet.add(cleaned);
+                            usedTagsSet.add(cleaned);
+                        }
                     });
                 });
             }
-            const allTags = Array.from(tagSet).sort();
 
-            // 2. CREIAMO IL BOX DI INSERIMENTO COME PRIMO ELEMENTO (FISSO A SINISTRA)
-            // Aggiunta classe 'uppercase' per stile e allineamento flex-center rigoroso
-            let html = `
-            <div class="relative w-36 mr-2 shrink-0 flex items-center">
-                <input type="text" id="global-new-tag-input" 
-                       onkeydown="InitiativesController.handleGlobalNewTagCreation(event)" 
-                       placeholder="+ NEW TAG (ENTER)" 
-                       class="w-full px-2 py-1 text-[9px] font-black text-slate-700 bg-slate-50 hover:bg-white border border-slate-200 rounded-xl focus:ring-1 focus:ring-teal-500 shadow-inner outline-none transition-colors placeholder:font-normal placeholder:text-slate-400 uppercase">
-            </div>
-        `;
+            if (this.globalCustomTags) {
+                this.globalCustomTags.forEach(t => totalTagSet.add(t));
+            }
 
-            // 3. ACCODIDAMO I TAG ESISTENTI VERSO DESTRA
-            html += allTags.map(tag => {
-                const isSelected = InitiativesState.globalSelectedTagsFilter && InitiativesState.globalSelectedTagsFilter.includes(tag);
-                const activeClass = isSelected
-                    ? 'bg-teal-600 text-white border-teal-700 shadow-md font-black scale-102'
-                    : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200 hover:border-slate-300 font-bold';
+            const allTags = Array.from(totalTagSet).sort();
 
-                return `
-                <div draggable="true" 
-                     ondragstart="InitiativesController.handleTagDragStart(event, '${tag}')"
-                     onclick="InitiativesController.handleGlobalTagFilterToggle('${tag}')"
-                     class="px-2.5 py-1 text-[9px] uppercase tracking-wider rounded-xl border cursor-pointer select-none transition-all ${activeClass} h-6 flex items-center">
-                     <span class="${isSelected ? 'text-teal-200' : 'text-teal-500'} mr-0.5 font-black">#</span>${tag}
-                </div>
-            `;
+            // Delegate presentation exclusively to the view layer
+            lane.innerHTML = allTags.map(tag => {
+                const isSelected = InitiativesState.selectedTagsFilter && InitiativesState.selectedTagsFilter.includes(tag);
+                const isUsed = usedTagsSet.has(tag);
+
+                return InitiativesTemplates.getGlobalFilterTagItem(tag, isSelected, isUsed);
             }).join('');
-
-            lane.innerHTML = html;
         },
 
         deleteGlobalTag: function (event, tag) {
-            event.stopPropagation(); // Evita di attivare il filtro
+            event.stopPropagation();
             this.globalCustomTags = this.globalCustomTags.filter(t => t !== tag);
             this.renderGlobalTagsFilterSelectionRow();
         },
@@ -882,7 +862,41 @@
             InitiativesState.toggleTagFilter(tag);
             this.renderKanbanBoard(false);
             this.renderGlobalTagsFilterSelectionRow();
-        }
+        },
+
+        handleGlobalTagInputKeydown: function (event) {
+            if (event.key === 'Enter' || event.keyCode === 13) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const input = document.getElementById('new-tag-input-field');
+                if (!input) return;
+
+                const tagValue = input.value.trim().toUpperCase();
+                if (tagValue) {
+                    // Sincronizzazione con le strutture dati reali del tuo js_initiatives_state.html
+                    if (!InitiativesState.globalTags) {
+                        InitiativesState.globalTags = [];
+                    }
+
+                    if (!InitiativesState.globalTags.includes(tagValue)) {
+                        InitiativesState.globalTags.push(tagValue);
+                    }
+
+                    // Svuota il campo di testo
+                    input.value = '';
+
+                    // Rinfresca solo la riga dei tag richiamando la vista aggiornata
+                    this.renderGlobalTagsFilterSelectionRow();
+
+                    // Ripristina il focus immediato sul box
+                    setTimeout(() => {
+                        const rInp = document.getElementById('new-tag-input-field');
+                        if (rInp) rInp.focus();
+                    }, 20);
+                }
+            }
+        },
     };
 
     document.addEventListener('click', function (e) {
