@@ -935,8 +935,7 @@
                                             </th>
                                             <th class="p-3 text-right w-[21%] bg-teal-50/20 text-teal-900 cursor-pointer hover:bg-teal-100 transition-colors"
                                                 onclick="handleProjSort('2027')">
-                                                FY27 Projection <span id="proj-ico-2027"
-                                                    class="ml-1 text-[9px]"></span>
+                                                FY27 Projection <span id="proj-ico-2027" class="ml-1 text-[9px]"></span>
                                             </th>
                                             <th class="p-3 text-right w-[21%] bg-indigo-50/20 text-indigo-900 cursor-pointer hover:bg-indigo-100 transition-colors"
                                                 onclick="handleProjSort('2028')">
@@ -967,7 +966,13 @@
     <?!= include('js_dashboard'); ?>
     <?!= include('js_inventory'); ?>
     <?!= include('js_ops_hub'); ?>
-    <?!= include('js_contracts_center'); ?>
+
+    <?!= include('js_contracts_state'); ?>
+    <?!= include('js_contracts_utils'); ?>
+    <?!= include('js_contracts_api'); ?>
+    <?!= include('js_contracts_templates'); ?>
+    <?!= include('js_contracts_controller'); ?>
+
     <?!= include('js_projections'); ?>
 </body>
 

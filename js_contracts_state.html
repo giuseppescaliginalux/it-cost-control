@@ -1,0 +1,90 @@
+<script>
+/**
+ * js_contracts_state.html
+ * MODEL: Centralized state management for the Contracts Center.
+ * Handles memory caching and state mutations safely.
+ */
+
+const ContractsState = {
+    // Variables
+    currentSelectedAsset: null,
+    currentAssetGroupIds: [],
+    currentMasterData: null,
+    currentDetailItems: [],
+    isMasterEditable: false,
+
+    // Methods
+    resetMaster: function() {
+        this.currentMasterData = { "Master Contract ID": "", "Supplier": "", "Scope": "", "Comments": "" };
+        this.currentDetailItems = [];
+        this.isMasterEditable = true;
+    },
+
+    loadMasterDetails: function(masterId, allMasterContracts, allContracts, allocationSplits, ledger) {
+        this.currentMasterData = allMasterContracts.find(m => m["Master Contract ID"].toString().trim() === masterId.toString().trim());
+        const rawDetails = allContracts.filter(c => c["Master Contract ID"].toString().trim() === masterId.toString().trim());
+
+        this.currentDetailItems = rawDetails.map((row, index) => {
+            const cId = (row["Contract ID"] || "").toString().trim();
+            const linkedSplits = allocationSplits.filter(s => (s["Contract ID"] || "").toString().trim() === cId);
+            const linkedLedger = ledger.filter(l => (l["Contract ID"] || "").toString().trim() === cId);
+
+            return {
+                id: index,
+                isEditing: false,
+                data: row,
+                splits: linkedSplits,
+                ledger: linkedLedger
+            };
+        });
+
+        this.isMasterEditable = false;
+    },
+
+    addNewDetailRow: function() {
+        const newId = this.currentDetailItems.length > 0 ? Math.max(...this.currentDetailItems.map(i => i.id)) + 1 : 0;
+        this.currentDetailItems.push({
+            id: newId,
+            isEditing: true,
+            data: { "Status": "ACTIVE", "Cost Recurrence": "Recurrent", "Total Commitment": 0, "Contract ID": "", "Contract Ref": "" },
+            splits: [],
+            ledger: []
+        });
+    },
+
+    cloneDetailRow: function(id) {
+        const itemToClone = this.currentDetailItems.find(i => i.id === id);
+        if (!itemToClone) return false;
+
+        const newId = this.currentDetailItems.length > 0 ? Math.max(...this.currentDetailItems.map(i => i.id)) + 1 : 0;
+        const clonedData = JSON.parse(JSON.stringify(itemToClone.data));
+        
+        clonedData["Scope"] = "";
+        clonedData["Contract ID"] = "";
+        clonedData["Status"] = "ACTIVE";
+        clonedData["Contract Links"] = "";
+
+        this.currentDetailItems.push({
+            id: newId,
+            isEditing: true,
+            data: clonedData,
+            splits: [],
+            ledger: []
+        });
+        return true;
+    },
+
+    removeDetailRow: function(id) {
+        this.currentDetailItems = this.currentDetailItems.filter(i => i.id !== id);
+    },
+
+    setRowEditMode: function(id, editable) {
+        const item = this.currentDetailItems.find(i => i.id === id);
+        if (item) item.isEditing = editable;
+    },
+
+    updateMasterEditState: function(editable) {
+        this.isMasterEditable = editable;
+    }
+};
+</script>

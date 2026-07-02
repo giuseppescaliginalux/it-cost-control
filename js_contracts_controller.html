@@ -1,0 +1,679 @@
+<script>
+    /**
+     * js_contracts_controller.html
+     * CONTROLLER: The orchestrator. Responds to user actions, updates the Model,
+     * and re-renders the View by invoking Templates.
+     */
+
+    // --- Tab Router Override ---
+    const originalSwitchTab = switchTab;
+    switchTab = function (tabId) {
+        originalSwitchTab(tabId);
+        if (tabId === 'tab-contracts') {
+            document.getElementById('mgmt-asset-search-input').value = '';
+            renderAssetSearchList();
+        }
+    };
+
+    // --- Search & Selection ---
+    function renderAssetSearchList() {
+        const query = document.getElementById('mgmt-asset-search-input').value.toLowerCase().trim();
+        const container = document.getElementById('mgmt-asset-results-list');
+        if (!container) return;
+
+        const allContracts = windowPayload.contracts || [];
+        const allMasters = windowPayload.masterContracts || [];
+
+        const matchedAssets = (windowPayload.assets || []).filter(a => {
+            const assetName = (a["Asset Name"] || "").toLowerCase();
+            const manufacturer = (a["Manufacturer"] || "").toLowerCase();
+            if (assetName.includes(query) || manufacturer.includes(query)) return true;
+
+            const matchInMaster = allMasters.some(m => (m["Asset Name"] || "").toLowerCase() === assetName && (m["Supplier"] || "").toLowerCase().includes(query));
+            if (matchInMaster) return true;
+
+            const matchInContract = allContracts.some(c => (c["Asset Name"] || "").toLowerCase() === assetName && (c["Supplier"] || "").toLowerCase().includes(query));
+            return matchInContract;
+        });
+
+        if (matchedAssets.length === 0) {
+            container.innerHTML = `<p class="text-slate-400 italic text-[11px] text-center py-2">No matching assets or suppliers in memory.</p>`;
+            return;
+        }
+
+        container.innerHTML = matchedAssets.map(asset =>
+            ContractsTemplates.getAssetSearchResult(asset["Asset Name"], asset["Asset ID"], asset["Manufacturer"])
+        ).join('');
+    }
+
+    function selectAssetForManagement(assetName, assetId) {
+        ContractsState.currentSelectedAsset = { name: assetName, id: assetId };
+        ContractsState.updateMasterEditState(false);
+
+        document.getElementById('mgmt-selected-asset-header').innerHTML = `
+        <div class="bg-teal-50 border border-teal-200 rounded-xl p-3 flex justify-between items-center">
+            <div>
+                <span class="text-[8px] font-black text-teal-600 uppercase tracking-widest block">Active Target Asset</span>
+                <span class="font-black text-slate-800 text-sm">${assetName}</span>
+            </div>
+            <span class="font-mono text-[10px] bg-white border border-teal-100 px-2 py-1 rounded-lg text-slate-600">ID: ${assetId}</span>
+        </div>
+    `;
+
+        const allContracts = windowPayload.contracts || [];
+        const filteredGroupIds = allContracts.filter(c => (c["Asset Name"] || "").toString().toLowerCase() === assetName.toLowerCase())
+            .map(c => (c["Group ID"] || "").toString().trim())
+            .filter(g => g !== "");
+        ContractsState.currentAssetGroupIds = [...new Set(filteredGroupIds)].sort();
+
+        document.getElementById('mgmt-master-form-container').classList.add('hidden');
+        document.getElementById('mgmt-detailRowsContainer').innerHTML = '';
+
+        const allMasterContracts = windowPayload.masterContracts || [];
+        const assetMasters = allMasterContracts.filter(m => (m["Asset Name"] || "").toString().toLowerCase().trim() === assetName.toLowerCase().trim());
+
+        renderMasterContractsList(assetMasters);
+    }
+
+    // --- Master Contract Flows ---
+    function renderMasterContractsList(list) {
+        const container = document.getElementById('mgmt-master-list-container');
+        let html = `
+        <div class="flex justify-between items-center mb-2">
+            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Linked Master Agreements</span>
+            <button onclick="setupNewMasterAgreement()" class="text-[9px] font-black bg-teal-50 border border-teal-200 text-teal-700 px-2 py-1 rounded-md hover:bg-teal-100">+ New Master</button>
+        </div>
+    `;
+
+        if (list.length === 0) {
+            container.innerHTML = html + `<p class="text-slate-400 italic text-[11px] text-center py-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl">No Master Agreements linked.</p>`;
+            return;
+        }
+
+        list.sort((a, b) => {
+            const dateA = a["Master End Date"] ? new Date(a["Master End Date"]).getTime() : 0;
+            const dateB = b["Master End Date"] ? new Date(b["Master End Date"]).getTime() : 0;
+            return dateB - dateA;
+        });
+
+        html += `<div class="space-y-2 max-h-64 overflow-y-auto pr-1">`;
+        list.forEach(m => {
+            const mId = m["Master Contract ID"];
+            const supplier = m["Supplier"] || "No Supplier";
+            const status = (m["Status"] || "ACTIVE").toUpperCase().trim();
+            const totalCommitment = parseFloat(m["Total Commitment"]) || 0;
+
+            let statusClass = "bg-slate-50 text-slate-500 border-slate-200";
+            if (status === "ACTIVE") statusClass = "bg-emerald-50 text-emerald-700 border-emerald-200/50";
+            if (status === "EXPIRED" || status === "TERMINATED") statusClass = "bg-rose-50 text-rose-600 border-rose-200/50";
+            if (status === "IN NEGOTIATION") statusClass = "bg-amber-50 text-amber-700 border-amber-200/50";
+
+            const isExpired = status === "EXPIRED" || status === "TERMINATED";
+            html += ContractsTemplates.getMasterSidebarCard(mId, supplier, status, totalCommitment, isExpired, statusClass);
+        });
+        html += `</div>`;
+        container.innerHTML = html;
+    }
+
+    function loadFullMasterDetailArchitecture(masterId) {
+        ContractsState.loadMasterDetails(
+            masterId,
+            windowPayload.masterContracts || [],
+            windowPayload.contracts || [],
+            windowPayload.allocationSplits || [],
+            windowPayload.ledger || []
+        );
+        renderMasterFormBox();
+        renderDetailItemsTable();
+    }
+
+    function setupNewMasterAgreement() {
+        ContractsState.resetMaster();
+        renderMasterFormBox();
+        renderDetailItemsTable();
+    }
+
+    function renderMasterFormBox() {
+        document.getElementById('mgmt-master-form-container').classList.remove('hidden');
+        const container = document.getElementById('mgmt-master-form-box-inner');
+        if (!container) return;
+
+        const data = ContractsState.currentMasterData;
+        const isEditable = ContractsState.isMasterEditable;
+        const masterLinks = (data["Contract Links"] || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
+
+        if (!isEditable) {
+            const status = (data["Status"] || "ACTIVE").toUpperCase().trim();
+            const cleanStart = data["Master Start Date"] ? ContractsUtils.formatToEnglishCustomDate(data["Master Start Date"]) : '—';
+            const cleanEnd = data["Master End Date"] ? ContractsUtils.formatToEnglishCustomDate(data["Master End Date"]) : '—';
+            const termMonths = data["Contract Term (Months)"] !== undefined ? data["Contract Term (Months)"] : '—';
+
+            let statusClass = "bg-slate-50 text-slate-500 border-slate-200";
+            if (status === "ACTIVE") statusClass = "bg-emerald-50 text-emerald-700 border-emerald-200/50";
+            if (status === "EXPIRED" || status === "TERMINATED") statusClass = "bg-rose-50 text-rose-600 border-rose-200/50";
+            if (status === "IN NEGOTIATION") statusClass = "bg-amber-50 text-amber-700 border-amber-200/50";
+
+            container.innerHTML = ContractsTemplates.getMasterReadOnly(data, masterLinks, cleanStart, cleanEnd, termMonths, status, statusClass);
+        } else {
+            const suppliersList = ContractsUtils.extractUniqueField(windowPayload.suppliers, "Supplier");
+            const isNew = data["Master Contract ID"] === "";
+
+            container.innerHTML = ContractsTemplates.getMasterEditCard(data, isNew, suppliersList, masterLinks);
+        }
+
+        const targetLinks = container.querySelectorAll('.live-doc-link');
+        if (targetLinks.length > 0) {
+            const rawUrls = Array.from(targetLinks).map(el => el.getAttribute('data-raw'));
+            const uniqueUrlsString = [...new Set(rawUrls)].join(',');
+            ContractsAPI.resolveLiveDocumentNames(uniqueUrlsString, targetLinks);
+        }
+    }
+
+    function toggleMasterEditState(editable) {
+        ContractsState.updateMasterEditState(editable);
+        renderMasterFormBox();
+    }
+
+    function confirmMasterEditLocalChanges() {
+        const data = ContractsState.currentMasterData;
+        data["Supplier"] = document.getElementById('ins-masterSupplier').value;
+        data["Scope"] = document.getElementById('ins-masterScope').value.trim();
+        data["Comments"] = document.getElementById('ins-masterComments').value.trim();
+        const baseLinks = document.getElementById('ins-masterDocumentLink').value.trim();
+
+        const fileInput = document.getElementById('upload-files');
+        const hasFiles = fileInput && fileInput.files.length > 0;
+
+        if (hasFiles) {
+            showLoading();
+            let filesData = [];
+            let filesProcessed = 0;
+            const supplier = data["Supplier"] || "Unknown_Supplier";
+            const assetName = ContractsState.currentSelectedAsset.name || "Unknown_Asset";
+            let dateStr = data["Master Start Date"];
+            let year = dateStr ? dateStr.split('-')[0] : new Date().getFullYear().toString();
+
+            Array.from(fileInput.files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    filesData.push({ filename: file.name, mimeType: file.type, base64: e.target.result.split(',')[1] });
+                    filesProcessed++;
+                    if (filesProcessed === fileInput.files.length) {
+                        ContractsAPI.uploadDocuments(filesData, year, supplier, assetName,
+                            (urls) => {
+                                let currentLinks = baseLinks ? baseLinks.split(',').map(s => s.trim()).filter(s => s) : [];
+                                urls.forEach(u => { if (!currentLinks.includes(u)) currentLinks.push(u); });
+                                data["Contract Links"] = currentLinks.join(', ');
+                                hideLoading();
+                                ContractsState.updateMasterEditState(false);
+                                renderMasterFormBox();
+                            },
+                            (err) => { hideLoading(); alert("Upload Error: " + err.message); }
+                        );
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+        } else {
+            data["Contract Links"] = baseLinks;
+            ContractsState.updateMasterEditState(false);
+            renderMasterFormBox();
+        }
+    }
+
+    // --- Details / Lines Flows ---
+    function renderDetailItemsTable() {
+        const container = document.getElementById('mgmt-detailRowsContainer');
+        if (!container) return;
+
+        if (ContractsState.currentDetailItems.length === 0) {
+            container.innerHTML = `
+            <div class="text-center py-8 border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/20">
+                <p class="text-slate-400 text-xs italic">No allocation or ramping detail records found for this Master Agreement.</p>
+            </div>
+        `;
+            return;
+        }
+
+        container.innerHTML = `<div id="mgmt-flexible-cards-list" class="space-y-2"></div>`;
+        const listWrapper = document.getElementById('mgmt-flexible-cards-list');
+
+        // Generic base options (no "selected" state) for Split rows
+        const baseLeOptions = ContractsUtils.extractUniqueField(windowPayload.legalEntities, "Legal Entity").map(le => `<option value="${le}">${le}</option>`).join('');
+        const baseCcOptions = ContractsUtils.extractUniqueField(windowPayload.costCenters, "Cost Center").map(cc => `<option value="${cc}">${cc}</option>`).join('');
+
+        ContractsState.currentDetailItems.forEach((item) => {
+            const cardDiv = document.createElement('div');
+            const d = item.data;
+            const docLinks = (d["Contract Links"] || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
+
+            if (!item.isEditing) {
+                // ... READ ONLY MODE ...
+                const ledgerTotalSum = (item.ledger || []).reduce((acc, curr) => acc + (parseFloat(curr["Amount"]) || 0), 0);
+                const rawCommitment = parseFloat(d["Total Commitment"]) || 0;
+                const pricingModel = d["Pricing Model"] || "Flat";
+                const billingTerms = d["Billing Terms"] || "Linear";
+
+                let warningBadgeHTML = '';
+
+                // FinOps Tolerance: ignora scostamenti irrilevanti dovuti ad arrotondamenti matematici (±100€)
+                const tolerance = 100;
+
+                if (billingTerms === "Ledger-Driven" && rawCommitment > 0 && !item.isEditing) {
+                    const diff = ledgerTotalSum - rawCommitment;
+
+                    if (diff > tolerance) {
+                        warningBadgeHTML = `<div class="flex flex-col justify-center text-right border-r border-rose-200 pr-3 mr-1 animate-pulse shrink-0" title="Ledger sum exceeds Total Commitment"><span class="text-[8px] text-rose-500 block uppercase font-black tracking-wider whitespace-nowrap">Overage</span><span class="font-mono font-black text-rose-600 text-[12px] whitespace-nowrap">+ €${diff.formatCurrency()}</span></div>`;
+                    } else if (diff < -tolerance) {
+                        const gap = Math.abs(diff);
+                        if (["Minimum Consumption", "Capped Consumption"].includes(pricingModel)) {
+                            warningBadgeHTML = `<div class="flex flex-col justify-center text-right border-r border-amber-200 pr-3 mr-1 shrink-0" title="Missing forecasts to fulfill the contractual Commitment"><span class="text-[8px] text-amber-500 block uppercase font-black tracking-wider whitespace-nowrap">Forecast Gap</span><span class="font-mono font-black text-amber-600 text-[12px] whitespace-nowrap">- €${gap.formatCurrency()}</span></div>`;
+                        } else if (pricingModel === "Pure Consumption") {
+                            warningBadgeHTML = `<div class="flex flex-col justify-center text-right border-r border-sky-200 pr-3 mr-1 shrink-0" title="Current consumption is below the target estimate"><span class="text-[8px] text-sky-500 block uppercase font-black tracking-wider whitespace-nowrap">Under Target</span><span class="font-mono font-black text-sky-600 text-[12px] whitespace-nowrap">- €${gap.formatCurrency()}</span></div>`;
+                        } else {
+                            warningBadgeHTML = `<div class="flex flex-col justify-center text-right border-r border-orange-200 pr-3 mr-1 shrink-0" title="Logged installments do not cover the full fixed amount"><span class="text-[8px] text-orange-500 block uppercase font-black tracking-wider whitespace-nowrap">Ledger Mismatch</span><span class="font-mono font-black text-orange-600 text-[12px] whitespace-nowrap">- €${gap.formatCurrency()}</span></div>`;
+                        }
+                    }
+                } else if (billingTerms !== "Ledger-Driven" && ["Minimum Consumption", "Capped Consumption", "Pure Consumption"].includes(pricingModel) && !item.isEditing) {
+                    // Per i modelli a consumo "on-top" applichiamo la stessa tolleranza anti-rumore
+                    if (ledgerTotalSum > tolerance) {
+                        warningBadgeHTML = `<div class="flex flex-col justify-center text-right border-r border-rose-200 pr-3 mr-1 animate-pulse shrink-0" title="Extra consumption logged on top of the fixed baseline"><span class="text-[8px] text-rose-500 block uppercase font-black tracking-wider whitespace-nowrap">Overage Alert</span><span class="font-mono font-black text-rose-600 text-[12px] whitespace-nowrap">+ €${ledgerTotalSum.formatCurrency()}</span></div>`;
+                    }
+                }
+
+                const effCommit = typeof d["Effective Commitment"] === 'number' ? d["Effective Commitment"].formatCurrency() : (parseFloat(d["Effective Commitment"]) || 0).formatCurrency();
+                const annVal = typeof d["Annual Value"] === 'number' ? d["Annual Value"].formatCurrency() : (parseFloat(d["Annual Value"]) || 0).formatCurrency();
+                const totCommit = typeof d["Total Commitment"] === 'number' ? d["Total Commitment"].formatCurrency() : (parseFloat(d["Total Commitment"]) || 0).formatCurrency();
+                const cleanStart = d["Start Date"] ? ContractsUtils.formatToEnglishCustomDate(d["Start Date"]) : '—';
+                const cleanEnd = d["End Date"] ? ContractsUtils.formatToEnglishCustomDate(d["End Date"]) : '—';
+                const contractEnd = d["Contract End Date"] ? ContractsUtils.formatToEnglishCustomDate(d["Contract End Date"]) : '—';
+                const adjEnd = d["Adjusted End Date"] ? ContractsUtils.formatToEnglishCustomDate(d["Adjusted End Date"]) : '—';
+
+                cardDiv.className = "p-3 bg-white border border-slate-200/80 rounded-xl hover:border-teal-200 hover:shadow-sm transition-all flex flex-col gap-2 cursor-pointer select-none";
+                cardDiv.setAttribute("onclick", `toggleCompactAccordion(${item.id}, event)`);
+
+                cardDiv.innerHTML = ContractsTemplates.getDetailReadOnlyCard(item, warningBadgeHTML, effCommit, annVal, totCommit, cleanStart, cleanEnd, contractEnd, adjEnd, docLinks);
+
+            } else {
+                // ... EDIT MODE ...
+                cardDiv.className = "bg-white border border-slate-200 rounded-xl p-4 shadow-md relative space-y-3 animate-fade-in";
+
+                // Dropdown options specific to the editing record
+                const editLeOptions = ContractsUtils.extractUniqueField(windowPayload.legalEntities, "Legal Entity").map(le => `<option value="${le}" ${le === d["Legal Entity"] ? 'selected' : ''}>${le}</option>`).join('');
+                const tgOptions = ContractsState.currentAssetGroupIds.map(g => `<option value="${g}" ${g === d["Target Group ID"] ? 'selected' : ''}>${g}</option>`).join('');
+                const locOptions = ContractsUtils.extractUniqueField(windowPayload.locations, "Location").map(loc => `<option value="${loc}" ${loc === d["Location"] ? 'selected' : ''}>${loc}</option>`).join('');
+                const soOptions = ContractsUtils.extractUniqueField(windowPayload.contracts, "Service Owner").map(so => `<option value="${so}" ${so === d["Service Owner"] ? 'selected' : ''}>${so}</option>`).join('');
+                const editCcOptions = ContractsUtils.extractUniqueField(windowPayload.costCenters, "Cost Center").map(cc => `<option value="${cc}" ${cc === d["Cost Center"] ? 'selected' : ''}>${cc}</option>`).join('');
+
+                let splitsHtml = item.splits && item.splits.length > 0
+                    ? item.splits.map(s => ContractsTemplates.getSplitRow(item.id, s, d["Start Date"]?.split('T')[0] || "", d["Contract End Date"]?.split('T')[0] || "", baseLeOptions, baseCcOptions)).join('')
+                    : `<p class="text-[9px] text-emerald-600 font-medium text-center py-2 empty-split-msg bg-emerald-50/50 rounded-md">➔ Standard Allocation Active (100% to main entity).</p>`;
+
+                let ledgerHtml = item.ledger && item.ledger.length > 0
+                    ? item.ledger.map(l => ContractsTemplates.getLedgerRow(item.id, l)).join('')
+                    : `<p class="text-[9px] text-slate-400 italic text-center py-2 empty-ledger-msg bg-slate-50 rounded-md">No manual ledger movements yet.</p>`;
+
+                cardDiv.innerHTML = ContractsTemplates.getDetailEditCard(item, editLeOptions, tgOptions, locOptions, soOptions, editCcOptions, docLinks, splitsHtml, ledgerHtml);
+            }
+
+            listWrapper.appendChild(cardDiv);
+        });
+
+        ContractsState.currentDetailItems.forEach(item => {
+            if (item.isEditing) toggleLedgerVisibility(item.id);
+        });
+
+        const targetLinks = container.querySelectorAll('.live-doc-link');
+        if (targetLinks.length > 0) {
+            const rawUrls = Array.from(targetLinks).map(el => el.getAttribute('data-raw'));
+            const uniqueUrlsString = [...new Set(rawUrls)].join(',');
+            ContractsAPI.resolveLiveDocumentNames(uniqueUrlsString, targetLinks);
+        }
+    }
+
+    function cloneDetailRowItem(id) {
+        if (ContractsState.cloneDetailRow(id)) {
+            renderDetailItemsTable();
+        }
+    }
+
+    function toggleCompactAccordion(id, event) {
+        if (event.target.tagName === 'BUTTON' || event.target.closest('button') || event.target.closest('span.tt-wrapper')) return;
+        const panel = document.getElementById(`compact-accordion-${id}`);
+        const chevron = document.getElementById(`compact-chevron-${id}`);
+        if (!panel) return;
+        if (panel.classList.contains('hidden')) {
+            panel.classList.remove('hidden');
+            if (chevron) chevron.classList.add('rotate-90');
+        } else {
+            panel.classList.add('hidden');
+            if (chevron) chevron.classList.remove('rotate-90');
+        }
+    }
+
+    function toggleRowEditMode(id, editable) {
+        ContractsState.setRowEditMode(id, editable);
+        renderDetailItemsTable();
+    }
+
+    function saveRowLocalChanges(id) {
+        const item = ContractsState.currentDetailItems.find(i => i.id === id);
+        if (!item) return;
+
+        const safeVal = (elementId) => document.getElementById(elementId) ? document.getElementById(elementId).value : "";
+        item.data["Group ID"] = safeVal(`edit-groupId-${id}`).trim();
+        item.data["Target Group ID"] = safeVal(`edit-targetGroupId-${id}`);
+        item.data["Legal Entity"] = safeVal(`edit-legalEntity-${id}`);
+        item.data["Location"] = safeVal(`edit-location-${id}`);
+        item.data["Service Owner"] = safeVal(`edit-serviceOwner-${id}`).trim();
+        item.data["Scope"] = safeVal(`edit-scope-${id}`).trim();
+        item.data["Cost Recurrence"] = safeVal(`edit-costRecurrence-${id}`);
+        item.data["Pricing Model"] = safeVal(`edit-pricingModel-${id}`);
+        item.data["Billing Terms"] = safeVal(`edit-billingTerms-${id}`);
+        const cleanCommitmentStr = safeVal(`edit-totalCommitment-${id}`).replace(/\./g, '').trim();
+        item.data["Total Commitment"] = parseInt(cleanCommitmentStr, 10) || 0;
+        item.data["Expenditure Type"] = safeVal(`edit-expenditureType-${id}`);
+        item.data["Cost Center"] = safeVal(`edit-costCenter-${id}`);
+        item.data["Start Date"] = safeVal(`edit-startDate-${id}`);
+        item.data["Contract End Date"] = safeVal(`edit-contractEndDate-${id}`);
+        item.data["Adjusted End Date"] = safeVal(`edit-adjustedEndDate-${id}`);
+        item.data["Notice Period (Days)"] = safeVal(`edit-noticePeriod-${id}`).trim();
+        item.data["Auto-Renewal"] = safeVal(`edit-autoRenewal-${id}`);
+        item.data["BL ID"] = safeVal(`edit-blId-${id}`).trim();
+        item.data["Request Code"] = safeVal(`edit-requestCode-${id}`).trim();
+        item.data["Comments"] = safeVal(`edit-comments-${id}`).trim();
+        const baseLinks = safeVal(`edit-contractLinks-${id}`).trim();
+
+        const splitRows = document.querySelectorAll(`#splits-container-${id} .split-row-item`);
+        item.splits = Array.from(splitRows).map(row => {
+            const rule = row.querySelector('.split-rule').value;
+            const rawValStr = row.querySelector('.split-val').value.replace(/[^0-9]/g, '');
+            const val = parseInt(rawValStr, 10) || 0;
+            return {
+                "Contract ID": item.data["Contract ID"] || "", "Target Legal Entity": row.querySelector('.split-le').value || "", "Target Cost Center": row.querySelector('.split-cc').value || "",
+                "Allocation Rule": rule, "Percentage Share": rule === "Percentage" ? val : "", "Fixed Amount": rule === "Fixed Amount" ? val : "", "Units Assigned": rule === "Units" ? val : "",
+                "Valid From": row.querySelector('.split-from').value || "", "Valid To": row.querySelector('.split-to').value || "", "Notes": row.querySelector('.split-notes').value || ""
+            };
+        });
+
+        const ledgerRows = document.querySelectorAll(`#ledger-container-${id} .ledger-row-item`);
+        item.ledger = Array.from(ledgerRows).map(row => {
+            const rawAmtStr = row.querySelector('.ledger-amount').value.replace(/[^0-9]/g, '');
+            return {
+                "Contract ID": item.data["Contract ID"] || "", "Start Date": row.querySelector('.ledger-start').value || "", "End Date": row.querySelector('.ledger-end').value || "",
+                "Type": row.querySelector('.ledger-type').value || "ACTUAL", "Amount": parseInt(rawAmtStr, 10) || 0, "Notes": row.querySelector('.ledger-notes').value || ""
+            };
+        });
+
+        document.getElementById(`error-message-${id}`).style.display = 'none';
+
+        try {
+            ContractsUtils.validateContractData(item.data);
+            showLoading();
+
+            const fileInput = document.getElementById(`upload-files-${id}`);
+            if (fileInput && fileInput.files.length > 0) {
+                let filesData = [];
+                let filesProcessed = 0;
+                const supplierSelect = document.getElementById('ins-masterSupplier');
+                const supplier = (supplierSelect ? supplierSelect.value : ContractsState.currentMasterData["Supplier"]) || "Unknown_Supplier";
+                const assetName = ContractsState.currentSelectedAsset.name || "Unknown_Asset";
+                let year = item.data["Start Date"] ? item.data["Start Date"].split('-')[0] : new Date().getFullYear().toString();
+
+                Array.from(fileInput.files).forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        filesData.push({ filename: file.name, mimeType: file.type, base64: e.target.result.split(',')[1] });
+                        filesProcessed++;
+                        if (filesProcessed === fileInput.files.length) {
+                            ContractsAPI.uploadDocuments(filesData, year, supplier, assetName,
+                                (urls) => {
+                                    let currentLinks = baseLinks ? baseLinks.split(',').map(s => s.trim()).filter(s => s) : [];
+                                    urls.forEach(u => { if (!currentLinks.includes(u)) currentLinks.push(u); });
+                                    item.data["Contract Links"] = currentLinks.join(', ');
+                                    finalizeRowSave(item, id);
+                                },
+                                (err) => { hideLoading(); ContractsUtils.showErrorMessage(id, "Upload Error: " + err.message); }
+                            );
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                });
+            } else {
+                item.data["Contract Links"] = baseLinks;
+                finalizeRowSave(item, id);
+            }
+        } catch (e) {
+            ContractsUtils.showErrorMessage(id, e.message);
+        }
+    }
+
+    function finalizeRowSave(item, id) {
+        ContractsAPI.calculateRowLogic(item.data,
+            (calculatedItem) => {
+                hideLoading();
+                item.data = calculatedItem;
+                item.isEditing = false;
+                renderDetailItemsTable();
+            },
+            (err) => {
+                hideLoading();
+                ContractsUtils.showErrorMessage(id, "Server Error: " + err.message);
+            }
+        );
+    }
+
+    function addNewDetailRowItem() {
+        ContractsState.addNewDetailRow();
+        renderDetailItemsTable();
+    }
+
+    function removeRowFromLocalArchitecture(id) {
+        ContractsState.removeDetailRow(id);
+        renderDetailItemsTable();
+    }
+
+    function saveCurrentContract() {
+        if (!ContractsState.currentSelectedAsset) return;
+
+        const isEditingExistingMaster = ContractsState.isMasterEditable && ContractsState.currentMasterData["Master Contract ID"] !== "";
+        const hasOpenEdits = isEditingExistingMaster || ContractsState.currentDetailItems.some(item => item.isEditing);
+        if (hasOpenEdits) {
+            ContractsUtils.showMgmtBannerStatus("There are active forms still in edit mode. Please click 'Apply' or 'Confirm Master Changes' before performing the global push.", "warning");
+            return;
+        }
+
+        if (ContractsState.isMasterEditable) {
+            ContractsState.currentMasterData["Supplier"] = document.getElementById('ins-masterSupplier').value;
+            ContractsState.currentMasterData["Scope"] = document.getElementById('ins-masterScope').value.trim();
+            ContractsState.currentMasterData["Comments"] = document.getElementById('ins-masterComments').value.trim();
+        }
+
+        const mId = ContractsState.currentMasterData["Master Contract ID"] || (document.getElementById('ins-masterId') ? document.getElementById('ins-masterId').value.trim() : "");
+        const spl = ContractsState.currentMasterData["Supplier"];
+
+        const payload = {
+            assetName: ContractsState.currentSelectedAsset.name,
+            assetId: ContractsState.currentSelectedAsset.id,
+            masterId: mId,
+            supplier: spl,
+            masterScope: ContractsState.currentMasterData["Scope"],
+            masterComments: ContractsState.currentMasterData["Comments"],
+            contractLinks: ContractsState.currentMasterData["Contract Links"],
+            suppliers: (windowPayload.suppliers || []).filter(s => String(s["Supplier"]).trim().toLowerCase() === String(spl).trim().toLowerCase()),
+            initiatives: mId && mId.trim() !== "" ? (windowPayload.initiatives || []).filter(i => String(i["Master Contract ID"]).trim().toLowerCase() === mId.trim().toLowerCase()) : [],
+            details: ContractsState.currentDetailItems.map(item => {
+                return {
+                    contractId: item.data["Contract ID"] || "",
+                    groupId: item.data["Group ID"] || "",
+                    targetGroupId: item.data["Target Group ID"] || "",
+                    legalEntity: item.data["Legal Entity"] || "",
+                    location: item.data["Location"] || "",
+                    serviceOwner: item.data["Service Owner"] || "",
+                    scope: item.data["Scope"] || "",
+                    costRecurrence: item.data["Cost Recurrence"] || "",
+                    pricingModel: item.data["Pricing Model"] || "",
+                    billingTerms: item.data["Billing Terms"] || "",
+                    totalCommitment: item.data["Total Commitment"] || 0,
+                    expenditureType: item.data["Expenditure Type"] || "",
+                    costCenter: item.data["Cost Center"] || "",
+                    startDate: item.data["Start Date"] || "",
+                    contractEndDate: item.data["Contract End Date"] || "",
+                    adjustedEndDate: item.data["Adjusted End Date"] || "",
+                    noticePeriod: item.data["Notice Period (Days)"] || "",
+                    autoRenewal: item.data["Auto-Renewal"] || "",
+                    blId: item.data["BL ID"] || "",
+                    requestCode: item.data["Request Code"] || "",
+                    comments: item.data["Comments"] || "",
+                    contractLinks: item.data["Contract Links"] || "",
+                    splits: item.splits || [],
+                    ledger: item.ledger || []
+                };
+            })
+        };
+
+        if (!payload.supplier) {
+            ContractsUtils.showMgmtBannerStatus("Supplier selection at Master level is required.", "warning");
+            return;
+        }
+
+        showLoading();
+
+        ContractsAPI.syncArchitectureToBackend(payload,
+            (res) => {
+                hideLoading();
+                if (res === "SUCCESS") {
+                    ContractsUtils.showMgmtBannerStatus("Architecture synchronized successfully.", "success");
+                    fetchLiveData().then(() => {
+                        selectAssetForManagement(ContractsState.currentSelectedAsset.name, ContractsState.currentSelectedAsset.id);
+                    });
+                } else {
+                    ContractsUtils.showMgmtBannerStatus("Sync failed: unexpected execution outcome from server.", "error");
+                }
+            },
+            (err) => {
+                hideLoading();
+                ContractsUtils.showMgmtBannerStatus("Sync error: " + err.message, "error");
+            }
+        );
+    }
+
+    function addSplitRowToUI(detailId) {
+        const container = document.getElementById(`splits-container-${detailId}`);
+        if (!container) return;
+        const emptyMsg = container.querySelector('.empty-split-msg');
+        if (emptyMsg) emptyMsg.remove();
+
+        const startDateInput = document.getElementById(`edit-startDate-${detailId}`);
+        const endDateInput = document.getElementById(`edit-contractEndDate-${detailId}`);
+        const defStart = startDateInput ? startDateInput.value : "";
+        const defEnd = endDateInput ? endDateInput.value : "";
+
+        const leOptions = ContractsUtils.extractUniqueField(windowPayload.legalEntities, "Legal Entity").map(le => '<option value="' + le + '">' + le + '</option>').join('');
+        const ccOptions = ContractsUtils.extractUniqueField(windowPayload.costCenters, "Cost Center").map(cc => '<option value="' + cc + '">' + cc + '</option>').join('');
+
+        container.insertAdjacentHTML('beforeend', ContractsTemplates.getSplitRow(detailId, {}, defStart, defEnd, leOptions, ccOptions));
+    }
+
+    function addLedgerRowToUI(detailId) {
+        const container = document.getElementById(`ledger-container-${detailId}`);
+        if (!container) return;
+        const emptyMsg = container.querySelector('.empty-ledger-msg');
+        if (emptyMsg) emptyMsg.remove();
+        container.insertAdjacentHTML('beforeend', ContractsTemplates.getLedgerRow(detailId, {}));
+    }
+
+    function toggleLedgerVisibility(detailId) {
+        const billingTermsSelect = document.getElementById(`edit-billingTerms-${detailId}`);
+        const pricingModelSelect = document.getElementById(`edit-pricingModel-${detailId}`);
+        const ledgerSection = document.getElementById(`ledger-section-container-${detailId}`);
+        const autoForecastBtn = document.getElementById(`auto-forecast-btn-${detailId}`);
+
+        if (ledgerSection && billingTermsSelect && pricingModelSelect) {
+            const isLedgerDriven = billingTermsSelect.value === "Ledger-Driven";
+            const isConsumption = ["Pure Consumption", "Minimum Consumption", "Capped Consumption"].includes(pricingModelSelect.value);
+
+            if (isLedgerDriven || isConsumption) ledgerSection.classList.remove('hidden');
+            else ledgerSection.classList.add('hidden');
+
+            if (autoForecastBtn) {
+                const canAutoForecast = isLedgerDriven && ["Minimum Consumption", "Capped Consumption"].includes(pricingModelSelect.value);
+                if (canAutoForecast) autoForecastBtn.classList.remove('hidden');
+                else autoForecastBtn.classList.add('hidden');
+            }
+        }
+    }
+
+    function triggerLedgerAutomationForContract(detailId) {
+        const model = document.getElementById(`edit-pricingModel-${detailId}`).value;
+        const terms = document.getElementById(`edit-billingTerms-${detailId}`).value;
+        const startDate = document.getElementById(`edit-startDate-${detailId}`).value;
+        const endDate = document.getElementById(`edit-contractEndDate-${detailId}`).value;
+        const totCommit = document.getElementById(`edit-totalCommitment-${detailId}`).value.replace(/[^0-9]/g, '');
+
+        if (model !== "Minimum Consumption" || terms !== "Ledger-Driven") {
+            ContractsUtils.showErrorMessage(detailId, "Governance Restriction: Automation calculations apply exclusively to 'Minimum Consumption' pricing models with 'Ledger-Driven' allocation terms.");
+            return;
+        }
+
+        if (!startDate || !endDate || !totCommit) {
+            ContractsUtils.showErrorMessage(detailId, "Start Date, End Date, and Total Commitment must be compiled to generate the forecast.");
+            return;
+        }
+
+        const contractData = {
+            "Pricing Model": model,
+            "Billing Terms": terms,
+            "Start Date": startDate,
+            "Contract End Date": endDate,
+            "Total Commitment": parseInt(totCommit, 10) || 0
+        };
+
+        const ledgerRows = document.querySelectorAll(`#ledger-container-${detailId} .ledger-row-item`);
+        const currentLedger = [];
+        Array.from(ledgerRows).forEach(row => {
+            const type = row.querySelector('.ledger-type').value;
+            if (type === "ACTUAL" || type === "FORECAST") {
+                const rawAmt = row.querySelector('.ledger-amount').value.replace(/[^0-9]/g, '');
+                currentLedger.push({
+                    "Type": type,
+                    "Start Date": row.querySelector('.ledger-start').value,
+                    "End Date": row.querySelector('.ledger-end').value,
+                    "Amount": parseInt(rawAmt, 10) || 0,
+                    "Notes": row.querySelector('.ledger-notes').value
+                });
+            }
+        });
+
+        showLoading();
+        ContractsAPI.previewAutoForecast(contractData, currentLedger,
+            (generatedRows) => {
+                hideLoading();
+                const item = ContractsState.currentDetailItems.find(i => i.id === detailId);
+                item.ledger = currentLedger.concat(generatedRows);
+                renderDetailItemsTable();
+                toggleRowEditMode(detailId, true);
+                ContractsUtils.showMgmtBannerStatus("Auto-forecast preview generated! Remember to click 'Apply' and then 'Commit'.", "success");
+            },
+            (err) => {
+                hideLoading();
+                ContractsUtils.showErrorMessage(detailId, "Calculation Error: " + err.message);
+            }
+        );
+    }
+
+    // Wrapper for inline HTML bindings to isolated namespaces
+    window.ContractsController = {
+        updateSplitPlaceholder: function (selectEl) {
+            const row = selectEl.closest('.split-row-item');
+            const inputEl = row.querySelector('.split-val');
+            const rule = selectEl.value;
+
+            if (rule === 'Percentage') inputEl.placeholder = '% (e.g. 50)';
+            else if (rule === 'Fixed Amount') inputEl.placeholder = '€ (e.g. 15.000)';
+            else inputEl.placeholder = 'Qty (e.g. 150)';
+
+            ContractsUtils.formatSplitValue(inputEl);
+        }
+    };
+</script>
