@@ -1,134 +1,141 @@
 <script>
-/**
- * js_initiatives_state.html
- * MODEL: State management for the Initiatives Kanban and configurations.
- */
+    /**
+     * js_initiatives_state.html
+     * MODEL: Centralized State Management for the 3-Column Initiatives Hub.
+     */
 
-const InitiativesState = {
-    rawInitiatives: [],
-    optimizationLevers: [],
-    currentEditingInitiative: null,
-    selectedTagsFilter: [],
+    const InitiativesState = {
+        rawInitiatives: [],
+        optimizationLevers: [],
+        currentEditingInitiative: null,
+        selectedTagsFilter: [],
+        searchKeyword: '', // <-- NUOVA VARIABILE PER LA RICERCA
 
-    loadPayload: function(payload) {
-        this.rawInitiatives = payload.initiatives || [];
-        this.optimizationLevers = payload.optimizationLevers || [
-            "Tier Consolidation", "License Downgrade", "Architecture Optimization", 
-            "Contract Renegotiation", "Vendor Swap", "Storage Lifecycle", "Instance Right-sizing"
-        ];
-    },
+        pipelineHorizon: 'next_3_months',
+        pipelineStatus: 'all',
+        realizedHistory: 'past_month',
+        globalSortKey: 'assetName',
 
-    // --- IL MOTORE MATEMATICO DELLE FORMULE SUL FRONTEND ---
-    recalculateMetrics: function(initiatives, contracts) {
-        const sortedInits = [...initiatives].sort((a, b) => {
-            const dA = new Date(a["Target Date"] || "2099-12-31");
-            const dB = new Date(b["Target Date"] || "2099-12-31");
-            return dA - dB;
-        });
+        loadPayload: function (payload) {
+            this.rawInitiatives = payload.initiatives || [];
+            this.optimizationLevers = payload.optimizationLevers || [
+                "Tier Consolidation", "License Downgrade", "Architecture Optimization",
+                "Contract Renegotiation", "Vendor Swap", "Storage Lifecycle", "Instance Right-sizing"
+            ];
 
-        sortedInits.forEach(init => {
-            const groupID = (init["Contracts Group ID"] || init["Group ID"] || "").toString().trim();
-            const targetDate = init["Target Date"] ? new Date(init["Target Date"]) : null;
+            this.rawInitiatives.forEach(init => {
+                if (String(init["Initiative Status"]).toUpperCase().trim() === "INCOMING") {
+                    init["Initiative Status"] = "PLANNED";
+                }
+            });
+        },
 
-            // FORMULA 1: Original Baseline
-            let originalBaseline = 0;
-            contracts.forEach(c => {
-                if ((c["Group ID"] || "").toString().trim() === groupID && groupID !== "") {
-                    originalBaseline += (parseFloat(c["Annual Value"]) || 0);
+        recalculateMetrics: function (initiatives, contracts) {
+            const sortedInits = [...initiatives].sort((a, b) => {
+                const dA = new Date(a["Target Date"] || "2099-12-31");
+                const dB = new Date(b["Target Date"] || "2099-12-31");
+                return dA - dB;
+            });
+
+            sortedInits.forEach(init => {
+                const groupID = (init["Contracts Group ID"] || init["Group ID"] || "").toString().trim();
+                const targetDate = init["Target Date"] ? new Date(init["Target Date"]) : null;
+
+                let originalBaseline = 0;
+                contracts.forEach(c => {
+                    if ((c["Group ID"] || "").toString().trim() === groupID && groupID !== "") {
+                        originalBaseline += (parseFloat(c["Annual Value"]) || 0);
+                    }
+                });
+
+                let startingCost = originalBaseline;
+                if (originalBaseline !== 0 && targetDate) {
+                    const priorInits = sortedInits.filter(i =>
+                        (i["Contracts Group ID"] || i["Group ID"] || "").toString().trim() === groupID &&
+                        new Date(i["Target Date"]) < targetDate &&
+                        !isNaN(parseFloat(i["Target Cost (Annualized)"]))
+                    );
+
+                    if (priorInits.length > 0) {
+                        priorInits.sort((a, b) => new Date(b["Target Date"]) - new Date(a["Target Date"]));
+                        startingCost = parseFloat(priorInits[0]["Target Cost (Annualized)"]);
+                    }
+                }
+                init["Baseline Spend (Annualized)"] = startingCost;
+
+                const targetCost = parseFloat(init["Target Cost (Annualized)"]);
+                const strategy = (init["Decision"] || init["Strategy"] || "").toString().trim().toLowerCase();
+
+                let targetSaving = 0;
+                if (!isNaN(targetCost) && targetCost >= 0) {
+                    targetSaving = startingCost - targetCost;
+                } else if (["terminate", "replace", "transfer"].includes(strategy)) {
+                    targetSaving = startingCost;
+                }
+                init["Target Saving (Annualized)"] = targetSaving;
+                init["Target Saving %"] = startingCost > 0 ? (targetSaving / startingCost) : 0;
+
+                const status = (init["Initiative Status"] || "").toString().trim().toLowerCase();
+                const sourceContract = contracts.find(c => (c["Group ID"] || "").toString().trim() === groupID);
+                const targetGroupID = sourceContract ? (sourceContract["Target Group ID"] || "").toString().trim() : "";
+
+                let actualCost = 0;
+                if (targetGroupID !== "") {
+                    contracts.forEach(c => {
+                        if ((c["Group ID"] || "").toString().trim() === targetGroupID) {
+                            actualCost += (parseFloat(c["Annual Value"]) || 0);
+                        }
+                    });
+                }
+
+                if (status === "completed") {
+                    init["New Actual"] = actualCost;
+                    if (targetGroupID !== "" && actualCost > 0) {
+                        init["Actual Saving (Annualized)"] = startingCost - actualCost;
+                    } else {
+                        init["Actual Saving (Annualized)"] = targetSaving;
+                    }
+                } else {
+                    init["New Actual"] = "";
+                    init["Actual Saving (Annualized)"] = 0;
                 }
             });
 
-            // FORMULA 1.2: Cascading Baseline
-            let startingCost = originalBaseline;
-            if (originalBaseline !== 0 && targetDate) {
-                const priorInits = sortedInits.filter(i => 
-                    (i["Contracts Group ID"] || i["Group ID"] || "").toString().trim() === groupID &&
-                    new Date(i["Target Date"]) < targetDate &&
-                    !isNaN(parseFloat(i["Target Cost (Annualized)"]))
-                );
-                
-                if (priorInits.length > 0) {
-                    priorInits.sort((a, b) => new Date(b["Target Date"]) - new Date(a["Target Date"]));
-                    startingCost = parseFloat(priorInits[0]["Target Cost (Annualized)"]);
-                }
+            return initiatives;
+        },
+
+        updateInitiativeStatus: function (id, newStatus) {
+            if (this.rawInitiatives[id]) {
+                this.rawInitiatives[id]["Initiative Status"] = newStatus;
+                return this.rawInitiatives[id];
             }
-            init["Baseline Spend (Annualized)"] = startingCost;
+            return null;
+        },
 
-            // FORMULA 2 & 3: Target Saving
-            const targetCost = parseFloat(init["Target Cost (Annualized)"]);
-            const strategy = (init["Decision"] || init["Strategy"] || "").toString().trim().toLowerCase();
-            
-            let targetSaving = 0;
-            if (!isNaN(targetCost) && targetCost >= 0) {
-                targetSaving = startingCost - targetCost;
-            } else if (["terminate", "replace", "transfer"].includes(strategy)) {
-                targetSaving = startingCost;
-            }
-            init["Target Saving (Annualized)"] = targetSaving;
-            init["Target Saving %"] = startingCost > 0 ? (targetSaving / startingCost) : 0;
+        getInitiativeById: function (id) {
+            return this.rawInitiatives[id] ? { ...this.rawInitiatives[id], _id: id } : null;
+        },
 
-            // FORMULA 4 & 5: Actuals
-            const status = (init["Initiative Status"] || "").toString().trim().toLowerCase();
-            const sourceContract = contracts.find(c => (c["Group ID"] || "").toString().trim() === groupID);
-            const targetGroupID = sourceContract ? (sourceContract["Target Group ID"] || "").toString().trim() : "";
-
-            let actualCost = 0;
-            if (targetGroupID !== "") {
-                contracts.forEach(c => {
-                    if ((c["Group ID"] || "").toString().trim() === targetGroupID) {
-                        actualCost += (parseFloat(c["Annual Value"]) || 0);
-                    }
-                });
-            }
-
-            if (status === "completed") {
-                init["New Actual"] = actualCost;
-                if (targetGroupID !== "" && actualCost > 0) {
-                    init["Actual Saving (Annualized)"] = startingCost - actualCost;
-                } else {
-                    init["Actual Saving (Annualized)"] = targetSaving;
-                }
+        saveInitiativeInstance: function (id, updatedData) {
+            if (id === null || id === undefined || id === '') {
+                this.rawInitiatives.push(updatedData);
             } else {
-                init["New Actual"] = "";
-                init["Actual Saving (Annualized)"] = 0;
+                this.rawInitiatives[id] = updatedData;
             }
-        });
+        },
 
-        return initiatives;
-    },
+        deleteInitiativeInstance: function (id) {
+            if (this.rawInitiatives[id]) {
+                this.rawInitiatives.splice(id, 1);
+                return true;
+            }
+            return false;
+        },
 
-    updateInitiativeStatus: function(id, newStatus) {
-        if (this.rawInitiatives[id]) {
-            this.rawInitiatives[id]["Initiative Status"] = newStatus;
-            return this.rawInitiatives[id];
+        toggleTagFilter: function (tag) {
+            const idx = this.selectedTagsFilter.indexOf(tag);
+            if (idx > -1) this.selectedTagsFilter.splice(idx, 1);
+            else this.selectedTagsFilter.push(tag);
         }
-        return null;
-    },
-
-    getInitiativeById: function(id) {
-        return this.rawInitiatives[id] ? { ...this.rawInitiatives[id], _id: id } : null;
-    },
-
-    saveInitiativeInstance: function(id, updatedData) {
-        if (id === null || id === undefined || id === '') {
-            this.rawInitiatives.push(updatedData);
-        } else {
-            this.rawInitiatives[id] = updatedData;
-        }
-    },
-
-    deleteInitiativeInstance: function(id) {
-        if (this.rawInitiatives[id]) {
-            this.rawInitiatives.splice(id, 1);
-            return true;
-        }
-        return false;
-    },
-
-    toggleTagFilter: function(tag) {
-        const idx = this.selectedTagsFilter.indexOf(tag);
-        if (idx > -1) this.selectedTagsFilter.splice(idx, 1);
-        else this.selectedTagsFilter.push(tag);
-    }
-};
+    };
 </script>

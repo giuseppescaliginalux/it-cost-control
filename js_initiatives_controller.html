@@ -1,119 +1,251 @@
 <script>
     /**
      * js_initiatives_controller.html
-     * CONTROLLER: Gestisce gli eventi, l'API Drag & Drop, i dropdown a cascata,
-     * la creazione dei tag al volo e l'orchestrazione con il modello matematico.
+     * CONTROLLER: Gestione Dati Aggregati Contratti, Tag Library, e UX Avanzata Modale.
      */
 
     function renderOperationsHub(payload) {
+        window.windowPayload = payload;
         InitiativesState.loadPayload(payload);
-        // USO DEL NUOVO METODO FRONT-END
         InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || []);
-        InitiativesController.renderKanbanBoard();
+        InitiativesController.renderKanbanBoard(true);
         InitiativesController.renderGlobalTagsFilterSelectionRow();
     }
 
     const InitiativesController = {
         draggedCardId: null,
         currentLocalTagsArray: [],
+        globalCustomTags: [],
 
-        renderKanbanBoard: function () {
+        handleSearchInput: function (val) {
+            InitiativesState.searchKeyword = val;
+            this.renderKanbanBoard(false);
+        },
+
+        renderKanbanBoard: function (forceFullLayout = false) {
             const workspace = document.getElementById('tab-operations');
             if (!workspace) return;
 
-            workspace.innerHTML = InitiativesTemplates.getKanbanMainLayout();
+            let gridContainer = document.getElementById('initiatives-kanban-board-grid');
+
+            if (!gridContainer || forceFullLayout) {
+                workspace.innerHTML = InitiativesTemplates.getKanbanMainLayout();
+                gridContainer = document.getElementById('initiatives-kanban-board-grid');
+
+                if (InitiativesState.searchKeyword) {
+                    const searchBox = document.getElementById('initiatives-search-input');
+                    if (searchBox) searchBox.value = InitiativesState.searchKeyword;
+                }
+            }
 
             const lanes = {
-                "IDEA": { label: "1. Idea Strategy", color: "bg-slate-400", html: "", count: 0, sum: 0 },
-                "INCOMING": { label: "2. Incoming", color: "bg-sky-400", html: "", count: 0, sum: 0 },
-                "PLANNED": { label: "3. Planned", color: "bg-indigo-400", html: "", count: 0, sum: 0 },
-                "IN PROGRESS": { label: "4. In Progress", color: "bg-amber-500", html: "", count: 0, sum: 0 },
-                "COMPLETED": { label: "5. Realized Completed", color: "bg-emerald-500", html: "", count: 0, sum: 0 }
+                "PIPELINE": { label: "Pipeline", color: "bg-sky-500", bgColor: "bg-sky-50/50 border border-sky-200/60", html: "", count: 0, sum: 0, icon: `<svg class="w-4 h-4 text-sky-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.82 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.496 1.509 1.333 1.509 2.316V18" /></svg>` },
+                "IN_PROGRESS": { label: "In Progress", color: "bg-amber-500", bgColor: "bg-amber-50/50 border border-amber-200/60", html: "", count: 0, sum: 0, icon: `<svg class="w-4 h-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>` },
+                "REALIZED": { label: "Realized", color: "bg-emerald-500", bgColor: "bg-emerald-50/50 border border-emerald-200/60", html: "", count: 0, sum: 0, icon: `<svg class="w-4 h-4 text-emerald-500 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 00-1.14-.094l3.75-5.25z" clip-rule="evenodd" /></svg>` }
             };
 
-            const list = InitiativesState.rawInitiatives;
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+            let pipelineLimit = null;
+            if (InitiativesState.pipelineHorizon === 'next_month') pipelineLimit = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
+            else if (InitiativesState.pipelineHorizon === 'next_2_months') pipelineLimit = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000);
+            else if (InitiativesState.pipelineHorizon === 'next_3_months') pipelineLimit = new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000);
+
+            let realizedLimit = null;
+            if (InitiativesState.realizedHistory === 'past_month') realizedLimit = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+            else if (InitiativesState.realizedHistory === 'past_2_months') realizedLimit = new Date(today.getTime() - 60 * 24 * 60 * 60 * 1000);
+            else if (InitiativesState.realizedHistory === 'past_3_months') realizedLimit = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+            const sortKey = InitiativesState.globalSortKey || 'assetName';
+            const sortedList = [...InitiativesState.rawInitiatives].sort((a, b) => {
+                if (sortKey === 'assetName') return (a["Asset Name"] || "").toString().localeCompare((b["Asset Name"] || "").toString());
+                else if (sortKey === 'targetDate') {
+                    const dA = a["Target Date"] ? new Date(a["Target Date"]) : new Date(2099, 11, 31);
+                    const dB = b["Target Date"] ? new Date(b["Target Date"]) : new Date(2099, 11, 31);
+                    return dA - dB;
+                }
+                else if (sortKey === 'runRate') return (parseFloat(b["Baseline Spend (Annualized)"]) || 0) - (parseFloat(a["Baseline Spend (Annualized)"]) || 0);
+                else if (sortKey === 'targetSaving') return (parseFloat(b["Target Saving (Annualized)"]) || 0) - (parseFloat(a["Target Saving (Annualized)"]) || 0);
+                return 0;
+            });
+
             const contracts = windowPayload.contracts || [];
             const assets = windowPayload.assets || [];
+            const searchQ = (InitiativesState.searchKeyword || "").toLowerCase().trim();
 
-            list.forEach((init, idx) => {
+            sortedList.forEach((init, idx) => {
+                const originalIndex = InitiativesState.rawInitiatives.indexOf(init);
                 let status = (init["Initiative Status"] || "IDEA").toUpperCase().trim();
-                if (!lanes[status]) status = "IDEA";
+                let targetLane = "";
 
                 const currentItemTags = (init["Tags"] || "").split(',').map(t => t.trim()).filter(t => t);
                 if (InitiativesState.selectedTagsFilter.length > 0 && !InitiativesState.selectedTagsFilter.some(t => currentItemTags.includes(t))) return;
 
+                const initiativeName = (init["Initiative Name"] || "").toString().trim() || "Unnamed Initiative";
                 const assetName = (init["Asset Name"] || "").toString().trim();
                 const relatedAsset = assets.find(a => (a["Asset Name"] || "").toString().trim().toLowerCase() === assetName.toLowerCase()) || {};
+                const manufacturer = relatedAsset["Manufacturer"] || "Generic";
+
+                const relatedContract = contracts.find(c => c["Contract ID"] === init["Contract ID"] || c["Group ID"] === init["Contracts Group ID"]) || {};
+                const supplierName = init["Supplier"] || relatedContract["Supplier"] || "Generic Supplier";
+                const description = init["Description"] || "";
+
+                const ownerRaw = init["Service Owner"] ? init["Service Owner"].toString().trim() : "";
+                const procurementRaw = init["Procurement Point Focal"] || init["Procurement Point"] ? (init["Procurement Point Focal"] || init["Procurement Point"]).toString().trim() : "";
+                const owner = ownerRaw || "TBD";
+                const procurement = procurementRaw || "TBD";
+
+                if (searchQ) {
+                    const searchStr = `${initiativeName} ${assetName} ${description} ${manufacturer} ${supplierName}`.toLowerCase();
+                    if (!searchStr.includes(searchQ)) return;
+                }
+
+                const tDateStr = init["Target Date"] ? init["Target Date"].toString().trim() : "";
+                const tDate = tDateStr ? new Date(tDateStr) : new Date(2099, 11, 31);
+                if (tDateStr) tDate.setHours(0, 0, 0, 0);
+
+                if (status === "IDEA" || status === "PLANNED") {
+                    targetLane = "PIPELINE";
+                    if (InitiativesState.pipelineStatus !== 'all' && status !== InitiativesState.pipelineStatus) return;
+                    if (pipelineLimit && tDate > pipelineLimit && tDateStr) return;
+                } else if (status === "IN PROGRESS") {
+                    targetLane = "IN_PROGRESS";
+                } else if (status === "COMPLETED") {
+                    targetLane = "REALIZED";
+                    if (realizedLimit && tDate < realizedLimit && tDateStr) return;
+                } else return;
+
+                const isOverdue = (targetLane !== "REALIZED" && tDate < today && tDateStr !== "");
 
                 const targetSaving = parseFloat(init["Target Saving (Annualized)"]) || 0;
                 const actualSaving = parseFloat(init["Actual Saving (Annualized)"]) || 0;
                 const baselineSpend = parseFloat(init["Baseline Spend (Annualized)"]) || 0;
 
-                const appliedSaving = status === "COMPLETED" ? actualSaving : targetSaving;
+                const appliedSaving = targetLane === "REALIZED" ? actualSaving : targetSaving;
+                const appliedTargetCost = targetLane === "REALIZED" && (parseFloat(init["New Actual"]) >= 0 && init["New Actual"] !== "")
+                    ? parseFloat(init["New Actual"])
+                    : parseFloat(init["Target Cost (Annualized)"]) || 0;
+                const costLabel = targetLane === "REALIZED" ? "Actual" : "Target";
+                const dateLabel = targetLane === "REALIZED" ? "Actual Date" : "Target Date";
 
                 let savingPercentText = "0%";
                 if (baselineSpend > 0 && appliedSaving > 0) {
                     savingPercentText = `-${Math.round((appliedSaving / baselineSpend) * 100)}%`;
                 }
 
-                const fmtSaving = '€' + Math.round(appliedSaving / 1000) + 'k';
-                const finalDateStr = init["Target Date"] ? ContractsUtils.formatToEnglishCustomDate(init["Target Date"]) : "NO DATE";
-
-                const strategy = (init["Strategy"] || "OPTIMIZATION").toUpperCase().trim();
+                const strategy = (init["Initial Strategy"] || "OPTIMIZATION").toUpperCase().trim();
                 const decision = (init["Decision"] || strategy).toUpperCase().trim();
 
-                let strategyBadge = (strategy !== decision)
-                    ? `<span class="text-[7px] font-black uppercase bg-rose-50 border border-rose-200 text-rose-700 px-1 rounded">Shifted</span>`
-                    : `<span class="text-[7px] font-black uppercase bg-indigo-50 border border-indigo-200 text-indigo-700 px-1 rounded">${decision}</span>`;
+                const fmtSaving = '€' + Math.round(appliedSaving / 1000).toLocaleString('it-IT') + 'k';
+                const fmtRunRate = baselineSpend > 0 ? '€' + Math.round(baselineSpend / 1000).toLocaleString('it-IT') + 'k' : '—';
 
-                lanes[status].count++;
-                lanes[status].sum += appliedSaving;
+                let fmtTargetCost = '—';
+                if (appliedTargetCost > 0) {
+                    fmtTargetCost = '€' + Math.round(appliedTargetCost / 1000).toLocaleString('it-IT') + 'k';
+                } else if (appliedTargetCost === 0 && ["TERMINATE", "REPLACE", "TRANSFER"].includes(decision)) {
+                    fmtTargetCost = '€0k';
+                } else if (appliedTargetCost === 0 && targetLane === "REALIZED") {
+                    fmtTargetCost = '€0k';
+                }
 
-                lanes[status].html += InitiativesTemplates.getInitiativeCard(
-                    init, idx, fmtSaving, savingPercentText, finalDateStr, strategyBadge, assetName, relatedAsset["Manufacturer"]
+                const finalDateStr = init["Target Date"] ? ContractsUtils.formatToEnglishCustomDate(init["Target Date"]) : "NO DATE";
+
+                let strategyBadge = (strategy && decision && strategy !== decision)
+                    ? `<span class="text-[7px] font-black uppercase bg-rose-50 border border-rose-200 text-rose-700 px-1.5 py-0.5 rounded flex items-center gap-1 shadow-sm">SHIFT: <span class="line-through opacity-60">${strategy}</span> ➔ ${decision}</span>`
+                    : `<span class="text-[7px] font-black uppercase bg-indigo-50 border border-indigo-200 text-indigo-700 px-1.5 py-0.5 rounded shadow-sm">${decision}</span>`;
+
+                lanes[targetLane].count++;
+                lanes[targetLane].sum += appliedSaving;
+
+                lanes[targetLane].html += InitiativesTemplates.getInitiativeCard(
+                    init, originalIndex, fmtSaving, savingPercentText, finalDateStr, strategyBadge, initiativeName, assetName, fmtRunRate, fmtTargetCost, costLabel, supplierName, isOverdue, dateLabel, owner, procurement
                 );
             });
 
+            let pipelineDropdownHtml = `
+            <div class="relative inline-block text-left">
+                <button onclick="InitiativesController.toggleColumnFilterDropdown(event, 'dropdown-pipeline')" class="p-1 hover:bg-slate-300 rounded transition-colors text-slate-400 hover:text-slate-600 focus:outline-none">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+                </button>
+                <div id="dropdown-pipeline" class="hidden absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200 z-50 p-2.5 flex flex-col gap-2">
+                    <div>
+                        <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 select-none">Horizon</label>
+                        <select id="ops-filter-backlog" onchange="InitiativesController.handlePipelineFilterChange('horizon', this.value)" class="w-full text-[10px] font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded px-1.5 py-1 cursor-pointer focus:outline-none">
+                            <option value="next_month" ${InitiativesState.pipelineHorizon === 'next_month' ? 'selected' : ''}>Next Month</option>
+                            <option value="next_2_months" ${InitiativesState.pipelineHorizon === 'next_2_months' ? 'selected' : ''}>Next 2 Months</option>
+                            <option value="next_3_months" ${InitiativesState.pipelineHorizon === 'next_3_months' ? 'selected' : ''}>Next 3 Months</option>
+                            <option value="all_future" ${InitiativesState.pipelineHorizon === 'all_future' ? 'selected' : ''}>All Future</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 select-none">Status</label>
+                        <select id="ops-filter-status" onchange="InitiativesController.handlePipelineFilterChange('status', this.value)" class="w-full text-[10px] font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded px-1.5 py-1 cursor-pointer focus:outline-none">
+                            <option value="all" ${InitiativesState.pipelineStatus === 'all' ? 'selected' : ''}>All Status</option>
+                            <option value="IDEA" ${InitiativesState.pipelineStatus === 'IDEA' ? 'selected' : ''}>Idea</option>
+                            <option value="PLANNED" ${InitiativesState.pipelineStatus === 'PLANNED' ? 'selected' : ''}>Planned</option>
+                        </select>
+                    </div>
+                </div>
+            </div>`;
+
+            let realizedDropdownHtml = `
+            <div class="relative inline-block text-left">
+                <button onclick="InitiativesController.toggleColumnFilterDropdown(event, 'dropdown-realized')" class="p-1 hover:bg-slate-300 rounded transition-colors text-slate-400 hover:text-slate-600 focus:outline-none">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+                </button>
+                <div id="dropdown-realized" class="hidden absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200 z-50 p-2.5 flex flex-col gap-2">
+                    <div>
+                        <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 select-none">History</label>
+                        <select id="ops-filter-savings" onchange="InitiativesController.handleRealizedFilterChange(this.value)" class="w-full text-[10px] font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded px-1.5 py-1 cursor-pointer focus:outline-none">
+                            <option value="past_month" ${InitiativesState.realizedHistory === 'past_month' ? 'selected' : ''}>Past Month</option>
+                            <option value="past_2_months" ${InitiativesState.realizedHistory === 'past_2_months' ? 'selected' : ''}>Past 2 Months</option>
+                            <option value="past_3_months" ${InitiativesState.realizedHistory === 'past_3_months' ? 'selected' : ''}>Past 3 Months</option>
+                            <option value="all_history" ${InitiativesState.realizedHistory === 'all_history' ? 'selected' : ''}>All History</option>
+                        </select>
+                    </div>
+                </div>
+            </div>`;
+
             let gridHtml = '';
-            for (let key in lanes) {
-                const lane = lanes[key];
-                gridHtml += InitiativesTemplates.getKanbanColumnStructure(key, lane.label, lane.color, lane.html, lane.count, lane.sum);
-            }
-            document.getElementById('initiatives-kanban-board-grid').innerHTML = gridHtml;
+            gridHtml += InitiativesTemplates.getKanbanColumnStructure("PIPELINE", lanes.PIPELINE.label, lanes.PIPELINE.color, lanes.PIPELINE.bgColor, lanes.PIPELINE.icon, lanes.PIPELINE.html, lanes.PIPELINE.count, lanes.PIPELINE.sum, pipelineDropdownHtml);
+            gridHtml += InitiativesTemplates.getKanbanColumnStructure("IN_PROGRESS", lanes.IN_PROGRESS.label, lanes.IN_PROGRESS.color, lanes.IN_PROGRESS.bgColor, lanes.IN_PROGRESS.icon, lanes.IN_PROGRESS.html, lanes.IN_PROGRESS.count, lanes.IN_PROGRESS.sum, '');
+            gridHtml += InitiativesTemplates.getKanbanColumnStructure("REALIZED", lanes.REALIZED.label, lanes.REALIZED.color, lanes.REALIZED.bgColor, lanes.REALIZED.icon, lanes.REALIZED.html, lanes.REALIZED.count, lanes.REALIZED.sum, realizedDropdownHtml);
+
+            gridContainer.innerHTML = gridHtml;
         },
 
-        handleCardDragStart: function (event, id) {
-            this.draggedCardId = id;
-            event.dataTransfer.setData('text/plain', id);
-            event.dataTransfer.effectAllowed = 'move';
+        handleGlobalSortChange: function (val) {
+            InitiativesState.globalSortKey = val;
+            this.renderKanbanBoard(false);
         },
 
-        handleColumnDrop: function (event, targetStatus) {
-            event.preventDefault();
-            const id = this.draggedCardId;
-            if (id === null || id === undefined) return;
-
-            const initiative = InitiativesState.updateInitiativeStatus(id, targetStatus);
-            if (initiative) {
-                if (targetStatus === "COMPLETED") {
-                    initiative["Actual Date"] = initiative["Target Date"] || new Date().toISOString().split('T')[0];
-                } else {
-                    initiative["Actual Date"] = "";
-                }
-                // USO DEL NUOVO METODO FRONT-END
-                InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || []);
-                this.renderKanbanBoard();
-                ContractsUtils.showMgmtBannerStatus(`Initiative status updated to ${targetStatus}. Save to apply globally.`, "success");
-            }
-            this.draggedCardId = null;
+        handlePipelineFilterChange: function (type, val) {
+            if (type === 'horizon') InitiativesState.pipelineHorizon = val;
+            if (type === 'status') InitiativesState.pipelineStatus = val;
+            this.renderKanbanBoard(false);
         },
 
-        handleAssetCascadeDropdownChange: function (selectedAssetName) {
-            const contractSelect = document.getElementById('modal-init-contract-select');
-            if (!contractSelect) return;
+        handleRealizedFilterChange: function (val) {
+            InitiativesState.realizedHistory = val;
+            this.renderKanbanBoard(false);
+        },
+
+        toggleColumnFilterDropdown: function (event, id) {
+            if (event) event.stopPropagation();
+            const target = document.getElementById(id);
+            if (target) target.classList.toggle('hidden');
+        },
+
+        // COMPONENTE: LISTA DI SMART CARDS CON EXTRACTION IN ALTO E ORDINAMENTO "STICKY"
+        handleAssetCascadeDropdownChange: function (selectedAssetName, preSelectedGroupId = null) {
+            const container = document.getElementById('modal-init-group-list-container');
+            const hiddenInput = document.getElementById('modal-init-selected-group-id');
+            if (!container) return;
 
             if (!selectedAssetName) {
-                contractSelect.innerHTML = `<option value="">-- Select Mapped Contract Ref --</option>`;
+                container.innerHTML = `<div class="text-center p-4 text-[10px] text-slate-400 italic border border-dashed border-slate-200 rounded-xl">Select an Asset Context first to view mapped Contract Groups.</div>`;
+                if (hiddenInput) hiddenInput.value = "";
                 return;
             }
 
@@ -122,66 +254,124 @@
             );
 
             if (filteredContracts.length === 0) {
-                contractSelect.innerHTML = `<option value="">⚠️ No Contracts linked to this Asset</option>`;
+                container.innerHTML = `<div class="text-center p-4 text-[10px] text-rose-400 font-bold border border-rose-100 bg-rose-50 rounded-xl">⚠️ No Contracts linked to this Asset</div>`;
+                if (hiddenInput) hiddenInput.value = "";
                 return;
             }
 
-            contractSelect.innerHTML = `<option value="">-- Select Mapped Contract Ref --</option>` + filteredContracts.map(c => {
-                const cId = c["Contract ID"];
-                const le = c["Legal Entity"] || "N/A";
-                const val = parseFloat(c["Annual Value"]) || 0;
-                return `<option value="${cId}">[${le}] ${cId} - (RunRate: €${Math.round(val).toLocaleString('it-IT')})</option>`;
-            }).join('');
+            // AGGREGAZIONE E CALCOLO DELLE DATE MASSIME PER GRUPPO
+            const groups = {};
+            filteredContracts.forEach(c => {
+                const gId = c["Group ID"];
+                if (!gId) return;
+                if (!groups[gId]) {
+                    groups[gId] = {
+                        id: gId,
+                        le: c["Legal Entity"] || "N/A",
+                        supplier: c["Supplier"] || "N/A",
+                        expType: c["Expenditure Type"] || "N/A",
+                        sum: 0,
+                        maxDate: null,
+                        contracts: []
+                    };
+                }
+                groups[gId].sum += (parseFloat(c["Annual Value"]) || 0);
+                groups[gId].contracts.push(c);
+
+                // Trova la data massima del gruppo per l'ordinamento delle card
+                let rawDate = c["Expiration Date"] || c["End Date"] || c["Contract End Date"];
+                if (rawDate) {
+                    const d = new Date(rawDate);
+                    if (!isNaN(d.getTime())) {
+                        if (!groups[gId].maxDate || d > groups[gId].maxDate) {
+                            groups[gId].maxDate = d;
+                        }
+                    }
+                }
+            });
+
+            // ORDINAMENTO DEI GRUPPI: Sticky in alto + End Date DESC per gli altri
+            const groupArray = Object.values(groups).sort((a, b) => {
+                if (preSelectedGroupId) {
+                    if (a.id === preSelectedGroupId) return -1;
+                    if (b.id === preSelectedGroupId) return 1;
+                }
+
+                // Ordinamento per data decrescente (se non c'è data, usa una data minima passata per mandarlo in fondo)
+                const dateA = a.maxDate ? a.maxDate.getTime() : 0;
+                const dateB = b.maxDate ? b.maxDate.getTime() : 0;
+                return dateB - dateA;
+            });
+
+            // ORDINAMENTO DEI CONTRATTI DENTRO OGNI SINGOLO GRUPPO (End Date DESC)
+            groupArray.forEach(g => {
+                g.contracts.sort((a, b) => {
+                    let rawDateA = a["Expiration Date"] || a["End Date"] || a["Contract End Date"];
+                    let rawDateB = b["Expiration Date"] || b["End Date"] || b["Contract End Date"];
+
+                    const timeA = rawDateA ? new Date(rawDateA).getTime() : 0;
+                    const timeB = rawDateB ? new Date(rawDateB).getTime() : 0;
+                    return timeB - timeA; // Decrescente
+                });
+            });
+
+            // DELEGA LA GENERAZIONE HTML ALLA VIEW (Passando l'array con le gerarchie già ordinate)
+            container.innerHTML = InitiativesTemplates.getContractGroupSmartCards(groupArray, preSelectedGroupId);
+
+            if (hiddenInput && !preSelectedGroupId) hiddenInput.value = "";
         },
 
-        openInitiativeModalForm: function (id) {
-            const isNew = id === null;
-            InitiativesState.currentEditingInitiative = id;
+        // PROCEDURA DI SELEZIONE DELLA SMART CARD CON TOGGLE ACCORDION AUTOMATICO
+        selectGroup: function (groupId) {
+            const hiddenInput = document.getElementById('modal-init-selected-group-id');
+            if (!hiddenInput) return;
 
-            let initData = { "Initiative Status": "IDEA", "Strategy": "OPTIMIZATION", "Decision": "OPTIMIZATION", "Tags": "", "Optimization Levers": "", "Target Cost (Annualized)": 0, "Description": "", "Service Owner": "", "Procurement Point Focal": "" };
+            hiddenInput.value = groupId;
 
-            if (!isNew) {
-                initData = InitiativesState.getInitiativeById(id);
-                this.currentLocalTagsArray = (initData["Tags"] || "").split(',').map(t => t.trim()).filter(t => t);
+            // 1. Reset visivo di tutte le altre card della lista
+            document.querySelectorAll('.group-card').forEach(card => {
+                card.classList.remove('border-teal-500', 'bg-teal-50/20', 'ring-1', 'ring-teal-500', 'shadow-sm');
+                card.classList.add('border-slate-200', 'bg-white', 'hover:border-teal-300');
+            });
+            document.querySelectorAll('[id^="group-check-"]').forEach(icon => {
+                icon.innerHTML = `<div class="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0"></div>`;
+            });
+
+            // 2. Nasconde i dettagli di tutti gli altri gruppi aperti per compattare la vista
+            document.querySelectorAll('[id^="group-details-"]').forEach(detailBox => {
+                detailBox.classList.add('hidden');
+            });
+
+            // 3. Attiva lo stato selezionato ed espande la tabella dei contratti del gruppo cliccato
+            const selectedCard = document.getElementById(`group-card-${groupId}`);
+            const selectedIcon = document.getElementById(`group-check-${groupId}`);
+            const selectedDetails = document.getElementById(`group-details-${groupId}`);
+
+            if (selectedCard && selectedIcon && selectedDetails) {
+                selectedCard.classList.remove('border-slate-200', 'bg-white', 'hover:border-teal-300');
+                selectedCard.classList.add('border-teal-500', 'bg-teal-50/20', 'ring-1', 'ring-teal-500', 'shadow-sm');
+                selectedIcon.innerHTML = `<svg class="w-4 h-4 text-teal-600 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>`;
+
+                // Espansione automatica istantanea
+                selectedDetails.classList.remove('hidden');
+            }
+        },
+
+        handleDecisionChange: function (val) {
+            const costInput = document.getElementById('modal-init-target-cost');
+            if (!costInput) return;
+            const decision = (val || "").toUpperCase().trim();
+
+            if (["TERMINATE", "REPLACE", "TRANSFER"].includes(decision)) {
+                costInput.value = "0";
+                costInput.disabled = true;
+                costInput.classList.add('bg-slate-100', 'text-slate-400', 'cursor-not-allowed');
+                costInput.classList.remove('text-indigo-800');
             } else {
-                this.currentLocalTagsArray = [];
+                costInput.disabled = false;
+                costInput.classList.remove('bg-slate-100', 'text-slate-400', 'cursor-not-allowed');
+                costInput.classList.add('text-indigo-800');
             }
-
-            const assetsList = ContractsUtils.extractUniqueField(windowPayload.assets, "Asset Name");
-            const assetDropdownHtml = assetsList.map(a => `<option value="${a}" ${a === initData["Asset Name"] ? 'selected' : ''}>${a}</option>`).join('');
-
-            let contractDropdownHtml = '';
-            if (initData["Asset Name"]) {
-                const filtered = (windowPayload.contracts || []).filter(c => String(c["Asset Name"]).trim().toLowerCase() === String(initData["Asset Name"]).trim().toLowerCase());
-                contractDropdownHtml = filtered.map(c => `<option value="${c["Contract ID"]}" ${c["Contract ID"] === initData["Contract ID"] ? 'selected' : ''}>[${c["Legal Entity"]}] ${c["Contract ID"]} - (€${Math.round(c["Annual Value"] || 0).toLocaleString('it-IT')})</option>`).join('');
-            }
-
-            const attachedLevers = (initData["Optimization Levers"] || "").split(',').map(l => l.trim());
-            const leversHtml = InitiativesState.optimizationLevers.map(lever => `
-            <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-100 rounded cursor-pointer font-bold text-slate-700">
-                <input type="checkbox" value="${lever}" ${attachedLevers.includes(lever) ? 'checked' : ''} class="split-lever-checkbox w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600">
-                <span class="truncate">${lever}</span>
-            </label>
-        `).join('');
-
-            const mountPoint = document.getElementById('initiatives-modal-mount-point');
-            mountPoint.innerHTML = InitiativesTemplates.getModalFormStructure(isNew, assetDropdownHtml, contractDropdownHtml, leversHtml);
-
-            if (!isNew) {
-                document.getElementById('modal-init-strategy').value = initData["Strategy"] || "OPTIMIZATION";
-                document.getElementById('modal-init-decision').value = initData["Decision"] || initData["Strategy"] || "OPTIMIZATION";
-                document.getElementById('modal-init-status').value = initData["Initiative Status"] || "IDEA";
-                document.getElementById('modal-init-target-date').value = initData["Target Date"] ? initData["Target Date"].toString().split('T')[0] : "";
-                document.getElementById('modal-init-target-cost').value = initData["Target Cost (Annualized)"] ? Math.round(initData["Target Cost (Annualized)"]).toLocaleString('it-IT') : "";
-                document.getElementById('modal-init-owner').value = initData["Service Owner"] || "";
-                document.getElementById('modal-init-procurement').value = initData["Procurement Point Focal"] || initData["Procurement Point"] || "";
-                document.getElementById('modal-init-description').value = initData["Description"] || "";
-                this.rebuildModalTagsBadgesContainer();
-            }
-
-            mountPoint.classList.remove('hidden');
-            mountPoint.classList.add('flex');
-            mountPoint.querySelector('.bg-white').setAttribute('onclick', 'event.stopPropagation()');
         },
 
         closeInitiativeModalWindow: function () {
@@ -189,19 +379,6 @@
             mountPoint.classList.remove('flex');
             mountPoint.classList.add('hidden');
             mountPoint.innerHTML = '';
-        },
-
-        handleTagsOnTheFlyInjection: function (event) {
-            if (event.key === ',' || event.keyCode === 188 || event.key === 'Enter') {
-                const input = document.getElementById('modal-init-tags-input');
-                let val = input.value.replace(/,/g, '').trim().toUpperCase();
-
-                if (val !== "" && !this.currentLocalTagsArray.includes(val)) {
-                    this.currentLocalTagsArray.push(val);
-                    this.rebuildModalTagsBadgesContainer();
-                }
-                input.value = '';
-            }
         },
 
         rebuildModalTagsBadgesContainer: function () {
@@ -218,31 +395,117 @@
         removeTagFromLocalInstance: function (idx) {
             this.currentLocalTagsArray.splice(idx, 1);
             this.rebuildModalTagsBadgesContainer();
+            this.renderAvailableTagsInModal();
+        },
+
+        openInitiativeModalForm: function (id) {
+            const isNew = id === null;
+            InitiativesState.currentEditingInitiative = id;
+
+            let initData = { "Initiative Name": "", "Initiative Status": "IDEA", "Initial Strategy": "OPTIMIZATION", "Decision": "OPTIMIZATION", "Tags": "", "Optimization Levers": "", "Target Cost (Annualized)": 0, "Description": "", "Service Owner": "", "Procurement Point Focal": "", "Contracts Group ID": "" };
+
+            if (!isNew) {
+                initData = InitiativesState.getInitiativeById(id);
+            }
+
+            const assetsList = ContractsUtils.extractUniqueField(windowPayload.assets, "Asset Name");
+            const assetDropdownHtml = assetsList.map(a => `<option value="${a}" ${a === initData["Asset Name"] ? 'selected' : ''}>${a}</option>`).join('');
+
+            const attachedLevers = (initData["Optimization Levers"] || "").split(',').map(l => l.trim());
+            const leversHtml = InitiativesState.optimizationLevers.map(lever => `
+            <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-100 rounded cursor-pointer font-bold text-slate-700">
+                <input type="checkbox" value="${lever}" ${attachedLevers.includes(lever) ? 'checked' : ''} class="split-lever-checkbox w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600">
+                <span class="truncate">${lever}</span>
+            </label>
+        `).join('');
+
+            const mountPoint = document.getElementById('initiatives-modal-mount-point');
+            mountPoint.innerHTML = InitiativesTemplates.getModalFormStructure(isNew, assetDropdownHtml, "", leversHtml);
+
+            if (!isNew) {
+                document.getElementById('modal-init-name').value = initData["Initiative Name"] || "";
+
+                const readStrategy = (initData["Initial Strategy"] || initData["Strategy"] || "OPTIMIZATION").toUpperCase().trim();
+                const readDecision = (initData["Decision"] || readStrategy).toUpperCase().trim();
+                document.getElementById('modal-init-strategy').value = readStrategy;
+                document.getElementById('modal-init-decision').value = readDecision;
+
+                document.getElementById('modal-init-status').value = (initData["Initiative Status"] || "IDEA").toUpperCase().trim();
+                document.getElementById('modal-init-target-date').value = initData["Target Date"] ? initData["Target Date"].toString().split('T')[0] : "";
+
+                document.getElementById('modal-init-target-cost').value = initData["Target Cost (Annualized)"] ? Math.round(initData["Target Cost (Annualized)"]).toLocaleString('it-IT') : "0";
+                this.handleDecisionChange(readDecision);
+
+                document.getElementById('modal-init-owner').value = initData["Service Owner"] || "";
+                document.getElementById('modal-init-procurement').value = initData["Procurement Point Focal"] || initData["Procurement Point"] || "";
+                document.getElementById('modal-init-description').value = initData["Description"] || "";
+
+                if (initData["Asset Name"]) {
+                    this.handleAssetCascadeDropdownChange(initData["Asset Name"], initData["Contracts Group ID"]);
+                    document.getElementById('modal-init-selected-group-id').value = initData["Contracts Group ID"] || "";
+                }
+            }
+
+            mountPoint.classList.remove('hidden');
+            mountPoint.classList.add('flex');
+            mountPoint.querySelector('.bg-white').setAttribute('onclick', 'event.stopPropagation()');
         },
 
         commitInitiativeFormToLocalState: function () {
+            const initName = document.getElementById('modal-init-name').value.trim();
             const assetName = document.getElementById('modal-init-asset-select').value;
-            const contractId = document.getElementById('modal-init-contract-select').value;
+            const groupId = document.getElementById('modal-init-selected-group-id').value;
             const tDate = document.getElementById('modal-init-target-date').value;
             const tCostInput = document.getElementById('modal-init-target-cost');
             const tCostStr = tCostInput ? tCostInput.value.replace(/\./g, '').trim() : "0";
 
-            const selectedContractId = document.getElementById('modal-init-contract-select').value;
-            const selectedContract = (windowPayload.contracts || []).find(c => c["Contract ID"] === selectedContractId);
-
-            if (!assetName || !contractId || !tDate || tCostStr === "") {
-                alert("Boundary Data Integrity Error: Asset Context, Linked Contract Ref, Target Execution Date and Target Cost fields are strictly mandatory.");
+            if (!initName || !assetName || !groupId || !tDate || tCostStr === "") {
+                alert("Boundary Data Integrity Error: Initiative Name, Asset Context, Linked Group ID, Target Execution Date and Target Cost fields are strictly mandatory.");
                 return;
             }
 
             const activeId = InitiativesState.currentEditingInitiative;
             let instance = activeId !== null ? InitiativesState.getInitiativeById(activeId) : {};
 
+            instance["Initiative Name"] = initName;
             instance["Asset Name"] = assetName;
-            instance["Contract ID"] = contractId;
-            instance["Contracts Group ID"] = selectedContract ? selectedContract["Group ID"] : "";
-            instance["Strategy"] = document.getElementById('modal-init-strategy').value;
+            instance["Contracts Group ID"] = groupId;
+
+            const groupContracts = (windowPayload.contracts || []).filter(c => (c["Group ID"] || c["group id"]) === groupId);
+            let baselineAgg = 0;
+            let maxExpDate = null;
+            let supplierAgg = "";
+            let expTypeAgg = "";
+            let termAgg = "";
+
+            if (groupContracts.length > 0) {
+                supplierAgg = groupContracts[0]["Supplier"] || groupContracts[0]["supplier"] || groupContracts[0]["Vendor"] || "";
+                expTypeAgg = groupContracts[0]["Expenditure Type"] || groupContracts[0]["expenditure type"] || groupContracts[0]["ExpenditureType"] || "";
+                termAgg = groupContracts[0]["Contract Term (Months)"] || groupContracts[0]["Contract Term"] || "";
+
+                groupContracts.forEach(c => {
+                    baselineAgg += (parseFloat(c["Annual Value"] || c["annual value"] || 0));
+                    let rawDate = c["Expiration Date"] || c["End Date"] || c["Contract End Date"] || c["expiration date"];
+                    if (rawDate) {
+                        const d = new Date(rawDate);
+                        if (!isNaN(d.getTime())) {
+                            if (!maxExpDate || d > maxExpDate) maxExpDate = d;
+                        }
+                    }
+                });
+            }
+
+            instance["Contract ID"] = groupContracts.length > 0 ? (groupContracts[0]["Contract ID"] || groupContracts[0]["contract id"] || "") : "";
+            instance["Supplier"] = supplierAgg;
+            instance["Expenditure Type"] = expTypeAgg;
+            instance["Contract Term (Months)"] = termAgg;
+            instance["Baseline (Annualized)"] = baselineAgg;
+            instance["Last Expiration"] = maxExpDate ? maxExpDate.toISOString().split('T')[0] : "";
+
+            const savedStrategy = document.getElementById('modal-init-strategy').value;
+            instance["Initial Strategy"] = savedStrategy;
             instance["Decision"] = document.getElementById('modal-init-decision').value;
+
             instance["Initiative Status"] = document.getElementById('modal-init-status').value;
             instance["Target Date"] = tDate;
             instance["Target Cost (Annualized)"] = parseInt(tCostStr, 10) || 0;
@@ -253,7 +516,7 @@
 
             const checkedLevers = Array.from(document.querySelectorAll('.split-lever-checkbox:checked')).map(cb => cb.value);
             instance["Optimization Levers"] = checkedLevers.join(', ');
-            instance["Tags"] = this.currentLocalTagsArray.join(', ');
+            // Nota: i "Tags" rimangono intatti perché ereditati dall'istanza originale in memoria. Non vengono sovrascritti.
 
             if (instance["Initiative Status"] === "COMPLETED") {
                 instance["Actual Date"] = instance["Target Date"];
@@ -262,12 +525,10 @@
             }
 
             InitiativesState.saveInitiativeInstance(activeId, instance);
-
-            // USO DEL NUOVO METODO FRONT-END
             InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || []);
 
             this.closeInitiativeModalWindow();
-            this.renderKanbanBoard();
+            this.renderKanbanBoard(false);
             ContractsUtils.showMgmtBannerStatus("Initiative changes applied locally in memory cache. Commit to persist changes.", "warning");
         },
 
@@ -275,7 +536,7 @@
             if (confirm("Are you entirely sure you want to completely erase this initiative from the FinOps registry?")) {
                 InitiativesState.deleteInitiativeInstance(InitiativesState.currentEditingInitiative);
                 this.closeInitiativeModalWindow();
-                this.renderKanbanBoard();
+                this.renderKanbanBoard(false);
                 ContractsUtils.showMgmtBannerStatus("Initiative purged from memory. Commit to propagate deletion.", "warning");
             }
         },
@@ -297,37 +558,341 @@
             );
         },
 
-        renderGlobalTagsFilterSelectionRow: function () {
-            const container = document.getElementById('initiatives-global-tags-filter-lane');
-            if (!container) return;
+        // --- MOTORE DRAG & DROP FLUIDO E BLINDATO ---
+        currentDragType: null,
 
-            const uniqueTags = new Set();
-            InitiativesState.rawInitiatives.forEach(init => {
-                (init["Tags"] || "").split(',').forEach(t => { if (t.trim() !== "") uniqueTags.add(t.trim().toUpperCase()); });
-            });
+        handleCardDragStart: function (event, id) {
+            this.currentDragType = 'CARD';
+            event.dataTransfer.setData('text/plain', JSON.stringify({ type: 'CARD', id: id }));
+            event.dataTransfer.effectAllowed = 'move';
 
-            if (uniqueTags.size === 0) {
-                container.innerHTML = '';
-                return;
-            }
-
-            container.innerHTML = Array.from(uniqueTags).sort().map(tag => {
-                const isActive = InitiativesState.selectedTagsFilter.includes(tag);
-                const btnClass = isActive
-                    ? "bg-teal-700 text-white border-teal-700 shadow-sm font-black"
-                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 font-bold";
-                return `
-                <button onclick="InitiativesController.handleGlobalTagFilterToggle(this, '${tag}')" class="text-[9px] px-2 py-1 border rounded-lg transition-all uppercase tracking-wider ${btnClass}">
-                    #${tag}
-                </button>
-            `;
-            }).join('');
+            // Pulisce la UI per evitare glitch
+            document.querySelectorAll('[id^="group-details-"]').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.group-hover\\:opacity-100').forEach(el => el.classList.remove('group-hover:opacity-100'));
         },
 
-        handleGlobalTagFilterToggle: function (btn, tag) {
+        handleTagDragStart: function (event, tag, sourceCardId = null) {
+            event.stopPropagation();
+            this.currentDragType = 'TAG';
+            event.dataTransfer.setData('text/plain', JSON.stringify({ type: 'TAG', tag: tag, sourceCardId: sourceCardId }));
+            event.dataTransfer.effectAllowed = 'copyMove';
+
+            // Disattiva i pointer-events sui figli interni di tutte le card per evitare lag e sfarfallii
+            document.body.classList.add('dragging-tag-active');
+
+            // Il tuo Drag Ghost personalizzato (senza modifiche)
+            const ghost = document.createElement('div');
+            ghost.id = 'drag-ghost-' + tag;
+            ghost.className = 'px-3 py-1 bg-teal-600 text-white font-black text-[10px] uppercase tracking-wider rounded-full fixed -top-20 left-0 z-[9999]';
+            ghost.innerHTML = '#' + tag;
+            document.body.appendChild(ghost);
+            event.dataTransfer.setDragImage(ghost, 15, 10);
+
+            setTimeout(() => {
+                const el = document.getElementById('drag-ghost-' + tag);
+                if (el) el.remove();
+            }, 10);
+        },
+
+        // EVENTO CHIAVE CHE AZZERA IL LAG: Continua a spegnere le altre colonne e accende solo quella corrente
+        handleColumnDragOver: function (event, element) {
+            event.preventDefault();
+
+            if (this.currentDragType === 'CARD') {
+                // Anti-Lag: Modifica il DOM solo se la classe non è già presente
+                if (!element.classList.contains('bg-slate-200/80')) {
+                    document.querySelectorAll('.kanban-lane-container').forEach(col => {
+                        if (col !== element) col.classList.remove('bg-slate-200/80', 'border-teal-500/50', 'ring-2', 'ring-teal-500/20');
+                    });
+                    element.classList.add('bg-slate-200/80', 'border-teal-500/50', 'ring-2', 'ring-teal-500/20');
+                }
+            }
+        },
+
+        handleCardDragOver: function (event, element) {
+            event.preventDefault();
+
+            if (this.currentDragType === 'TAG') {
+                // Impedisce ai figli interni (testo, numeri) di attivare eventi e far sfarfallare la card
+                if (event.target !== element && !element.contains(event.target)) return;
+
+                const overlay = element.querySelector('[id^="drop-overlay-"]');
+                if (overlay && !overlay.classList.contains('opacity-100')) {
+                    overlay.classList.remove('opacity-0');
+                    overlay.classList.add('opacity-100');
+                }
+
+                const tagsContainer = element.querySelector('.absolute.top-full');
+                if (tagsContainer && !tagsContainer.classList.contains('opacity-100')) {
+                    tagsContainer.classList.remove('opacity-0', 'pointer-events-none');
+                    tagsContainer.classList.add('opacity-100', 'pointer-events-auto');
+                }
+            }
+        },
+
+        handleCardDragLeave: function (event, element) {
+            if (this.currentDragType === 'TAG') {
+                // TRUCCO CRITICO: Se il mouse si sta solo spostando su un testo interno alla card, NON spegnere nulla!
+                const nextElement = event.relatedTarget;
+                if (element.contains(nextElement)) return;
+
+                const overlay = element.querySelector('[id^="drop-overlay-"]');
+                if (overlay) {
+                    overlay.classList.remove('opacity-100');
+                    overlay.classList.add('opacity-0');
+                }
+
+                const tagsContainer = element.querySelector('.absolute.top-full');
+                if (tagsContainer) {
+                    tagsContainer.classList.remove('opacity-100', 'pointer-events-auto');
+                    tagsContainer.classList.add('opacity-0', 'pointer-events-none');
+                }
+            }
+        },
+
+        // EVENTO DI PULIZIA GLOBALE: Alla fine del Drag, spegne l'illuminazione di TUTTO. Niente più dragleave rotti.
+        handleDragEnd: function (event) {
+            this.currentDragType = null;
+            // Rimuove il blocco dei pointer events
+            document.body.classList.remove('dragging-tag-active');
+
+            document.querySelectorAll('.kanban-lane-container').forEach(col => {
+                col.classList.remove('bg-slate-200/80', 'border-teal-500/50', 'ring-2', 'ring-teal-500/20');
+            });
+            document.querySelectorAll('[id^="drop-overlay-"]').forEach(el => {
+                el.classList.remove('opacity-100');
+                el.classList.add('opacity-0');
+            });
+        },
+
+        handleColumnDrop: function (event, targetColumn, element) {
+            event.preventDefault();
+            this.handleDragEnd(); // Spegne immediatamente le colonne
+
+            const rawData = event.dataTransfer.getData('text/plain');
+            if (!rawData) return;
+
+            try {
+                const data = JSON.parse(rawData);
+                if (data.type === 'CARD') {
+                    this.processCardMove(data, targetColumn);
+                } else if (data.type === 'TAG') {
+                    this.removeTagFromSource(data.tag, data.sourceCardId);
+                }
+            } catch (e) { }
+        },
+
+        handleCardDrop: function (event, id, element) {
+            event.preventDefault();
+            event.stopPropagation();
+            this.handleDragEnd(); // Spegne i filtri grafici globali
+
+            const rawData = event.dataTransfer.getData('text/plain');
+            if (!rawData) return;
+
+            try {
+                const data = JSON.parse(rawData);
+
+                if (data.type === 'CARD') {
+                    const targetColumnDiv = element.closest('.kanban-lane-container');
+                    if (targetColumnDiv) {
+                        const lane = targetColumnDiv.querySelector('[id^="kanban-target-lane-"]');
+                        if (lane) {
+                            const colKey = lane.id.replace('kanban-target-lane-', '');
+                            this.processCardMove(data, colKey);
+                        }
+                    }
+                    return;
+                }
+
+                if (data.type === 'TAG') {
+                    if (data.sourceCardId === id) return;
+
+                    const init = InitiativesState.rawInitiatives[id];
+                    if (init) {
+                        let currentTags = (init["Tags"] || "").split(',').map(t => t.trim()).filter(t => t);
+                        if (!currentTags.includes(data.tag)) {
+                            currentTags.push(data.tag);
+                            init["Tags"] = currentTags.join(', ');
+
+                            if (data.sourceCardId !== null && data.sourceCardId !== undefined) {
+                                const oldInit = InitiativesState.rawInitiatives[data.sourceCardId];
+                                if (oldInit) {
+                                    oldInit["Tags"] = (oldInit["Tags"] || "").split(',').map(t => t.trim()).filter(t => t !== data.tag).join(', ');
+                                }
+                            }
+
+                            // Renderizza e aggiorna la board
+                            this.renderKanbanBoard(false);
+                            this.renderGlobalTagsFilterSelectionRow();
+
+                            // Recupera la card appena renderizzata per non perdere il focus visivo dell'utente
+                            const newCardEl = document.getElementById('ops-card-parent-' + id);
+                            if (newCardEl) {
+                                const container = newCardEl.querySelector('.absolute.top-full');
+                                if (container) {
+                                    container.classList.remove('opacity-0', 'pointer-events-none');
+                                    container.classList.add('opacity-100', 'pointer-events-auto');
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e) { }
+        },
+
+        handleBoardDrop: function (event) {
+            event.preventDefault();
+            const rawData = event.dataTransfer.getData('text/plain');
+            if (!rawData) return;
+
+            try {
+                const data = JSON.parse(rawData);
+                if (data.type === 'TAG') this.removeTagFromSource(data.tag, data.sourceCardId);
+            } catch (e) { }
+            this.currentDragType = null;
+        },
+
+        processCardMove: function (data, targetColumn) {
+            let newStatus = "";
+            if (targetColumn === "PIPELINE") newStatus = "PLANNED";
+            else if (targetColumn === "IN_PROGRESS") newStatus = "IN PROGRESS";
+            else if (targetColumn === "REALIZED") newStatus = "COMPLETED";
+
+            const initiative = InitiativesState.updateInitiativeStatus(data.id, newStatus);
+            if (initiative) {
+                if (newStatus === "COMPLETED") initiative["Actual Date"] = initiative["Target Date"] || new Date().toISOString().split('T')[0];
+                else initiative["Actual Date"] = "";
+
+                InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || []);
+                this.renderKanbanBoard(false);
+                ContractsUtils.showMgmtBannerStatus(`Status shifted to ${newStatus}. Push changes to commit.`, "success");
+            }
+        },
+
+        removeTagFromSource: function (tag, sourceCardId) {
+            if (sourceCardId !== null && sourceCardId !== undefined) {
+                const init = InitiativesState.rawInitiatives[sourceCardId];
+                if (init) {
+                    let currentTags = (init["Tags"] || "").split(',').map(t => t.trim()).filter(t => t);
+                    currentTags = currentTags.filter(t => t !== tag);
+                    init["Tags"] = currentTags.join(', ');
+                    this.renderKanbanBoard(false);
+                    this.renderGlobalTagsFilterSelectionRow();
+                }
+            }
+        },
+
+        // --- GESTIONE LIBRERIA TAG IN ALTO ---
+
+        handleGlobalNewTagCreation: function (event) {
+            // Intercettiamo il tasto Invio
+            if (event.key === 'Enter' || event.keyCode === 13) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const input = document.getElementById('global-new-tag-input');
+                if (!input) return;
+
+                // Forza il testo in MAIUSCOLO e pulisce gli spazi vuoti
+                const newTag = input.value.trim().toUpperCase();
+
+                if (newTag) {
+                    // Inizializza l'array globale dei tag se non esiste
+                    if (!InitiativesState.globalAvailableTags) {
+                        InitiativesState.globalAvailableTags = [];
+                    }
+
+                    // Aggiunge il tag in memoria solo se non esiste già
+                    if (!InitiativesState.globalAvailableTags.includes(newTag)) {
+                        InitiativesState.globalAvailableTags.push(newTag);
+
+                        // Se vuoi che il nuovo tag sia subito attivo nei filtri opzionalmente:
+                        // InitiativesState.globalSelectedTagsFilter.push(newTag);
+                    }
+
+                    // Rinfresca la board e la riga dei tag per mostrare subito il risultato
+                    this.renderGlobalTagsFilterSelectionRow();
+
+                    // Opzionale: se serve rinfrescare anche i dati complessivi
+                    // this.renderKanbanBoard(false);
+
+                    // Focus automatico di cortesia per inserire un altro tag di fila
+                    const newInput = document.getElementById('global-new-tag-input');
+                    if (newInput) newInput.focus();
+                }
+            }
+        },
+
+        renderGlobalTagsFilterSelectionRow: function () {
+            const lane = document.getElementById('initiatives-global-tags-filter-lane');
+            if (!lane) return;
+
+            // 1. ESTRAZIONE DEI TAG ESISTENTI
+            const tagSet = new Set();
+            if (InitiativesState.rawInitiatives) {
+                Object.values(InitiativesState.rawInitiatives).forEach(init => {
+                    const tagsStr = init["Tags"] || init["tags"] || "";
+                    tagsStr.split(',').forEach(t => {
+                        const cleaned = t.trim();
+                        if (cleaned) tagSet.add(cleaned);
+                    });
+                });
+            }
+            const allTags = Array.from(tagSet).sort();
+
+            // 2. CREIAMO IL BOX DI INSERIMENTO COME PRIMO ELEMENTO (FISSO A SINISTRA)
+            // Aggiunta classe 'uppercase' per stile e allineamento flex-center rigoroso
+            let html = `
+            <div class="relative w-36 mr-2 shrink-0 flex items-center">
+                <input type="text" id="global-new-tag-input" 
+                       onkeydown="InitiativesController.handleGlobalNewTagCreation(event)" 
+                       placeholder="+ NEW TAG (ENTER)" 
+                       class="w-full px-2 py-1 text-[9px] font-black text-slate-700 bg-slate-50 hover:bg-white border border-slate-200 rounded-xl focus:ring-1 focus:ring-teal-500 shadow-inner outline-none transition-colors placeholder:font-normal placeholder:text-slate-400 uppercase">
+            </div>
+        `;
+
+            // 3. ACCODIDAMO I TAG ESISTENTI VERSO DESTRA
+            html += allTags.map(tag => {
+                const isSelected = InitiativesState.globalSelectedTagsFilter && InitiativesState.globalSelectedTagsFilter.includes(tag);
+                const activeClass = isSelected
+                    ? 'bg-teal-600 text-white border-teal-700 shadow-md font-black scale-102'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200 hover:border-slate-300 font-bold';
+
+                return `
+                <div draggable="true" 
+                     ondragstart="InitiativesController.handleTagDragStart(event, '${tag}')"
+                     onclick="InitiativesController.handleGlobalTagFilterToggle('${tag}')"
+                     class="px-2.5 py-1 text-[9px] uppercase tracking-wider rounded-xl border cursor-pointer select-none transition-all ${activeClass} h-6 flex items-center">
+                     <span class="${isSelected ? 'text-teal-200' : 'text-teal-500'} mr-0.5 font-black">#</span>${tag}
+                </div>
+            `;
+            }).join('');
+
+            lane.innerHTML = html;
+        },
+
+        deleteGlobalTag: function (event, tag) {
+            event.stopPropagation(); // Evita di attivare il filtro
+            this.globalCustomTags = this.globalCustomTags.filter(t => t !== tag);
+            this.renderGlobalTagsFilterSelectionRow();
+        },
+
+        handleGlobalTagFilterToggle: function (tag) {
             InitiativesState.toggleTagFilter(tag);
-            this.renderKanbanBoard();
+            this.renderKanbanBoard(false);
             this.renderGlobalTagsFilterSelectionRow();
         }
     };
+
+    document.addEventListener('click', function (e) {
+        const pipelineDrop = document.getElementById('dropdown-pipeline');
+        const realizedDrop = document.getElementById('dropdown-realized');
+        if (pipelineDrop && !pipelineDrop.classList.contains('hidden') && !pipelineDrop.contains(e.target) && !e.target.closest('button')) {
+            pipelineDrop.classList.add('hidden');
+        }
+        if (realizedDrop && !realizedDrop.classList.contains('hidden') && !realizedDrop.contains(e.target) && !e.target.closest('button')) {
+            realizedDrop.classList.add('hidden');
+        }
+    });
 </script>

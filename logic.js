@@ -278,7 +278,7 @@ function calculateInitiativesMetrics(initiatives, contracts) {
 
         // FORMULA 2 & 3: Target Saving (Annualized) & Target Saving %
         const targetCost = parseFloat(init["Target Cost (Annualized)"]);
-        const strategy = (init["Decision"] || init["Strategy"] || "").toString().trim().toLowerCase();
+        const strategy = (init["Decision"] || init["Initial Strategy"] || "").toString().trim().toLowerCase();
 
         let targetSaving = 0;
         if (!isNaN(targetCost) && targetCost >= 0) {
