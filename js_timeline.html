@@ -1,94 +1,59 @@
 <script>
     /**
      * js_timeline.html
-     * ARCHITECTURAL MODULE: Asset-Centric Contract Lifecycle Timeline (Gantt Matrix)
-     * Fully compliant with SOLID, DRY, and clean MVC separation principles.
+     * ARCHITETTURA MASTER-CENTRIC: Disegna solo gli Accordi Quadro (Master).
+     * Sfrutta Previous Master ID per evidenziare le successioni.
      */
 
-    // =========================================================================
-    // 1. MODEL: STATE MANAGEMENT
-    // =========================================================================
     const TimelineState = {
-        selectedAsset: "",
-        activePivotKey: "masterId", // Options: 'masterId', 'legalEntity', 'location'
         timelineStartYear: 2024,
         timelineEndYear: 2028,
-        pixelRatePerMonth: 48, // 48px horizontal vector per month (Macro Zoom)
+        pixelRatePerMonth: 32, // 3 Anni visibili perfettamente
 
-        getFilteredContracts: function() {
-            if (!this.selectedAsset) return [];
-            
-            // Extract and clean all contract rows linked to the active Asset selection
-            return (windowPayload.contracts || []).filter(c => 
-                String(c["Asset Name"]).trim().toLowerCase() === this.selectedAsset.toLowerCase()
-            );
+        // Ora filtriamo e lavoriamo direttamente sui MASTER CONTRACTS
+        getActiveMasters: function() {
+            return (windowPayload.masterContracts || []);
         },
 
         calculateTimeCoordinates: function(startDateStr, endDateStr) {
-            if (!startDateStr || !endDateStr) return { duration: 12, offset: 0 };
+            if (!startDateStr || !endDateStr) return { width: 0, left: 0 };
 
             const start = new Date(startDateStr);
             const end = new Date(endDateStr);
-            if (isNaN(start.getTime()) || isNaN(end.getTime())) return { duration: 12, offset: 0 };
+            if (isNaN(start.getTime()) || isNaN(end.getTime())) return { width: 0, left: 0 };
 
-            const timelineBaseDate = new Date(this.timelineStartYear, 0, 1);
-
-            // Calculate offset months from timeline base anchor (January 2024)
-            let offsetMonths = (start.getFullYear() - timelineBaseDate.getFullYear()) * 12 + (start.getMonth() - timelineBaseDate.getMonth());
-            if (offsetMonths < 0) offsetMonths = 0;
-
-            // Calculate duration in months
-            let durationMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
-            if (durationMonths <= 0) durationMonths = 1;
+            const baseDate = new Date(this.timelineStartYear, 0, 1);
+            const msPerDay = 24 * 60 * 60 * 1000;
+            const offsetDays = Math.max(0, Math.floor((start - baseDate) / msPerDay));
+            const durationDays = Math.max(1, Math.floor((end - start) / msPerDay) + 1);
+            const pixelRatePerDay = this.pixelRatePerMonth / 30.4166;
 
             return {
-                duration: durationMonths,
-                offset: offsetMonths
+                left: offsetDays * pixelRatePerDay,
+                width: durationDays * pixelRatePerDay
             };
         }
     };
 
-    // =========================================================================
-    // 2. VIEW: UI HOOKS & TEMPLATES
-    // =========================================================================
     const TimelineTemplates = {
-        getControlsShellMarkup: function(assetOptionsHtml) {
+        getControlsShellMarkup: function() {
             return `
             <div class="space-y-4 animate-fade-in relative z-20">
-                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                    <div class="flex-1 w-full sm:max-w-md">
-                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Select Asset Lifecycle Scope</label>
-                        <select id="timeline-asset-selector" onchange="TimelineController.handleAssetScopeShift(this.value)" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 font-bold text-slate-800 text-xs cursor-pointer">
-                            <option value="">-- Choose target technology asset to map timelines --</option>
-                            ${assetOptionsHtml}
-                        </select>
-                    </div>
-
-                    <div id="timeline-interactive-controls" class="hidden flex-wrap items-center gap-3">
-                        <div class="bg-slate-100 border border-slate-200 p-1 rounded-xl text-[11px] font-black uppercase tracking-wider flex">
-                            <button id="tl-pivot-masterId" onclick="TimelineController.handlePivotRegrouping('masterId')" class="px-3 py-1.5 rounded-lg bg-teal-700 text-white transition-all">Pivot by Master ID</button>
-                            <button id="tl-pivot-legalEntity" onclick="TimelineController.handlePivotRegrouping('legalEntity')" class="px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-800 transition-all">Pivot by Legal Entity</button>
-                            <button id="tl-pivot-location" onclick="TimelineController.handlePivotRegrouping('location')" class="px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-800 transition-all">Pivot by Location</button>
-                        </div>
-                        <div class="flex gap-1">
-                            <button onclick="TimelineController.scrollTimelineCanvas('left')" class="px-3 py-1.5 bg-slate-800 text-white rounded-xl hover:bg-slate-900 text-[10px] font-black tracking-wider uppercase shadow-xs">◀ Past</button>
-                            <button onclick="TimelineController.scrollTimelineCanvas('right')" class="px-3 py-1.5 bg-slate-800 text-white rounded-xl hover:bg-slate-900 text-[10px] font-black tracking-wider uppercase shadow-xs">Future ▶</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-teal-50 border border-teal-100 text-teal-800 p-3.5 rounded-xl text-xs flex items-start gap-2.5 shadow-3xs">
-                    <span class="text-base">🔎</span>
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
                     <div>
-                        <p class="font-bold">Gantt Lifecycle Matrix Board Active (Sandbox Scale: 1 Month = 48px horizontal vector)</p>
-                        <p class="text-teal-700/90 text-[11px] mt-0.5 font-medium">Select an active technology asset to load its relational database tree. Contracts share visual groups, chronological boundaries, and structural renewals based on relational metadata mappings.</p>
+                        <h2 class="text-lg font-black text-slate-800 tracking-tight">Master Agreements Lifecycle</h2>
+                        <p class="text-xs text-slate-500 font-medium mt-0.5">Vista aggregata per Fornitore e dipendenze storiche.</p>
+                    </div>
+                    <div class="flex gap-1">
+                        <button onclick="TimelineController.scrollTimelineCanvas('left')" class="px-3 py-1.5 bg-slate-800 text-white rounded-xl hover:bg-slate-900 text-[10px] font-black tracking-wider uppercase shadow-xs cursor-pointer">◀ Past</button>
+                        <button onclick="TimelineController.scrollTimelineCanvas('right')" class="px-3 py-1.5 bg-slate-800 text-white rounded-xl hover:bg-slate-900 text-[10px] font-black tracking-wider uppercase shadow-xs cursor-pointer">Future ▶</button>
                     </div>
                 </div>
 
-                <div id="timeline-matrix-canvas-wrapper" class="hidden overflow-x-auto border border-slate-200 bg-white rounded-2xl p-4 shadow-sm scroll-smooth">
-                    <div style="width: 3600px;" class="space-y-4">
+                <div id="timeline-matrix-canvas-wrapper" class="overflow-x-auto border border-slate-200 bg-white rounded-2xl p-4 shadow-sm scroll-smooth">
+                    <div style="width: 2100px;" class="space-y-4">
                         <div class="flex items-center text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2 font-mono">
-                            <div class="w-65 shrink-0 border-r border-slate-200 pr-2 bg-white sticky left-0 z-30">Dimensional Pivot Target Lane</div>
+                            <div class="w-65 shrink-0 border-r border-slate-200 pr-2 bg-white sticky left-0 z-30">Supplier / Vendor</div>
                             <div id="timeline-chronological-axis-track" class="flex-1 flex gap-0 pl-4 relative"></div>
                         </div>
                         <div id="timeline-matrix-swimlanes-viewport" class="space-y-4 relative"></div>
@@ -99,8 +64,7 @@
 
         getTimeScaleAxisTicks: function(startYear, endYear, monthWidth) {
             let html = '';
-            const yearWidth = 12 * monthWidth; // 12 Months * 48px = 576px wide columns per Year
-            
+            const yearWidth = 12 * monthWidth; 
             for (let year = startYear; year <= endYear; year++) {
                 const highlightClass = (year === 2026 || year === 2027) ? "text-teal-700 font-black bg-teal-50/40 border-teal-200/60 shadow-3xs" : "text-slate-400 border-slate-100";
                 html += `
@@ -112,174 +76,122 @@
             return html;
         },
 
-        getSwimlaneBlockMarkup: function(laneKey, cardsHtml) {
+        getSwimlaneBlockMarkup: function(supplierName, cardsHtml) {
             return `
             <div class="bg-slate-50/50 border border-slate-200/80 rounded-2xl p-4 flex flex-row items-stretch gap-4 hover:border-slate-300 transition-colors relative">
-                <div class="w-65 bg-white border border-slate-200 p-3 rounded-2xl flex flex-col justify-between shrink-0 text-left sticky left-0 z-30 shadow-sm">
-                    <div>
-                        <span class="text-[8px] font-mono font-black text-teal-600 bg-teal-50 border border-teal-100 px-1.5 py-0.5 rounded">Group Mapping Anchor</span>
-                        <h5 class="text-xs font-black text-slate-800 mt-2 break-words leading-tight" title="${laneKey}">${laneKey}</h5>
-                    </div>
+                <div class="w-65 bg-white border border-slate-200 p-3 rounded-2xl flex flex-col justify-center shrink-0 text-left sticky left-0 z-30 shadow-sm">
+                    <h5 class="text-sm font-black text-slate-800 break-words leading-tight truncate" title="${supplierName}">${supplierName}</h5>
                 </div>
-                <div class="flex-1 flex items-center gap-0 overflow-x-hidden relative min-h-[110px] pl-4">
+                <div class="flex-1 flex flex-col gap-2.5 overflow-x-hidden relative pl-4">
                     ${cardsHtml}
                 </div>
             </div>`;
         },
 
-        getContractCardNodeMarkup: function(c, left, width, monthWidth) {
-            const isExpired = (c["Status"] || "").toString().toUpperCase().trim() === "EXPIRED";
-            const stripeColor = isExpired ? "bg-slate-400" : "bg-teal-600";
+        getContractCardNodeMarkup: function(m, left, width) {
+            const isExpired = (m["Status"] || "").toString().toUpperCase().trim() === "EXPIRED";
             const borderStyles = isExpired ? "border-slate-200 bg-slate-50/50 opacity-60 grayscale-[0.2]" : "border-slate-200 bg-white shadow-3xs hover:border-teal-500/40";
+            const stripeColor = isExpired ? "bg-slate-400" : "bg-teal-600";
             
-            const cleanStart = safeFormatStringDate(c["Start Date"]);
-            const cleanEnd = safeFormatStringDate(c["Contract End Date"] || c["End Date"]);
-            const formattedVal = parseFloat(c["Annual Value"] || 0).formatCurrency();
+            const cleanStart = safeFormatStringDate(m["Start Date"] || m["Master Start Date"]);
+            const cleanEnd = safeFormatStringDate(m["End Date"] || m["Master End Date"]);
+            const formattedVal = parseFloat(m["Annual Value"] || m["Total Value"] || 0).formatCurrency();
+            
+            const masterId = m["Master Contract ID"] || "N/A";
+            const prevId = (m["Previous Master ID"] || "").toString().trim();
+
+            // Etichetta visiva se questo master deriva da un altro (Rinnovo/Consolidamento)
+            const prevBadgeHtml = prevId ? `<span class="bg-amber-100 text-amber-800 border border-amber-200 px-1 py-0.5 rounded text-[8px] font-black uppercase flex items-center gap-1" title="Renews: ${prevId}"><svg class="w-2 h-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg> Successor</span>` : '';
 
             return `
-            <div style="position: absolute; left: ${left}px; width: ${width}px;" class="h-22 flex items-center shrink-0 px-1 font-sans">
-                <div class="w-full border rounded-xl p-3 h-18 flex flex-col justify-between relative overflow-hidden group transition-all ${borderStyles}">
-                    <div class="absolute top-0 left-0 w-1 h-full ${stripeColor}"></div>
-                    
-                    <div class="flex justify-between items-center font-black text-[11px] leading-none px-0.5">
-                        <span class="text-slate-800 truncate pr-2 max-w-[65%]" title="${c["Legal Entity"]}">${c["Legal Entity"]}</span>
-                        <span class="font-mono text-teal-700 text-[11px] shrink-0 font-bold">€ ${formattedVal}</span>
-                    </div>
+            <div class="relative w-full h-16 shrink-0">
+                <div style="position: absolute; left: ${left}px; width: ${width}px;" class="h-16 flex items-center shrink-0 cursor-pointer hover:scale-[1.01] transition-transform">
+                    <div class="w-full border rounded-xl p-2 h-16 flex flex-col justify-between relative overflow-hidden group transition-all ${borderStyles}">
+                        <div class="absolute top-0 left-0 w-1 h-full ${stripeColor}"></div>
+                        
+                        <div class="flex justify-between items-center font-black text-[11px] leading-none px-1">
+                            <div class="flex items-center gap-1.5 truncate max-w-[70%]">
+                                <span class="text-slate-900 font-extrabold truncate" title="${masterId}">${masterId}</span>
+                                ${prevBadgeHtml}
+                            </div>
+                            <span class="font-mono text-teal-700 text-[11px] shrink-0 font-bold">€ ${formattedVal}</span>
+                        </div>
 
-                    <div class="flex justify-between items-center text-[9px] text-slate-400 font-mono border-t border-slate-100 pt-1 mt-0.5 px-0.5 select-none">
-                        <span class="truncate max-w-[50%]" title="Group ID Ref: ${c["Group ID"]}"><b class="text-[8px] text-slate-400 uppercase mr-0.5 font-bold">Group:</b>${c["Group ID"] || 'N/A'}</span>
-                        <span class="truncate max-w-[50%] text-right" title="Master Agreement Ref: ${c["Master Contract ID"]}"><b class="text-[8px] text-slate-400 uppercase mr-0.5 font-bold">Master:</b>${c["Master Contract ID"] || 'N/A'}</span>
-                    </div>
-
-                    <div class="text-[8px] text-slate-400 font-mono flex justify-between uppercase leading-none px-0.5 tracking-tighter select-none">
-                        <span>${cleanStart}</span>
-                        <span class="text-teal-600 font-bold bg-teal-50 px-1 rounded border border-teal-100/40">${c["Contract Term (Months)"] || '0'} M</span>
-                        <span>${cleanEnd}</span>
+                        <div class="text-[8px] text-slate-400 font-mono flex justify-between uppercase leading-none px-1 tracking-tighter select-none mt-1">
+                            <span>${cleanStart}</span>
+                            <span class="text-teal-600 font-bold bg-teal-50 px-1 rounded border border-teal-100/40">${m["Term (Months)"] || '-'} M</span>
+                            <span>${cleanEnd}</span>
+                        </div>
                     </div>
                 </div>
             </div>`;
         }
     };
 
-    // =========================================================================
-    // 3. CONTROLLER: COORDINATION ORCHESTRATOR
-    // =========================================================================
     const TimelineController = {
-        initTimelineWorkspace: function(payload) {
+        initTimelineWorkspace: function() {
             const tabContainer = document.getElementById('tab-timeline');
             if (!tabContainer) return;
-
-            // Extract unique asset choices from the cached baseline contracts ledger
-            const uniqueAssets = [...new Set((payload.contracts || []).map(c => (c["Asset Name"] || "").toString().trim()).filter(v => v !== ""))].sort();
-            const assetOptionsHtml = uniqueAssets.map(a => `<option value="${a}">${a}</option>`).join('');
-
-            // Inject structural layout shell
-            tabContainer.innerHTML = TimelineTemplates.getControlsShellMarkup(assetOptionsHtml);
-
-            // Restore previous choices if tab is refreshed
-            if (TimelineState.selectedAsset) {
-                const selector = document.getElementById('timeline-asset-selector');
-                if (selector) selector.value = TimelineState.selectedAsset;
-                this.renderActiveTimelineCanvas();
-            }
-        },
-
-        handleAssetScopeShift: function(assetValue) {
-            TimelineState.selectedAsset = assetValue.trim();
-            this.renderActiveTimelineCanvas();
-        },
-
-        handlePivotRegrouping: function(pivotKey) {
-            TimelineState.activePivotKey = pivotKey;
-            
-            // Adjust CSS active status of button components toggles
-            ['masterId', 'legalEntity', 'location'].forEach(key => {
-                const btn = document.getElementById('tl-pivot-' + key);
-                if (!btn) return;
-                if (key === pivotKey) {
-                    btn.className = "px-3 py-1.5 rounded-lg bg-teal-700 text-white transition-all cursor-pointer font-bold";
-                } else {
-                    btn.className = "px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-800 transition-all cursor-pointer font-medium";
-                }
-            });
-
+            tabContainer.innerHTML = TimelineTemplates.getControlsShellMarkup();
             this.renderActiveTimelineCanvas();
         },
 
         scrollTimelineCanvas: function(direction) {
             const wrapper = document.getElementById('timeline-matrix-canvas-wrapper');
             if (!wrapper) return;
-            const scrollStep = 12 * TimelineState.pixelRatePerMonth; // Jump exactly 1 Year (576px)
+            const scrollStep = 12 * TimelineState.pixelRatePerMonth;
             wrapper.scrollLeft += (direction === 'left' ? -scrollStep : scrollStep);
         },
 
         renderActiveTimelineCanvas: function() {
             const wrapper = document.getElementById('timeline-matrix-canvas-wrapper');
-            const controls = document.getElementById('timeline-interactive-controls');
             const viewport = document.getElementById('timeline-matrix-swimlanes-viewport');
             const axisTrack = document.getElementById('timeline-chronological-axis-track');
 
-            if (!wrapper || !controls || !viewport || !axisTrack) return;
+            if (!wrapper || !viewport || !axisTrack) return;
 
-            const contracts = TimelineState.getFilteredContracts();
+            const masters = TimelineState.getActiveMasters();
 
-            if (contracts.length === 0) {
-                wrapper.classList.add('hidden');
-                controls.classList.add('hidden');
-                viewport.innerHTML = '';
+            if (masters.length === 0) {
+                viewport.innerHTML = '<div class="p-8 text-center text-slate-400 text-xs font-bold uppercase">No Master Contracts found in payload.</div>';
                 return;
             }
 
-            // Expose structural display lanes wrappers
-            wrapper.classList.remove('hidden');
-            controls.classList.remove('hidden');
-
-            // Draw horizontal time scale ticks labels row
             axisTrack.innerHTML = TimelineTemplates.getTimeScaleAxisTicks(
                 TimelineState.timelineStartYear, 
                 TimelineState.timelineEndYear, 
                 TimelineState.pixelRatePerMonth
             );
 
-            // Group filtered nodes by active structural pivot translation key
-            const pivotMapKey = CONTRACT_FIELD_MAP[MASTER_FIELD_MAP[TimelineState.activePivotKey] || TimelineState.activePivotKey] || "masterContractId";
+            // Raggruppa i Master per Fornitore (Supplier)
             const swimlanesBuckets = {};
-
-            contracts.forEach(c => {
-                let laneValue = (c[MASTER_FIELD_MAP[TimelineState.activePivotKey] || TimelineState.activePivotKey] || "Unassigned / Generic").toString().trim();
-                if (laneValue === "") laneValue = "Unassigned / Generic";
+            masters.forEach(m => {
+                let supplier = (m["Supplier"] || "Unassigned Vendor").toString().trim();
+                if (supplier === "") supplier = "Unassigned Vendor";
                 
-                if (!swimlanesBuckets[laneValue]) swimlanesBuckets[laneValue] = [];
-                swimlanesBuckets[laneValue].push(c);
+                if (!swimlanesBuckets[supplier]) swimlanesBuckets[supplier] = [];
+                swimlanesBuckets[supplier].push(m);
             });
 
-            // Iterate and draw swimlanes rows dynamically
             let swimlanesHtml = '';
-            Object.keys(swimlanesBuckets).sort().forEach(laneKey => {
+            Object.keys(swimlanesBuckets).sort().forEach(supplier => {
                 let cardsHtml = '';
                 
-                swimlanesBuckets[laneKey].forEach(contract => {
-                    const coord = TimelineState.calculateTimeCoordinates(contract["Start Date"], contract["Contract End Date"] || contract["End Date"]);
-                    
-                    const leftPixelOffset = coord.offset * TimelineState.pixelRatePerMonth;
-                    const widthPixelSize = coord.duration * TimelineState.pixelRatePerMonth;
-
-                    cardsHtml += TimelineTemplates.getContractCardNodeMarkup(
-                        contract, 
-                        leftPixelOffset, 
-                        widthPixelSize, 
-                        TimelineState.pixelRatePerMonth
+                swimlanesBuckets[supplier].forEach(master => {
+                    const coord = TimelineState.calculateTimeCoordinates(
+                        master["Start Date"] || master["Master Start Date"], 
+                        master["End Date"] || master["Master End Date"]
                     );
+                    cardsHtml += TimelineTemplates.getContractCardNodeMarkup(master, coord.left, coord.width);
                 });
 
-                swimlanesHtml += TimelineTemplates.getSwimlaneBlockMarkup(laneKey, cardsHtml);
+                swimlanesHtml += TimelineTemplates.getSwimlaneBlockMarkup(supplier, cardsHtml);
             });
 
             viewport.innerHTML = swimlanesHtml;
             
-            // Auto-center horizontal scroll vector viewport on January 2026 for fast audit context checks
             setTimeout(() => {
-                wrapper.scrollLeft = 24 * TimelineState.pixelRatePerMonth; // 24 Months shift from Jan 2024 to Jan 2026
+                wrapper.scrollLeft = 24 * TimelineState.pixelRatePerMonth; // Punta al 2026
             }, 50);
         }
     };

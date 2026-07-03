@@ -237,10 +237,25 @@ function generateMasterId(payload, allMasters) {
 
 /**
  * Traduzione JS delle formule Excel per le Iniziative.
- * Calcola il Cascading Baseline, i Target Savings e gli Actual Savings.
+ * AGGIORNATO AL MODELLO MASTER-CENTRIC: Identificazione relazionale retroattiva.
  */
 function calculateInitiativesMetrics(initiatives, contracts) {
-    // 1. Ordina le iniziative cronologicamente per far funzionare il Cascading (previousDate)
+    // 1. Carica programmaticamente il foglio MasterContracts per leggere le parentele
+    let masterContracts = [];
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const msSheet = ss.getSheetByName(CONFIG.SHEETS.MASTER_CONTRACTS || "MasterContracts");
+
+    if (msSheet) {
+        const data = msSheet.getDataRange().getValues();
+        const headers = data[0];
+        for (let i = 1; i < data.length; i++) {
+            let obj = {};
+            headers.forEach((h, j) => obj[h] = data[i][j]);
+            masterContracts.push(obj);
+        }
+    }
+
+    // 2. Ordina le iniziative cronologicamente per far funzionare il Cascading (previousDate)
     const sortedInits = [...initiatives].sort((a, b) => {
         const dA = new Date(a["Target Date"] || "2099-12-31");
         const dB = new Date(b["Target Date"] || "2099-12-31");
@@ -248,13 +263,13 @@ function calculateInitiativesMetrics(initiatives, contracts) {
     });
 
     sortedInits.forEach(init => {
-        const groupID = (init["Contracts Group ID"] || init["Group ID"] || "").toString().trim();
+        const masterID = (init["Master Contract ID"] || "").toString().trim();
         const targetDate = init["Target Date"] ? new Date(init["Target Date"]) : null;
 
-        // FORMULA 1: Original Baseline (SUMIFS Annual Value su Group ID)
+        // FORMULA 1: Original Baseline (Somma il valore di tutti i contratti sotto questo Master)
         let originalBaseline = 0;
         contracts.forEach(c => {
-            if ((c["Group ID"] || "").toString().trim() === groupID && groupID !== "") {
+            if ((c["Master Contract ID"] || "").toString().trim() === masterID && masterID !== "") {
                 originalBaseline += (parseFloat(c["Annual Value"]) || 0);
             }
         });
@@ -263,7 +278,7 @@ function calculateInitiativesMetrics(initiatives, contracts) {
         let startingCost = originalBaseline;
         if (originalBaseline !== 0 && targetDate) {
             const priorInits = sortedInits.filter(i =>
-                (i["Contracts Group ID"] || i["Group ID"] || "").toString().trim() === groupID &&
+                (i["Master Contract ID"] || "").toString().trim() === masterID &&
                 new Date(i["Target Date"]) < targetDate &&
                 !isNaN(parseFloat(i["Target Cost (Annualized)"]))
             );
@@ -289,30 +304,41 @@ function calculateInitiativesMetrics(initiatives, contracts) {
         init["Target Saving (Annualized)"] = targetSaving;
         init["Target Saving %"] = startingCost > 0 ? (targetSaving / startingCost) : 0;
 
-        // PREPARAZIONE ACTUALS (XLOOKUP Target Group ID)
+        // PREPARAZIONE ACTUALS: Esplosione del Previous Master ID
         const status = (init["Initiative Status"] || "").toString().trim().toLowerCase();
-        const sourceContract = contracts.find(c => (c["Group ID"] || "").toString().trim() === groupID);
-        const targetGroupID = sourceContract ? (sourceContract["Target Group ID"] || "").toString().trim() : "";
 
         let actualCost = 0;
-        if (targetGroupID !== "") {
-            contracts.forEach(c => {
-                if ((c["Group ID"] || "").toString().trim() === targetGroupID) {
-                    actualCost += (parseFloat(c["Annual Value"]) || 0);
+        let hasSuccessor = false;
+
+        // Cerca tutti i nuovi Master Contract che dichiarano di provenire da masterID
+        masterContracts.forEach(mc => {
+            const prevStr = (mc["Previous Master ID"] || "").toString().trim();
+            if (prevStr) {
+                // Gestisce la virgola (Frazionamenti / Consolidamenti)
+                const prevs = prevStr.split(',').map(s => s.trim());
+                if (prevs.includes(masterID)) {
+                    hasSuccessor = true;
+                    const succMasterID = (mc["Master Contract ID"] || "").toString().trim();
+                    // Somma il costo effettivo dei nuovi contratti nati dal rinnovo
+                    contracts.forEach(c => {
+                        if ((c["Master Contract ID"] || "").toString().trim() === succMasterID) {
+                            actualCost += (parseFloat(c["Annual Value"]) || 0);
+                        }
+                    });
                 }
-            });
-        }
+            }
+        });
 
         // FORMULA 4: New Actual
         if (status === "completed") {
-            init["New Actual"] = actualCost;
+            init["New Actual"] = hasSuccessor ? actualCost : "";
         } else {
             init["New Actual"] = "";
         }
 
         // FORMULA 5: Actual Saving (Annualized)
         if (status === "completed") {
-            if (targetGroupID !== "" && actualCost > 0) {
+            if (hasSuccessor) {
                 init["Actual Saving (Annualized)"] = startingCost - actualCost;
             } else {
                 init["Actual Saving (Annualized)"] = targetSaving;

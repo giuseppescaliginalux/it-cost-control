@@ -1,7 +1,7 @@
 /**
  * projections_engine.js
- * Motore analitico per l'elaborazione parallela e multianno dei modelli finanziari.
- * Calcola simultaneamente FY26, FY27 e FY28 per le colonne ufficiali Baseline e Optimized.
+ * Motore analitico per l'elaborazione parallela.
+ * AGGIORNATO AL MODELLO "MASTER-CENTRIC": Sfrutta Previous Master ID per i calcoli di successione.
  */
 
 const PROJECTIONS_CONFIG = {
@@ -13,16 +13,17 @@ const PROJECTIONS_CONFIG = {
 };
 
 function updateAllOfficialFiscalProjections() {
-  console.log("PROJEZIONI: Avvio ricalcolo parallelo con supporto multi-iniziativa (FY26-FY28)...");
+  console.log("PROJEZIONI: Avvio ricalcolo architettura Master-Centric (FY26-FY28)...");
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const projectionsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTIONS || "FiscalProjections");
   const contractSheet = ss.getSheetByName(CONFIG.SHEETS.CONTRACTS || "Contracts");
   const ledgerSheet = ss.getSheetByName("Ledger");
   const initiativesSheet = ss.getSheetByName(CONFIG.SHEETS.INITIATIVES || "Initiatives");
+  const masterSheet = ss.getSheetByName(CONFIG.SHEETS.MASTER_CONTRACTS || "MasterContracts");
 
-  if (!projectionsSheet || !contractSheet || !ledgerSheet || !initiativesSheet) {
-    console.error("PROJEZIONI ERRORE: Struttura fogli incompleta.");
+  if (!projectionsSheet || !contractSheet || !ledgerSheet || !initiativesSheet || !masterSheet) {
+    console.error("PROJEZIONI ERRORE: Struttura fogli incompleta. Assicurarsi che MasterContracts sia presente.");
     return;
   }
 
@@ -30,6 +31,7 @@ function updateAllOfficialFiscalProjections() {
   const contractData = contractSheet.getDataRange().getValues();
   const ledgerData = ledgerSheet.getDataRange().getValues();
   const initiativesData = initiativesSheet.getDataRange().getValues();
+  const masterData = masterSheet.getDataRange().getValues();
 
   const fpHeaders = projectionsData[0];
   const idxFP = { contractId: fpHeaders.indexOf("Contract ID") };
@@ -38,7 +40,6 @@ function updateAllOfficialFiscalProjections() {
   const types = ["Baseline", "Optimized"];
   const colIndices = {};
 
-  // Mappatura dinamica o creazione oneshot delle colonne di report ufficiali
   years.forEach(year => {
     types.forEach(type => {
       const label = (type === "Baseline") ? PROJECTIONS_CONFIG.FISCAL_YEARS[year].baselineLabel : PROJECTIONS_CONFIG.FISCAL_YEARS[year].optimizedLabel;
@@ -52,35 +53,38 @@ function updateAllOfficialFiscalProjections() {
     });
   });
 
-  // --- COSTRUZIONE MAPPE IN-MEMORY AD ALTA VELOCITÀ ---
+  // --- MAPPE IN-MEMORY: RISOLUZIONE MASTER ID E SUCCESSORI ---
+  const succMap = _peBuildMasterSuccessorMap(masterData);
   const contractsMap = _peBuildContractsMap(contractData);
   const ledgerMap = _peBuildLedgerMap(ledgerData);
-  const initMap = _peBuildInitiativesMap(initiativesData); // Supporta array multi-iniziativa!
-  const contractParentMap = _peBuildContractParentMap(contractData);
-  const groupTotalValueMap = _peBuildGroupTotalValueMap(contractData);
+  const initMap = _peBuildInitiativesMap(initiativesData);
+  const masterTotalValueMap = _peBuildMasterTotalValueMap(contractData);
 
   const outputs = {};
   years.forEach(year => {
     types.forEach(type => { outputs[year + "_" + type] = []; });
   });
 
-  // --- LOOP CENTRALIZZATO SULLE RIGHE DI PROIEZIONE ---
   for (let i = 1; i < projectionsData.length; i++) {
     const contractIdRef = String(projectionsData[i][idxFP.contractId]).trim();
     const contract = contractsMap[contractIdRef];
 
-    if (!contract || !contract.gid || !contract.start) {
+    if (!contract || !contract.masterId || !contract.start) {
       years.forEach(year => { types.forEach(type => outputs[year + "_" + type].push([0])); });
       continue;
     }
 
-    const chainRel = _peTraverseContractChain(contract.gid, contractParentMap, initMap);
+    const chainRel = _peTraverseContractChain(contract.masterId, succMap, initMap);
     const ledgerRows = ledgerMap[contractIdRef] || [];
-    const contractInits = initMap[contract.gid] || [];
-    const groupTotalValue = groupTotalValueMap[contract.gid] || 0;
-    const contractWeight = groupTotalValue > 0 ? contract.annVal / groupTotalValue : 0;
+    const contractInits = initMap[contract.masterId] || [];
+    const masterTotalValue = masterTotalValueMap[contract.masterId] || 0;
 
-    // RISOLUZIONE CRITICA MULTI-INIZIATIVA (Risolve la rinegoziazione + termination simultanee)
+    // Pro-rata del peso contrattuale sul totale del Master
+    const contractWeight = masterTotalValue > 0 ? contract.annVal / masterTotalValue : 0;
+
+    // BOOLEANO CHIAVE: Se questo Master ha un successore, blocca le proiezioni virtuali future (Stop Double-Counting)
+    const hasSuccessor = (succMap[contract.masterId] && succMap[contract.masterId].length > 0);
+
     const optInit = contractInits.find(ini => ["OPTIMIZATION", "OPTIMIZE"].includes(ini.decision));
     const termInit = contractInits.find(ini => ["TERMINATION", "TERMINATE", "REPLACE", "TRANSFER"].includes(ini.decision));
 
@@ -93,37 +97,33 @@ function updateAllOfficialFiscalProjections() {
     years.forEach(year => {
       const fyConfig = PROJECTIONS_CONFIG.FISCAL_YEARS[year];
 
-      // Calcolo Baseline
-      outputs[year + "_Baseline"].push([_peCalculateCore(contract, ledgerRows, chainRel.minTd, chainRel.isChainTransferred, fyConfig, false, resolvedInits)]);
-
-      // Calcolo Optimized con sbarramento dismissioni e scomposizione tariffe
-      outputs[year + "_Optimized"].push([_peCalculateCore(contract, ledgerRows, chainRel.minTd, chainRel.isChainTransferred, fyConfig, true, resolvedInits)]);
+      // Passiamo hasSuccessor al motore Core
+      outputs[year + "_Baseline"].push([_peCalculateCore(contract, ledgerRows, chainRel.minTd, chainRel.isChainTransferred, fyConfig, false, resolvedInits, hasSuccessor)]);
+      outputs[year + "_Optimized"].push([_peCalculateCore(contract, ledgerRows, chainRel.minTd, chainRel.isChainTransferred, fyConfig, true, resolvedInits, hasSuccessor)]);
     });
   }
 
-  // --- SCRITTURA BATCH FINALE ---
   years.forEach(year => {
     types.forEach(type => {
       const key = year + "_" + type;
       projectionsSheet.getRange(2, colIndices[key] + 1, outputs[key].length, 1).setValues(outputs[key]);
     });
   });
-  console.log("PROJEZIONI: Ricalcolo parallelo ufficiale completato.");
+  console.log("PROJEZIONI: Ricalcolo Master-Centric completato con successo.");
 }
 
-/**
- * CORE LOGICO MATEMATICO: Ripartisce i costi differenziando Linear, Ledger-Driven e Full Upfront.
- */
-function _peCalculateCore(contract, ledgerRows, chainTransferDate, isChainTransferred, fyConfig, isOptimized, resolvedInits) {
+function _peCalculateCore(contract, ledgerRows, chainTransferDate, isChainTransferred, fyConfig, isOptimized, resolvedInits, hasSuccessor) {
   const FY_S = fyConfig.start;
   const FY_E = fyConfig.end;
 
   let effectiveE;
   let baseEnd = contract.end || new Date(2099, 11, 31);
 
+  // NUOVA REGOLA: Se ha un successore, il contratto muore alla sua data di End. Stop al Run-Rate infinito.
+  const stopVirtual = (contract.status === "EXPIRED" || contract.recurrence === "One-Shot" || isChainTransferred || hasSuccessor);
+
   if (isOptimized) {
-    const regEnd = (contract.status === "EXPIRED" || contract.recurrence === "One-Shot" || isChainTransferred) ?
-      baseEnd : new Date(Math.max(baseEnd.getTime(), FY_E.getTime()));
+    const regEnd = stopVirtual ? baseEnd : new Date(Math.max(baseEnd.getTime(), FY_E.getTime()));
 
     let absoluteCap = new Date(2099, 11, 31);
     if (isChainTransferred && chainTransferDate < absoluteCap) absoluteCap = chainTransferDate;
@@ -133,65 +133,42 @@ function _peCalculateCore(contract, ledgerRows, chainTransferDate, isChainTransf
   } else {
     const isPastTransfer = isChainTransferred && chainTransferDate < FY_S;
     baseEnd = isPastTransfer ? chainTransferDate : baseEnd;
-    effectiveE = (contract.status === "EXPIRED" || contract.recurrence === "One-Shot" || isChainTransferred) ? baseEnd : new Date(Math.max(baseEnd.getTime(), FY_E.getTime()));
+    effectiveE = stopVirtual ? baseEnd : new Date(Math.max(baseEnd.getTime(), FY_E.getTime()));
   }
 
-  // --- STRADA A: NUOVA LOGICA FULL UPFRONT (100% SULLA START DATE) ---
   if (contract.billingTerms === "Full Upfront") {
     let upfrontSum = 0;
-
-    // Il 100% del Commitment cade nel mese di partenza (Start Date) del contratto
     if (contract.start && contract.start >= FY_S && contract.start <= FY_E) {
-      if (!isOptimized) {
-        upfrontSum = contract.totComm;
-      } else {
-        // Se l'asset viene dismesso (Transfer/Termination) prima dello start, la spesa si azzera
-        if (contract.start > effectiveE) {
-          upfrontSum = 0;
-        } else {
-          // Se l'ottimizzazione tariffaria è attiva prima o il giorno stesso dello start, l'upfront nasce ridotto
-          if (contract.start >= resolvedInits.optTargetDate) {
-            upfrontSum = contract.totComm * ((contract.annVal - resolvedInits.allocatedSaving) / (contract.annVal || 1));
-          } else {
-            upfrontSum = contract.totComm;
-          }
-        }
+      if (!isOptimized) { upfrontSum = contract.totComm; }
+      else {
+        if (contract.start > effectiveE) upfrontSum = 0;
+        else if (contract.start >= resolvedInits.optTargetDate) upfrontSum = contract.totComm * ((contract.annVal - resolvedInits.allocatedSaving) / (contract.annVal || 1));
+        else upfrontSum = contract.totComm;
       }
     }
 
-    // Se il contratto scade ed è RECURRENT, aggiunge il Run Rate virtuale di rinnovo per i mesi successivi alla scadenza
     let virtualSum = 0;
     const contractEndDateCheck = contract.end || new Date(2099, 11, 31);
 
-    if (contract.recurrence !== "One-Shot" && contractEndDateCheck < FY_E) {
+    if (!stopVirtual && contract.recurrence !== "One-Shot" && contractEndDateCheck < FY_E) {
       const virtualS = new Date(Math.max(FY_S.getTime(), contractEndDateCheck.getTime() + 86400000));
       const capEnd = isOptimized ? Math.min(FY_E.getTime(), effectiveE.getTime()) : FY_E.getTime();
       const virtualE = new Date(capEnd);
 
       if (virtualS <= virtualE) {
         const virtualDays = Math.floor((virtualE - virtualS) / 86400000) + 1;
-
-        if (!isOptimized) {
-          virtualSum = (contract.annVal / 365) * virtualDays;
-        } else {
+        if (!isOptimized) virtualSum = (contract.annVal / 365) * virtualDays;
+        else {
           let vDaysPre = 0, vDaysPost = 0;
-          if (virtualS < resolvedInits.optTargetDate) {
-            vDaysPre = Math.floor((new Date(Math.min(virtualE.getTime(), resolvedInits.optTargetDate.getTime() - 86400000)) - virtualS) / 86400000) + 1;
-          }
-          if (virtualE >= resolvedInits.optTargetDate) {
-            vDaysPost = Math.floor((virtualE.getTime() - Math.max(virtualS.getTime(), resolvedInits.optTargetDate.getTime())) / 86400000) + 1;
-          }
-          const dailyBaseline = contract.annVal / 365;
-          const dailyOpt = (contract.annVal - resolvedInits.allocatedSaving) / 365;
-          virtualSum = (dailyBaseline * vDaysPre) + (dailyOpt * vDaysPost);
+          if (virtualS < resolvedInits.optTargetDate) vDaysPre = Math.floor((new Date(Math.min(virtualE.getTime(), resolvedInits.optTargetDate.getTime() - 86400000)) - virtualS) / 86400000) + 1;
+          if (virtualE >= resolvedInits.optTargetDate) vDaysPost = Math.floor((virtualE.getTime() - Math.max(virtualS.getTime(), resolvedInits.optTargetDate.getTime())) / 86400000) + 1;
+          virtualSum = ((contract.annVal / 365) * vDaysPre) + (((contract.annVal - resolvedInits.allocatedSaving) / 365) * vDaysPost);
         }
       }
     }
     return Math.round((upfrontSum + virtualSum) * 100) / 100;
   }
 
-  // --- STRADA B: CALCOLO BASATO SU LEDGER ESCLUSIVO ---
-  // Il motore si fida SOLO del ledger se l'allocazione è esplicitamente manuale
   const useLedgerEsclusivo = (contract.billingTerms === "Ledger-Driven");
   if (useLedgerEsclusivo && ledgerRows.length > 0) {
     let ledgerSum = 0;
@@ -205,16 +182,11 @@ function _peCalculateCore(contract, ledgerRows, chainTransferDate, isChainTransf
           const overlapDays = Math.floor((overlapE - overlapS) / 86400000) + 1;
           const rowTotalDays = Math.max(1, Math.floor((item.end - item.start) / 86400000) + 1);
 
-          if (!isOptimized) {
-            ledgerSum += item.amount * (overlapDays / rowTotalDays);
-          } else {
+          if (!isOptimized) ledgerSum += item.amount * (overlapDays / rowTotalDays);
+          else {
             let rDaysPre = 0, rDaysPost = 0;
-            if (overlapS < resolvedInits.optTargetDate) {
-              rDaysPre = Math.floor((new Date(Math.min(overlapE.getTime(), resolvedInits.optTargetDate.getTime() - 86400000)) - overlapS) / 86400000) + 1;
-            }
-            if (overlapE >= resolvedInits.optTargetDate) {
-              rDaysPost = Math.floor((overlapE.getTime() - Math.max(overlapS.getTime(), resolvedInits.optTargetDate.getTime())) / 86400000) + 1;
-            }
+            if (overlapS < resolvedInits.optTargetDate) rDaysPre = Math.floor((new Date(Math.min(overlapE.getTime(), resolvedInits.optTargetDate.getTime() - 86400000)) - overlapS) / 86400000) + 1;
+            if (overlapE >= resolvedInits.optTargetDate) rDaysPost = Math.floor((overlapE.getTime() - Math.max(overlapS.getTime(), resolvedInits.optTargetDate.getTime())) / 86400000) + 1;
             const dailyRatePre = item.amount / rowTotalDays;
             const dailyRatePost = contract.annVal > 0 ? dailyRatePre * ((contract.annVal - resolvedInits.allocatedSaving) / contract.annVal) : dailyRatePre;
             ledgerSum += (dailyRatePre * rDaysPre) + (dailyRatePost * rDaysPost);
@@ -225,71 +197,43 @@ function _peCalculateCore(contract, ledgerRows, chainTransferDate, isChainTransf
 
     let virtualSum = 0;
     const contractEndDateCheck = contract.end || new Date(2099, 11, 31);
-    if (contract.recurrence !== "One-Shot" && contractEndDateCheck < FY_E) {
+    if (!stopVirtual && contract.recurrence !== "One-Shot" && contractEndDateCheck < FY_E) {
       const virtualS = new Date(Math.max(FY_S.getTime(), contractEndDateCheck.getTime() + 86400000));
       const capEnd = isOptimized ? Math.min(FY_E.getTime(), effectiveE.getTime()) : FY_E.getTime();
       const virtualE = new Date(capEnd);
 
       if (virtualS <= virtualE) {
         const virtualDays = Math.floor((virtualE - virtualS) / 86400000) + 1;
-        if (!isOptimized) {
-          virtualSum = (contract.annVal / 365) * virtualDays;
-        } else {
+        if (!isOptimized) virtualSum = (contract.annVal / 365) * virtualDays;
+        else {
           let vDaysPre = 0, vDaysPost = 0;
-          if (virtualS < resolvedInits.optTargetDate) {
-            vDaysPre = Math.floor((new Date(Math.min(virtualE.getTime(), resolvedInits.optTargetDate.getTime() - 86400000)) - virtualS) / 86400000) + 1;
-          }
-          if (virtualE >= resolvedInits.optTargetDate) {
-            vDaysPost = Math.floor((virtualE.getTime() - Math.max(virtualS.getTime(), resolvedInits.optTargetDate.getTime())) / 86400000) + 1;
-          }
-          const dailyBaseline = contract.annVal / 365;
-          const dailyOpt = (contract.annVal - resolvedInits.allocatedSaving) / 365;
-          virtualSum = (dailyBaseline * vDaysPre) + (dailyOpt * vDaysPost);
+          if (virtualS < resolvedInits.optTargetDate) vDaysPre = Math.floor((new Date(Math.min(virtualE.getTime(), resolvedInits.optTargetDate.getTime() - 86400000)) - virtualS) / 86400000) + 1;
+          if (virtualE >= resolvedInits.optTargetDate) vDaysPost = Math.floor((virtualE.getTime() - Math.max(virtualS.getTime(), resolvedInits.optTargetDate.getTime())) / 86400000) + 1;
+          virtualSum = ((contract.annVal / 365) * vDaysPre) + (((contract.annVal - resolvedInits.allocatedSaving) / 365) * vDaysPost);
         }
       }
     }
 
-    // --- STRADA D: MODELLI IBRIDI (Baseline Automatica + Overage nel Ledger On-Top) ---
-    // Se il contratto NON è Ledger-Driven ma è a consumo, e l'utente ha inserito record nel Ledger,
-    // questi vengono sommati come extra-costi (overage) rispetto alla baseline calcolata sopra.
     if (contract.billingTerms !== "Ledger-Driven" && ["Minimum Consumption", "Pure Consumption", "Capped Consumption"].includes(contract.model) && ledgerRows.length > 0) {
       let overageSum = 0;
-
       ledgerRows.forEach(item => {
-        // Verifica se la fattura di overage tocca il Fiscal Year analizzato
         if (item.start && item.end && item.start <= FY_E && item.end >= FY_S) {
           const overlapS = new Date(Math.max(FY_S.getTime(), item.start.getTime()));
           const capEnd = isOptimized ? Math.min(FY_E.getTime(), effectiveE.getTime()) : FY_E.getTime();
           const overlapE = new Date(Math.min(capEnd, item.end.getTime()));
-
           if (overlapS <= overlapE) {
             const overlapDays = Math.floor((overlapE - overlapS) / 86400000) + 1;
             const rowTotalDays = Math.max(1, Math.floor((item.end - item.start) / 86400000) + 1);
-
-            // Trattandosi di overage extra, sommiamo il valore reale pro-rata puro del movimento inserito
             overageSum += item.amount * (overlapDays / rowTotalDays);
           }
         }
       });
-
-      // Inietta l'overage sopra la baseline calcolata (da Strada A o Strada C)
-      // Se la variabile locale era memorizzata in upfrontSum o altro, la associamo al ritorno
-      if (contract.billingTerms === "Full Upfront") {
-        return Math.round((upfrontSum + virtualSum + overageSum) * 100) / 100;
-      } else {
-        // Per contratti standard o recurrent (Strada C)
-        const currentLinearBase = (contract.recurrence === "One-Shot") ?
-          ((contract.annVal / totalDays) * daysInFY) :
-          (!isOptimized ? ((contract.annVal / 365) * daysInFY) : ((daysPre * dailyBaseline) + (daysPost * dailyOpt)));
-
-        return Math.round((currentLinearBase + overageSum) * 100) / 100;
-      }
+      const currentLinearBase = (contract.recurrence === "One-Shot") ? ((contract.annVal / totalDays) * daysInFY) : (!isOptimized ? ((contract.annVal / 365) * daysInFY) : ((daysPre * dailyBaseline) + (daysPost * dailyOpt)));
+      return Math.round((currentLinearBase + overageSum) * 100) / 100;
     }
-
     return Math.round((ledgerSum + virtualSum) * 100) / 100;
   }
 
-  // --- STRADA C: CALCOLO LINEARE STANDARD ---
   const actualS = new Date(Math.max(FY_S.getTime(), contract.start.getTime()));
   const actualE = new Date(Math.min(FY_E.getTime(), effectiveE.getTime()));
   const daysInFY = Math.max(0, Math.floor((actualE - actualS) / 86400000) + 1);
@@ -297,39 +241,31 @@ function _peCalculateCore(contract, ledgerRows, chainTransferDate, isChainTransf
 
   if (daysInFY === 0) return 0;
 
-  if (contract.recurrence === "One-Shot") {
-    return Math.round(((contract.annVal / totalDays) * daysInFY) * 100) / 100;
-  } else {
-    if (!isOptimized) {
-      return Math.round(((contract.annVal / 365) * daysInFY) * 100) / 100;
-    } else {
-      const dailyBaseline = contract.annVal / 365;
-      const dailyOpt = (contract.annVal - resolvedInits.allocatedSaving) / 365;
+  if (contract.recurrence === "One-Shot") return Math.round(((contract.annVal / totalDays) * daysInFY) * 100) / 100;
 
-      let daysPre = 0, daysPost = 0;
-      if (actualS < resolvedInits.optTargetDate) {
-        daysPre = Math.max(0, Math.floor((new Date(Math.min(actualE.getTime(), resolvedInits.optTargetDate.getTime() - 86400000)) - actualS) / 86400000) + 1);
-      }
-      if (actualE >= resolvedInits.optTargetDate) {
-        daysPost = Math.max(0, Math.floor((actualE.getTime() - Math.max(actualS.getTime(), resolvedInits.optTargetDate.getTime())) / 86400000) + 1);
-      }
-      return Math.round(((daysPre * dailyBaseline) + (daysPost * dailyOpt)) * 100) / 100;
-    }
-  }
+  if (!isOptimized) return Math.round(((contract.annVal / 365) * daysInFY) * 100) / 100;
+
+  const dailyBaseline = contract.annVal / 365;
+  const dailyOpt = (contract.annVal - resolvedInits.allocatedSaving) / 365;
+  let daysPre = 0, daysPost = 0;
+
+  if (actualS < resolvedInits.optTargetDate) daysPre = Math.max(0, Math.floor((new Date(Math.min(actualE.getTime(), resolvedInits.optTargetDate.getTime() - 86400000)) - actualS) / 86400000) + 1);
+  if (actualE >= resolvedInits.optTargetDate) daysPost = Math.max(0, Math.floor((actualE.getTime() - Math.max(actualS.getTime(), resolvedInits.optTargetDate.getTime())) / 86400000) + 1);
+
+  return Math.round(((daysPre * dailyBaseline) + (daysPost * dailyOpt)) * 100) / 100;
 }
 
-/**
- * MAPPATURA DIZIONARIO CONTRATTI: Arricchita per estrarre sia Billing Terms che Total Commitment.
- */
+// --- DIZIONARI E MAPPE (Nessuna dipendenza da Group ID) ---
+
 function _peBuildContractsMap(data) {
   const cHeaders = data[0];
   const idx = {
-    cId: cHeaders.indexOf("Contract ID"), status: cHeaders.indexOf("Status"), gid: cHeaders.indexOf("Group ID"),
-    targetGid: cHeaders.indexOf("Target Group ID"), annVal: cHeaders.indexOf("Annual Value"), start: cHeaders.indexOf("Start Date"),
+    cId: cHeaders.indexOf("Contract ID"), status: cHeaders.indexOf("Status"),
+    masterId: cHeaders.indexOf("Master Contract ID"), // Cambio cruciale
+    annVal: cHeaders.indexOf("Annual Value"), start: cHeaders.indexOf("Start Date"),
     end: cHeaders.indexOf("End Date") !== -1 ? cHeaders.indexOf("End Date") : cHeaders.indexOf("Contract End Date"),
     recurrence: cHeaders.indexOf("Cost Recurrence"), model: cHeaders.indexOf("Pricing Model"),
-    billingTerms: cHeaders.indexOf("Billing Terms"),
-    totComm: cHeaders.indexOf("Total Commitment")
+    billingTerms: cHeaders.indexOf("Billing Terms"), totComm: cHeaders.indexOf("Total Commitment")
   };
   const map = {};
   for (let i = 1; i < data.length; i++) {
@@ -337,23 +273,56 @@ function _peBuildContractsMap(data) {
     const cId = String(r[idx.cId]).trim();
     if (!cId) continue;
     map[cId] = {
-      status: String(r[idx.status]).trim().toUpperCase(), gid: String(r[idx.gid]).trim(), targetGid: String(r[idx.targetGid]).trim(),
+      status: String(r[idx.status]).trim().toUpperCase(), masterId: String(r[idx.masterId]).trim(),
       annVal: parseFloat(String(r[idx.annVal]).replace(/[^0-9.-]+/g, "")) || 0, start: _peParseDate(r[idx.start]),
       end: _peParseDate(r[idx.end]), recurrence: String(r[idx.recurrence]).trim(), model: String(r[idx.model]).trim(),
-      billingTerms: String(r[idx.billingTerms]).trim(),
-      totComm: parseFloat(String(r[idx.totComm]).replace(/[^0-9.-]+/g, "")) || 0
+      billingTerms: String(r[idx.billingTerms]).trim(), totComm: parseFloat(String(r[idx.totComm]).replace(/[^0-9.-]+/g, "")) || 0
     };
   }
   return map;
 }
 
+function _peBuildMasterSuccessorMap(d) {
+  if (!d || d.length === 0) return {};
+  const c = d[0];
+  const idxId = c.indexOf("Master Contract ID");
+  const idxPrev = c.indexOf("Previous Master ID"); // La nuova colonna "Magica"
+  const m = {};
+  for (let i = 1; i < d.length; i++) {
+    const currId = String(d[i][idxId]).trim();
+    const prevStr = String(d[i][idxPrev]).trim();
+    if (currId && prevStr) {
+      // Divide la stringa per virgola (Gestisce perfettamente Splitting e Merging)
+      const prevs = prevStr.split(',').map(s => s.trim()).filter(s => s !== "");
+      prevs.forEach(p => {
+        if (!m[p]) m[p] = [];
+        m[p].push(currId); // Il Master P è stato sostituito (ha come successore) il Master currId
+      });
+    }
+  }
+  return m;
+}
+
 function _peBuildInitiativesMap(d) {
-  const c = d[0]; const idx = { cGid: c.indexOf("Contracts Group ID"), decision: c.indexOf("Decision"), tDate: c.indexOf("Target Date"), tSaving: c.indexOf("Target Saving (Annualized)") };
-  const m = {}; for (let i = 1; i < d.length; i++) {
-    const r = d[i]; const cGid = String(r[idx.cGid]).trim(); if (!cGid) continue;
-    if (!m[cGid]) m[cGid] = [];
-    m[cGid].push({ decision: String(r[idx.decision]).trim().toUpperCase(), targetDate: _peParseDate(r[idx.tDate]) || new Date(2099, 11, 31), targetSaving: parseFloat(String(r[idx.tSaving]).replace(/[^0-9.-]+/g, "")) || 0 });
-  } return m;
+  const c = d[0];
+  const idx = { mId: c.indexOf("Master Contract ID"), decision: c.indexOf("Decision"), tDate: c.indexOf("Target Date"), tSaving: c.indexOf("Target Saving (Annualized)") };
+  const m = {};
+  for (let i = 1; i < d.length; i++) {
+    const r = d[i]; const mId = String(r[idx.mId]).trim(); if (!mId) continue;
+    if (!m[mId]) m[mId] = [];
+    m[mId].push({ decision: String(r[idx.decision]).trim().toUpperCase(), targetDate: _peParseDate(r[idx.tDate]) || new Date(2099, 11, 31), targetSaving: parseFloat(String(r[idx.tSaving]).replace(/[^0-9.-]+/g, "")) || 0 });
+  }
+  return m;
+}
+
+function _peBuildMasterTotalValueMap(d) {
+  const idxMaster = d[0].indexOf("Master Contract ID"); const idxVal = d[0].indexOf("Annual Value");
+  const m = {};
+  for (let i = 1; i < d.length; i++) {
+    const g = String(d[i][idxMaster]).trim(); const v = parseFloat(String(d[i][idxVal]).replace(/[^0-9.-]+/g, "")) || 0;
+    if (g) m[g] = (m[g] || 0) + v;
+  }
+  return m;
 }
 
 function _peBuildLedgerMap(d) {
@@ -364,24 +333,20 @@ function _peBuildLedgerMap(d) {
   } return m;
 }
 
-function _peBuildContractParentMap(d) {
-  const idxGid = d[0].indexOf("Group ID"); const idxTarget = d[0].indexOf("Target Group ID");
-  const m = {}; for (let i = 1; i < d.length; i++) { const t = String(d[i][idxTarget]).trim(); if (t) m[t] = String(d[i][idxGid]).trim(); } return m;
-}
-
-function _peBuildGroupTotalValueMap(d) {
-  const idxGid = d[0].indexOf("Group ID"); const idxVal = d[0].indexOf("Annual Value");
-  const m = {}; for (let i = 1; i < d.length; i++) { const g = String(d[i][idxGid]).trim(); const v = parseFloat(String(d[i][idxVal]).replace(/[^0-9.-]+/g, "")) || 0; if (g) m[g] = (m[g] || 0) + v; } return m;
-}
-
-function _peTraverseContractChain(sGid, pMap, iMap) {
-  let curr = sGid; let minTd = new Date(2099, 11, 31); let trans = false;
+function _peTraverseContractChain(sMasterId, succMap, iMap) {
+  let curr = sMasterId; let minTd = new Date(2099, 11, 31); let trans = false;
   for (let s = 0; s < 10; s++) {
-    if (!curr) break; let next = pMap[curr] || ""; let list = iMap[curr] || [];
+    if (!curr) break;
+    let list = iMap[curr] || [];
     let tInit = list.find(ini => ini.decision === "TRANSFER");
     if (tInit) { trans = true; if (tInit.targetDate < minTd) minTd = tInit.targetDate; }
-    curr = next;
-  } return { minTd: minTd, isChainTransferred: trans };
+
+    // Passa al successore (se esiste) per controllare se in futuro verrà dismesso
+    let nextArr = succMap[curr];
+    if (nextArr && nextArr.length > 0) curr = nextArr[0];
+    else break;
+  }
+  return { minTd: minTd, isChainTransferred: trans };
 }
 
 function _peParseDate(d) {
