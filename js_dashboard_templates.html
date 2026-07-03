@@ -2,8 +2,10 @@
     /**
      * js_dashboard_templates.html
      * VIEW TEMPLATES: Standardized UI modules and semantic structures.
+     * Integrates the unified vocabulary layer and resolves stacking z-index bugs.
      */
     const DashboardTemplates = {
+
         getMainLayoutStructure: function () {
             return `
             <div class="space-y-6 block animate-fade-in">
@@ -68,8 +70,6 @@
             </div>`;
         },
 
-        // Locate getKpiGridContent function and append the 'down' argument to the calls:
-
         getKpiGridContent: function (m, fmt) {
             const varSign = m.netVariance > 0 ? "+" : "";
             const perfSign = m.performancePercentage >= 0 ? "+" : "";
@@ -78,12 +78,15 @@
             const varBadge = m.netVariance >= 0 ? "Surplus" : "Deficit";
             const varBadgeClass = m.netVariance >= 0 ? "text-emerald-700 bg-emerald-50" : "text-rose-700 bg-rose-50";
 
+            // Destructuring vocabulary for semantic injection
+            const voc = DashboardVocabulary.KPI;
+
             return `
             <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between relative">
                 <div>
                     <div class="flex items-center gap-1.5 mb-1">
-                        <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest">FY27 Projection</p>
-                        ${generateFinOpsHelpTooltip("FY27 Projection", "Estimated total expenditure by the end of the fiscal year, calculated by combining active contracts baseline and the chronological financial impact of ongoing initiatives.", "down")}
+                        <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest">${voc.FY27_PROJECTION.TITLE}</p>
+                        ${generateFinOpsHelpTooltip(voc.FY27_PROJECTION.TITLE, voc.FY27_PROJECTION.DESC, "down")}
                     </div>
                     <p class="text-3xl font-black text-slate-900 tracking-tight">${fmt(m.totalProjection)}</p>
                 </div>
@@ -98,8 +101,8 @@
             <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between relative">
                 <div>
                     <div class="flex items-center gap-1.5 mb-1">
-                        <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest">Net Variance</p>
-                        ${generateFinOpsHelpTooltip("Net Variance", "The absolute difference between Allocated Corporate Budget and Realized Projections. A positive value indicates a Surplus, while a negative one represents a Coverage Deficit.", "down")}
+                        <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest">${voc.NET_VARIANCE.TITLE}</p>
+                        ${generateFinOpsHelpTooltip(voc.NET_VARIANCE.TITLE, voc.NET_VARIANCE.DESC, "down")}
                     </div>
                     <p class="text-3xl font-black tracking-tight leading-none ${varColor}">${varSign}${fmt(m.netVariance)}</p>
                 </div>
@@ -113,8 +116,8 @@
                 <div>
                     <div class="flex items-center justify-between mb-1">
                         <div class="flex items-center gap-1.5">
-                            <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest">Savings Pipeline</p>
-                            ${generateFinOpsHelpTooltip("Savings Pipeline", "The cumulative amount of annualized cost avoidance or savings that have been locked and validated into the system through completed procurement or cloud initiatives.", "down")}
+                            <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest">${voc.SAVINGS_PIPELINE.TITLE}</p>
+                            ${generateFinOpsHelpTooltip(voc.SAVINGS_PIPELINE.TITLE, voc.SAVINGS_PIPELINE.DESC, "down")}
                         </div>
                         <span class="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[7px] font-black tracking-widest uppercase leading-none">Secured</span>
                     </div>
@@ -128,8 +131,8 @@
             <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between relative">
                 <div>
                     <div class="flex items-center gap-1.5 mb-1">
-                        <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest">Realized Performance</p>
-                        ${generateFinOpsHelpTooltip("Realized Performance", "Financial efficiency index comparing the actual secured run-rate savings achieved against the baseline targets originally estimated during the pipeline lifecycle.", "down")}
+                        <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest">${voc.REALIZED_PERFORMANCE.TITLE}</p>
+                        ${generateFinOpsHelpTooltip(voc.REALIZED_PERFORMANCE.TITLE, voc.REALIZED_PERFORMANCE.DESC, "down")}
                     </div>
                     <p class="text-3xl font-black tracking-tight leading-none ${perfColor}">${perfSign}${m.performancePercentage.toFixed(1)}%</p>
                 </div>

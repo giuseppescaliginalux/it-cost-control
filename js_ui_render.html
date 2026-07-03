@@ -3,7 +3,6 @@
      * MODULO RACCORDO UI GENERICA E BADGE CONDIVISI
      */
     function switchTab(tabId) {
-        // MODIFICATO: Aggiunto 'tab-projections' all'array di gestione dei tab
         const tabs = ['tab-dashboard', 'tab-inventory', 'tab-operations', 'tab-contracts', 'tab-projections', 'tab-timeline'];
         const activeClass = "bg-teal-700 text-white shadow-sm pointer-events-none font-black".split(" ");
         const inactiveClass = "text-teal-300 hover:text-white hover:bg-teal-800/50 cursor-pointer font-bold".split(" ");
@@ -18,6 +17,12 @@
                     btnEl.classList.remove(...inactiveClass);
                     btnEl.classList.add(...activeClass);
                 }
+
+                // --- INVOCA IL CONTROLLER SE SI SCEGLIE IL TAB TIMELINE ---
+                if (t === 'tab-timeline' && typeof TimelineController !== 'undefined') {
+                    TimelineController.initTimelineWorkspace(window.windowPayload);
+                }
+
                 if (t === 'tab-dashboard' || t === 'tab-projections') window.dispatchEvent(new Event('resize'));
             } else {
                 if (tabEl) tabEl.classList.replace('block', 'hidden');
