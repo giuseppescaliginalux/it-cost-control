@@ -1,0 +1,17 @@
+<script>
+    /**
+     * js_dashboard_api.html
+     * API LAYER: Structural framework hooks for global payloads.
+     */
+    const DashboardAPI = {
+        // Abstract structure for data mapping if backend filters are added later
+        getFreshMetricsContext: function (onSuccess, onFailure) {
+            try {
+                const payload = window.windowPayload;
+                onSuccess(payload);
+            } catch (e) {
+                onFailure(e);
+            }
+        }
+    };
+</script>

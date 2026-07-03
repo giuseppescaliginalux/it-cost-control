@@ -27,6 +27,29 @@
         cursor: help;
     }
 
+    .tt-wrapper:hover {
+        z-index: 50 !important;
+        /* Forces the hovered context to sit on top of adjacent grid cells */
+    }
+
+    .tt-wrapper:hover .tt-content {
+        display: block !important;
+    }
+
+    /* --- Add this at the end of the Tooltip Engine section in css.html --- */
+    .tt-content.tt-down {
+        bottom: auto !important;
+        top: 100% !important;
+        margin-top: 8px;
+        margin-bottom: 0 !important;
+    }
+
+    .tt-content.tt-down::after {
+        top: auto !important;
+        bottom: 100% !important;
+        border-color: transparent transparent #1e293b transparent !important;
+    }
+
     .tt-content {
         /* Fondamentale: display none e position absolute */
         display: none;

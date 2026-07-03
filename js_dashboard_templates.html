@@ -1,0 +1,165 @@
+<script>
+    /**
+     * js_dashboard_templates.html
+     * VIEW TEMPLATES: Standardized UI modules and semantic structures.
+     */
+    const DashboardTemplates = {
+        getMainLayoutStructure: function () {
+            return `
+            <div class="space-y-6 block animate-fade-in">
+                <section class="grid grid-cols-1 md:grid-cols-4 gap-4" id="dashboard-kpi-grid-container"></section>
+
+                <div class="mb-6 bg-slate-100 p-1 rounded-xl border border-slate-200 inline-flex w-full lg:w-auto shadow-sm">
+                    <button id="btn-chart-tab-general" onclick="DashboardController.handleChartTabShift('general')" class="px-4 py-1.5 text-xs font-black uppercase tracking-wider rounded-lg transition-all text-slate-500 hover:text-slate-800 cursor-pointer">General</button>
+                    <button id="btn-chart-tab-savings" onclick="DashboardController.handleChartTabShift('savings')" class="px-4 py-1.5 text-xs font-black uppercase tracking-wider rounded-lg transition-all text-slate-500 hover:text-slate-800 cursor-pointer">Savings</button>
+                    <button id="btn-chart-tab-breakdown" onclick="DashboardController.handleChartTabShift('breakdown')" class="px-4 py-1.5 text-xs font-black uppercase tracking-wider rounded-lg transition-all text-slate-500 hover:text-slate-800 cursor-pointer">Cost Breakdown</button>
+                    <button id="btn-chart-tab-contracts" onclick="DashboardController.handleChartTabShift('contracts')" class="px-4 py-1.5 text-xs font-black uppercase tracking-wider rounded-lg transition-all text-slate-500 hover:text-slate-800 cursor-pointer">Contracts Insights</button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+                    <div id="chart-sec-general" class="contents hidden">
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm md:col-span-2">
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Top 10 Assets Portfolio</h3>
+                            <div style="position: relative; height:280px; width:100%;"><canvas id="liveSheetsChart"></canvas></div>
+                        </div>
+                    </div>
+
+                    <div id="chart-sec-savings" class="contents hidden">
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Savings Performance</h3>
+                            <div style="position: relative; height:280px; width:100%;"><canvas id="cumulativeSavingsChart"></canvas></div>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Efficiency Trend</h3>
+                            <div style="position: relative; height:280px; width:100%;"><canvas id="efficiencyTrendChart"></canvas></div>
+                        </div>
+                    </div>
+
+                    <div id="chart-sec-breakdown" class="contents hidden">
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Spend by Cost Center</h3>
+                            <div class="w-full h-[240px]"></div>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Spend by Legal Entity</h3>
+                            <div class="w-full h-[240px]"></div>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Spend by Expenditure Type</h3>
+                            <div class="w-full h-[240px]"></div>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Spend by Business Driver</h3>
+                            <div class="w-full h-[240px]"></div>
+                        </div>
+                    </div>
+
+                    <div id="chart-sec-contracts" class="contents hidden">
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Spend by Supplier</h3>
+                            <div class="w-full h-[240px]"></div>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Renewal Pipeline (FY)</h3>
+                            <div style="position: relative; height:240px; width:100%;"><canvas id="renewalPipelineChart"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        },
+
+        // Locate getKpiGridContent function and append the 'down' argument to the calls:
+
+        getKpiGridContent: function (m, fmt) {
+            const varSign = m.netVariance > 0 ? "+" : "";
+            const perfSign = m.performancePercentage >= 0 ? "+" : "";
+            const varColor = m.netVariance >= 0 ? "text-emerald-600" : "text-rose-600";
+            const perfColor = m.performancePercentage >= 0 ? "text-emerald-600" : "text-rose-600";
+            const varBadge = m.netVariance >= 0 ? "Surplus" : "Deficit";
+            const varBadgeClass = m.netVariance >= 0 ? "text-emerald-700 bg-emerald-50" : "text-rose-700 bg-rose-50";
+
+            return `
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between relative">
+                <div>
+                    <div class="flex items-center gap-1.5 mb-1">
+                        <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest">FY27 Projection</p>
+                        ${generateFinOpsHelpTooltip("FY27 Projection", "Estimated total expenditure by the end of the fiscal year, calculated by combining active contracts baseline and the chronological financial impact of ongoing initiatives.", "down")}
+                    </div>
+                    <p class="text-3xl font-black text-slate-900 tracking-tight">${fmt(m.totalProjection)}</p>
+                </div>
+                <div class="mt-3 inline-flex items-center gap-1.5 px-2 py-1 bg-slate-50 border border-slate-100 rounded text-[10px] font-bold text-slate-500 w-fit">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                    </svg>
+                    <span>${m.activeContractsCount}</span> Active Contracts
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between relative">
+                <div>
+                    <div class="flex items-center gap-1.5 mb-1">
+                        <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest">Net Variance</p>
+                        ${generateFinOpsHelpTooltip("Net Variance", "The absolute difference between Allocated Corporate Budget and Realized Projections. A positive value indicates a Surplus, while a negative one represents a Coverage Deficit.", "down")}
+                    </div>
+                    <p class="text-3xl font-black tracking-tight leading-none ${varColor}">${varSign}${fmt(m.netVariance)}</p>
+                </div>
+                <div class="mt-3 flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                    <span class="px-1.5 py-0.5 rounded text-[8px] font-black tracking-widest uppercase ${varBadgeClass}">${varBadge}</span>
+                    <span>vs Budget: <span class="font-mono text-slate-600 font-black">${fmt(m.totalBudget)}</span></span>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between relative">
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <div class="flex items-center gap-1.5">
+                            <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest">Savings Pipeline</p>
+                            ${generateFinOpsHelpTooltip("Savings Pipeline", "The cumulative amount of annualized cost avoidance or savings that have been locked and validated into the system through completed procurement or cloud initiatives.", "down")}
+                        </div>
+                        <span class="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[7px] font-black tracking-widest uppercase leading-none">Secured</span>
+                    </div>
+                    <p class="text-3xl font-black tracking-tight leading-none text-emerald-600">${fmt(m.securedSavings)}</p>
+                </div>
+                <div class="mt-3 flex items-center justify-end text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                    <span>To Secure: <span class="font-mono text-slate-600 font-black">${fmt(m.remainingToSecure)}</span></span>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between relative">
+                <div>
+                    <div class="flex items-center gap-1.5 mb-1">
+                        <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest">Realized Performance</p>
+                        ${generateFinOpsHelpTooltip("Realized Performance", "Financial efficiency index comparing the actual secured run-rate savings achieved against the baseline targets originally estimated during the pipeline lifecycle.", "down")}
+                    </div>
+                    <p class="text-3xl font-black tracking-tight leading-none ${perfColor}">${perfSign}${m.performancePercentage.toFixed(1)}%</p>
+                </div>
+                <div class="mt-3 flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                    <span>Actual: <span class="font-mono text-slate-700 font-black">${fmt(m.realizedActual)}</span></span>
+                    <span>Target: <span class="font-mono text-slate-600">${fmt(m.realizedTarget)}</span></span>
+                </div>
+            </div>`;
+        },
+
+        getDoughnutLayoutStructure: function (canvasId) {
+            return `
+            <div class="w-[40%] h-[170px] relative flex-shrink-0 flex items-center justify-center">
+                <canvas id="${canvasId}"></canvas>
+            </div>
+            <div id="${canvasId}-html-legend" class="w-[56%] max-h-[220px] overflow-y-auto pr-1 flex flex-col gap-1 text-slate-600 justify-center"></div>`;
+        },
+
+        getDoughnutLegendItemRow: function (label, color, formattedVal, pct) {
+            return `
+            <div class="flex items-center justify-between gap-1 text-[10px] font-bold tracking-tight py-0.5 border-b border-slate-50/50 last:border-none">
+                <div class="flex items-center gap-1.5 truncate max-w-[62%]">
+                    <span class="w-2 h-2 rounded-full flex-shrink-0" style="background-color: ${color}"></span>
+                    <span class="truncate text-slate-700" title="${label}">${label}</span>
+                </div>
+                <div class="flex items-center gap-1.5 font-mono text-slate-500 flex-shrink-0 text-right">
+                    <span class="font-black text-slate-800">€ ${formattedVal}</span>
+                    <span class="text-slate-400 font-normal text-[9px] w-5">${pct}%</span>
+                </div>
+            </div>`;
+        }
+    };
+</script>

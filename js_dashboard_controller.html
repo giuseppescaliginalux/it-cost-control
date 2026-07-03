@@ -1,0 +1,282 @@
+<script>
+    /**
+     * js_dashboard_controller.html
+     * CONTROLLER: Execution engine and orchestration coordinator for the Dashboard Tab.
+     */
+    let globalChartInstances = {};
+
+    function updateExecutiveDashboard(payload) {
+        DashboardController.initDashboardWorkflow(payload);
+    }
+
+    const DashboardController = {
+        initDashboardWorkflow: function (payload) {
+            // 1. Load data into state model
+            DashboardState.loadCachePayload(payload);
+
+            // 2. Render static layout shell into core mount point
+            const container = document.getElementById('tab-dashboard');
+            if (!container) return;
+            container.innerHTML = DashboardTemplates.getMainLayoutStructure();
+
+            // 3. Render and bind calculations to the top KPI grid
+            const metrics = DashboardState.computeExecutiveMetrics();
+            document.getElementById('dashboard-kpi-grid-container').innerHTML =
+                DashboardTemplates.getKpiGridContent(metrics, this.formatValueToMillions);
+
+            // 4. Fire Chart.js vector drawings
+            this.handleChartTabShift(DashboardState.activeChartTab);
+        },
+
+        handleChartTabShift: function (tabType) {
+            DashboardState.activeChartTab = tabType;
+            const tabs = ['general', 'savings', 'breakdown', 'contracts'];
+
+            tabs.forEach(t => {
+                const sec = document.getElementById('chart-sec-' + t);
+                const btn = document.getElementById('btn-chart-tab-' + t);
+                if (sec) sec.classList.add('hidden');
+                if (btn) {
+                    btn.classList.remove('bg-white', 'shadow-sm', 'text-slate-700');
+                    btn.classList.add('text-slate-500');
+                }
+            });
+
+            const activeSec = document.getElementById('chart-sec-' + tabType);
+            const activeBtn = document.getElementById('btn-chart-tab-' + tabType);
+            if (activeSec) activeSec.classList.remove('hidden');
+            if (activeBtn) {
+                activeBtn.classList.add('bg-white', 'shadow-sm', 'text-slate-700');
+                activeBtn.classList.remove('text-slate-500');
+            }
+
+            // Lazy rendering depending on which viewport is currently requested
+            this.renderTabSpecificCharts(tabType);
+        },
+
+        renderTabSpecificCharts: function (tabType) {
+            const activeContracts = DashboardState.contracts.filter(c => (c["Status"] || "").toString().trim().toUpperCase() === "ACTIVE");
+
+            if (tabType === 'general') {
+                const top10 = DashboardState.getTop10AssetsByRunRate();
+                this.drawLiveChart(top10.map(r => r["Asset Name"]), top10.map(r => parseFloat(r["Effective Budget"]) || 0), top10.map(r => parseFloat(r["Fiscal Projection"]) || 0));
+            }
+            else if (tabType === 'savings') {
+                this.drawOfflineTrendChart(DashboardState.projections);
+                this.drawOfflineCumulativeSavings(DashboardState.initiatives);
+            }
+            else if (tabType === 'breakdown') {
+                this.drawGenericDoughnut('costCenterChart', activeContracts, 'Cost Center', 'costCenter');
+                this.drawGenericDoughnut('legalEntityChart', activeContracts, 'Legal Entity', 'legalEntity');
+                this.drawGenericDoughnut('capexOpexChart', activeContracts, 'Expenditure Type', 'capexOpex');
+                this.drawGenericDoughnut('businessDriverChart', activeContracts, 'Business Driver', 'businessDriver');
+            }
+            else if (tabType === 'contracts') {
+                this.drawGenericDoughnut('supplierConcentrationChart', activeContracts, 'Supplier', 'supplier');
+                this.drawRenewalPipeline(activeContracts);
+            }
+        },
+
+        formatValueToMillions: function (val) {
+            const absVal = Math.abs(val);
+            if (absVal >= 1000000) return "€ " + (absVal / 1000000).toFixed(1) + "M";
+            if (absVal >= 1000) return "€ " + (absVal / 1000).toFixed(0) + "k";
+            return "€ " + absVal.toFixed(0);
+        },
+
+        // --- CHART.JS INJECTION ENGINES ---
+        drawLiveChart: function (labels, budgets, costs) {
+            const canvas = document.getElementById('liveSheetsChart');
+            if (!canvas) return;
+            if (globalChartInstances.live) globalChartInstances.live.destroy();
+
+            globalChartInstances.live = new Chart(canvas.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Budget FY27', data: budgets, backgroundColor: '#0F766E', borderRadius: 3, barPercentage: 0.6, categoryPercentage: 0.8 },
+                        { label: 'Outlook FY27', data: costs, backgroundColor: '#E11D48', borderRadius: 3, barPercentage: 0.6, categoryPercentage: 0.8 }
+                    ]
+                },
+                options: {
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10, weight: 'bold' } } } },
+                    scales: {
+                        y: { ticks: { font: { size: 10, weight: 'bold' } } },
+                        x: { ticks: { callback: v => v >= 1000000 ? '€' + (v / 1000000).toFixed(1) + 'M' : '€' + (v / 1000).toFixed(0) + 'k' } }
+                    }
+                }
+            });
+        },
+
+        drawGenericDoughnut: function (canvasId, contracts, columnKey, instanceKey) {
+            let canvas = document.getElementById(canvasId);
+            let parentDiv = canvas ? canvas.parentElement : null;
+            if (!parentDiv) {
+                // If switching tabs, locate by hierarchy
+                const containers = document.querySelectorAll('#chart-sec-breakdown > div, #chart-sec-contracts > div');
+                containers.forEach(box => {
+                    const header = box.querySelector('h3');
+                    if (header && header.textContent.includes(columnKey)) {
+                        parentDiv = box.querySelector('.w-full');
+                    }
+                });
+            }
+            if (!parentDiv) return;
+
+            // Enforce relational layout grid split
+            parentDiv.className = "flex items-center justify-between gap-4 w-full h-[240px]";
+            parentDiv.innerHTML = DashboardTemplates.getDoughnutLayoutStructure(canvasId);
+            canvas = document.getElementById(canvasId);
+
+            const dataMap = {};
+            contracts.forEach(c => {
+                let key = (c[columnKey] || "N/A").toString().trim();
+                if (key === "") key = "N/A";
+                dataMap[key] = (dataMap[key] || 0) + (parseFloat(c["Annual Value"]) || 0);
+            });
+
+            const sortedData = Object.entries(dataMap).sort((a, b) => b[1] - a[1]);
+            const labels = []; const data = []; let others = 0;
+
+            if (sortedData.length <= 9) {
+                sortedData.forEach(item => { labels.push(item[0]); data.push(item[1]); });
+            } else {
+                sortedData.forEach((item, i) => {
+                    if (i < 8) { labels.push(item[0]); data.push(item[1]); }
+                    else { others += item[1]; }
+                });
+                if (others > 0) { labels.push("Others"); data.push(others); }
+            }
+
+            const totalSum = data.reduce((sum, v) => sum + v, 0);
+            const colors = ['#0f766e', '#0d9488', '#14b8a6', '#06b6d4', '#2563eb', '#3b82f6', '#6366f1', '#475569', '#64748b', '#94a3b8', '#cbd5e1'];
+
+            const legendContainer = document.getElementById(`${canvasId}-html-legend`);
+            if (legendContainer) {
+                legendContainer.innerHTML = labels.map((label, idx) => {
+                    const val = data[idx];
+                    const pct = totalSum > 0 ? ((val / totalSum) * 100).toFixed(0) : 0;
+                    const fmtVal = val >= 1000000 ? (val / 1000000).toFixed(1) + 'M' : (val / 1000).toFixed(0) + 'k';
+                    return DashboardTemplates.getDoughnutLegendItemRow(label, colors[idx % colors.length], fmtVal, pct);
+                }).join('');
+            }
+
+            if (globalChartInstances[instanceKey]) globalChartInstances[instanceKey].destroy();
+            globalChartInstances[instanceKey] = new Chart(canvas.getContext('2d'), {
+                type: 'doughnut',
+                data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderWidth: 1.5, borderColor: '#fff' }] },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false } } }
+            });
+        },
+
+        drawOfflineCumulativeSavings: function (initiatives) {
+            const labels = []; const activeData = [];
+            let startDate = new Date(2025, 6, 1);
+
+            for (let i = 0; i < 36; i++) {
+                let d = new Date(startDate.getFullYear(), startDate.getMonth() + i, 1);
+                labels.push(d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
+                activeData.push(0);
+            }
+
+            initiatives.forEach(row => {
+                let targetDate = new Date(row["Target Date"] || row["Actual Date"]);
+                if (isNaN(targetDate.getTime())) return;
+                let saving = parseFloat(row["Actual Saving (Annualized)"]) || parseFloat(row["Target Saving (Annualized)"]) || 0;
+                if (saving <= 0) return;
+                let monthly = saving / 12;
+                for (let i = 0; i < 12; i++) {
+                    let curr = new Date(targetDate.getFullYear(), targetDate.getMonth() + i, 1);
+                    let diff = (curr.getFullYear() - startDate.getFullYear()) * 12 + (curr.getMonth() - startDate.getMonth());
+                    if (diff >= 0 && diff < 36) activeData[diff] += monthly;
+                }
+            });
+
+            const cumulativeData = []; let runTotal = 0;
+            for (let i = 0; i < 36; i++) { runTotal += activeData[i]; cumulativeData.push(runTotal); }
+
+            const canvas = document.getElementById('cumulativeSavingsChart');
+            if (!canvas) return;
+            if (globalChartInstances.cumul) globalChartInstances.cumul.destroy();
+
+            globalChartInstances.cumul = new Chart(canvas.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { type: 'bar', label: 'Monthly Run-Rate', data: activeData, backgroundColor: '#A8A29E', yAxisID: 'y' },
+                        { type: 'line', label: 'Cumulative Total', data: cumulativeData, borderColor: '#10B981', fill: false, tension: 0.4, yAxisID: 'y1' }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } },
+                    scales: {
+                        y: { position: 'left', ticks: { callback: v => '€' + (v / 1000).toFixed(0) + 'k' } },
+                        y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => '€' + (v / 1000000).toFixed(1) + 'M' } }
+                    }
+                }
+            });
+        },
+
+        drawOfflineTrendChart: function (projections) {
+            const canvas = document.getElementById('efficiencyTrendChart');
+            if (!canvas || !projections || projections.length === 0) return;
+            if (globalChartInstances.trend) globalChartInstances.trend.destroy();
+
+            const trend = { FY26: { g: 0, o: 0 }, FY27: { g: 0, o: 0 }, FY28: { g: 0, o: 0 } };
+            projections.forEach(row => {
+                trend.FY26.g += parseFloat(row["FY26 Gross"]) || 0; trend.FY26.o += parseFloat(row["FY26 Optimized"]) || 0;
+                trend.FY27.g += parseFloat(row["FY27 Gross"]) || 0; trend.FY27.o += parseFloat(row["FY27 Optimized"]) || 0;
+                trend.FY28.g += parseFloat(row["FY28 Gross"]) || 0; trend.FY28.o += parseFloat(row["FY28 Optimized"]) || 0;
+            });
+
+            globalChartInstances.trend = new Chart(canvas.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: ['FY26', 'FY27', 'FY28'],
+                    datasets: [
+                        { type: 'bar', label: 'Spend without Initiatives', data: [trend.FY26.g, trend.FY27.g, trend.FY28.g], backgroundColor: '#A8A29E', order: 2 },
+                        { type: 'bar', label: 'Optimized Spend', data: [trend.FY26.o, trend.FY27.o, trend.FY28.o], backgroundColor: '#0F766E', order: 3 },
+                        { type: 'line', label: 'Cost Avoidance', data: [trend.FY26.g - trend.FY26.o, trend.FY27.g - trend.FY27.o, trend.FY28.g - trend.FY28.o], borderColor: '#10B981', borderWidth: 2, fill: false, order: 1 }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { ticks: { callback: v => '€' + (v / 1000000).toFixed(1) + 'M' } } } }
+            });
+        },
+
+        drawRenewalPipeline: function (activeContracts) {
+            const canvas = document.getElementById('renewalPipelineChart');
+            if (!canvas) return;
+
+            const quarterMap = {};
+            const now = new Date();
+
+            activeContracts.forEach(c => {
+                if (!c["End Date"]) return;
+                const endDate = new Date(c["End Date"]);
+                if (isNaN(endDate) || endDate < new Date(now.getFullYear() - 1, 0, 1)) return;
+
+                const label = `Q${Math.floor(endDate.getMonth() / 3) + 1} ${endDate.getFullYear()}`;
+                quarterMap[label] = (quarterMap[label] || 0) + (parseFloat(c["Annual Value"]) || 0);
+            });
+
+            const sortedQuarters = Object.entries(quarterMap).sort((a, b) => {
+                const [qA, yA] = a[0].replace('Q', '').split(' ');
+                const [qB, yB] = b[0].replace('Q', '').split(' ');
+                return yA !== yB ? parseInt(yA) - parseInt(yB) : parseInt(qA) - parseInt(qB);
+            });
+
+            const displayData = sortedQuarters.slice(0, 8);
+            if (globalChartInstances.renewal) globalChartInstances.renewal.destroy();
+
+            globalChartInstances.renewal = new Chart(canvas.getContext('2d'), {
+                type: 'bar',
+                data: { labels: displayData.map(d => d[0]), datasets: [{ label: 'Expiring Spend (€)', data: displayData.map(d => d[1]), backgroundColor: '#0d9488', borderRadius: 4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => '€' + (v / 1000).toFixed(0) + 'k' } } } }
+            });
+        }
+    };
+</script>
