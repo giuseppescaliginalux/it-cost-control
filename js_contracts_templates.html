@@ -137,6 +137,10 @@
                         ${suppliersList.map(s => `<option value="${s}" ${s === data["Supplier"] ? 'selected' : ''}>${s}</option>`).join('')}
                     </select>
                 </div>
+                <div class="md:col-span-2 mt-1">
+                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Previous Master ID (Optional - For Renewals/Merges)</label>
+                    <input type="text" id="ins-previousMasterId" value="${data["Previous Master ID"] || ''}" placeholder="e.g. MCT-AWS-2024-01 (use commas for multiple)" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs font-mono text-indigo-700">
+                </div>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs mt-3">
                 <div>
@@ -348,10 +352,6 @@
                     <div class="p-3 bg-slate-50/80 rounded-xl border border-slate-100 flex flex-col gap-1 justify-between">
                         <span class="text-[8px] font-bold text-slate-400 uppercase tracking-wide mb-1">System Identifiers</span>
                         <div><span class="block text-[7px] text-slate-400 uppercase font-bold">Contract ID</span><span class="font-mono text-[9px] text-slate-500 bg-slate-200/50 px-1 py-0.5 rounded block truncate select-all">${d["Contract ID"] || '—'}</span></div>
-                        <div class="grid grid-cols-2 gap-1.5 border-t border-slate-200/50 pt-1.5 mt-1.5">
-                            <div><span class="block text-[7px] font-bold text-slate-400 uppercase">Group ID</span><span class="font-medium text-slate-600 text-[10px] truncate block">${d["Group ID"] || '—'}</span></div>
-                            <div><span class="block text-[7px] font-bold text-slate-400 uppercase">Target Group</span><span class="font-medium text-slate-600 text-[10px] truncate block">${d["Target Group ID"] || '—'}</span></div>
-                        </div>
                     </div>
                     <div class="p-3 bg-slate-50/80 rounded-xl border border-slate-100 md:col-span-2 flex flex-col justify-start">
                         <span class="block text-[8px] font-bold text-slate-400 uppercase tracking-wider mb-1">Line Comments</span>
@@ -472,19 +472,7 @@
 
             <div class="space-y-2">
                 <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded-md w-fit">Operational Allocation & FinOps</span>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                    <div>
-                        <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Group ID</label>
-                        <input type="text" id="edit-groupId-${item.id}" placeholder="Optional" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs" value="${d["Group ID"] || ''}">
-                    </div>
-                    <div>
-                        <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Target Group ID</label>
-                        <select id="edit-targetGroupId-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs">
-                            <option value="" disabled selected class="text-slate-400 italic">Optional - Select Target</option>
-                            ${tgOptions}
-                        </select>
-                    </div>
-                </div>
+                
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-2.5">
                     <div>
                         <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Location</label>

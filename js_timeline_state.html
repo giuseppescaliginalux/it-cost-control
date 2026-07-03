@@ -1,0 +1,70 @@
+<script>
+    /**
+     * js_timeline_state.html
+     * MODEL: State management, dynamic bounding years, and horizontal spatial math.
+     */
+    const TimelineState = {
+        searchKeyword: "",
+        sortKey: "assetName",
+        currentStatusFilters: ["RUNNING", "EXITING", "OPTIMIZING"],
+        targetStatusFilters: [],
+
+        timelineStartYear: 2024,
+        timelineEndYear: 2028,
+        pixelRatePerMonth: 32,
+        rowHeight: 96,
+        rowGap: 20,
+
+        getFilteredMasters: function () {
+            let masters = windowPayload.masterContracts || [];
+            if (this.selectedAsset) {
+                masters = masters.filter(m =>
+                    String(m["Asset Name"]).trim().toLowerCase() === this.selectedAsset.toLowerCase()
+                );
+            }
+            return masters;
+        },
+
+        calculateDynamicYears: function () {
+            let minYear = new Date().getFullYear();
+            let maxYear = new Date().getFullYear() + 2;
+
+            const masters = windowPayload.masterContracts || [];
+            if (masters.length > 0) {
+                let minD = new Date(2099, 0, 1);
+                let maxD = new Date(2000, 0, 1);
+                masters.forEach(m => {
+                    const start = new Date(m["Start Date"] || m["Master Start Date"] || new Date());
+                    const end = new Date(m["End Date"] || m["Master End Date"] || new Date());
+                    if (!isNaN(start.getTime()) && start < minD) minD = start;
+                    if (!isNaN(end.getTime()) && end > maxD) maxD = end;
+                });
+                if (minD.getFullYear() < 2099) minYear = minD.getFullYear();
+                if (maxD.getFullYear() > 2000) maxYear = maxD.getFullYear() + 1;
+            }
+
+            this.timelineStartYear = minYear;
+            this.timelineEndYear = maxYear;
+        },
+
+        calculateTimeCoordinates: function (startDateStr, endDateStr) {
+            if (!startDateStr || !endDateStr) return { width: 0, left: 0 };
+
+            const start = new Date(startDateStr);
+            const end = new Date(endDateStr);
+            if (isNaN(start.getTime()) || isNaN(end.getTime())) return { width: 0, left: 0 };
+
+            const baseDate = new Date(this.timelineStartYear, 0, 1);
+            const msPerDay = 24 * 60 * 60 * 1000;
+
+            const offsetDays = Math.floor((start - baseDate) / msPerDay);
+            const durationDays = Math.max(1, Math.floor((end - start) / msPerDay) + 1);
+            const pixelRatePerDay = this.pixelRatePerMonth / 30.4166;
+
+            return {
+                left: offsetDays * pixelRatePerDay,
+                width: durationDays * pixelRatePerDay
+            };
+        }
+    };
+</script>

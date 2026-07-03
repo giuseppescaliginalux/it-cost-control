@@ -361,8 +361,6 @@
         if (!item) return;
 
         const safeVal = (elementId) => document.getElementById(elementId) ? document.getElementById(elementId).value : "";
-        item.data["Group ID"] = safeVal(`edit-groupId-${id}`).trim();
-        item.data["Target Group ID"] = safeVal(`edit-targetGroupId-${id}`);
         item.data["Legal Entity"] = safeVal(`edit-legalEntity-${id}`);
         item.data["Location"] = safeVal(`edit-location-${id}`);
         item.data["Service Owner"] = safeVal(`edit-serviceOwner-${id}`).trim();
@@ -487,15 +485,20 @@
             ContractsState.currentMasterData["Supplier"] = document.getElementById('ins-masterSupplier').value;
             ContractsState.currentMasterData["Scope"] = document.getElementById('ins-masterScope').value.trim();
             ContractsState.currentMasterData["Comments"] = document.getElementById('ins-masterComments').value.trim();
+            if (document.getElementById('ins-previousMasterId')) {
+                ContractsState.currentMasterData["Previous Master ID"] = document.getElementById('ins-previousMasterId').value.trim();
+            }
         }
 
         const mId = ContractsState.currentMasterData["Master Contract ID"] || (document.getElementById('ins-masterId') ? document.getElementById('ins-masterId').value.trim() : "");
+        const prevMId = ContractsState.currentMasterData["Previous Master ID"] || "";
         const spl = ContractsState.currentMasterData["Supplier"];
 
         const payload = {
             assetName: ContractsState.currentSelectedAsset.name,
             assetId: ContractsState.currentSelectedAsset.id,
             masterId: mId,
+            previousMasterId: prevMId,
             supplier: spl,
             masterScope: ContractsState.currentMasterData["Scope"],
             masterComments: ContractsState.currentMasterData["Comments"],
@@ -505,8 +508,6 @@
             details: ContractsState.currentDetailItems.map(item => {
                 return {
                     contractId: item.data["Contract ID"] || "",
-                    groupId: item.data["Group ID"] || "",
-                    targetGroupId: item.data["Target Group ID"] || "",
                     legalEntity: item.data["Legal Entity"] || "",
                     location: item.data["Location"] || "",
                     serviceOwner: item.data["Service Owner"] || "",

@@ -230,10 +230,10 @@
                         </div>
                         
                         <div>
-                            <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 required-label">Select Mapped Contract Group</label>
-                            <input type="hidden" id="modal-init-selected-group-id" value="">
+                            <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 required-label">Select Mapped Master Agreement</label>
+                            <input type="hidden" id="modal-init-selected-master-id" value="">
                             <div id="modal-init-group-list-container" class="max-h-[300px] overflow-y-auto custom-scrollbar pr-1 border border-slate-100 p-1 rounded-xl bg-slate-50/50">
-                                <div class="text-center p-4 text-[10px] text-slate-400 italic border border-dashed border-slate-200 rounded-xl">Select an Asset above to view available Contract Groups.</div>
+                                <div class="text-center p-4 text-[10px] text-slate-400 italic border border-dashed border-slate-200 rounded-xl">Select an Asset above to view available Master Agreements.</div>
                             </div>
                         </div>
                     </div>
@@ -335,80 +335,87 @@
         `;
         },
 
-        getContractGroupSmartCards: function (groupArray, preSelectedGroupId) {
+        getMasterSmartCards: function (mastersArray, preSelectedMasterId) {
             let html = '<div class="space-y-2">';
 
-            groupArray.forEach(g => {
-                const expDateStr = g.maxDate ? g.maxDate.toISOString().split('T')[0] : "N/A";
-                const isSelected = preSelectedGroupId === g.id;
+            mastersArray.forEach(m => {
+                const expDateStr = m["Master End Date"] ? m["Master End Date"].toString().split('T')[0] : "N/A";
+                const isSelected = preSelectedMasterId === m["Master Contract ID"];
+                const runRate = parseFloat(m["Run Rate"]) || 0;
 
-                // 1. Calcolo Scadenza: se la data massima del gruppo è nel passato, è tutto scaduto
+                // Calcolo Scadenza per opacizzare i master storici non selezionati
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
-                const isFullyExpired = g.maxDate && (g.maxDate < today);
+                const maxDate = m["Master End Date"] ? new Date(m["Master End Date"]) : null;
+                const isFullyExpired = maxDate && (maxDate < today);
 
-                // 2. Classe CSS per opacizzare (torna normale se ci passi il mouse o se lo selezioni)
                 const expiredOpacityClass = isFullyExpired && !isSelected ? 'opacity-40 grayscale hover:opacity-100 hover:grayscale-0' : '';
-
-                let listHtml = g.contracts.map(c => {
-                    let desc = c["Scope"] || c["Description"] || "No scope provided";
-                    let safeScope = String(desc).replace(/"/g, '&quot;');
-                    let cc = c["Cost Center"] || "N/A";
-                    let tcv = parseFloat(c["Total Commitment"] || c["TCV"] || 0);
-                    let term = c["Contract Term (Months)"] || "N/A";
-
-                    let endDate = c["Expiration Date"] || c["End Date"] || c["Contract End Date"] || "N/A";
-                    if (endDate !== "N/A") {
-                        let ed = new Date(endDate);
-                        if (!isNaN(ed.getTime())) endDate = ed.toISOString().split('T')[0];
-                    }
-                    let runRate = parseFloat(c["Annual Value"] || 0);
-
-                    return `
-                    <tr class="border-b border-slate-100 hover:bg-slate-100 transition-colors">
-                        <td class="p-1.5 truncate max-w-[200px] font-medium text-slate-800" title="${safeScope}">${desc}</td>
-                        <td class="p-1.5">${cc}</td>
-                        <td class="p-1.5">€${Math.round(tcv).toLocaleString('it-IT')}</td>
-                        <td class="p-1.5 truncate max-w-[100px]" title="${term}">${term}</td>
-                        <td class="p-1.5">${endDate}</td>
-                        <td class="p-1.5 font-bold text-slate-700">€${Math.round(runRate).toLocaleString('it-IT')}</td>
-                    </tr>
-                `;
-                }).join('');
-
                 const borderClass = isSelected ? 'border-teal-500 bg-teal-50/20 ring-1 ring-teal-500 shadow-sm' : 'border-slate-200 bg-white hover:border-teal-300';
                 const checkIcon = isSelected
                     ? `<svg class="w-4 h-4 text-teal-600 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>`
                     : `<div class="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0"></div>`;
 
+                // Creazione delle righe della tabella dei contratti (dettaglio)
+                let listHtml = '';
+                if (m.childContracts && m.childContracts.length > 0) {
+                    listHtml = m.childContracts.map(c => {
+                        let desc = c["Scope"] || c["Description"] || "No scope provided";
+                        let safeScope = String(desc).replace(/"/g, '&quot;');
+                        let cc = c["Cost Center"] || "N/A";
+                        let tcv = parseFloat(c["Total Commitment"] || c["TCV"] || 0);
+                        let term = c["Contract Term (Months)"] || "N/A";
+
+                        let endDate = c["Expiration Date"] || c["End Date"] || c["Contract End Date"] || "N/A";
+                        if (endDate !== "N/A") {
+                            let ed = new Date(endDate);
+                            if (!isNaN(ed.getTime())) endDate = ed.toISOString().split('T')[0];
+                        }
+                        let cRunRate = parseFloat(c["Annual Value"] || 0);
+
+                        return `
+                        <tr class="border-b border-slate-100 hover:bg-slate-100 transition-colors">
+                            <td class="p-1.5 truncate max-w-[200px] font-medium text-slate-800" title="${safeScope}">${desc}</td>
+                            <td class="p-1.5">${cc}</td>
+                            <td class="p-1.5 font-mono text-slate-500">€${Math.round(tcv).toLocaleString('it-IT')}</td>
+                            <td class="p-1.5 truncate max-w-[100px] text-center" title="${term}">${term}</td>
+                            <td class="p-1.5 font-mono">${endDate}</td>
+                            <td class="p-1.5 font-bold font-mono text-slate-700">€${Math.round(cRunRate).toLocaleString('it-IT')}</td>
+                        </tr>
+                        `;
+                    }).join('');
+                } else {
+                    listHtml = `<tr><td colspan="6" class="p-4 text-center text-slate-400 italic">No operational contracts found linked to this Master Agreement.</td></tr>`;
+                }
+
                 html += `
-                <div class="border ${borderClass} ${expiredOpacityClass} rounded-xl p-2.5 transition-all cursor-pointer group-card pb-3" onclick="InitiativesController.selectGroup('${g.id}')" id="group-card-${g.id}">
+                <div class="border ${borderClass} ${expiredOpacityClass} rounded-xl p-2.5 transition-all cursor-pointer master-card pb-3" onclick="InitiativesController.selectMasterCard('${m["Master Contract ID"]}')" id="master-card-${m["Master Contract ID"]}">
+                    
                     <div class="flex items-center justify-between gap-3">
                         <div class="flex items-center gap-2.5 min-w-0 flex-1">
-                            <div id="group-check-${g.id}" class="shrink-0">${checkIcon}</div>
+                            <div id="master-check-${m["Master Contract ID"]}" class="shrink-0">${checkIcon}</div>
                             <div class="min-w-0 flex-1">
-                                <div class="font-black text-[11px] text-slate-800">[${g.le}] Group ID: <span class="text-indigo-600">${g.id}</span></div>
+                                <div class="font-black text-[11px] text-slate-800">Master ID: <span class="text-indigo-600">${m["Master Contract ID"]}</span></div>
                                 <div class="flex flex-wrap gap-x-2 gap-y-0.5 text-[9px] font-bold text-slate-500 mt-0.5">
-                                    <div class="truncate">Supplier: <span class="text-slate-700">${g.supplier}</span></div>
-                                    <div class="text-slate-300">•</div>
-                                    <div>Type: <span class="text-indigo-600 uppercase font-black text-[8px] border border-indigo-100 bg-indigo-50/50 px-1 rounded shadow-3xs">${g.expType}</span></div>
+                                    <div class="truncate shrink-0">Supplier: <span class="text-slate-700">${m["Supplier"] || 'N/A'}</span></div>
+                                    <div class="text-slate-300 shrink-0">•</div>
+                                    <div class="truncate flex-1 min-w-[150px]" title="${m["Scope"] || ''}">Scope: ${m["Scope"] || 'N/A'}</div>
                                 </div>
                             </div>
                         </div>
-                        <div class="text-right shrink-0">
-                            <div class="font-mono font-black text-slate-700 text-[12px]">€${Math.round(g.sum).toLocaleString('it-IT')}</div>
-                            <div class="text-[8px] font-bold text-slate-400 uppercase mt-0.5">Max Exp: <span class="text-slate-600">${expDateStr}</span></div>
+                        <div class="text-right shrink-0 border-l border-slate-200/50 pl-3">
+                            <div class="font-mono font-black text-slate-700 text-[12px]">€${Math.round(runRate).toLocaleString('it-IT')}</div>
+                            <div class="text-[8px] font-bold text-slate-400 uppercase mt-0.5 tracking-tight">Max Exp: <span class="text-slate-600 font-mono">${expDateStr}</span></div>
                         </div>
                     </div>
 
-                    <div id="group-details-${g.id}" class="${isSelected ? '' : 'hidden'} mt-3 bg-slate-50 border border-slate-200/60 rounded-lg overflow-x-auto custom-scrollbar p-1 shadow-inner" onclick="event.stopPropagation()">
+                    <div id="master-details-${m["Master Contract ID"]}" class="${isSelected ? '' : 'hidden'} mt-3 bg-slate-50 border border-slate-200/60 rounded-lg overflow-x-auto custom-scrollbar p-1 shadow-inner" onclick="event.stopPropagation()">
                         <table class="w-full text-[8px] text-left text-slate-600 whitespace-nowrap">
                             <thead class="text-slate-400 uppercase tracking-widest border-b border-slate-200">
                                 <tr>
                                     <th class="p-1.5 font-black">Scope / Service Name</th>
                                     <th class="p-1.5 font-black">Cost Ctr</th>
                                     <th class="p-1.5 font-black">Commitment</th>
-                                    <th class="p-1.5 font-black">Term</th>
+                                    <th class="p-1.5 font-black text-center">Term</th>
                                     <th class="p-1.5 font-black">End Date</th>
                                     <th class="p-1.5 font-black">Run Rate</th>
                                 </tr>

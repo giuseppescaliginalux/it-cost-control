@@ -238,87 +238,115 @@
         },
 
         // COMPONENTE: LISTA DI SMART CARDS CON EXTRACTION IN ALTO E ORDINAMENTO "STICKY"
-        handleAssetCascadeDropdownChange: function (selectedAssetName, preSelectedGroupId = null) {
+        handleAssetCascadeDropdownChange: function (selectedAssetName, preSelectedMasterId = null) {
             const container = document.getElementById('modal-init-group-list-container');
-            const hiddenInput = document.getElementById('modal-init-selected-group-id');
+            const hiddenInput = document.getElementById('modal-init-selected-master-id');
             if (!container) return;
 
             if (!selectedAssetName) {
-                container.innerHTML = `<div class="text-center p-4 text-[10px] text-slate-400 italic border border-dashed border-slate-200 rounded-xl">Select an Asset Context first to view mapped Contract Groups.</div>`;
+                container.innerHTML = `<div class="text-center p-4 text-[10px] text-slate-400 italic border border-dashed border-slate-200 rounded-xl">Select an Asset Context first to view mapped Master Agreements.</div>`;
                 if (hiddenInput) hiddenInput.value = "";
                 return;
             }
 
-            const filteredContracts = (windowPayload.contracts || []).filter(c =>
-                String(c["Asset Name"]).trim().toLowerCase() === String(selectedAssetName).trim().toLowerCase()
+            const allContracts = windowPayload.contracts || [];
+
+            // Pesca direttamente i MASTER CONTRACTS collegati a questo Asset
+            const filteredMasters = (windowPayload.masterContracts || []).filter(m =>
+                String(m["Asset Name"]).trim().toLowerCase() === String(selectedAssetName).trim().toLowerCase()
             );
 
-            if (filteredContracts.length === 0) {
-                container.innerHTML = `<div class="text-center p-4 text-[10px] text-rose-400 font-bold border border-rose-100 bg-rose-50 rounded-xl">⚠️ No Contracts linked to this Asset</div>`;
+            if (filteredMasters.length === 0) {
+                container.innerHTML = `<div class="text-center p-4 text-[10px] text-rose-400 font-bold border border-rose-100 bg-rose-50 rounded-xl">⚠️ No Master Agreements linked to this Asset</div>`;
                 if (hiddenInput) hiddenInput.value = "";
                 return;
             }
 
-            // AGGREGAZIONE E CALCOLO DELLE DATE MASSIME PER GRUPPO
-            const groups = {};
-            filteredContracts.forEach(c => {
-                const gId = c["Group ID"];
-                if (!gId) return;
-                if (!groups[gId]) {
-                    groups[gId] = {
-                        id: gId,
-                        le: c["Legal Entity"] || "N/A",
-                        supplier: c["Supplier"] || "N/A",
-                        expType: c["Expenditure Type"] || "N/A",
-                        sum: 0,
-                        maxDate: null,
-                        contracts: []
-                    };
-                }
-                groups[gId].sum += (parseFloat(c["Annual Value"]) || 0);
-                groups[gId].contracts.push(c);
-
-                // Trova la data massima del gruppo per l'ordinamento delle card
-                let rawDate = c["Expiration Date"] || c["End Date"] || c["Contract End Date"];
-                if (rawDate) {
-                    const d = new Date(rawDate);
-                    if (!isNaN(d.getTime())) {
-                        if (!groups[gId].maxDate || d > groups[gId].maxDate) {
-                            groups[gId].maxDate = d;
-                        }
-                    }
-                }
-            });
-
-            // ORDINAMENTO DEI GRUPPI: Sticky in alto + End Date DESC per gli altri
-            const groupArray = Object.values(groups).sort((a, b) => {
-                if (preSelectedGroupId) {
-                    if (a.id === preSelectedGroupId) return -1;
-                    if (b.id === preSelectedGroupId) return 1;
-                }
-
-                // Ordinamento per data decrescente (se non c'è data, usa una data minima passata per mandarlo in fondo)
-                const dateA = a.maxDate ? a.maxDate.getTime() : 0;
-                const dateB = b.maxDate ? b.maxDate.getTime() : 0;
-                return dateB - dateA;
-            });
-
-            // ORDINAMENTO DEI CONTRATTI DENTRO OGNI SINGOLO GRUPPO (End Date DESC)
-            groupArray.forEach(g => {
-                g.contracts.sort((a, b) => {
-                    let rawDateA = a["Expiration Date"] || a["End Date"] || a["Contract End Date"];
-                    let rawDateB = b["Expiration Date"] || b["End Date"] || b["Contract End Date"];
-
-                    const timeA = rawDateA ? new Date(rawDateA).getTime() : 0;
-                    const timeB = rawDateB ? new Date(rawDateB).getTime() : 0;
-                    return timeB - timeA; // Decrescente
+            // Associa i singoli contratti di dettaglio al rispettivo Master
+            filteredMasters.forEach(m => {
+                m.childContracts = allContracts.filter(c => c["Master Contract ID"] === m["Master Contract ID"]);
+                // Ordina i contratti figli per data di scadenza (decrescente)
+                m.childContracts.sort((a, b) => {
+                    const timeA = a["End Date"] ? new Date(a["End Date"]).getTime() : 0;
+                    const timeB = b["End Date"] ? new Date(b["End Date"]).getTime() : 0;
+                    return timeB - timeA;
                 });
             });
 
-            // DELEGA LA GENERAZIONE HTML ALLA VIEW (Passando l'array con le gerarchie già ordinate)
-            container.innerHTML = InitiativesTemplates.getContractGroupSmartCards(groupArray, preSelectedGroupId);
+            // Ordinamento dei Master: Quello selezionato in cima, poi per data scadenza
+            filteredMasters.sort((a, b) => {
+                if (preSelectedMasterId) {
+                    if (a["Master Contract ID"] === preSelectedMasterId) return -1;
+                    if (b["Master Contract ID"] === preSelectedMasterId) return 1;
+                }
+                const dateA = a["Master End Date"] ? new Date(a["Master End Date"]).getTime() : 0;
+                const dateB = b["Master End Date"] ? new Date(b["Master End Date"]).getTime() : 0;
+                return dateB - dateA;
+            });
 
-            if (hiddenInput && !preSelectedGroupId) hiddenInput.value = "";
+            // Passa i dati alla vista
+            container.innerHTML = InitiativesTemplates.getMasterSmartCards(filteredMasters, preSelectedMasterId);
+
+            if (hiddenInput && !preSelectedMasterId) hiddenInput.value = "";
+        },
+
+        selectMasterCard: function (masterId) {
+            const hiddenInput = document.getElementById('modal-init-selected-master-id');
+            if (!hiddenInput) return;
+            hiddenInput.value = masterId;
+
+            // 1. Reset visivo di tutte le altre card
+            document.querySelectorAll('.master-card').forEach(card => {
+                card.classList.remove('border-teal-500', 'bg-teal-50/20', 'ring-1', 'ring-teal-500', 'shadow-sm');
+                card.classList.add('border-slate-200', 'bg-white', 'hover:border-teal-300');
+            });
+            document.querySelectorAll('[id^="master-check-"]').forEach(icon => {
+                icon.innerHTML = `<div class="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0"></div>`;
+            });
+
+            // 2. Nasconde i dettagli di tutti gli altri master aperti per compattare la vista
+            document.querySelectorAll('[id^="master-details-"]').forEach(detailBox => {
+                detailBox.classList.add('hidden');
+            });
+
+            // 3. Attiva lo stato selezionato ed espande la tabella dei contratti
+            const selectedCard = document.getElementById(`master-card-${masterId}`);
+            const selectedIcon = document.getElementById(`master-check-${masterId}`);
+            const selectedDetails = document.getElementById(`master-details-${masterId}`);
+
+            if (selectedCard && selectedIcon) {
+                selectedCard.classList.remove('border-slate-200', 'bg-white', 'hover:border-teal-300');
+                selectedCard.classList.add('border-teal-500', 'bg-teal-50/20', 'ring-1', 'ring-teal-500', 'shadow-sm');
+                selectedIcon.innerHTML = `<svg class="w-4 h-4 text-teal-600 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>`;
+
+                if (selectedDetails) {
+                    selectedDetails.classList.remove('hidden');
+                }
+            }
+        },
+
+        // PROCEDURA DI SELEZIONE DELLA SMART CARD MASTER
+        selectMasterCard: function (masterId) {
+            const hiddenInput = document.getElementById('modal-init-selected-master-id');
+            if (!hiddenInput) return;
+            hiddenInput.value = masterId;
+
+            document.querySelectorAll('.master-card').forEach(card => {
+                card.classList.remove('border-teal-500', 'bg-teal-50/20', 'ring-1', 'ring-teal-500', 'shadow-sm');
+                card.classList.add('border-slate-200', 'bg-white', 'hover:border-teal-300');
+            });
+            document.querySelectorAll('[id^="master-check-"]').forEach(icon => {
+                icon.innerHTML = `<div class="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0"></div>`;
+            });
+
+            const selectedCard = document.getElementById(`master-card-${masterId}`);
+            const selectedIcon = document.getElementById(`master-check-${masterId}`);
+
+            if (selectedCard && selectedIcon) {
+                selectedCard.classList.remove('border-slate-200', 'bg-white', 'hover:border-teal-300');
+                selectedCard.classList.add('border-teal-500', 'bg-teal-50/20', 'ring-1', 'ring-teal-500', 'shadow-sm');
+                selectedIcon.innerHTML = `<svg class="w-4 h-4 text-teal-600 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>`;
+            }
         },
 
         // PROCEDURA DI SELEZIONE DELLA SMART CARD CON TOGGLE ACCORDION AUTOMATICO
@@ -441,8 +469,9 @@
                 document.getElementById('modal-init-description').value = initData["Description"] || "";
 
                 if (initData["Asset Name"]) {
-                    this.handleAssetCascadeDropdownChange(initData["Asset Name"], initData["Contracts Group ID"]);
-                    document.getElementById('modal-init-selected-group-id').value = initData["Contracts Group ID"] || "";
+                    this.handleAssetCascadeDropdownChange(initData["Asset Name"], initData["Master Contract ID"]);
+                    const hInput = document.getElementById('modal-init-selected-master-id');
+                    if (hInput) hInput.value = initData["Master Contract ID"] || "";
                 }
             }
 
@@ -454,13 +483,13 @@
         commitInitiativeFormToLocalState: function () {
             const initName = document.getElementById('modal-init-name').value.trim();
             const assetName = document.getElementById('modal-init-asset-select').value;
-            const groupId = document.getElementById('modal-init-selected-group-id').value;
+            const masterId = document.getElementById('modal-init-selected-master-id').value; // CAMBIATO
             const tDate = document.getElementById('modal-init-target-date').value;
             const tCostInput = document.getElementById('modal-init-target-cost');
             const tCostStr = tCostInput ? tCostInput.value.replace(/\./g, '').trim() : "0";
 
-            if (!initName || !assetName || !groupId || !tDate || tCostStr === "") {
-                alert("Boundary Data Integrity Error: Initiative Name, Asset Context, Linked Group ID, Target Execution Date and Target Cost fields are strictly mandatory.");
+            if (!initName || !assetName || !masterId || !tDate || tCostStr === "") {
+                alert("Boundary Data Integrity Error: Initiative Name, Asset Context, Linked Master ID, Target Date and Target Cost fields are strictly mandatory.");
                 return;
             }
 
@@ -469,38 +498,16 @@
 
             instance["Initiative Name"] = initName;
             instance["Asset Name"] = assetName;
-            instance["Contracts Group ID"] = groupId;
+            instance["Master Contract ID"] = masterId; // CAMBIATO
 
-            const groupContracts = (windowPayload.contracts || []).filter(c => (c["Group ID"] || c["group id"]) === groupId);
-            let baselineAgg = 0;
-            let maxExpDate = null;
-            let supplierAgg = "";
-            let expTypeAgg = "";
-            let termAgg = "";
+            const targetMaster = (windowPayload.masterContracts || []).find(m => m["Master Contract ID"] === masterId);
 
-            if (groupContracts.length > 0) {
-                supplierAgg = groupContracts[0]["Supplier"] || groupContracts[0]["supplier"] || groupContracts[0]["Vendor"] || "";
-                expTypeAgg = groupContracts[0]["Expenditure Type"] || groupContracts[0]["expenditure type"] || groupContracts[0]["ExpenditureType"] || "";
-                termAgg = groupContracts[0]["Contract Term (Months)"] || groupContracts[0]["Contract Term"] || "";
-
-                groupContracts.forEach(c => {
-                    baselineAgg += (parseFloat(c["Annual Value"] || c["annual value"] || 0));
-                    let rawDate = c["Expiration Date"] || c["End Date"] || c["Contract End Date"] || c["expiration date"];
-                    if (rawDate) {
-                        const d = new Date(rawDate);
-                        if (!isNaN(d.getTime())) {
-                            if (!maxExpDate || d > maxExpDate) maxExpDate = d;
-                        }
-                    }
-                });
+            if (targetMaster) {
+                instance["Supplier"] = targetMaster["Supplier"] || "";
+                instance["Contract Term (Months)"] = targetMaster["Contract Term (Months)"] || "";
+                instance["Baseline Spend (Annualized)"] = parseFloat(targetMaster["Run Rate"]) || 0;
+                instance["Last Expiration"] = targetMaster["Master End Date"] ? targetMaster["Master End Date"].split('T')[0] : "";
             }
-
-            instance["Contract ID"] = groupContracts.length > 0 ? (groupContracts[0]["Contract ID"] || groupContracts[0]["contract id"] || "") : "";
-            instance["Supplier"] = supplierAgg;
-            instance["Expenditure Type"] = expTypeAgg;
-            instance["Contract Term (Months)"] = termAgg;
-            instance["Baseline (Annualized)"] = baselineAgg;
-            instance["Last Expiration"] = maxExpDate ? maxExpDate.toISOString().split('T')[0] : "";
 
             const savedStrategy = document.getElementById('modal-init-strategy').value;
             instance["Initial Strategy"] = savedStrategy;

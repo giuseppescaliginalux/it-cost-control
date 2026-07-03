@@ -1,0 +1,358 @@
+<script>
+    /**
+     * js_timeline_controller.html
+     * CONTROLLER: Advanced Filtering, Topological Sorting, Dynamic bounds, SVG Bezier routing.
+     */
+    const TimelineController = {
+        initTimelineWorkspace: function (payload) {
+            const tabContainer = document.getElementById('tab-timeline');
+            if (!tabContainer) return;
+
+            TimelineState.calculateDynamicYears();
+
+            const canvasWidth = (TimelineState.timelineEndYear - TimelineState.timelineStartYear + 1) * 12 * TimelineState.pixelRatePerMonth;
+
+            tabContainer.innerHTML = TimelineTemplates.getControlsShellMarkup(canvasWidth);
+
+            this.renderDropdowns();
+            this.updateFiltersDisplay();
+            this.renderActiveTimelineCanvas();
+        },
+
+        renderDropdowns: function () {
+            const assetsMetadata = windowPayload.assets || [];
+
+            const uniqueCurrent = [...new Set(assetsMetadata.map(a => (a["Current Status"] || "ACTIVE").toUpperCase().trim()))].sort();
+            const currContainer = document.getElementById('tl-drop-current');
+            if (currContainer) {
+                currContainer.innerHTML = uniqueCurrent.map(status => `
+                    <label class="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer group">
+                        <input type="checkbox" value="${status}" ${TimelineState.currentStatusFilters.includes(status) ? 'checked' : ''} onchange="TimelineController.onFilterChange('current', this.value, this.checked)" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
+                        <span class="text-[10px] font-bold text-slate-600 group-hover:text-slate-900">${status}</span>
+                    </label>
+                `).join('');
+            }
+
+            const uniqueTarget = [...new Set(assetsMetadata.map(a => (a["Target Status"] || "RETAIN").toUpperCase().trim()))].sort();
+            const targetContainer = document.getElementById('tl-drop-target');
+            if (targetContainer) {
+                targetContainer.innerHTML = uniqueTarget.map(status => `
+                    <label class="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer group">
+                        <input type="checkbox" value="${status}" onchange="TimelineController.onFilterChange('target', this.value, this.checked)" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
+                        <span class="text-[10px] font-bold text-slate-600 group-hover:text-slate-900">${status}</span>
+                    </label>
+                `).join('');
+            }
+        },
+
+        toggleDropdown: function (event, id) {
+            event.stopPropagation();
+            const drops = ['tl-drop-current', 'tl-drop-target'];
+            drops.forEach(dropId => {
+                const el = document.getElementById(dropId);
+                if (dropId === id) el.classList.toggle('hidden');
+                else if (el) el.classList.add('hidden');
+            });
+        },
+
+        onFilterChange: function (type, value, isChecked) {
+            const arr = type === 'current' ? TimelineState.currentStatusFilters : TimelineState.targetStatusFilters;
+            if (isChecked) {
+                if (!arr.includes(value)) arr.push(value);
+            } else {
+                const idx = arr.indexOf(value);
+                if (idx > -1) arr.splice(idx, 1);
+            }
+            this.updateFiltersDisplay();
+            this.renderActiveTimelineCanvas();
+        },
+
+        updateFiltersDisplay: function () {
+            const lCurr = document.getElementById('tl-lbl-current');
+            const lTarg = document.getElementById('tl-lbl-target');
+            if (lCurr) lCurr.textContent = TimelineState.currentStatusFilters.length === 0 ? "All Statuses" : `Filtered (${TimelineState.currentStatusFilters.length})`;
+            if (lTarg) lTarg.textContent = TimelineState.targetStatusFilters.length === 0 ? "All Strategies" : `Filtered (${TimelineState.targetStatusFilters.length})`;
+        },
+
+        updateFilters: function () {
+            TimelineState.searchKeyword = document.getElementById('tl-search-input').value.toLowerCase().trim();
+            TimelineState.sortKey = document.getElementById('tl-sort-select').value;
+            this.renderActiveTimelineCanvas();
+        },
+
+        scrollTimelineCanvas: function (direction) {
+            const wrapper = document.getElementById('timeline-matrix-canvas-wrapper');
+            if (!wrapper) return;
+            const scrollStep = 12 * TimelineState.pixelRatePerMonth;
+            wrapper.scrollLeft += (direction === 'left' ? -scrollStep : scrollStep);
+        },
+
+        renderActiveTimelineCanvas: function () {
+            const wrapper = document.getElementById('timeline-matrix-canvas-wrapper');
+            const viewport = document.getElementById('timeline-matrix-swimlanes-viewport');
+            const axisTrack = document.getElementById('timeline-chronological-axis-track');
+
+            if (!wrapper || !viewport || !axisTrack) return;
+
+            const assetsMetadata = windowPayload.assets || [];
+            const masters = windowPayload.masterContracts || [];
+            const searchQ = TimelineState.searchKeyword;
+
+            let validAssets = assetsMetadata.filter(asset => {
+                const name = (asset["Asset Name"] || "").toLowerCase();
+                const mfg = (asset["Manufacturer"] || "").toLowerCase();
+                const cStatus = (asset["Current Status"] || "ACTIVE").toUpperCase().trim();
+                const tStatus = (asset["Target Status"] || "RETAIN").toUpperCase().trim();
+
+                if (TimelineState.currentStatusFilters.length > 0 && !TimelineState.currentStatusFilters.includes(cStatus)) return false;
+                if (TimelineState.targetStatusFilters.length > 0 && !TimelineState.targetStatusFilters.includes(tStatus)) return false;
+
+                if (searchQ) {
+                    let match = name.includes(searchQ) || mfg.includes(searchQ);
+                    if (!match) {
+                        const linkedMasters = masters.filter(m => String(m["Asset Name"]).toLowerCase() === name);
+                        match = linkedMasters.some(m => (m["Supplier"] || "").toLowerCase().includes(searchQ));
+                    }
+                    if (!match) return false;
+                }
+                return true;
+            });
+
+            let validAssetNames = validAssets.map(a => String(a["Asset Name"]).trim());
+
+            const swimlanesBuckets = {};
+            masters.forEach(m => {
+                let asset = (m["Asset Name"] || "Unassigned Asset").toString().trim();
+                if (validAssetNames.includes(asset) || (validAssetNames.length === 0 && TimelineState.currentStatusFilters.length === 0 && TimelineState.targetStatusFilters.length === 0)) {
+                    if (asset === "") asset = "Unassigned Asset";
+                    if (!swimlanesBuckets[asset]) swimlanesBuckets[asset] = [];
+                    swimlanesBuckets[asset].push(m);
+                }
+            });
+
+            let sortedAssetNames = Object.keys(swimlanesBuckets);
+            if (sortedAssetNames.length === 0) {
+                viewport.innerHTML = '<div class="p-8 mt-4 mx-4 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50"><p class="text-slate-400 text-xs font-bold uppercase tracking-wider">No active Master Contracts found matching current filters.</p></div>';
+                return;
+            }
+
+            if (TimelineState.sortKey === 'runRate') {
+                sortedAssetNames.sort((a, b) => {
+                    let runA = swimlanesBuckets[a].reduce((sum, m) => sum + (parseFloat(m["Run Rate"]) || 0), 0);
+                    let runB = swimlanesBuckets[b].reduce((sum, m) => sum + (parseFloat(m["Run Rate"]) || 0), 0);
+                    return runB - runA;
+                });
+            } else {
+                sortedAssetNames.sort((a, b) => a.localeCompare(b));
+            }
+
+            axisTrack.innerHTML = TimelineTemplates.getTimeScaleAxisTicks(
+                TimelineState.timelineStartYear,
+                TimelineState.timelineEndYear,
+                TimelineState.pixelRatePerMonth
+            );
+
+            let swimlanesHtml = '';
+            const { rowHeight, rowGap } = TimelineState;
+            const allContracts = windowPayload.contracts || [];
+            const allInitiatives = windowPayload.initiatives || [];
+
+            sortedAssetNames.forEach(assetName => {
+
+                const mastersInAsset = swimlanesBuckets[assetName];
+                const masterMap = new Map();
+                mastersInAsset.forEach(m => masterMap.set(m["Master Contract ID"], m));
+
+                const roots = [];
+                const childrenMap = new Map();
+
+                mastersInAsset.forEach(m => {
+                    const mId = m["Master Contract ID"];
+                    const prevIds = (m["Previous Master ID"] || "").toString().split(',').map(s => s.trim()).filter(s => s);
+
+                    let isRoot = true;
+                    prevIds.forEach(prevId => {
+                        if (masterMap.has(prevId)) {
+                            isRoot = false;
+                            if (!childrenMap.has(prevId)) childrenMap.set(prevId, []);
+                            childrenMap.get(prevId).push(m);
+                        }
+                    });
+                    if (isRoot) roots.push(m);
+                });
+
+                roots.sort((a, b) => new Date(a["Start Date"] || a["Master Start Date"] || 0).getTime() - new Date(b["Start Date"] || b["Master Start Date"] || 0).getTime());
+
+                const orderedMasters = [];
+                const visited = new Set();
+
+                function traverse(node) {
+                    if (visited.has(node["Master Contract ID"])) return;
+                    visited.add(node["Master Contract ID"]);
+                    orderedMasters.push(node);
+
+                    const children = childrenMap.get(node["Master Contract ID"]) || [];
+                    children.sort((a, b) => new Date(a["Start Date"] || a["Master Start Date"] || 0).getTime() - new Date(b["Start Date"] || b["Master Start Date"] || 0).getTime());
+                    children.forEach(child => traverse(child));
+                }
+
+                roots.forEach(root => traverse(root));
+                mastersInAsset.forEach(m => { if (!visited.has(m["Master Contract ID"])) traverse(m); });
+                swimlanesBuckets[assetName] = orderedMasters;
+
+                let cardsHtml = '';
+                const masterGeometryMap = {};
+
+                swimlanesBuckets[assetName].forEach((master, index) => {
+                    const mId = master["Master Contract ID"];
+                    const coord = TimelineState.calculateTimeCoordinates(
+                        master["Start Date"] || master["Master Start Date"],
+                        master["End Date"] || master["Master End Date"]
+                    );
+
+                    const verticalTop = index * (rowHeight + rowGap);
+                    masterGeometryMap[mId] = {
+                        left: coord.left,
+                        width: coord.width,
+                        midY: verticalTop + (rowHeight / 2),
+                        bottomY: verticalTop + rowHeight
+                    };
+
+                    const childCount = allContracts.filter(c => c["Master Contract ID"] === mId).length;
+                    const linkedInits = allInitiatives.filter(i => String(i["Master Contract ID"]).trim() === String(mId).trim());
+                    let initiativeStripHtml = '';
+                    if (linkedInits.length > 0) {
+                        const countHtml = linkedInits.length > 1 ? `<span class="mt-1 text-[9px] font-black bg-white text-amber-600 px-1 rounded shadow-sm">${linkedInits.length}</span>` : '';
+                        initiativeStripHtml = `
+                        <div onclick="event.stopPropagation(); TimelineController.openInitiativePopover('${mId}', event)" class="absolute top-0 right-0 h-full w-6 bg-amber-500 hover:bg-amber-600 border-l border-amber-600/20 flex flex-col items-center justify-center text-white transition-colors cursor-pointer z-30 shadow-sm" title="${linkedInits.length} Active Financial Initiative(s) - Click for details">
+                            <svg class="w-3.5 h-3.5 animate-pulse" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                            ${countHtml}
+                        </div>`;
+                    }
+
+                    cardsHtml += TimelineTemplates.getContractCardNodeMarkup(master, coord.left, coord.width, childCount, initiativeStripHtml);
+                });
+
+                let svgPathsHtml = '';
+                const supplierTrackHeight = swimlanesBuckets[assetName].length * (rowHeight + rowGap);
+
+                swimlanesBuckets[assetName].forEach(master => {
+                    const mId = master["Master Contract ID"];
+                    const prevIds = (master["Previous Master ID"] || "").toString().split(',').map(s => s.trim()).filter(s => s);
+
+                    prevIds.forEach(prevId => {
+                        if (masterGeometryMap[prevId]) {
+                            const parent = masterGeometryMap[prevId];
+                            const child = masterGeometryMap[mId];
+
+                            const startX = parent.left + (parent.width / 2);
+                            const startY = parent.bottomY;
+                            const endX = child.left;
+                            const endY = child.midY;
+
+                            const r = 12;
+                            let path = '';
+
+                            if (endX >= startX + 24) {
+                                path = `M ${startX} ${startY} ` +
+                                    `L ${startX} ${endY - r} ` +
+                                    `Q ${startX} ${endY} ${startX + r} ${endY} ` +
+                                    `L ${endX} ${endY}`;
+                            } else {
+                                const dropY = startY + (rowGap / 2);
+                                const leftX = endX - 24;
+                                path = `M ${startX} ${startY} ` +
+                                    `L ${startX} ${dropY - r} ` +
+                                    `Q ${startX} ${dropY} ${startX - r} ${dropY} ` +
+                                    `L ${leftX + r} ${dropY} ` +
+                                    `Q ${leftX} ${dropY} ${leftX} ${dropY + r} ` +
+                                    `L ${leftX} ${endY - r} ` +
+                                    `Q ${leftX} ${endY} ${leftX + r} ${endY} ` +
+                                    `L ${endX} ${endY}`;
+                            }
+
+                            svgPathsHtml += `
+                            <path d="${path}" fill="none" stroke="#0d9488" stroke-width="2.5" stroke-dasharray="4 3" opacity="0.85" />
+                            <circle cx="${startX}" cy="${startY}" r="4" fill="#0d9488" />
+                            <circle cx="${endX}" cy="${endY}" r="4.5" fill="#ffffff" stroke="#0d9488" stroke-width="2.5" />
+                            <path d="M ${endX - 5} ${endY - 3.5} L ${endX + 0.5} ${endY} L ${endX - 5} ${endY + 3.5}" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            `;
+                        }
+                    });
+                });
+
+                const linesSvgWrapper = svgPathsHtml !== '' ? `
+                <svg class="absolute inset-0 pointer-events-none" style="width: 100%; height: 100%; min-height: ${supplierTrackHeight}px; z-index: 10; overflow: visible;">
+                    ${svgPathsHtml}
+                </svg>` : '';
+
+                const assetMatch = validAssets.find(a => String(a["Asset Name"]).trim().toLowerCase() === String(assetName).trim().toLowerCase()) || {};
+                const currentStatus = assetMatch["Current Status"] || "ACTIVE";
+                const targetStrategy = assetMatch["Target Status"] || "RETAIN";
+
+                const styles = { 'RUNNING': 'text-emerald-700 bg-emerald-50 border-emerald-100', 'OPTIMIZING': 'text-amber-700 bg-amber-50 border-amber-100', 'EXITING': 'text-orange-700 bg-orange-50 border-orange-100', 'TRANSFERRED': 'text-sky-700 bg-sky-50 border-sky-100', 'EXPIRED': 'text-rose-700 bg-rose-50 border-rose-100', 'DISMISSED': 'text-slate-500 bg-slate-50 border-slate-200' };
+                const assetStatusPill = `<span class="px-2 py-0.5 text-[9px] font-bold rounded-full border ${styles[currentStatus.toUpperCase()] || 'text-slate-400 bg-slate-50 border-slate-100'}">${currentStatus.toUpperCase()}</span>`;
+
+                swimlanesHtml += TimelineTemplates.getSwimlaneBlockMarkup(assetName, assetStatusPill, targetStrategy.toUpperCase(), cardsHtml, linesSvgWrapper);
+            });
+
+            viewport.innerHTML = swimlanesHtml;
+
+            setTimeout(() => {
+                const targetYear = new Date().getFullYear();
+                const currentYearOffset = (targetYear - TimelineState.timelineStartYear) * 12 * TimelineState.pixelRatePerMonth;
+                wrapper.scrollLeft = currentYearOffset - (wrapper.clientWidth / 2);
+            }, 60);
+        },
+
+        openMasterDetailsModal: function (masterId) {
+            const mountPoint = document.getElementById('timeline-modal-mount-point');
+            if (!mountPoint) return;
+
+            const masterData = (windowPayload.masterContracts || []).find(m => m["Master Contract ID"] === masterId);
+            if (!masterData) return;
+
+            const childContracts = (windowPayload.contracts || []).filter(c => c["Master Contract ID"] === masterId);
+
+            childContracts.sort((a, b) => {
+                const timeA = a["End Date"] ? new Date(a["End Date"]).getTime() : 0;
+                const timeB = b["End Date"] ? new Date(b["End Date"]).getTime() : 0;
+                return timeB - timeA;
+            });
+
+            mountPoint.innerHTML = TimelineTemplates.getMasterModalMarkup(masterData, childContracts);
+            mountPoint.classList.remove('hidden');
+            mountPoint.classList.add('flex');
+        },
+
+        openInitiativePopover: function (masterId, event) {
+            const mountPoint = document.getElementById('timeline-modal-mount-point');
+            if (!mountPoint) return;
+
+            const linkedInits = (windowPayload.initiatives || []).filter(i => String(i["Master Contract ID"]).trim() === String(masterId).trim());
+            if (linkedInits.length === 0) return;
+
+            mountPoint.innerHTML = TimelineTemplates.getInitiativePopoverMarkup(linkedInits);
+            mountPoint.classList.remove('hidden');
+            mountPoint.classList.add('flex');
+        },
+
+        closeMasterDetailsModal: function () {
+            const mountPoint = document.getElementById('timeline-modal-mount-point');
+            if (!mountPoint) return;
+            mountPoint.classList.add('hidden');
+            mountPoint.classList.remove('flex');
+            mountPoint.innerHTML = '';
+        }
+    };
+
+    document.addEventListener('click', function (e) {
+        const drops = ['tl-drop-current', 'tl-drop-target'];
+        drops.forEach(id => {
+            const el = document.getElementById(id);
+            if (el && !el.classList.contains('hidden') && !el.parentElement.contains(e.target)) {
+                el.classList.add('hidden');
+            }
+        });
+    });
+</script>

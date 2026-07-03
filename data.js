@@ -1,8 +1,8 @@
 const EDITABLE_MASTER = ["Asset Name", "Supplier", "Scope", "Comments", "Status", "Master Start Date", "Master End Date",
-  "Contract Term (Months)", "Total Commitment", "Run Rate", "Billing Channel", "Contract Links"];
+  "Contract Term (Months)", "Total Commitment", "Run Rate", "Billing Channel", "Contract Links", "Previous Master ID"];
 
 const EDITABLE_CONTRACTS = [
-  "Asset Name", "Supplier", "Group ID", "Target Group ID", "Legal Entity", "BL ID", "Request Code",
+  "Asset Name", "Supplier", "Legal Entity", "BL ID", "Request Code",
   "Location", "Service Owner", "Scope", "Cost Recurrence",
   "Total Commitment", "Expenditure Type", "Cost Center",
   "Start Date", "Contract End Date", "Adjusted End Date",
@@ -13,6 +13,7 @@ const EDITABLE_CONTRACTS = [
 
 const MASTER_FIELD_MAP = {
   "Master Contract ID": "masterId",
+  "Previous Master ID": "previousMasterId",
   "Asset Name": "assetName",
   "Supplier": "supplier",
   "Scope": "masterScope",
@@ -32,8 +33,6 @@ const CONTRACT_FIELD_MAP = {
   "Asset Name": "assetName",
   "Supplier": "supplier",
   "Billing Channel": "billingChannel",
-  "Group ID": "groupId",
-  "Target Group ID": "targetGroupId",
   "Legal Entity": "legalEntity",
   "Location": "location",
   "Service Owner": "serviceOwner",

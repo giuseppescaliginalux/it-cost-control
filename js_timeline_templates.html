@@ -1,0 +1,375 @@
+<script>
+    /**
+     * js_timeline_templates.html
+     * VIEW: Layout engine. Risolve il bug delle linee di corsia tagliate (tramite min-w-max)
+     * e posiziona la pillola dell'asset in modo fisso e sicuro a sinistra.
+     */
+    const TimelineTemplates = {
+        getControlsShellMarkup: function(canvasWidth) {
+            return `
+            <div class="space-y-4 animate-fade-in relative z-20">
+                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-end w-full gap-4 mb-2">
+                    <div>
+                        <h2 class="text-xl font-black text-slate-800 uppercase tracking-widest">Master Agreements Timeline Matrix</h2>
+                        <p class="text-slate-500 text-[11px] font-medium mt-1">Track comprehensive multi-year software and hardware lifecycle successions, historical dependencies, and optimization initiatives.</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm relative z-[100]">
+                    
+                    <div class="flex-1 w-full grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div class="col-span-1">
+                            <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Search Keywords</label>
+                            <div class="relative">
+                                <svg class="w-3.5 h-3.5 absolute left-2.5 top-2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                <input type="text" id="tl-search-input" onkeyup="TimelineController.updateFilters()" placeholder="Asset, Supplier, Mfg..." class="w-full pl-8 pr-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-bold focus:ring-1 focus:ring-teal-500 transition-shadow outline-none text-slate-700">
+                            </div>
+                        </div>
+
+                        <div class="col-span-1">
+                            <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Sort Matrix By</label>
+                            <select id="tl-sort-select" onchange="TimelineController.updateFilters()" class="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 cursor-pointer focus:ring-1 focus:ring-teal-500 outline-none">
+                                <option value="assetName">Asset Name (A-Z)</option>
+                                <option value="runRate">Total Run Rate (High-Low)</option>
+                            </select>
+                        </div>
+
+                        <div class="col-span-1 relative">
+                            <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Current Status</label>
+                            <button onclick="TimelineController.toggleDropdown(event, 'tl-drop-current')" class="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 text-left flex justify-between items-center cursor-pointer hover:bg-slate-100 transition-colors">
+                                <span id="tl-lbl-current" class="truncate pr-2">Loading...</span>
+                                <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+                            <div id="tl-drop-current" class="hidden absolute top-full left-0 mt-1 w-full bg-white border border-slate-200 shadow-xl rounded-xl p-2 z-[9999] max-h-48 overflow-y-auto space-y-1"></div>
+                        </div>
+
+                        <div class="col-span-1 relative">
+                            <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Target Strategy</label>
+                            <button onclick="TimelineController.toggleDropdown(event, 'tl-drop-target')" class="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 text-left flex justify-between items-center cursor-pointer hover:bg-slate-100 transition-colors">
+                                <span id="tl-lbl-target" class="truncate pr-2">All Strategies</span>
+                                <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+                            <div id="tl-drop-target" class="hidden absolute top-full left-0 mt-1 w-full bg-white border border-slate-200 shadow-xl rounded-xl p-2 z-[9999] max-h-48 overflow-y-auto space-y-1"></div>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-1 shrink-0 self-end lg:self-center mt-2 lg:mt-0">
+                        <button onclick="TimelineController.scrollTimelineCanvas('left')" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-[10px] font-black tracking-wider uppercase shadow-xs cursor-pointer transition-colors">◀ Past</button>
+                        <button onclick="TimelineController.scrollTimelineCanvas('right')" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-[10px] font-black tracking-wider uppercase shadow-xs cursor-pointer transition-colors">Future ▶</button>
+                    </div>
+                </div>
+
+                <div id="timeline-matrix-canvas-wrapper" class="overflow-x-auto border border-slate-200 bg-white rounded-2xl shadow-sm scroll-smooth relative" style="height: 700px;">
+                    <div style="width: ${canvasWidth}px;" class="relative min-h-full flex flex-col p-4 pb-12 w-full min-w-max">
+                        
+                        <div class="flex items-center text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200 font-mono sticky top-0 z-30 bg-white/95 backdrop-blur-sm shadow-3xs pb-1.5 pt-1 w-full min-w-max">
+                            <div id="timeline-chronological-axis-track" class="w-full flex gap-0 relative"></div>
+                        </div>
+                        
+                        <div id="timeline-matrix-swimlanes-viewport" class="relative z-10 flex-1 bg-slate-50/10 space-y-4 mt-6 w-full min-w-max"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="timeline-modal-mount-point" onclick="TimelineController.closeMasterDetailsModal()" class="hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] items-center justify-center p-4 transition-opacity"></div>
+            `;
+        },
+
+        getTimeScaleAxisTicks: function(startYear, endYear, monthWidth) {
+            let html = '';
+            const yearWidth = 12 * monthWidth; 
+            const currentYear = new Date().getFullYear();
+
+            for (let year = startYear; year <= endYear; year++) {
+                const highlightClass = (year === currentYear || year === currentYear + 1) ? "text-teal-700 font-black bg-teal-50/60 border-teal-200/60 shadow-inner" : "text-slate-500 border-slate-200";
+                html += `
+                <div style="width: ${yearWidth}px;" class="border-l pl-3 font-mono text-[11px] shrink-0 flex items-center h-full py-1.5 ${highlightClass}">
+                    <span>Year ${year}</span>
+                    ${year === currentYear ? '<span class="text-[8px] bg-emerald-100 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded ml-3 uppercase font-sans font-black tracking-wide shadow-3xs">In Progress</span>' : ''}
+                </div>`;
+            }
+            return html;
+        },
+
+        getSwimlaneBlockMarkup: function(assetName, assetStatusPill, assetStrategyStr, cardsHtml, linesSvgHtml) {
+            return `
+            <div class="border-b border-slate-200/80 transition-colors relative bg-transparent group/lane pb-8 pt-0 w-full min-w-max">
+                
+                <div class="sticky left-4 z-40 w-fit inline-flex items-center gap-4 bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-sm px-4 py-2 rounded-xl mb-4 mt-2 max-w-[90vw]">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <span class="text-[9px] uppercase font-black tracking-widest text-teal-700 bg-teal-100/80 px-2 py-0.5 rounded shadow-3xs shrink-0">Asset Scope</span>
+                        <span class="text-sm font-black text-slate-800 tracking-tight truncate">${assetName}</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-[11px] font-bold shrink-0 border-l border-slate-200 pl-3">
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-slate-400 uppercase text-[8px] font-black tracking-wider">Status:</span>
+                            ${assetStatusPill}
+                        </div>
+                        <div class="flex items-center gap-1.5 ml-2">
+                            <span class="text-slate-400 uppercase text-[8px] font-black tracking-wider">Strategy:</span>
+                            <span class="text-indigo-700 uppercase font-black tracking-widest text-[9px] border border-indigo-100 bg-indigo-50/40 px-2 py-0.5 rounded shadow-3xs">${assetStrategyStr}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="relative w-full" style="min-h: 120px;">
+                    ${linesSvgHtml}
+                    <div class="flex flex-col relative z-20" style="gap: ${TimelineState.rowGap}px;">
+                        ${cardsHtml}
+                    </div>
+                </div>
+            </div>`;
+        },
+
+        getContractCardNodeMarkup: function(m, left, width, childCount, initiativeStripHtml) {
+            const intentStatus = (m["Status"] || "ACTIVE").toString().toUpperCase().trim();
+            const isExpired = intentStatus === "EXPIRED" || intentStatus === "TERMINATED";
+            
+            const rightPaddingClass = initiativeStripHtml ? "pr-8" : "pr-2";
+            const borderStyles = isExpired ? "border-slate-200 bg-slate-50/50 opacity-60 grayscale-[0.2]" : "border-slate-200 bg-white shadow-3xs hover:border-teal-400 hover:shadow-md ring-1 ring-transparent hover:ring-teal-400/20";
+            const stripeColor = isExpired ? "bg-slate-400" : "bg-teal-600";
+            
+            const cleanStart = safeFormatStringDate(m["Start Date"] || m["Master Start Date"]);
+            const cleanEnd = safeFormatStringDate(m["End Date"] || m["Master End Date"]);
+            const formattedVal = parseFloat(m["Total Commitment"] || 0).formatCurrency();
+            const masterId = m["Master Contract ID"] || "N/A";
+            const supplierStr = m["Supplier"] || 'Generic Supplier';
+
+            let statusBadge = '';
+            if (intentStatus === "ACTIVE") statusBadge = `<span class="px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-widest border bg-emerald-50 text-emerald-700 border-emerald-200 shadow-3xs leading-none shrink-0">${intentStatus}</span>`;
+            else if (isExpired) statusBadge = `<span class="px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-widest border bg-rose-50 text-rose-700 border-rose-200 shadow-3xs leading-none shrink-0">${intentStatus}</span>`;
+            else statusBadge = `<span class="px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-widest border bg-amber-50 text-amber-700 border-amber-200 shadow-3xs leading-none shrink-0">${intentStatus}</span>`;
+
+            const countBadge = `<span class="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 text-[8px] font-black uppercase flex items-center gap-1 shadow-3xs leading-none shrink-0" title="Contains ${childCount} localized items">
+                <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                ${childCount}
+            </span>`;
+
+            const isCompact = width < 240;
+
+            let innerContent = '';
+            if (isCompact) {
+                // MODALITÀ COMPATTA REATTIVA: Testo in alto, badge intermedi, date estese complete sul fondo!
+                innerContent = `
+                    <div class="absolute top-0 left-0 w-1.5 h-full ${stripeColor}"></div>
+                    <div class="flex flex-col justify-between h-full w-full ${rightPaddingClass} py-0.5">
+                        <div class="flex justify-between items-start font-black text-[10px] leading-none px-2 mt-1">
+                            <span class="text-slate-900 font-extrabold truncate tracking-tight" title="${supplierStr}">${supplierStr}</span>
+                            <span class="font-mono text-teal-700 font-bold block leading-none shrink-0 ml-1">€ ${formattedVal}</span>
+                        </div>
+                        
+                        <div class="flex items-center gap-1 mt-1 px-2">
+                            ${statusBadge}
+                            ${countBadge}
+                        </div>
+
+                        <div class="text-[7px] text-slate-400 font-mono flex justify-between items-center uppercase leading-none px-2 tracking-tighter mt-auto border-t border-slate-100/60 pt-1 pb-1">
+                            <span class="font-bold">${cleanStart}</span>
+                            <span class="text-teal-600 font-bold bg-teal-50 px-1 py-0.5 rounded border border-teal-100/40">${m["Contract Term (Months)"] || '-'}M</span>
+                            <span class="font-bold">${cleanEnd}</span>
+                        </div>
+                    </div>
+                    ${initiativeStripHtml}
+                `;
+            } else {
+                // MODALITÀ STANDARD
+                innerContent = `
+                    <div class="absolute top-0 left-0 w-1.5 h-full ${stripeColor}"></div>
+                    <div class="flex flex-col justify-between h-full w-full ${rightPaddingClass}">
+                        <div class="flex justify-between items-start font-black text-[11px] leading-none px-2">
+                            <div class="flex items-center gap-1.5 truncate max-w-[75%]">
+                                <span class="text-slate-900 font-extrabold truncate tracking-tight text-xs" title="${supplierStr}">${supplierStr}</span>
+                                ${statusBadge}
+                                ${countBadge}
+                            </div>
+                            <div class="text-right shrink-0">
+                                <span class="font-mono text-teal-700 text-[12px] font-bold block leading-none">€ ${formattedVal}</span>
+                                <span class="text-[7px] text-slate-400 uppercase tracking-widest font-black block mt-0.5">Commitment</span>
+                            </div>
+                        </div>
+
+                        <div class="text-[10px] text-slate-500 font-medium px-2 truncate whitespace-nowrap block w-full border-t border-b border-slate-100/60 py-1" title="${m["Scope"] || ''}">
+                            ${m["Scope"] || 'Global Technological Coverage'}
+                        </div>
+
+                        <div class="text-[9px] text-slate-400 font-mono flex justify-between items-end uppercase leading-none px-2 tracking-tighter pb-0.5">
+                            <span class="font-bold">${cleanStart}</span>
+                            <span class="text-teal-600 font-bold bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100/40 shadow-3xs">${m["Contract Term (Months)"] || '-'} M</span>
+                            <span class="font-bold">${cleanEnd}</span>
+                        </div>
+                    </div>
+                    ${initiativeStripHtml}
+                `;
+            }
+
+            return `
+            <div class="relative w-full shrink-0 select-none" style="height: ${TimelineState.rowHeight}px;">
+                <div style="position: absolute; left: ${left}px; width: ${width}px; height: ${TimelineState.rowHeight}px;" class="flex items-center shrink-0 cursor-pointer transition-all z-20 hover:z-50" onclick="TimelineController.openMasterDetailsModal('${masterId}')">
+                    <div class="w-full border rounded-xl p-2.5 flex flex-col justify-between relative overflow-hidden group/card transition-all ${borderStyles}" style="height: ${TimelineState.rowHeight}px;">
+                        ${innerContent}
+                    </div>
+                </div>
+            </div>`;
+        },
+
+        getMasterModalMarkup: function(masterData, childContracts) {
+            const masterId = masterData["Master Contract ID"];
+            const supplier = masterData["Supplier"] || 'N/A';
+            const scope = masterData["Scope"] || 'N/A';
+            const runRate = parseFloat(masterData["Run Rate"] || 0).formatCurrency();
+            const totCommit = parseFloat(masterData["Total Commitment"] || 0).formatCurrency();
+            const expDateStr = masterData["Master End Date"] ? masterData["Master End Date"].toString().split('T')[0] : "N/A";
+
+            let listHtml = '';
+            if (childContracts && childContracts.length > 0) {
+                listHtml = childContracts.map(c => {
+                    let desc = c["Scope"] || c["Description"] || "No scope provided";
+                    let cc = c["Cost Center"] || "N/A";
+                    let le = c["Legal Entity"] || "N/A";
+                    let expType = c["Expenditure Type"] || "OPEX";
+                    let cTotCommit = parseFloat(c["Total Commitment"] || c["TCV"] || 0).formatCurrency();
+                    let term = c["Contract Term (Months)"] || "N/A";
+                    let cRunRate = parseFloat(c["Annual Value"] || 0).formatCurrency();
+
+                    let endDate = c["Expiration Date"] || c["End Date"] || c["Contract End Date"] || "N/A";
+                    if (endDate !== "N/A") {
+                        let ed = new Date(endDate);
+                        if (!isNaN(ed.getTime())) endDate = ed.toISOString().split('T')[0];
+                    }
+
+                    return `
+                    <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                        <td class="p-2.5 font-bold text-slate-800 text-[10px]">${le}</td>
+                        <td class="p-2.5 truncate max-w-[240px] text-slate-600 font-medium" title="${desc.replace(/"/g, '&quot;')}">${desc}</td>
+                        <td class="p-2.5 text-slate-600 font-mono">${cc}</td>
+                        <td class="p-2.5 text-center font-mono font-black text-[9px] text-slate-500"><span class="px-1.5 py-0.5 bg-slate-100 border rounded border-slate-200/60 shadow-3xs">${expType}</span></td>
+                        <td class="p-2.5 font-mono text-slate-600 text-right">€ ${cTotCommit}</td>
+                        <td class="p-2.5 text-center text-slate-600 font-mono">${term} M</td>
+                        <td class="p-2.5 font-mono text-slate-500">${endDate}</td>
+                        <td class="p-2.5 font-black font-mono text-teal-700 text-right">€ ${cRunRate}</td>
+                    </tr>`;
+                }).join('');
+            } else {
+                listHtml = `<tr><td colspan="8" class="p-6 text-center text-slate-400 italic">No operational contracts found linked to this Master Agreement.</td></tr>`;
+            }
+
+            return `
+            <div class="bg-white rounded-2xl border border-slate-200 p-5 w-full max-w-6xl shadow-2xl relative animate-fade-in flex flex-col max-h-[85vh]" onclick="event.stopPropagation()">
+                <div class="flex justify-between items-start border-b border-slate-100 pb-3 mb-4 shrink-0">
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded select-none">Master Focus</span>
+                            <h3 class="text-base font-black text-indigo-700 font-mono tracking-tight">${masterId}</h3>
+                        </div>
+                        <p class="text-xs text-slate-600 font-medium">Supplier: <strong class="text-slate-800">${supplier}</strong> <span class="mx-2 text-slate-300">|</span> Scope: ${scope}</p>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="text-right border-r border-slate-200 pr-4 shrink-0">
+                            <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Total Commitment</span>
+                            <span class="font-mono font-bold text-slate-700 text-xs block mt-0.5">€ ${totCommit}</span>
+                        </div>
+                        <div class="text-right border-r border-slate-200 pr-4 shrink-0">
+                            <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Master Run Rate</span>
+                            <span class="font-mono font-black text-teal-700 text-xs block mt-0.5">€ ${runRate}</span>
+                        </div>
+                        <div class="text-right mr-2 shrink-0 min-w-max whitespace-nowrap">
+                            <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Max Expiration</span>
+                            <span class="font-mono font-bold text-slate-600 text-xs block mt-0.5 whitespace-nowrap">${expDateStr}</span>
+                        </div>
+                        <button onclick="TimelineController.closeMasterDetailsModal()" class="text-slate-400 hover:text-slate-700 text-2xl font-black leading-none ml-2 transition-colors cursor-pointer">×</button>
+                    </div>
+                </div>
+                <div class="flex-1 overflow-y-auto custom-scrollbar border border-slate-200 rounded-xl bg-slate-50/50 shadow-inner">
+                    <table class="w-full text-[11px] text-left">
+                        <thead class="text-slate-500 uppercase tracking-widest border-b border-slate-200 bg-slate-100/80 sticky top-0 z-10 text-[9px] select-none">
+                            <tr>
+                                <th class="p-3 font-black">Legal Entity</th>
+                                <th class="p-3 font-black">Scope / Service Name</th>
+                                <th class="p-3 font-black">Cost Ctr</th>
+                                <th class="p-3 font-black text-center">Type</th>
+                                <th class="p-3 font-black text-right">Commitment</th>
+                                <th class="p-3 font-black text-center">Term</th>
+                                <th class="p-3 font-black">End Date</th>
+                                <th class="p-3 font-black text-teal-800 text-right">Run Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 bg-white">
+                            ${listHtml}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            `;
+        },
+
+        getInitiativePopoverMarkup: function(initiatives) {
+            let initsHtml = initiatives.map((init, idx) => {
+                const initName = init["Initiative Name"] || "Unnamed Initiative";
+                const status = (init["Initiative Status"] || "IDEA").toUpperCase();
+                const decision = (init["Decision"] || "OPTIMIZATION").toUpperCase();
+                
+                const isCompleted = status === "COMPLETED" || status === "REALIZED";
+                const baseline = parseFloat(init["Baseline Spend (Annualized)"]) || 0;
+                
+                let savingVal = 0;
+                let pctVal = 0;
+                let savingLabel = "Target Annualized Saving";
+                
+                if (isCompleted) {
+                    savingVal = parseFloat(init["Actual Saving (Annualized)"]) || 0;
+                    pctVal = baseline > 0 ? (savingVal / baseline) * 100 : 0;
+                    savingLabel = "Actual Annualized Saving";
+                } else {
+                    savingVal = parseFloat(init["Target Saving (Annualized)"]) || 0;
+                    pctVal = parseFloat(init["Target Saving %"] || 0) * 100;
+                }
+                
+                const savingStr = savingVal.formatCurrency();
+                const pctStr = pctVal.toFixed(0);
+                const dateStr = init["Target Date"] ? ContractsUtils.formatToEnglishCustomDate(init["Target Date"]) : "TBD";
+                const desc = init["Description"] || '<span class="italic text-slate-400">No description provided.</span>';
+                
+                return `
+                <div class="${idx > 0 ? 'mt-4 pt-4 border-t border-slate-200' : ''}">
+                    <div class="space-y-2.5 text-xs">
+                        <div>
+                            <span class="block text-[8px] font-black text-slate-400 uppercase">Initiative Name</span>
+                            <strong class="text-slate-800 text-sm tracking-tight leading-snug block mt-0.5">${initName}</strong>
+                        </div>
+                        <div class="text-[10px] text-slate-600 font-medium leading-relaxed bg-slate-50 p-2.5 rounded-lg border border-slate-100 shadow-3xs">${desc}</div>
+                        <div class="grid grid-cols-3 gap-2 border-t border-b border-slate-100 py-2">
+                            <div><span class="block text-[8px] font-bold text-slate-400 uppercase">Status</span><span class="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-100 w-fit block mt-0.5">${status}</span></div>
+                            <div><span class="block text-[8px] font-bold text-slate-400 uppercase">Decision</span><span class="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-teal-50 text-teal-700 border border-teal-100 w-fit block mt-0.5">${decision}</span></div>
+                            <div><span class="block text-[8px] font-bold text-slate-400 uppercase">Target Date</span><span class="font-mono font-bold text-slate-700 block mt-0.5">${dateStr}</span></div>
+                        </div>
+                        <div class="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3 flex justify-between items-center font-mono">
+                            <div>
+                                <span class="block text-[8px] font-black text-emerald-600 uppercase font-sans">${savingLabel}</span>
+                                <span class="text-lg font-black text-emerald-700">€ ${savingStr}</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="block text-[8px] font-black text-emerald-600 uppercase font-sans">Reduction %</span>
+                                <span class="text-lg font-black text-emerald-700">${pctStr}%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+
+            return `
+            <div class="bg-white rounded-2xl border border-slate-200 p-4 w-full max-w-md shadow-2xl relative animate-fade-in max-h-[85vh] flex flex-col" onclick="event.stopPropagation()">
+                <div class="flex justify-between items-center border-b border-slate-100 pb-2 mb-3 shrink-0">
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                        <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest">Linked Financial Initiatives (${initiatives.length})</h4>
+                    </div>
+                    <button onclick="TimelineController.closeMasterDetailsModal()" class="text-slate-400 hover:text-slate-600 font-black text-xl leading-none">×</button>
+                </div>
+                <div class="overflow-y-auto pr-1 custom-scrollbar flex-1">
+                    ${initsHtml}
+                </div>
+            </div>
+            `;
+        }
+    };
+</script>
