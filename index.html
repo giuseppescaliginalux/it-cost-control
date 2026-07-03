@@ -22,34 +22,38 @@
                             d="M20.25 14.15v4.25c0 .621-.504 1.125-1.125 1.125H4.875c-.621 0-1.125-.504-1.125-1.125v-4.25" />
                     </svg>
                     <div>
-                        <span class="font-black text-base tracking-tight block">IT Cost Control</span>
+                        <span class="font-black text-base tracking-tight block">IT Cost Control Hub</span>
                         <span
                             class="text-[10px] text-teal-200/80 block -mt-0.5 uppercase tracking-wider font-medium">FinOps
-                            Ledger</span>
+                            Governance Center</span>
                     </div>
                 </div>
 
                 <div
                     class="flex space-x-1 bg-teal-950/50 p-1 rounded-lg border border-teal-800/50 justify-center w-fit">
-                    <button onclick="switchTab('tab-dashboard')" id="btn-tab-dashboard"
-                        class="flex items-center gap-2 px-4 py-1.5 text-[11px] uppercase tracking-wider font-black rounded-md bg-teal-700 text-white shadow-sm transition-all pointer-events-none">
-                        Dashboard
-                    </button>
                     <button onclick="switchTab('tab-inventory')" id="btn-tab-inventory"
                         class="flex items-center gap-2 px-4 py-1.5 text-[11px] uppercase tracking-wider font-bold rounded-md text-teal-300 hover:text-white hover:bg-teal-800/50 transition-all cursor-pointer">
-                        Inventory
-                    </button>
-                    <button onclick="switchTab('tab-operations')" id="btn-tab-operations"
-                        class="flex items-center gap-2 px-4 py-1.5 text-[11px] uppercase tracking-wider font-bold rounded-md text-teal-300 hover:text-white hover:bg-teal-800/50 transition-all cursor-pointer">
-                        Initiatives
+                        Assets
                     </button>
                     <button onclick="switchTab('tab-contracts')" id="btn-tab-contracts"
                         class="flex items-center gap-2 px-4 py-1.5 text-[11px] uppercase tracking-wider font-bold rounded-md text-teal-300 hover:text-white hover:bg-teal-800/50 transition-all cursor-pointer">
                         Contracts
                     </button>
+                    <button onclick="switchTab('tab-operations')" id="btn-tab-operations"
+                        class="flex items-center gap-2 px-4 py-1.5 text-[11px] uppercase tracking-wider font-bold rounded-md text-teal-300 hover:text-white hover:bg-teal-800/50 transition-all cursor-pointer">
+                        Initiatives
+                    </button>
                     <button onclick="switchTab('tab-projections')" id="btn-tab-projections"
                         class="flex items-center gap-2 px-4 py-1.5 text-[11px] uppercase tracking-wider font-bold rounded-md text-teal-300 hover:text-white hover:bg-teal-800/50 transition-all cursor-pointer">
                         Projections
+                    </button>
+                    <button onclick="switchTab('tab-dashboard')" id="btn-tab-dashboard"
+                        class="flex items-center gap-2 px-4 py-1.5 text-[11px] uppercase tracking-wider font-black rounded-md bg-teal-700 text-white shadow-sm transition-all pointer-events-none">
+                        Dashboard
+                    </button>
+                    <button onclick="switchTab('tab-timeline')" id="btn-tab-timeline"
+                        class="flex items-center gap-2 px-4 py-1.5 text-[11px] uppercase tracking-wider font-bold rounded-md text-teal-300 hover:text-white hover:bg-teal-800/50 transition-all cursor-pointer">
+                        Timeline (Beta)
                     </button>
                 </div>
 
@@ -90,6 +94,9 @@
         </div>
 
         <div id="dashboard-content" class="hidden">
+
+            <div id="tab-timeline" class="hidden min-h-[700px] bg-slate-900 rounded-3xl p-5 border border-slate-800">
+            </div>
 
             <div id="tab-dashboard" class="space-y-6 block">
 
@@ -537,7 +544,7 @@
             </div>
 
             <div id="tab-operations" class="hidden">
-                
+
             </div>
 
             <div id="tab-contracts" class="hidden">
@@ -766,7 +773,8 @@
     <?!= include('js_ui_render'); ?>
     <?!= include('js_dashboard'); ?>
     <?!= include('js_inventory'); ?>
-    <?!= include('js_inventory'); ?>
+
+    <?!= include('js_common_templates'); ?>
 
     <?!= include('js_initiatives_state'); ?>
     <?!= include('js_initiatives_templates'); ?>

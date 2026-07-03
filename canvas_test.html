@@ -1,355 +1,225 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="it">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FinOps Analyst — Cinematic Fluid Gantt</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .gantt-transition {
-            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        /* Custom scrollbar for immersive navigation */
-        .infinite-scroll-canvas::-webkit-scrollbar {
-            height: 10px;
-            width: 6px;
-        }
-
-        .infinite-scroll-canvas::-webkit-scrollbar-track {
-            background: #020617;
-        }
-
-        .infinite-scroll-canvas::-webkit-scrollbar-thumb {
-            background: #334155;
-            border-radius: 9999px;
-            border: 2px solid #020617;
-        }
-
-        .infinite-scroll-canvas::-webkit-scrollbar-thumb:hover {
-            background: #6366f1;
-        }
-
-        @keyframes stretchIn {
-            from {
-                opacity: 0;
-                transform: scaleX(0.98);
-            }
-
-            to {
-                opacity: 1;
-                transform: scaleX(1);
-            }
-        }
-
-        .animate-stretch {
-            animation: stretchIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
+        .gantt-transition { transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        .infinite-scroll-canvas::-webkit-scrollbar { height: 10px; width: 6px; }
+        .infinite-scroll-canvas::-webkit-scrollbar-track { background: #020617; }
+        .infinite-scroll-canvas::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; border: 2px solid #020617; }
+        .infinite-scroll-canvas::-webkit-scrollbar-thumb:hover { background: #6366f1; }
+        @keyframes stretchIn { from { opacity: 0; transform: scaleX(0.98); } to { opacity: 1; transform: scaleX(1); } }
+        .animate-stretch { animation: stretchIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
     </style>
 </head>
+<body class="bg-slate-950 min-h-screen p-4 flex flex-col items-center justify-center font-sans select-none text-slate-300">
 
-<body
-    class="bg-slate-950 min-h-screen p-4 flex flex-col items-center justify-center font-sans select-none text-slate-300">
-
-    <div id="gantt-infinite-container"
-        class="relative w-full max-w-7xl bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col shadow-black/80 space-y-4">
-
-        <div
-            class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-800 pb-4 relative z-30">
+    <div id="gantt-infinite-container" class="relative w-full max-w-7xl bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col shadow-black/80 space-y-4">
+        
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-800 pb-4 relative z-30">
             <div>
                 <div class="flex items-center gap-2">
                     <span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest font-mono">Database Layer:
-                        Products Contracts Matrix</h3>
+                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest font-mono">Sandbox Layer: Contract Lifecycle Matrix</h3>
                 </div>
-                <h4 class="text-xl font-black text-white mt-0.5">HPE Decennial Gantt — <span
-                        class="text-indigo-400">Cinematic 2-Year Focus Zoom</span></h4>
+                <h4 class="text-xl font-black text-white mt-0.5">Timeline Contratti — <span class="text-indigo-400">Focus Zoom Pluriennale</span></h4>
             </div>
 
             <div class="flex flex-wrap items-center gap-3">
-                <div
-                    class="bg-slate-950 border border-slate-800 p-1 rounded-xl text-[11px] font-black uppercase tracking-wider flex">
-                    <button id="pivot-location" onclick="executePivotRegrouping('location')"
-                        class="px-3 py-1.5 rounded-lg bg-indigo-700 text-white gantt-transition">Pivot by
-                        Location</button>
-                    <button id="pivot-masterId" onclick="executePivotRegrouping('masterId')"
-                        class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white gantt-transition">Pivot by Master
-                        ID</button>
+                <div class="bg-slate-950 border border-slate-800 p-1 rounded-xl text-[11px] font-black uppercase tracking-wider flex">
+                    <button id="pivot-location" onclick="executePivotRegrouping('location')" class="px-3 py-1.5 rounded-lg bg-indigo-700 text-white gantt-transition">Raggruppa per Location</button>
+                    <button id="pivot-masterId" onclick="executePivotRegrouping('masterId')" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white gantt-transition">Raggruppa per Master ID</button>
                 </div>
-
                 <div class="flex gap-1">
-                    <button onclick="scrollTimelineCanvasToDirection('left')"
-                        class="px-4 py-2 bg-slate-950 border border-slate-800 rounded-xl hover:bg-slate-800 text-xs font-black text-indigo-400 font-mono tracking-wider shadow shadow-black">◀
-                        SCROLL PAST</button>
-                    <button onclick="scrollTimelineCanvasToDirection('right')"
-                        class="px-4 py-2 bg-slate-950 border border-slate-800 rounded-xl hover:bg-slate-800 text-xs font-black text-indigo-400 font-mono tracking-wider shadow shadow-black">SCROLL
-                        FUTURE ▶</button>
+                    <button onclick="scrollTimelineCanvasToDirection('left')" class="px-4 py-2 bg-slate-950 border border-slate-800 rounded-xl hover:bg-slate-800 text-xs font-black text-indigo-400 font-mono tracking-wider shadow shadow-black">◀ PASSATO</button>
+                    <button onclick="scrollTimelineCanvasToDirection('right')" class="px-4 py-2 bg-slate-950 border border-slate-800 rounded-xl hover:bg-slate-800 text-xs font-black text-indigo-400 font-mono tracking-wider shadow shadow-black">FUTURO ▶</button>
                 </div>
             </div>
         </div>
 
         <div class="bg-slate-950/40 border border-slate-800/60 rounded-xl p-3 text-[11px] text-slate-400 relative z-30">
-            🔎 <b>Super-Zoom Active (48px/Mese):</b> Le card sono ora tre volte più grandi! Puoi leggere comodamente
-            ogni dettaglio. Usa i pulsanti in alto o fai scorrimento laterale col trackpad per spostarti lungo i 10
-            anni. Clicca su <b>[+ Applica Split]</b> sul fondo di un contratto per testare la scomposizione verticale
-            multilivello ad alta leggibilità.
+            🔎 <b>Scala Temporale Attiva (48px/Mese):</b> Le card mostrano la competenza reale. Fai scorrimento laterale col trackpad per spostarti lungo gli anni. Clicca su <b>[+ Applica Split]</b> sul fondo di un contratto per simulare visivamente la scomposizione delle quote societarie in-memory.
         </div>
 
-        <div id="infinite-scroll-wrapper"
-            class="infinite-scroll-canvas border border-slate-800 bg-slate-950/30 rounded-2xl p-4 overflow-x-auto relative z-20 scroll-smooth">
+        <div id="infinite-scroll-wrapper" class="infinite-scroll-canvas border border-slate-800 bg-slate-950/30 rounded-2xl p-4 overflow-x-auto relative z-20 scroll-smooth">
             <div style="width: 6100px;" class="space-y-4">
-
-                <div
-                    class="flex items-center text-left text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-900 pb-2 font-mono">
-                    <div
-                        class="w-60 shrink-0 border-r border-slate-900 pr-2 bg-slate-900/40 sticky left-0 z-30 backdrop-blur-sm">
-                        Dimensional Pivot Lane</div>
-                    <div id="timeline-months-axis-track" class="flex-1 flex gap-0 pl-4 relative">
-                    </div>
+                
+                <div class="flex items-center text-left text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-900 pb-2 font-mono">
+                    <div class="w-60 shrink-0 border-r border-slate-900 pr-2 bg-slate-900/40 sticky left-0 z-30 backdrop-blur-sm">Dimensione Corrente (Pivot)</div>
+                    <div id="timeline-months-axis-track" class="flex-1 flex gap-0 pl-4 relative"></div>
                 </div>
 
-                <div id="gantt-infinite-swimlanes" class="space-y-4">
-                </div>
-
+                <div id="gantt-infinite-swimlanes" class="space-y-4"></div>
             </div>
         </div>
 
-        <div id="split-configuration-modal"
-            class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+        <div id="split-configuration-modal" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-lg space-y-4 shadow-2xl">
                 <div class="border-b border-slate-800 pb-2">
-                    <h5 class="text-sm font-black text-white uppercase tracking-wider">Configure Sub-Allocation Splits
-                        Matrix</h5>
-                    <p class="text-[10px] text-slate-500 mt-0.5">Define corporate ratios and assignments for this
-                        specific chronological block.</p>
+                    <h5 class="text-sm font-black text-white uppercase tracking-wider">Configurazione Rigida Scomposizione Quote Costo (Split)</h5>
+                    <p class="text-[10px] text-slate-500 mt-0.5">Definisci le entità legali e i cost center che assorbiranno le quote di questo segmento.</p>
                 </div>
                 <input type="hidden" id="modal-target-contract-id">
                 <div id="modal-split-rows-container" class="space-y-2 max-h-[220px] overflow-y-auto pr-1"></div>
                 <div class="flex justify-between items-center text-xs border-t border-slate-800/80 pt-3">
-                    <button onclick="appendNewSubAllocationRowInModal()"
-                        class="text-teal-400 hover:text-white font-black uppercase tracking-wider">+ Add Corporate
-                        Share</button>
+                    <button onclick="appendNewSubAllocationRowInModal()" class="text-teal-400 hover:text-white font-black uppercase tracking-wider">+ Aggiungi Quota Societaria</button>
                     <div class="flex gap-2">
-                        <button onclick="closeSplitModalWindow()"
-                            class="px-3 py-1.5 bg-slate-800 text-slate-300 font-bold rounded-lg">Cancel</button>
-                        <button onclick="commitSplitModalConfigurationsToState()"
-                            class="px-4 py-1.5 bg-teal-700 text-white font-black rounded-lg uppercase tracking-wider">Lock
-                            Split Matrix</button>
+                        <button onclick="closeSplitModalWindow()" class="px-3 py-1.5 bg-slate-800 text-slate-300 font-bold rounded-lg">Annulla</button>
+                        <button onclick="commitSplitModalConfigurationsToState()" class="px-4 py-1.5 bg-teal-700 text-white font-black rounded-lg uppercase tracking-wider">Salva nel Modello Cache</button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div
-            class="flex justify-between items-center text-xs border-t border-slate-800/60 pt-3 relative z-30 font-mono">
-            <span class="text-slate-500 font-sans">High Contrast View mode. Metric Scale: 1 Month = 48px horizontal
-                vector width.</span>
+        <div class="flex justify-between items-center text-xs border-t border-slate-800/60 pt-3 relative z-30 font-mono">
+            <span class="text-slate-500 font-sans">Modalità Sandbox Attiva. Fattore di scala: 1 Mese = 48px di vettore orizzontale.</span>
             <div class="bg-slate-950 px-3 py-1 rounded-xl border border-slate-800 text-teal-400 font-bold">
-                Contracts Rows Target Count: <span id="lbl-total-db-rows" class="text-white">0 Rows</span>
+                Linee Contrattuali Elaborate: <span id="lbl-total-db-rows" class="text-white">0 Righe</span>
             </div>
         </div>
     </div>
 
     <script>
-        // 1. DATASET MODEL (Pre-populated across 10 years layout)
+        // Simulazione dello stato estratti dai tuoi file reali (HPE Hardware / Contratti associati)
         let contractsStateDataset = [
-            // Swimlane 1: Milan DC lifecycle pathing
-            { id: "c-a1", masterId: "M-HPE-01", entity: "LUXOTTICA SPA", location: "Milan DC — Rack Area Alpha", cc: "IT-INFRA", amount: 240000, durationMonths: 36, offsetMonths: 12, startDate: "01/01/2022", endDate: "31/12/2024", isSplit: false, splits: [] },
-            { id: "c-a2", masterId: "M-HPE-01", entity: "LUXOTTICA SPA", location: "Milan DC — Rack Area Alpha", cc: "IT-INFRA", amount: 100000, durationMonths: 12, offsetMonths: 48, startDate: "01/01/2025", endDate: "31/12/2025", isSplit: false, splits: [] },
-            { id: "c-a3", masterId: "M-HPE-01", entity: "LUXOTTICA SPA", location: "Milan DC — Rack Area Alpha", cc: "IT-INFRA", amount: 115000, durationMonths: 12, offsetMonths: 60, startDate: "01/01/2026", endDate: "31/12/2026", isSplit: false, splits: [] }, // Current Active
-            { id: "c-a4", masterId: "M-HPE-01", entity: "LUXOTTICA SPA", location: "Milan DC — Rack Area Alpha", cc: "IT-INFRA", amount: 240000, durationMonths: 24, offsetMonths: 72, startDate: "01/01/2027", endDate: "31/12/2028", isSplit: false, splits: [] },
-
-            // Swimlane 2: Frankfurt Central Hub
-            { id: "c-b1", masterId: "M-HPE-02", entity: "LUXOTTICA SPA", location: "Frankfurt Central DR-Hub", cc: "EU-DR", amount: 180000, durationMonths: 24, offsetMonths: 18, startDate: "01/07/2022", endDate: "30/06/2024", isSplit: false, splits: [] },
-            { id: "c-b2", masterId: "M-HPE-02", entity: "LUXOTTICA SPA", location: "Frankfurt Central DR-Hub", cc: "EU-DR", amount: 90000, durationMonths: 12, offsetMonths: 42, startDate: "01/07/2024", endDate: "30/06/2025", isSplit: false, splits: [] },
-            { id: "c-b3", masterId: "M-HPE-02", entity: "LUXOTTICA SPA", location: "Frankfurt Central DR-Hub", cc: "EU-DR", amount: 45000, durationMonths: 6, offsetMonths: 54, startDate: "01/07/2025", endDate: "31/12/2025", isSplit: false, splits: [] },
-            { id: "c-b4", masterId: "M-HPE-02", entity: "LUXOTTICA SPA", location: "Frankfurt Central DR-Hub", cc: "EU-DR", amount: 22500, durationMonths: 3, offsetMonths: 60, startDate: "01/01/2026", endDate: "31/03/2026", isSplit: false, splits: [] }, // 3 Months Bridge
-            {
-                id: "c-b5",
-                masterId: "M-HPE-02",
-                entity: "MULTIPLE CO-ALLOCATION",
-                location: "Frankfurt Central DR-Hub",
-                cc: "EU-DR",
-                amount: 160000,
-                durationMonths: 21,
-                offsetMonths: 63,
-                startDate: "01/04/2026",
-                endDate: "31/12/2027",
-                isSplit: true,
+            { id: "c-a1", masterId: "MCT-HPE-2022", entity: "YOOX NET-A-PORTER", location: "[ITA] Milan Datacenter", cc: "Y10410", amount: 240000, durationMonths: 36, offsetMonths: 12, startDate: "2022-01-01", endDate: "2024-12-31", isSplit: false, splits: [] },
+            { id: "c-a2", masterId: "MCT-HPE-2022", entity: "YOOX NET-A-PORTER", location: "[ITA] Milan Datacenter", cc: "Y10410", amount: 100000, durationMonths: 12, offsetMonths: 48, startDate: "2025-01-01", endDate: "2025-12-31", isSplit: false, splits: [] },
+            { id: "c-a3", masterId: "MCT-HPE-2026", entity: "YOOX NET-A-PORTER", location: "[ITA] Milan Datacenter", cc: "Y10410", amount: 115000, durationMonths: 12, offsetMonths: 60, startDate: "2026-01-01", endDate: "2026-12-31", isSplit: false, splits: [] }, // Attivo in esame
+            { id: "c-a4", masterId: "MCT-HPE-2026", entity: "YOOX NET-A-PORTER", location: "[ITA] Milan Datacenter", cc: "Y10410", amount: 240000, durationMonths: 24, offsetMonths: 72, startDate: "2027-01-01", endDate: "2028-12-31", isSplit: false, splits: [] },
+            
+            { id: "c-b1", masterId: "MCT-HPE-GLOBAL", entity: "THE NET A PORTER", location: "[GLO] Global Service", cc: "P10401", amount: 180000, durationMonths: 24, offsetMonths: 18, startDate: "2022-07-01", endDate: "2024-06-30", isSplit: false, splits: [] },
+            { id: "c-b2", masterId: "MCT-HPE-GLOBAL", entity: "THE NET A PORTER", location: "[GLO] Global Service", cc: "P10401", amount: 90000, durationMonths: 12, offsetMonths: 42, startDate: "2024-07-01", endDate: "2025-06-30", isSplit: false, splits: [] },
+            { id: "c-b3", masterId: "MCT-HPE-GLOBAL", entity: "THE NET A PORTER", location: "[GLO] Global Service", cc: "P10401", amount: 45000, durationMonths: 6, offsetMonths: 54, startDate: "2025-07-01", endDate: "2025-12-31", isSplit: false, splits: [] },
+            { id: "c-b4", masterId: "MCT-HPE-GLOBAL", entity: "THE NET A PORTER", location: "[GLO] Global Service", cc: "P10401", amount: 22500, durationMonths: 3, offsetMonths: 60, startDate: "2026-01-01", endDate: "2026-03-31", isSplit: false, splits: [] },
+            { id: "c-b5", masterId: "MCT-HPE-GLOBAL", entity: "MULTIPLE CO-ALLOCATION", location: "[GLO] Global Service", cc: "P10401", amount: 160000, durationMonths: 21, offsetMonths: 63, startDate: "2026-04-01", endDate: "2027-12-31", isSplit: true, 
                 splits: [
-                    { entity: "LUXOTTICA SPA", ratio: 50, amount: 80000, cc: "IT-HQ-DR" },
-                    { entity: "OAKLEY INC", ratio: 30, amount: 48000, cc: "US-OPS-DR" },
-                    { entity: "GRANDVISION BV", ratio: 20, amount: 32000, cc: "EU-NL-DR" }
+                    { entity: "(IT) -YOOX NET-a-Porter Group S.p.A.", ratio: 50, amount: 80000, cc: "Y10410" },
+                    { entity: "(IT) THE NET A PORTER GROUP ITALY S.R.L.", ratio: 30, amount: 48000, cc: "P10401" },
+                    { entity: "(DE) LuxExperience B.V.", ratio: 20, amount: 32000, cc: "M10401" }
                 ]
-            },
-
-            // Swimlane 3: Dublin Cloud Edge Pool
-            { id: "c-c1", masterId: "M-HPE-03", entity: "OAKLEY INC", location: "Dublin Cloud Edge Layer", cc: "US-RND", amount: 150000, durationMonths: 36, offsetMonths: 36, startDate: "01/01/2024", endDate: "31/12/2026", isSplit: false, splits: [] },
-            { id: "c-c2", masterId: "M-HPE-03", entity: "OAKLEY INC", location: "Dublin Cloud Edge Layer", cc: "US-RND", amount: 160000, durationMonths: 24, offsetMonths: 72, startDate: "01/01/2027", endDate: "31/12/2028", isSplit: false, splits: [] }
+            }
         ];
 
         let activePivotAxisKey = 'location';
-        const pixelRatePerMonth = 48;       // ZOOM FACTOR: Increased from 16 to 48 for macro layout view visibility
+        const pixelRatePerMonth = 48; // 1 mese = 48px orizzontali
 
-        // 2. COMPILE SCALE HEADER TIMELINE AXIS IN PIXELS
         function compileHorizontalChronologicalScaleAxisTicks() {
             const track = document.getElementById('timeline-months-axis-track');
             if (!track) return;
-
             let html = '';
             let targetYears = [2021, 2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030, 2031];
-            let widthPerYearInPx = 12 * pixelRatePerMonth; // 12 Months * 48px = 576px wide columns per Year
+            let widthPerYearInPx = 12 * pixelRatePerMonth;
 
             targetYears.forEach((year) => {
                 let badgeStyle = (year === 2026 || year === 2027) ? "text-indigo-400 font-black border-indigo-900/50 bg-indigo-950/40 shadow-inner" : "text-slate-600 border-slate-900";
                 html += '<div style="width: ' + widthPerYearInPx + 'px;" class="border-l pb-1 pl-3 font-mono text-[11px] shrink-0 h-8 flex items-center ' + badgeStyle + '">';
-                html += '  <span>' + year + ' Hierarchy</span>';
-                if (year === 2026) html += ' <span class="text-[8px] bg-emerald-950 text-emerald-400 border border-emerald-900 px-1.5 py-0.5 rounded ml-3 uppercase font-sans font-black tracking-wide">Current Target Focus</span>';
+                html += '  <span>Anno ' + year + '</span>';
+                if (year === 2026) html += ' <span class="text-[8px] bg-emerald-950 text-emerald-400 border border-emerald-900 px-1.5 py-0.5 rounded ml-3 uppercase font-sans font-black tracking-wide">In Corso</span>';
                 html += '</div>';
             });
             track.innerHTML = html;
         }
 
-        // 3. MAIN WORKSPACE SWIMLANES VIEWPORT LAYOUT WRAPPER RENDER LOOP
         function compileInfiniteTimelineGanttView() {
             const viewport = document.getElementById('gantt-infinite-swimlanes');
             if (!viewport) return;
-
             let html = '';
             let dbRowsCounterMetric = 0;
-
             let uniqueLanesBuckets = [...new Set(contractsStateDataset.map(item => item[activePivotAxisKey]))].sort();
 
             uniqueLanesBuckets.forEach((laneKey) => {
                 html += '<div class="bg-slate-950/20 border border-slate-800/40 rounded-2xl p-4 flex flex-row items-stretch gap-4 hover:border-slate-800 transition-colors animate-stretch">';
-
-                // LEFT SIDE FLOATING PANEL CONTAINER: Swimlane title sticky index
                 html += '  <div class="w-60 bg-slate-950/95 border border-slate-800 p-3 rounded-2xl flex flex-col justify-between shrink-0 text-left sticky left-0 z-30 shadow-lg shadow-black/60">';
                 html += '    <div>';
-                html += '      <span class="text-[8px] font-mono font-black text-indigo-400 uppercase tracking-widest bg-slate-900 border border-slate-800/40 px-1.5 py-0.5 rounded">Active Lane Row</span>';
+                html += '      <span class="text-[8px] font-mono font-black text-indigo-400 uppercase tracking-widest bg-slate-900 border border-slate-800/40 px-1.5 py-0.5 rounded">Asse Pivot</span>';
                 html += '      <h5 class="text-xs font-black text-slate-100 mt-2 break-words leading-tight">' + laneKey + '</h5>';
                 html += '    </div>';
                 html += '  </div>';
-
-                // RIGHT SIDE HORIZONTAL TRACK: Zoomed Timeline Bars Track
                 html += '  <div class="flex-1 flex items-center gap-0 overflow-x-hidden relative min-h-[110px] pl-4">';
 
                 let laneItems = contractsStateDataset.filter(item => item[activePivotAxisKey] === laneKey);
-
                 laneItems.forEach((block) => {
                     let leftPixelOffset = block.offsetMonths * pixelRatePerMonth;
                     let widthPixelSize = block.durationMonths * pixelRatePerMonth;
-
                     dbRowsCounterMetric += block.isSplit ? block.splits.length : 1;
 
                     html += '<div style="position: absolute; left: ' + leftPixelOffset + 'px; width: ' + widthPixelSize + 'px;" class="h-20 flex items-center shrink-0 px-1">';
-
                     if (!block.isSplit) {
-                        // ELEMENT ALPHA: MACRO CARD WIDE VIEW
                         let isPastBlock = block.offsetMonths < 48;
                         let stripeColor = isPastBlock ? "bg-slate-600" : "bg-indigo-500";
                         let borderStyle = isPastBlock ? "border-slate-800/60 bg-slate-900/30 opacity-40 shadow-inner" : "border-slate-800 bg-slate-900 shadow-md";
 
                         html += '  <div class="w-full border rounded-2xl p-3 h-16 flex flex-col justify-between relative overflow-hidden group hover:border-slate-700 transition-colors ' + borderStyle + '">';
                         html += '    <div class="absolute top-0 left-0 w-1 h-full ' + stripeColor + '"></div>';
-
                         html += '    <div class="flex justify-between items-center font-black text-xs px-1 leading-none">';
                         html += '      <span class="text-teal-400 truncate tracking-wide font-bold text-xs">' + block.entity + '</span>';
-                        html += '      <span class="font-mono text-emerald-400 text-xs bg-slate-950 px-2 py-0.5 rounded border border-slate-800/60 shrink-0">€' + block.amount.toLocaleString() + '</span>';
+                        html += '      <span class="font-mono text-emerald-400 text-xs bg-slate-950 px-2 py-0.5 rounded border border-slate-800/60 shrink-0">€ ' + block.amount.toLocaleString('it-IT') + '</span>';
                         html += '    </div>';
-
                         html += '    <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono border-t border-slate-800/30 pt-1 mt-0.5 px-1">';
                         html += '      <span class="text-slate-500 truncate max-w-[160px]"><b class="text-[9px] text-slate-600 font-black mr-1 uppercase">Master:</b>' + block.masterId + '</span>';
-
                         if (!isPastBlock) {
                             html += '  <button onclick="openOperationalSplitModalWindow(\'' + block.id + '\')" class="text-[9px] font-black text-teal-400 hover:text-white bg-slate-950 hover:bg-teal-600 px-2 py-0.5 rounded-lg border border-slate-800 uppercase tracking-wide transition-colors">+ Applica Split</button>';
                         } else {
-                            html += '  <span class="text-[8px] text-slate-600 font-black uppercase tracking-wider bg-slate-950 px-1.5 py-0.5 rounded">Historical Lock</span>';
+                            html += '  <span class="text-[8px] text-slate-600 font-black uppercase tracking-wider bg-slate-950 px-1.5 py-0.5 rounded">Storico Bloccato</span>';
                         }
-
                         html += '    </div>';
-
                         html += '    <div class="text-[9px] text-slate-500 font-mono flex justify-between uppercase leading-none px-1 tracking-wider">';
-                        html += '      <span>Start: <b>' + block.startDate + '</b></span>';
-                        html += '      <span class="text-[8px] text-indigo-400 font-bold bg-slate-950 px-1 rounded border border-slate-900">' + block.durationMonths + ' Months</span>';
-                        html += '      <span>End: <b>' + block.endDate + '</b></span>';
+                        html += '      <span>Inizio: <b>' + block.startDate + '</b></span>';
+                        html += '      <span class="text-[8px] text-indigo-400 font-bold bg-slate-950 px-1 rounded border border-slate-900">' + block.durationMonths + ' Mesi</span>';
+                        html += '      <span>Fine: <b>' + block.endDate + '</b></span>';
                         html += '    </div>';
                         html += '  </div>';
                     } else {
-                        // ELEMENT BETA: MACRO SPLIT STACK PILE VIEW
                         html += '  <div class="w-full flex flex-col gap-1 bg-slate-950 border border-dashed border-slate-800 p-1 rounded-2xl min-h-[72px] justify-center relative group shadow-inner">';
-
                         block.splits.forEach((splitRow) => {
                             html += '  <div class="bg-slate-900 border border-slate-800 rounded-xl p-1.5 flex justify-between items-center text-xs shadow-sm relative pl-3.5 hover:border-teal-500/40 transition-colors">';
                             html += '    <div class="absolute top-0 left-0 w-0.5 h-full bg-teal-500"></div>';
                             html += '    <div class="min-w-0 flex-1 pr-2 truncate font-black text-slate-200 text-[11px]">' + splitRow.entity + ' <span class="text-[9px] text-teal-400 font-mono bg-slate-950 px-1 rounded border border-teal-900/30 ml-1">' + splitRow.ratio + '%</span></div>';
-                            html += '    <span class="font-mono font-black text-slate-300 text-xs bg-slate-950 px-2 py-0.5 rounded border border-slate-800/50 shrink-0">€' + splitRow.amount.toLocaleString() + '</span>';
+                            html += '    <span class="font-mono font-black text-slate-300 text-xs bg-slate-950 px-2 py-0.5 rounded border border-slate-800/50 shrink-0">€ ' + splitRow.amount.toLocaleString('it-IT') + '</span>';
                             html += '  </div>';
                         });
-
                         html += '  <button onclick="unravelActiveSplitsAndRestoreBlock(\'' + block.id + '\')" class="absolute -top-2.5 -right-2.5 hidden group-hover:flex items-center justify-center w-5 h-5 bg-red-950 hover:bg-red-600 text-red-400 hover:text-white border border-red-800 font-black text-xs rounded-full shadow-md z-30">×</button>';
                         html += '  </div>';
                     }
-
                     html += '</div>';
                 });
-
                 html += '  </div>';
                 html += '</div>';
             });
 
             viewport.innerHTML = html;
-            document.getElementById('lbl-total-db-rows').innerText = dbRowsCounterMetric + " Rows Mapped";
+            document.getElementById('lbl-total-db-rows').innerText = dbRowsCounterMetric + " Righe Mappate";
         }
-
-        // =========================================================================
-        // 4. NAVIGATION & ZOOM SCROLL MOTORS
-        // =========================================================================
 
         window.scrollTimelineCanvasToDirection = function (direction) {
             const canvasWrapper = document.getElementById('infinite-scroll-wrapper');
-            if (!canvasWrapper) return;
-
-            // Macro-jump layout step width (1 Year scale column width = 576px)
-            let scrollJumpStepOffsetValue = 576;
-            if (direction === 'left') {
-                canvasWrapper.scrollLeft -= scrollJumpStepOffsetValue;
-            } else {
-                canvasWrapper.scrollLeft += scrollJumpStepOffsetValue;
+            if (canvasWrapper) {
+                let scrollJumpStepOffsetValue = 576; // Salto di 1 Anno (12 * 48px)
+                canvasWrapper.scrollLeft += (direction === 'left' ? -scrollJumpStepOffsetValue : scrollJumpStepOffsetValue);
             }
         };
 
-        function centerTimelineScrollOnActiveFiscalContext() {
-            const canvasWrapper = document.getElementById('infinite-scroll-wrapper');
-            if (!canvasWrapper) return;
-
-            // 5 complete Years of archive timeline history (2021-2025) = 5 * 576px = 2880px absolute width offset
-            // We scroll slightly behind (e.g. 2650px) to show the end of 2025 and center 2026/2027 fully inside the viewport framework box
-            canvasWrapper.scrollLeft = 2680;
-        }
-
-        window.openInteractiveSplitModalWindow = function (contractId) {
+        window.openOperationalSplitModalWindow = function (contractId) {
             const block = contractsStateDataset.find(c => c.id === contractId);
             if (!block) return;
-
             document.getElementById('modal-target-contract-id').value = contractId;
             const container = document.getElementById('modal-split-rows-container');
             container.innerHTML = '';
-
-            appendNewSubAllocationRowInModal("LUXOTTICA SPA", 40);
-            appendNewSubAllocationRowInModal("OAKLEY INC", 35);
-            appendNewSubAllocationRowInModal("GRANDVISION BV", 25);
-
+            appendNewSubAllocationRowInModal("(IT) -YOOX NET-a-Porter Group S.p.A.", 50);
+            appendNewSubAllocationRowInModal("(IT) THE NET A PORTER GROUP ITALY S.R.L.", 30);
+            appendNewSubAllocationRowInModal("(DE) LuxExperience B.V.", 20);
             document.getElementById('split-configuration-modal').classList.remove('hidden');
         };
 
-        window.appendNewSubAllocationRowInModal = function (defaultCompany = "GRANDVISION BV", defaultRatio = 0) {
+        window.appendNewSubAllocationRowInModal = function (defaultCompany = "", defaultRatio = 0) {
             const container = document.getElementById('modal-split-rows-container');
             const rowDiv = document.createElement('div');
-            rowDiv.className = "flex gap-2 items-center animate-fadeIn class-split-input-row";
+            rowDiv.className = "flex gap-2 items-center class-split-input-row";
             rowDiv.innerHTML = `
-                <input type="text" value="${defaultCompany}" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-2 text-xs text-white input-split-entity font-bold" placeholder="Legal Entity name">
+                <input type="text" value="${defaultCompany}" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-2 text-xs text-white input-split-entity font-bold">
                 <input type="number" value="${defaultRatio}" class="w-20 bg-slate-950 border border-slate-800 rounded-xl p-2 text-xs text-white font-mono text-center font-bold" placeholder="%">
                 <button onclick="this.parentElement.remove()" class="text-red-500 hover:text-white px-1.5 font-black text-sm">×</button>
             `;
@@ -360,7 +230,6 @@
             const targetId = document.getElementById('modal-target-contract-id').value;
             const block = contractsStateDataset.find(c => c.id === targetId);
             if (!block) return;
-
             const rows = document.querySelectorAll('.class-split-input-row');
             let compiledSplitsArray = [];
             let aggregateRatioCheckSum = 0;
@@ -368,60 +237,41 @@
             rows.forEach((row) => {
                 let entName = row.querySelectorAll('input')[0].value.trim();
                 let ratioVal = parseFloat(row.querySelectorAll('input')[1].value);
-
                 if (entName && !isNaN(ratioVal)) {
                     aggregateRatioCheckSum += ratioVal;
-                    compiledSplitsArray.push({
-                        entity: entName.toUpperCase(),
-                        ratio: ratioVal,
-                        amount: Math.round(block.amount * (ratioVal / 100)),
-                        cc: "CC-MACRO-SPLIT"
-                    });
+                    compiledSplitsArray.push({ entity: entName, ratio: ratioVal, amount: Math.round(block.amount * (ratioVal / 100)) });
                 }
             });
 
             if (aggregateRatioCheckSum !== 100) {
-                alert("Validation Boundary Error: The sum of split percentage ratios must equal exactly 100%. Current sum: " + aggregateRatioCheckSum + "%");
+                alert("Errore Quadratura: La somma dei rapporti deve fare 100%. Corrente: " + aggregateRatioCheckSum + "%");
                 return;
             }
 
             block.isSplit = true;
             block.splits = compiledSplitsArray;
-            block.entity = "MULTIPLE CO-ALLOCATION";
-
             closeSplitModalWindow();
             compileInfiniteTimelineGanttView();
         };
 
         window.unravelActiveSplitsAndRestoreBlock = function (contractId) {
             const block = contractsStateDataset.find(c => c.id === contractId);
-            if (!block) return;
-            block.isSplit = false;
-            block.splits = [];
-            block.entity = "LUXOTTICA SPA";
-            compileInfiniteTimelineGanttView();
+            if (block) { block.isSplit = false; block.splits = []; compileInfiniteTimelineGanttView(); }
         };
 
-        window.closeSplitModalWindow = function () {
-            document.getElementById('split-configuration-modal').classList.add('hidden');
-        };
+        window.closeSplitModalWindow = function () { document.getElementById('split-configuration-modal').classList.add('hidden'); };
 
         window.executePivotRegrouping = function (dimensionAxisKey) {
             activePivotAxisKey = dimensionAxisKey;
             ['pivot-location', 'pivot-masterId'].forEach(id => {
-                const btn = document.getElementById(id);
-                btn.className = id === 'pivot-' + dimensionAxisKey ? "px-3 py-1.5 rounded-lg bg-indigo-700 text-white gantt-transition" : "px-3 py-1.5 rounded-lg text-slate-400 hover:text-white gantt-transition";
+                document.getElementById(id).className = id === 'pivot-' + dimensionAxisKey ? "px-3 py-1.5 rounded-lg bg-indigo-700 text-white gantt-transition" : "px-3 py-1.5 rounded-lg text-slate-400 hover:text-white gantt-transition";
             });
             compileInfiniteTimelineGanttView();
         };
 
-        // Bootstrap execution pipeline components commands
         compileHorizontalChronologicalScaleAxisTicks();
         compileInfiniteTimelineGanttView();
-        window.onload = function () {
-            centerTimelineScrollOnActiveFiscalContext();
-        };
+        window.onload = function () { const cw = document.getElementById('infinite-scroll-wrapper'); if (cw) cw.scrollLeft = 2680; }; // Auto-centra sul 2026
     </script>
 </body>
-
 </html>

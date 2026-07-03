@@ -575,12 +575,38 @@
         container.insertAdjacentHTML('beforeend', ContractsTemplates.getSplitRow(detailId, {}, defStart, defEnd, leOptions, ccOptions));
     }
 
-    function addLedgerRowToUI(detailId) {
+    function addLedgerRowToUI(detailId, mov = {}) {
         const container = document.getElementById(`ledger-container-${detailId}`);
         if (!container) return;
+
         const emptyMsg = container.querySelector('.empty-ledger-msg');
         if (emptyMsg) emptyMsg.remove();
-        container.insertAdjacentHTML('beforeend', ContractsTemplates.getLedgerRow(detailId, {}));
+
+        // Iniettiamo il template passando l'oggetto movimento (vuoto o precompilato)
+        container.insertAdjacentHTML('beforeend', ContractsTemplates.getLedgerRow(detailId, mov));
+    }
+
+    /**
+     * Legge i dati in tempo reale dall'input DOM della riga cliccata 
+     * e istanzia una nuova riga con gli stessi identici valori.
+     */
+    function duplicateLedgerRowInUI(btnElement, detailId) {
+        const row = btnElement.closest('.ledger-row-item');
+        if (!row) return;
+
+        // Estrazione dei dati attuali inseriti dall'utente nella riga (Logica speculare alla save)
+        const rawAmtStr = row.querySelector('.ledger-amount').value.replace(/[^0-9]/g, '');
+
+        const currentMovementData = {
+            "Start Date": row.querySelector('.ledger-start').value || "",
+            "End Date": row.querySelector('.ledger-end').value || "",
+            "Type": row.querySelector('.ledger-type').value || "ACTUAL",
+            "Amount": parseInt(rawAmtStr, 10) || 0,
+            "Notes": row.querySelector('.ledger-notes').value || ""
+        };
+
+        // Passiamo i dati alla funzione riutilizzabile per creare la copia sotto alle altre
+        addLedgerRowToUI(detailId, currentMovementData);
     }
 
     function toggleLedgerVisibility(detailId) {
