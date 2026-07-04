@@ -403,8 +403,6 @@
             };
         });
 
-        document.getElementById(`error-message-${id}`).style.display = 'none';
-
         try {
             ContractsUtils.validateContractData(item.data);
             showLoading();
@@ -431,7 +429,7 @@
                                     item.data["Contract Links"] = currentLinks.join(', ');
                                     finalizeRowSave(item, id);
                                 },
-                                (err) => { hideLoading(); ContractsUtils.showErrorMessage(id, "Upload Error: " + err.message); }
+                                (err) => { hideLoading(); FinOpsUI.showAlert("Upload Error", err.message); }
                             );
                         }
                     };
@@ -442,7 +440,7 @@
                 finalizeRowSave(item, id);
             }
         } catch (e) {
-            ContractsUtils.showErrorMessage(id, e.message);
+            FinOpsUI.showAlert("Validation Error", e.message);
         }
     }
 
@@ -456,7 +454,7 @@
             },
             (err) => {
                 hideLoading();
-                ContractsUtils.showErrorMessage(id, "Server Error: " + err.message);
+                FinOpsUI.showAlert("Server Error", err.message);
             }
         );
     }
@@ -477,7 +475,7 @@
         const isEditingExistingMaster = ContractsState.isMasterEditable && ContractsState.currentMasterData["Master Contract ID"] !== "";
         const hasOpenEdits = isEditingExistingMaster || ContractsState.currentDetailItems.some(item => item.isEditing);
         if (hasOpenEdits) {
-            ContractsUtils.showMgmtBannerStatus("There are active forms still in edit mode. Please click 'Apply' or 'Confirm Master Changes' before performing the global push.", "warning");
+            FinOpsUI.showNotificationBanner("There are active forms still in edit mode. Please click 'Apply' or 'Confirm Master Changes' before performing the global push.", "warning");
             return;
         }
 
@@ -534,7 +532,7 @@
         };
 
         if (!payload.supplier) {
-            ContractsUtils.showMgmtBannerStatus("Supplier selection at Master level is required.", "warning");
+            FinOpsUI.showNotificationBanner("Supplier selection at Master level is required.", "warning");
             return;
         }
 
@@ -544,17 +542,17 @@
             (res) => {
                 hideLoading();
                 if (res === "SUCCESS") {
-                    ContractsUtils.showMgmtBannerStatus("Architecture synchronized successfully.", "success");
+                    FinOpsUI.showNotificationBanner("Architecture synchronized successfully.", "success");
                     fetchLiveData().then(() => {
                         selectAssetForManagement(ContractsState.currentSelectedAsset.name, ContractsState.currentSelectedAsset.id);
                     });
                 } else {
-                    ContractsUtils.showMgmtBannerStatus("Sync failed: unexpected execution outcome from server.", "error");
+                    FinOpsUI.showNotificationBanner("Sync failed: unexpected execution outcome from server.", "error");
                 }
             },
             (err) => {
                 hideLoading();
-                ContractsUtils.showMgmtBannerStatus("Sync error: " + err.message, "error");
+                FinOpsUI.showNotificationBanner("Sync error: " + err.message, "error");
             }
         );
     }
@@ -639,12 +637,12 @@
         const totCommit = document.getElementById(`edit-totalCommitment-${detailId}`).value.replace(/[^0-9]/g, '');
 
         if (model !== "Minimum Consumption" || terms !== "Ledger-Driven") {
-            ContractsUtils.showErrorMessage(detailId, "Governance Restriction: Automation calculations apply exclusively to 'Minimum Consumption' pricing models with 'Ledger-Driven' allocation terms.");
+            FinOpsUI.showAlert("Governance Restriction", "Automation calculations apply exclusively to 'Minimum Consumption' pricing models with 'Ledger-Driven' allocation terms.");
             return;
         }
 
         if (!startDate || !endDate || !totCommit) {
-            ContractsUtils.showErrorMessage(detailId, "Start Date, End Date, and Total Commitment must be compiled to generate the forecast.");
+            FinOpsUI.showAlert("Missing Data", "Start Date, End Date, and Total Commitment must be compiled to generate the forecast.");
             return;
         }
 
@@ -680,11 +678,11 @@
                 item.ledger = currentLedger.concat(generatedRows);
                 renderDetailItemsTable();
                 toggleRowEditMode(detailId, true);
-                ContractsUtils.showMgmtBannerStatus("Auto-forecast preview generated! Remember to click 'Apply' and then 'Commit'.", "success");
+                FinOpsUI.showNotificationBanner("Auto-forecast preview generated! Remember to click 'Apply' and then 'Commit'.", "success");
             },
             (err) => {
                 hideLoading();
-                ContractsUtils.showErrorMessage(detailId, "Calculation Error: " + err.message);
+                FinOpsUI.showAlert("Calculation Error", err.message);
             }
         );
     }

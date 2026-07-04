@@ -483,14 +483,13 @@
 
         handleTargetAnchorClick: function (masterId, element) {
             if (!TimelineState.isTimelineEditable) return;
-
-            if (this.linkingSourceMasterId === null) return; // Fail-safe
-            if (this.linkingSourceMasterId === masterId) return; // Non può collegarsi a se stesso
+            if (this.linkingSourceMasterId === null || this.linkingSourceMasterId === masterId) return;
 
             const targetMaster = (windowPayload.masterContracts || []).find(m => m["Master Contract ID"] === masterId);
             let prevs = targetMaster ? (targetMaster["Previous Master ID"] || "").toString().split(',').map(s => s.trim()).filter(s => s) : [];
             const isAlreadyLinked = prevs.includes(this.linkingSourceMasterId);
 
+            // Spara la nostra modale centralizzata in inglese!
             this.openLinkConfirmationModal(this.linkingSourceMasterId, masterId, isAlreadyLinked);
         },
 
@@ -528,7 +527,7 @@
                     targetMaster["Previous Master ID"] = currentPrevs.join(', ');
 
                     this.showCommitButton();
-                    this.renderActiveTimelineCanvas(); // Ridisegna SUBITO con il vettore SVG aggiornato!
+                    this.renderActiveTimelineCanvas();
                 }
             }
             this.resetAnchorSelection();
@@ -543,7 +542,7 @@
                 targetMaster["Previous Master ID"] = currentPrevs.join(', ');
 
                 this.showCommitButton();
-                this.renderActiveTimelineCanvas(); // Cancella SUBITO la linea dallo schermo!
+                this.renderActiveTimelineCanvas(); // Cancella subito la linea dallo schermo
             }
             this.resetAnchorSelection();
             this.closeMasterDetailsModal();
@@ -614,11 +613,33 @@
 
         showFloatingArrows: function () { },
 
+        // --- IL MOTORE DI SCRITTURA FINOPS SU DATABASE GOOGLE SHEETS ---
         commitTimelineChanges: function () {
-            // Pronto per l'ultimo step relazionale delle API
-            alert("Changes submitted from RAM to the core database pipeline layer.");
-            const btn = document.getElementById('timeline-commit-btn');
-            if (btn) btn.classList.replace('flex', 'hidden');
+            showLoading();
+
+            const payload = {
+                masterContracts: windowPayload.masterContracts || [],
+                contracts: windowPayload.contracts || []
+            };
+
+            google.script.run
+                .withSuccessHandler((res) => {
+                    hideLoading();
+                    if (res === "SUCCESS") {
+                        const btn = document.getElementById('timeline-commit-btn');
+                        if (btn) btn.classList.replace('flex', 'hidden');
+
+                        FinOpsUI.showNotificationBanner("Timeline architecture successfully synchronized and persisted to Google Sheets.", "success");
+                        fetchLiveData();
+                    } else {
+                        FinOpsUI.showAlert("Sync Error", "The database pipeline returned an unexpected status code.");
+                    }
+                })
+                .withFailureHandler((err) => {
+                    hideLoading();
+                    FinOpsUI.showAlert("Cloud Sync Failed", err.message);
+                })
+                .processTimelineSync(payload);
         },
 
         closeMasterDetailsModal: function () {

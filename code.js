@@ -139,7 +139,8 @@ function processInitiativesSync(payload) {
     const rowsToAdd = processedInitiatives.map(init => {
       return headers.map(header => {
         let val = init[header];
-        if (["Target Date", "Actual Date"].includes(header) && val) return val.toString().split('T')[0];
+        // Sincronizzazione totale tramite motore unico
+        if (["Target Date", "Actual Date"].includes(header)) return formatServerDate(val);
         return val !== undefined && val !== null ? val : "";
       });
     });
@@ -281,4 +282,139 @@ function apiGetLiveDriveFileNames(urlsString) {
       name: resolvedName
     };
   });
+}
+
+/**
+ * API ENDPOINT: Riceve i dati modificati in memoria dalla Timeline.
+ * 1. Sincronizza in modo sicuro le colonne di relazione (Master ID e Previous Master ID).
+ * 2. Innesca il ricalcolo a cascata di Master, Iniziative e Proiezioni usando i motori nativi.
+ */
+function processTimelineSync(payload) {
+  console.log("SERVER: Avvio sincronizzazione da modulo Timeline...");
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // 1. SALVATAGGIO RELAZIONI: PREVIOUS MASTER ID (FOGLIO MASTER CONTRACTS)
+  const masterSheet = ss.getSheetByName(CONFIG.SHEETS.MASTER_CONTRACTS || "MasterContracts");
+  if (masterSheet && payload.masterContracts) {
+    const mData = masterSheet.getDataRange().getValues();
+    const mHeaders = mData[0];
+    const mIdCol = mHeaders.indexOf("Master Contract ID");
+    const prevIdCol = mHeaders.indexOf("Previous Master ID");
+    
+    if (mIdCol > -1 && prevIdCol > -1) {
+      // Indicizzazione in cache del payload client per lookup O(1)
+      const clientMasterMap = {};
+      payload.masterContracts.forEach(m => {
+        clientMasterMap[String(m["Master Contract ID"]).trim()] = m["Previous Master ID"] || "";
+      });
+      
+      // Aggiornamento riga per riga senza alterare formule o altre colonne
+      for (let i = 1; i < mData.length; i++) {
+        const sheetMasterId = String(mData[i][mIdCol]).trim();
+        if (clientMasterMap[sheetMasterId] !== undefined) {
+          masterSheet.getRange(i + 1, prevIdCol + 1).setValue(clientMasterMap[sheetMasterId]);
+        }
+      }
+    }
+  }
+  
+  // 2. SALVATAGGIO RELAZIONI: MASTER CONTRACT ID NEI DETTAGLI (FOGLIO CONTRACTS)
+  const contractSheet = ss.getSheetByName(CONFIG.SHEETS.CONTRACTS || "Contracts");
+  if (contractSheet && payload.contracts) {
+    const cData = contractSheet.getDataRange().getValues();
+    const cHeaders = cData[0];
+    const cIdCol = cHeaders.indexOf("Contract ID");
+    const masterIdCol = cHeaders.indexOf("Master Contract ID");
+    
+    if (cIdCol > -1 && masterIdCol > -1) {
+      const clientContractMap = {};
+      payload.contracts.forEach(c => {
+        clientContractMap[String(c["Contract ID"]).trim()] = c["Master Contract ID"] || "";
+      });
+      
+      for (let i = 1; i < cData.length; i++) {
+        const sheetContractId = String(cData[i][cIdCol]).trim();
+        if (clientContractMap[sheetContractId] !== undefined) {
+          contractSheet.getRange(i + 1, masterIdCol + 1).setValue(clientContractMap[sheetContractId]);
+        }
+      }
+    }
+  }
+  
+  console.log("SERVER: Relazioni salvate. Avvio ricalcolo a cascata usando i motori nativi...");
+
+  // 3. RICALCOLO CAMPI MASTER CONTRACTS (Totali, Run Rate, Date Inizio/Fine)
+  // Sfruttiamo il core engine già esistente!
+  if (typeof _runCoreMigrationEngine === "function") {
+    _runCoreMigrationEngine({ writeMaster: true, writeDetail: false });
+  }
+
+  // 4. RICALCOLO INIZIATIVE (Baseline e Savings % dipendono dai nuovi totali del Master)
+  // Sfruttiamo la logica nativa delle iniziative
+  const initSheet = ss.getSheetByName(CONFIG.SHEETS.INITIATIVES || "Initiatives");
+  if (initSheet) {
+    const allInits = getSheetDataAsObjects(ss, CONFIG.SHEETS.INITIATIVES) || [];
+    const allContracts = getSheetDataAsObjects(ss, CONFIG.SHEETS.CONTRACTS) || [];
+    
+    if (typeof calculateInitiativesMetrics === "function") {
+      const updatedInits = calculateInitiativesMetrics(allInits, allContracts);
+
+      if (updatedInits.length > 0) {
+        const initContext = getSheetContext(CONFIG.SHEETS.INITIATIVES);
+        const initHeaders = initContext.headers;
+        
+        const rowsToAdd = processedInitiatives.map(init => {
+          return headers.map(header => {
+            let val = init[header];
+            // Sincronizzazione totale tramite motore unico
+            if (["Target Date", "Actual Date"].includes(header) && val) return formatServerDate(val);
+            return val !== undefined && val !== null ? val : "";
+          });
+        });
+        // Sovrascrive il foglio aggiornando i valori calcolati
+        initSheet.getRange(2, 1, rowsToAdd.length, initHeaders.length).setValues(rowsToAdd);
+      }
+    }
+  }
+
+  // 5. RICALCOLO PROIEZIONI FISCALI (Anti-Double Counting)
+  // Intercetta la nuova catena di successione Master
+  if (typeof updateAllOfficialFiscalProjections === "function") {
+    updateAllOfficialFiscalProjections();
+  }
+  
+  console.log("SERVER: Sincronizzazione Timeline completata con successo.");
+  return "SUCCESS";
+}
+
+/**
+ * CORE FINOPS SERVER DATE ENGINE: Centralizza la normalizzazione delle date lato backend.
+ * Previene tassativamente i bug di slittamento temporale e azzera ore/minuti/fusi orari,
+ * convertendo qualsiasi input (Date Object, stringhe ISO, stringhe estese) nel formato standard YYYY-MM-DD.
+ */
+function formatServerDate(val) {
+  if (val === undefined || val === null) return "";
+  
+  // Caso 1: È già un oggetto Date nativo di Apps Script
+  if (val instanceof Date) {
+    return !isNaN(val.getTime()) ? Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
+  }
+  
+  let s = String(val).trim();
+  if (s === "" || s === "—" || s === "-") return "";
+  
+  // Caso 2: È una stringa ISO o YYYY-MM-DD pura (es. 2026-09-30T07:00:00.000Z o 2026-09-30)
+  // Per evitare che il fuso orario del server scali il giorno all'indietro, isoliamo i componenti via Regex
+  let isoMatch = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+  }
+  
+  // Caso 3: Stringhe estese o sporche (es. "Mon Feb 28 2028 09:00:00 GMT...")
+  let d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    return Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  }
+  
+  return s; // Fallback estremo di sicurezza
 }

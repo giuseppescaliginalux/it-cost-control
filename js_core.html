@@ -21,13 +21,7 @@ String.prototype.formatDashboardDate = function () {
     return parsedDate.formatDashboardDate();
 };
 function safeFormatStringDate(rawDate) {
-    if (!rawDate || rawDate.toString().trim() === "") return "—";
-    try {
-        if (rawDate.toString().includes('/') && rawDate.toString().length <= 10) return rawDate.toString().trim();
-        const parsed = new Date(rawDate);
-        if (isNaN(parsed.getTime())) return rawDate.toString().split('T')[0];
-        return parsed.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-    } catch (e) { return "—"; }
+    return FinOpsDate.toVisualShort(rawDate);
 }
 
 // Chiamata Server (Singola)

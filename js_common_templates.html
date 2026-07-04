@@ -1,13 +1,150 @@
 <script>
-
     /**
-     * Generates a unified, accessible FinOps help tooltip aligned with existing CSS structures.
-     * Open/Closed compliant: accepts an optional placement orientation argument.
-     * @param {string} title - The header of the tooltip context.
-     * @param {string} description - The descriptive analytical text body.
-     * @param {string} [placement='top'] - Vertical opening direction ('top' or 'down').
-     * @returns {string} - The inline HTML component string.
+     * js_common_templates.html
+     * UTILITIES & COMPONENT HUB: Centralized layer for UI notifications and atomic Date normalization.
      */
+
+    // ==========================================
+    // 1. FINOPS DATE ENGINE: Solo date pure (YYYY-MM-DD), zero fusi orari
+    // ==========================================
+    const FinOpsDate = {
+        parse: function(dStr) {
+            if (!dStr) return null;
+            if (dStr instanceof Date) return !isNaN(dStr.getTime()) ? dStr : null;
+            
+            let s = String(dStr).trim();
+            if (!s || s === "—" || s === "-") return null;
+            
+            if (s.includes('T')) s = s.split('T')[0];
+            
+            // Pattern Europeo: DD/MM/YYYY o DD-MM-YYYY
+            const euMatch = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+            if (euMatch) {
+                return new Date(parseInt(euMatch[3], 10), parseInt(euMatch[2], 10) - 1, parseInt(euMatch[1], 10));
+            }
+            
+            // Pattern Standard/ISO: YYYY-MM-DD o YYYY/MM/DD
+            const isoMatch = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+            if (isoMatch) {
+                return new Date(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10) - 1, parseInt(isoMatch[3], 10));
+            }
+            
+            let prs = new Date(s);
+            return !isNaN(prs.getTime()) ? prs : null;
+        },
+        
+        toIso: function(dStr) {
+            const d = this.parse(dStr);
+            if (!d) return "";
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        },
+        
+        toVisualLong: function(dStr) {
+            const d = this.parse(dStr);
+            if (!d) return "—";
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+        },
+        
+        toVisualShort: function(dStr) {
+            const d = this.parse(dStr);
+            if (!d) return "—";
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            return `${months[d.getMonth()]} '${String(d.getFullYear()).substring(2)}`;
+        }
+    };
+
+    // ==========================================
+    // 2. FINOPS UI NOTIFICATION LAYERS (Addio cagate standard!)
+    // ==========================================
+    const FinOpsUI = {
+        showAlert: function(title, message, type = 'error') {
+            const existing = document.getElementById('finops-global-alert');
+            if(existing) existing.remove();
+
+            const color = type === 'error' ? 'rose' : (type === 'success' ? 'emerald' : 'amber');
+            const icon = type === 'error' ? 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z' : 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z';
+
+            const html = `
+            <div id="finops-global-alert" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 animate-fade-in">
+                <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 max-w-sm w-full transform transition-all scale-100">
+                    <div class="flex items-center gap-3 mb-3">
+                        <div class="w-10 h-10 rounded-full bg-${color}-100 flex items-center justify-center shrink-0">
+                            <svg class="w-5 h-5 text-${color}-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="${icon}" /></svg>
+                        </div>
+                        <h3 class="text-sm font-black text-slate-800 uppercase tracking-widest">${title}</h3>
+                    </div>
+                    <p class="text-xs text-slate-600 font-medium leading-relaxed mb-6">${message}</p>
+                    <div class="flex justify-end">
+                        <button onclick="document.getElementById('finops-global-alert').remove()" class="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-[10px] font-black uppercase tracking-wider rounded-xl shadow-md transition-colors cursor-pointer">Understood</button>
+                    </div>
+                </div>
+            </div>`;
+            document.body.insertAdjacentHTML('beforeend', html);
+        },
+
+        showConfirm: function(title, message, onConfirmCallback) {
+            const existing = document.getElementById('finops-global-confirm');
+            if(existing) existing.remove();
+
+            const html = `
+            <div id="finops-global-confirm" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 animate-fade-in">
+                <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 max-w-sm w-full transform transition-all scale-100">
+                    <div class="flex items-center gap-3 mb-3">
+                        <div class="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
+                            <svg class="w-5 h-5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                        </div>
+                        <h3 class="text-sm font-black text-rose-700 uppercase tracking-widest">${title}</h3>
+                    </div>
+                    <p class="text-xs text-slate-600 font-medium leading-relaxed mb-6">${message}</p>
+                    <div class="flex justify-end gap-3">
+                        <button onclick="document.getElementById('finops-global-confirm').remove()" class="px-4 py-2 bg-slate-100 text-slate-600 hover:bg-slate-200 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-colors cursor-pointer">Cancel</button>
+                        <button id="finops-global-confirm-yes" class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-black uppercase tracking-wider rounded-xl shadow-md transition-colors cursor-pointer">Confirm Action</button>
+                    </div>
+                </div>
+            </div>`;
+            document.body.insertAdjacentHTML('beforeend', html);
+            document.getElementById('finops-global-confirm-yes').onclick = () => {
+                document.getElementById('finops-global-confirm').remove();
+                if(onConfirmCallback) onConfirmCallback();
+            };
+        },
+
+        showNotificationBanner: function(message, type = 'warning') {
+            const banner = document.getElementById('mgmt-push-warning'); // Sfrutta il banner di notifica nativo nell'index.html
+            if (!banner) return;
+
+            const textSpan = banner.querySelector('span');
+            const svgIcon = banner.querySelector('svg');
+            if (textSpan) textSpan.textContent = message;
+
+            banner.className = "text-[11px] font-bold animate-fade-in items-center gap-2 shadow-2xs rounded-xl px-3 py-1.5 border flex";
+
+            if (type === 'success') {
+                banner.classList.add('text-emerald-700', 'bg-emerald-50', 'border-emerald-200/60');
+                if (svgIcon) svgIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>`;
+            } else if (type === 'error') {
+                banner.classList.add('text-rose-700', 'bg-rose-50', 'border-rose-200/60');
+                if (svgIcon) svgIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>`;
+            } else {
+                banner.classList.add('text-amber-700', 'bg-amber-50', 'border-amber-200/60');
+                if (svgIcon) svgIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>`;
+            }
+
+            if (window.globalFinOpsBannerTimeout) clearTimeout(window.globalFinOpsBannerTimeout);
+            window.globalFinOpsBannerTimeout = setTimeout(() => {
+                banner.classList.add('hidden');
+                banner.classList.remove('flex');
+            }, type === 'error' ? 6000 : 4000);
+        }
+    };
+
+    // ==========================================
+    // 3. TOOLTIP ENGINE
+    // ==========================================
     function generateFinOpsHelpTooltip(title, description, placement = 'top') {
         const placementClass = placement === 'down' ? 'tt-down' : '';
         return `
@@ -21,5 +158,4 @@
         </div>
     </span>`;
     }
-
 </script>

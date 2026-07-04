@@ -59,10 +59,8 @@ function _runCoreMigrationEngine(flags) {
                 const frontendKey = CONTRACT_FIELD_MAP[header];
                 let rawValue = d[header];
 
-                if (rawValue instanceof Date) {
-                    rawValue = !isNaN(rawValue.getTime()) ? Utilities.formatDate(rawValue, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
-                } else if (typeof rawValue === 'string' && rawValue.includes('T')) {
-                    rawValue = rawValue.split('T')[0];
+                if (["Start Date", "Contract End Date", "Adjusted End Date", "End Date"].includes(header)) {
+                    rawValue = formatServerDate(rawValue); // <-- Motore unico centralizzato
                 }
 
                 camelCaseObj[frontendKey] = rawValue;
@@ -121,9 +119,7 @@ function _runCoreMigrationEngine(flags) {
             return masterHeaders.map(header => {
                 let val = master[header];
                 if (["Master Start Date", "Master End Date"].includes(header)) {
-                    if (val instanceof Date) return !isNaN(val.getTime()) ? Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
-                    if (typeof val === 'string' && val.trim() !== "") return val.split('T')[0];
-                    return "";
+                    return formatServerDate(val);
                 }
                 return val !== undefined ? val : "";
             });
@@ -137,9 +133,7 @@ function _runCoreMigrationEngine(flags) {
             return detailHeaders.map(header => {
                 let val = detail[header];
                 if (["Start Date", "Contract End Date", "Adjusted End Date", "End Date"].includes(header)) {
-                    if (val instanceof Date) return !isNaN(val.getTime()) ? Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
-                    if (typeof val === 'string' && val.trim() !== "") return val.split('T')[0];
-                    return "";
+                    return formatServerDate(val);
                 }
                 return val !== undefined ? val : "";
             });
@@ -234,9 +228,7 @@ function fixAndRegenerateMasterIds() {
         return masterHeaders.map(header => {
             let val = master[header];
             if (["Master Start Date", "Master End Date"].includes(header)) {
-                if (val instanceof Date) return !isNaN(val.getTime()) ? Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
-                if (typeof val === 'string' && val.trim() !== "") return val.split('T')[0];
-                return "";
+                return formatServerDate(val);
             }
             return val !== undefined ? val : "";
         });
@@ -246,9 +238,7 @@ function fixAndRegenerateMasterIds() {
         return detailHeaders.map(header => {
             let val = detail[header];
             if (["Start Date", "Contract End Date", "Adjusted End Date", "End Date"].includes(header)) {
-                if (val instanceof Date) return !isNaN(val.getTime()) ? Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
-                if (typeof val === 'string' && val.trim() !== "") return val.split('T')[0];
-                return "";
+                return formatServerDate(val);
             }
             return val !== undefined ? val : "";
         });
@@ -258,4 +248,57 @@ function fixAndRegenerateMasterIds() {
     detailSheet.getRange(2, 1, detailOutputValues.length, detailHeaders.length).setValues(detailOutputValues);
 
     console.log("MIGRAZIONE COMPLETATA: Tutti i fogli sono stati riallineati con gli ID corretti.");
+}
+
+/**
+ * MACRO FUNZIONE 4: Ricalcola e aggiorna ESCLUSIVAMENTE il foglio INITIATIVES.
+ * Legge i dati attuali dai fogli, applica le regole di business (Saving, Baseline, Actuals) e sovrascrive.
+ */
+function backfillInitiativesOnly() {
+    console.log("MIGRAZIONE: Avvio ricalcolo massivo -> Solo INIZIATIVE.");
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    const initSheet = ss.getSheetByName(CONFIG.SHEETS.INITIATIVES || "Initiatives");
+    if (!initSheet) {
+        console.error("ERRORE: Foglio Initiatives non trovato.");
+        return;
+    }
+
+    // 1. Estrae i dati correnti direttamente dai fogli Google
+    const allInits = getSheetDataAsObjects(ss, CONFIG.SHEETS.INITIATIVES) || [];
+    const allContracts = getSheetDataAsObjects(ss, CONFIG.SHEETS.CONTRACTS) || [];
+
+    if (allInits.length === 0) {
+        console.log("Nessuna iniziativa trovata da ricalcolare.");
+        return;
+    }
+
+    // 2. Ricalcola tutti i valori (Baseline, Savings, Actuals, %) usando il motore nativo in logic.js
+    const updatedInits = calculateInitiativesMetrics(allInits, allContracts);
+
+    // 3. Prepara la matrice dei dati per la scrittura bulk
+    const initContext = getSheetContext(CONFIG.SHEETS.INITIATIVES);
+    const initHeaders = initContext.headers;
+    
+    const rowsToAdd = updatedInits.map(init => {
+        return initHeaders.map(h => {
+            let val = init[h];
+            if (["Target Date", "Actual Date"].includes(h) && val) {
+                return formatServerDate(val); 
+            }
+            return val !== undefined && val !== null ? val : "";
+        });
+    });
+
+    // 4. Sovrascrive i dati sul foglio
+    initSheet.getRange(2, 1, rowsToAdd.length, initHeaders.length).setValues(rowsToAdd);
+    console.log("MIGRAZIONE: Foglio [INITIATIVES] ricalcolato e sovrascritto con successo.");
+
+    // 5. Ricalcola le proiezioni a cascata (necessario perché i saving potrebbero essere cambiati)
+    console.log("MIGRAZIONE: Avvio allineamento a cascata delle Proiezioni Fiscali...");
+    if (typeof updateAllOfficialFiscalProjections === "function") {
+        updateAllOfficialFiscalProjections();
+    }
+
+    console.log("RICALCOLO INIZIATIVE COMPLETATO CON SUCCESSO.");
 }

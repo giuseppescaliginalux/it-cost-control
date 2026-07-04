@@ -218,11 +218,7 @@ function updateRowSafe(sheet, rowIdx, headers, detailData, editableFields, field
 
         // Formattazione Date senza inserire ore e minuti
         if (["Start Date", "Contract End Date", "Adjusted End Date", "End Date", "Master Start Date", "Master End Date"].includes(header)) {
-          if (value instanceof Date) {
-            finalValue = !isNaN(value.getTime()) ? Utilities.formatDate(value, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
-          } else {
-            finalValue = value; // Passa direttamente la stringa "yyyy-MM-dd" pulita
-          }
+          finalValue = formatServerDate(value);
         }
 
         sheet.getRange(rowIdx, idx + 1).setValue(finalValue);
@@ -313,8 +309,8 @@ function syncAllocationSplits(payload) {
     const splitId = "SPL-" + Utilities.getUuid().substring(0, 8).toUpperCase();
 
     // ESTRAZIONE SICURA DELLA STRINGA DATA SENZA ORARIO
-    const validFromStr = split["Valid From"] ? split["Valid From"].toString().split('T')[0] : "";
-    const validToStr = split["Valid To"] ? split["Valid To"].toString().split('T')[0] : "";
+    const validFromStr = formatServerDate(split["Valid From"]);
+    const validToStr = formatServerDate(split["Valid To"]);
 
     return [
       splitId,
@@ -373,8 +369,8 @@ function syncLedgerMovements(payload) {
 
   // 3. SCRITTURA DIRETTA su Google Sheets
   const rowsToAdd = allLedger.map(mov => {
-    const startStr = mov["Start Date"] ? mov["Start Date"].toString().split('T')[0] : "";
-    const endStr = mov["End Date"] ? mov["End Date"].toString().split('T')[0] : "";
+    const startStr = formatServerDate(mov["Start Date"]);
+    const endStr = formatServerDate(mov["End Date"]);
 
     return [
       mov["Contract ID"] || "",

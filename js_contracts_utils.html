@@ -1,156 +1,119 @@
 <script>
-/**
- * js_contracts_utils.html
- * UTILITIES: Pure functions, data formatters, validation and DOM helpers.
- */
+    /**
+     * js_contracts_utils.html
+     * UTILITIES: Pure functions, data formatters, validation and DOM helpers.
+     */
 
-const ContractsUtils = {
-    // --- Data Extraction & Validation ---
-    extractUniqueField: function(payloadArray, keyName) {
-        if (!payloadArray || payloadArray.length === 0) return [];
-        return [...new Set(payloadArray.map(item => {
-            const val = item[keyName] !== undefined ? item[keyName] : Object.values(item)[0];
-            return (val || "").toString().trim();
-        }))].filter(v => v !== "").sort();
-    },
+    const ContractsUtils = {
+        // --- Data Extraction & Validation ---
+        extractUniqueField: function (payloadArray, keyName) {
+            if (!payloadArray || payloadArray.length === 0) return [];
+            return [...new Set(payloadArray.map(item => {
+                const val = item[keyName] !== undefined ? item[keyName] : Object.values(item)[0];
+                return (val || "").toString().trim();
+            }))].filter(v => v !== "").sort();
+        },
 
-    validateContractData: function(data) {
-        const requiredFields = {
-            "Legal Entity": "Legal Entity",
-            "Scope": "Scope",
-            "Total Commitment": "Total Commitment",
-            "Start Date": "Start Date",
-            "Contract End Date": "Contract End Date"
-        };
+        validateContractData: function (data) {
+            const requiredFields = {
+                "Legal Entity": "Legal Entity",
+                "Scope": "Scope",
+                "Total Commitment": "Total Commitment",
+                "Start Date": "Start Date",
+                "Contract End Date": "Contract End Date"
+            };
 
-        for (let field in requiredFields) {
-            const val = data[field];
-            if (val === null || val === undefined || String(val).trim() === "") {
-                throw new Error(`Field '${requiredFields[field]}' is mandatory.`);
+            for (let field in requiredFields) {
+                const val = data[field];
+                if (val === null || val === undefined || String(val).trim() === "") {
+                    throw new Error(`Field '${requiredFields[field]}' is mandatory.`);
+                }
+            }
+
+            if (parseFloat(data["Total Commitment"]) <= 0) {
+                throw new Error("Total Commitment must be greater than zero.");
+            }
+
+            if (new Date(data["Start Date"]) >= new Date(data["Contract End Date"])) {
+                throw new Error("Start Date must be before Contract End Date.");
+            }
+            return true;
+        },
+
+        // --- Formatters ---
+        formatToEnglishCustomDate: function (dateStr) {
+            if (!dateStr || String(dateStr).trim() === "" || String(dateStr) === "—") return "—";
+
+            // Se hai copiato il motore FinOpsDate in js_common_templates, usa quello
+            if (typeof FinOpsDate !== 'undefined') {
+                return FinOpsDate.toVisualLong(dateStr);
+            }
+
+            // Fallback nativo e robusto (Cattura le date sporche tipo "Mon Feb 28 2028...")
+            let d = new Date(dateStr);
+            if (!isNaN(d.getTime())) {
+                const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+            }
+
+            return String(dateStr);
+        },
+
+        formatInputAsIntegerCurrency: function (el) {
+            let val = el.value.replace(/[^0-9]/g, '');
+            if (val === '') {
+                el.value = '';
+                return;
+            }
+            el.value = parseInt(val, 10).toLocaleString('it-IT');
+        },
+
+        formatLedgerValue: function (inputEl) {
+            let val = inputEl.value.replace(/[^0-9]/g, '');
+            if (val === '') { inputEl.value = ''; return; }
+            inputEl.value = parseInt(val, 10).toLocaleString('it-IT');
+        },
+
+        formatSplitValue: function (inputEl) {
+            const rule = inputEl.closest('.split-row-item').querySelector('.split-rule').value;
+            let val = inputEl.value.replace(/[^0-9]/g, '');
+
+            if (val === '') {
+                inputEl.value = '';
+                return;
+            }
+
+            let intVal = parseInt(val, 10);
+
+            if (rule === 'Percentage') {
+                if (intVal > 100) intVal = 100;
+                inputEl.value = intVal.toString();
+            } else if (rule === 'Fixed Amount') {
+                inputEl.value = intVal.toLocaleString('it-IT');
+            } else if (rule === 'Units') {
+                inputEl.value = intVal.toString();
+            }
+        },
+
+        // --- DOM Manipulators ---
+        removeDocumentLink: function (event, urlToRemove, isMaster, detailId = null) {
+            const clickedButton = event.currentTarget;
+            if (isMaster) {
+                const input = document.getElementById('ins-masterDocumentLink');
+                if (input) {
+                    let links = input.value.split(',').map(s => s.trim()).filter(s => s !== urlToRemove && s);
+                    input.value = links.join(', ');
+                }
+            } else {
+                const input = document.getElementById(`edit-contractLinks-${detailId}`);
+                if (input) {
+                    let links = input.value.split(',').map(s => s.trim()).filter(s => s !== urlToRemove && s);
+                    input.value = links.join(', ');
+                }
+            }
+            if (clickedButton && clickedButton.parentElement) {
+                clickedButton.parentElement.style.display = 'none';
             }
         }
-
-        if (parseFloat(data["Total Commitment"]) <= 0) {
-            throw new Error("Total Commitment must be greater than zero.");
-        }
-
-        if (new Date(data["Start Date"]) >= new Date(data["Contract End Date"])) {
-            throw new Error("Start Date must be before Contract End Date.");
-        }
-        return true;
-    },
-
-    // --- Formatters ---
-    formatToEnglishCustomDate: function(dateStr) {
-        if (!dateStr) return "—";
-        const cleanStr = dateStr.toString().split('T')[0];
-        const parts = cleanStr.split('-');
-        if (parts.length !== 3) return dateStr; 
-
-        const year = parts[0];
-        const monthIdx = parseInt(parts[1], 10) - 1;
-        const day = parseInt(parts[2], 10);
-
-        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        if (monthIdx >= 0 && monthIdx < 12) {
-            return `${day} ${months[monthIdx]} ${year}`;
-        }
-        return dateStr;
-    },
-
-    formatInputAsIntegerCurrency: function(el) {
-        let val = el.value.replace(/[^0-9]/g, '');
-        if (val === '') {
-            el.value = '';
-            return;
-        }
-        el.value = parseInt(val, 10).toLocaleString('it-IT');
-    },
-
-    formatLedgerValue: function(inputEl) {
-        let val = inputEl.value.replace(/[^0-9]/g, '');
-        if (val === '') { inputEl.value = ''; return; }
-        inputEl.value = parseInt(val, 10).toLocaleString('it-IT');
-    },
-
-    formatSplitValue: function(inputEl) {
-        const rule = inputEl.closest('.split-row-item').querySelector('.split-rule').value;
-        let val = inputEl.value.replace(/[^0-9]/g, '');
-
-        if (val === '') {
-            inputEl.value = '';
-            return;
-        }
-
-        let intVal = parseInt(val, 10);
-
-        if (rule === 'Percentage') {
-            if (intVal > 100) intVal = 100;
-            inputEl.value = intVal.toString();
-        } else if (rule === 'Fixed Amount') {
-            inputEl.value = intVal.toLocaleString('it-IT');
-        } else if (rule === 'Units') {
-            inputEl.value = intVal.toString();
-        }
-    },
-
-    // --- DOM Manipulators ---
-    showErrorMessage: function(id, msg) {
-        const errorDiv = document.getElementById(`error-message-${id}`);
-        const errorText = document.getElementById(`error-text-${id}`);
-        if (errorDiv && errorText) {
-            errorText.textContent = msg;
-            errorDiv.classList.remove('hidden');
-            errorDiv.classList.add('flex');
-        }
-    },
-
-    showMgmtBannerStatus: function(message, type = 'warning') {
-        const banner = document.getElementById('mgmt-push-warning');
-        if (!banner) return;
-
-        const textSpan = banner.querySelector('span');
-        const svgIcon = banner.querySelector('svg');
-        if (textSpan) textSpan.textContent = message;
-
-        banner.className = "text-[11px] font-bold animate-fade-in items-center gap-2 shadow-2xs rounded-xl px-3 py-1.5 border flex";
-
-        if (type === 'success') {
-            banner.classList.add('text-emerald-700', 'bg-emerald-50', 'border-emerald-200/60');
-            if (svgIcon) svgIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>`;
-        } else if (type === 'error') {
-            banner.classList.add('text-rose-700', 'bg-rose-50', 'border-rose-200/60');
-            if (svgIcon) svgIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>`;
-        } else {
-            banner.classList.add('text-amber-700', 'bg-amber-50', 'border-amber-200/60');
-            if (svgIcon) svgIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>`;
-        }
-
-        if (window.mgmtBannerTimeout) clearTimeout(window.mgmtBannerTimeout);
-        window.mgmtBannerTimeout = setTimeout(() => {
-            banner.classList.remove('flex');
-            banner.classList.add('hidden');
-        }, type === 'error' ? 7000 : 5000);
-    },
-
-    removeDocumentLink: function(event, urlToRemove, isMaster, detailId = null) {
-        const clickedButton = event.currentTarget;
-        if (isMaster) {
-            const input = document.getElementById('ins-masterDocumentLink');
-            if (input) {
-                let links = input.value.split(',').map(s => s.trim()).filter(s => s !== urlToRemove && s);
-                input.value = links.join(', ');
-            }
-        } else {
-            const input = document.getElementById(`edit-contractLinks-${detailId}`);
-            if (input) {
-                let links = input.value.split(',').map(s => s.trim()).filter(s => s !== urlToRemove && s);
-                input.value = links.join(', ');
-            }
-        }
-        if (clickedButton && clickedButton.parentElement) {
-            clickedButton.parentElement.style.display = 'none';
-        }
-    }
-};
+    };
 </script>

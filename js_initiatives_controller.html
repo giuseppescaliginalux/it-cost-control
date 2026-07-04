@@ -457,9 +457,10 @@
                 const readDecision = (initData["Decision"] || readStrategy).toUpperCase().trim();
                 document.getElementById('modal-init-strategy').value = readStrategy;
                 document.getElementById('modal-init-decision').value = readDecision;
-
                 document.getElementById('modal-init-status').value = (initData["Initiative Status"] || "IDEA").toUpperCase().trim();
-                document.getElementById('modal-init-target-date').value = initData["Target Date"] ? initData["Target Date"].toString().split('T')[0] : "";
+
+                // Centralizzazione date: estrae la stringa ISO pulita YYYY-MM-DD per il tag input html
+                document.getElementById('modal-init-target-date').value = FinOpsDate.toIso(initData["Target Date"]);
 
                 document.getElementById('modal-init-target-cost').value = initData["Target Cost (Annualized)"] ? Math.round(initData["Target Cost (Annualized)"]).toLocaleString('it-IT') : "0";
                 this.handleDecisionChange(readDecision);
@@ -472,6 +473,10 @@
                     this.handleAssetCascadeDropdownChange(initData["Asset Name"], initData["Master Contract ID"]);
                     const hInput = document.getElementById('modal-init-selected-master-id');
                     if (hInput) hInput.value = initData["Master Contract ID"] || "";
+                    
+                    if (initData["Master Contract ID"]) {
+                        setTimeout(() => { this.selectMasterCard(initData["Master Contract ID"]); }, 50);
+                    }
                 }
             }
 
@@ -483,13 +488,14 @@
         commitInitiativeFormToLocalState: function () {
             const initName = document.getElementById('modal-init-name').value.trim();
             const assetName = document.getElementById('modal-init-asset-select').value;
-            const masterId = document.getElementById('modal-init-selected-master-id').value; // CAMBIATO
+            const masterId = document.getElementById('modal-init-selected-master-id').value; 
             const tDate = document.getElementById('modal-init-target-date').value;
             const tCostInput = document.getElementById('modal-init-target-cost');
             const tCostStr = tCostInput ? tCostInput.value.replace(/\./g, '').trim() : "0";
 
             if (!initName || !assetName || !masterId || !tDate || tCostStr === "") {
-                alert("Boundary Data Integrity Error: Initiative Name, Asset Context, Linked Master ID, Target Date and Target Cost fields are strictly mandatory.");
+                // Sostituito con il nostro nuovo Alert Centralizzato
+                FinOpsUI.showAlert("Validation Error", "Initiative Name, Asset Context, Linked Master ID, Target Date and Target Cost fields are strictly mandatory.");
                 return;
             }
 
@@ -498,7 +504,7 @@
 
             instance["Initiative Name"] = initName;
             instance["Asset Name"] = assetName;
-            instance["Master Contract ID"] = masterId; // CAMBIATO
+            instance["Master Contract ID"] = masterId;
 
             const targetMaster = (windowPayload.masterContracts || []).find(m => m["Master Contract ID"] === masterId);
 
@@ -506,7 +512,7 @@
                 instance["Supplier"] = targetMaster["Supplier"] || "";
                 instance["Contract Term (Months)"] = targetMaster["Contract Term (Months)"] || "";
                 instance["Baseline Spend (Annualized)"] = parseFloat(targetMaster["Run Rate"]) || 0;
-                instance["Last Expiration"] = targetMaster["Master End Date"] ? targetMaster["Master End Date"].split('T')[0] : "";
+                instance["Last Expiration"] = targetMaster["Master End Date"] ? FinOpsDate.toIso(targetMaster["Master End Date"]) : "";
             }
 
             const savedStrategy = document.getElementById('modal-init-strategy').value;
@@ -514,7 +520,8 @@
             instance["Decision"] = document.getElementById('modal-init-decision').value;
 
             instance["Initiative Status"] = document.getElementById('modal-init-status').value;
-            instance["Target Date"] = tDate;
+            // Normalizzazione in scrittura
+            instance["Target Date"] = FinOpsDate.toIso(tDate);
             instance["Target Cost (Annualized)"] = parseInt(tCostStr, 10) || 0;
             instance["Service Owner"] = document.getElementById('modal-init-owner').value.trim();
             instance["Procurement Point Focal"] = document.getElementById('modal-init-procurement').value.trim();
@@ -523,7 +530,6 @@
 
             const checkedLevers = Array.from(document.querySelectorAll('.split-lever-checkbox:checked')).map(cb => cb.value);
             instance["Optimization Levers"] = checkedLevers.join(', ');
-            // Nota: i "Tags" rimangono intatti perché ereditati dall'istanza originale in memoria. Non vengono sovrascritti.
 
             if (instance["Initiative Status"] === "COMPLETED") {
                 instance["Actual Date"] = instance["Target Date"];
@@ -536,16 +542,21 @@
 
             this.closeInitiativeModalWindow();
             this.renderKanbanBoard(false);
-            ContractsUtils.showMgmtBannerStatus("Initiative changes applied locally in memory cache. Commit to persist changes.", "warning");
+            FinOpsUI.showNotificationBanner("Initiative changes applied locally in memory cache. Commit to persist changes.", "warning");
         },
 
         deleteInitiativeFromArchitecture: function () {
-            if (confirm("Are you entirely sure you want to completely erase this initiative from the FinOps registry?")) {
-                InitiativesState.deleteInitiativeInstance(InitiativesState.currentEditingInitiative);
-                this.closeInitiativeModalWindow();
-                this.renderKanbanBoard(false);
-                ContractsUtils.showMgmtBannerStatus("Initiative purged from memory. Commit to propagate deletion.", "warning");
-            }
+            // Sostituito con il nostro nuovo Confirm Centralizzato
+            FinOpsUI.showConfirm(
+                "Delete Initiative?", 
+                "Are you entirely sure you want to completely erase this initiative from the FinOps registry? This action cannot be undone once committed.",
+                () => {
+                    InitiativesState.deleteInitiativeInstance(InitiativesState.currentEditingInitiative);
+                    this.closeInitiativeModalWindow();
+                    this.renderKanbanBoard(false);
+                    FinOpsUI.showNotificationBanner("Initiative purged from memory. Commit to propagate deletion.", "warning");
+                }
+            );
         },
 
         pushKanbanArchitectureToGoogleSheets: function () {
@@ -555,13 +566,16 @@
                 (res) => {
                     hideLoading();
                     if (res === "SUCCESS") {
-                        ContractsUtils.showMgmtBannerStatus("Kanban architecture written and versioned successfully on DB layer.", "success");
+                        FinOpsUI.showNotificationBanner("Kanban architecture written and versioned successfully on DB layer.", "success");
                         fetchLiveData();
                     } else {
-                        alert("Sync Error: DB pipeline return mismatch code.");
+                        FinOpsUI.showAlert("Sync Error", "The database pipeline returned a mismatch code. Changes might not be saved.");
                     }
                 },
-                (err) => { hideLoading(); alert("Cloud Sync Failed: " + err.message); }
+                (err) => { 
+                    hideLoading(); 
+                    FinOpsUI.showAlert("Cloud Sync Failed", err.message); 
+                }
             );
         },
 
