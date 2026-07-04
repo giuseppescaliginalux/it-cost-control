@@ -4,6 +4,8 @@
      * CONTROLLER: Advanced Filtering, Topological Sorting, Dynamic bounds, SVG Bezier routing.
      */
     const TimelineController = {
+        linkingSourceMasterId: null,
+
         initTimelineWorkspace: function (payload) {
             const tabContainer = document.getElementById('tab-timeline');
             if (!tabContainer) return;
@@ -338,11 +340,295 @@
         },
 
         closeMasterDetailsModal: function () {
+            this.resetAnchorSelection(); // Pulisce i pallini colorati se annulli la modale
             const mountPoint = document.getElementById('timeline-modal-mount-point');
             if (!mountPoint) return;
             mountPoint.classList.add('hidden');
             mountPoint.classList.remove('flex');
             mountPoint.innerHTML = '';
+            mountPoint.onclick = () => this.closeMasterDetailsModal();
+        },
+
+        // ==========================================
+        // WORKSPACE GOVERNANCE: INTERACTIVE EDIT MODES & LOGIC
+        // ==========================================
+
+        linkingSourceMasterId: null,
+
+        toggleTimelineEditMode: function () {
+            // Sincronizza lo stato con la variabile booleana
+            if (typeof TimelineState.isTimelineEditable === 'undefined') TimelineState.isTimelineEditable = false;
+            TimelineState.isTimelineEditable = !TimelineState.isTimelineEditable;
+
+            const editBtn = document.getElementById('timeline-edit-mode-btn');
+            const pullTab = document.getElementById('timeline-orphans-pull-tab');
+            const drawer = document.getElementById('timeline-orphans-drawer');
+
+            if (TimelineState.isTimelineEditable) {
+                if (editBtn) {
+                    editBtn.className = "px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-black text-[11px] uppercase tracking-wider rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer";
+                    editBtn.innerHTML = `<svg class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg> Editing Mode`;
+                }
+                if (pullTab) pullTab.classList.remove('hidden');
+                this.renderOrphansList();
+            } else {
+                if (editBtn) {
+                    editBtn.className = "px-4 py-2 bg-white border border-slate-300 text-slate-700 font-black text-[11px] uppercase tracking-wider rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer hover:bg-slate-50";
+                    editBtn.innerHTML = `<svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.25 0 113.536 3.536L6.5 21.036H3v-3.536L16.5 3.536z" /></svg> Edit Mode`;
+                }
+                if (pullTab) pullTab.classList.add('hidden');
+                if (drawer) drawer.classList.add('translate-x-full');
+                this.resetAnchorSelection();
+            }
+            this.renderActiveTimelineCanvas();
+        },
+
+        toggleOrphansDrawer: function () {
+            const drawer = document.getElementById('timeline-orphans-drawer');
+            if (!drawer) return;
+            if (drawer.classList.contains('translate-x-full')) {
+                this.renderOrphansList();
+                drawer.classList.remove('translate-x-full');
+            } else {
+                drawer.classList.add('translate-x-full');
+            }
+        },
+
+        renderOrphansList: function () {
+            const listContainer = document.getElementById('timeline-orphans-list');
+            const badge = document.getElementById('orphan-badge-count');
+            if (!listContainer) return;
+
+            const allContracts = windowPayload.contracts || [];
+            const orphans = allContracts.filter(c => !(c["Master Contract ID"] || "").toString().trim());
+
+            if (badge) badge.textContent = orphans.length;
+
+            if (orphans.length === 0) {
+                listContainer.innerHTML = `<div class="p-4 text-center text-slate-400 text-[10px] font-medium border border-dashed border-slate-200 rounded-xl mt-4 bg-white shadow-sm">No unassigned contracts found.<br>Everything is perfectly mapped!</div>`;
+                return;
+            }
+
+            orphans.sort((a, b) => (parseFloat(b["Annual Value"]) || 0) - (parseFloat(a["Annual Value"]) || 0));
+            listContainer.innerHTML = orphans.map(c => TimelineTemplates.getOrphanCardMarkup(c)).join('');
+        },
+
+        recalculateMasterInRAM: function (masterId) {
+            const master = (windowPayload.masterContracts || []).find(m => m["Master Contract ID"] === masterId);
+            if (!master) return;
+
+            const children = (windowPayload.contracts || []).filter(c => c["Master Contract ID"] === masterId);
+            let newCommitment = 0; let newRunRate = 0;
+
+            children.forEach(c => {
+                newCommitment += parseFloat(c["Total Commitment"] || c["TCV"]) || 0;
+                newRunRate += parseFloat(c["Annual Value"]) || 0;
+            });
+
+            master["Total Commitment"] = newCommitment;
+            master["Run Rate"] = newRunRate;
+        },
+
+        handleOrphanDragStart: function (event, contractId) {
+            if (!TimelineState.isTimelineEditable) return;
+            event.dataTransfer.setData('text/plain', JSON.stringify({ type: 'ORPHAN', id: contractId }));
+            event.dataTransfer.effectAllowed = 'move';
+            const drawer = document.getElementById('timeline-orphans-drawer');
+            if (drawer) drawer.classList.add('translate-x-full');
+        },
+
+        // --- MOTORE DI SELEZIONE CLICK-TO-LINK SMART ---
+        linkingSourceMasterId: null,
+        linkingSourceAsset: null,
+
+        handleSourceAnchorClick: function (masterId, assetName, element) {
+            if (!TimelineState.isTimelineEditable) return;
+
+            // Se riclicchi sullo stesso pallino, annulla l'operazione
+            if (this.linkingSourceMasterId === masterId) {
+                this.resetAnchorSelection();
+                return;
+            }
+
+            this.linkingSourceMasterId = masterId;
+            this.linkingSourceAsset = assetName;
+
+            // 1. Spegni TUTTI i pallini sorgente, tranne quello cliccato che diventa arancione
+            document.querySelectorAll('.timeline-source-dot').forEach(dot => {
+                if (dot.getAttribute('data-master') === masterId) {
+                    dot.classList.remove('bg-emerald-500', 'border-white', 'hidden');
+                    dot.classList.add('bg-amber-500', 'border-amber-600', 'ring-4', 'ring-amber-500/30', 'scale-125');
+                } else {
+                    dot.classList.add('hidden');
+                }
+            });
+
+            // 2. Accendi i pallini destinazione (Teal) SOLO per le card dello STESSO Asset
+            document.querySelectorAll('.timeline-target-dot').forEach(dot => {
+                const dotAsset = dot.getAttribute('data-asset');
+                const dotMaster = dot.getAttribute('data-master');
+
+                // Mostra destinazioni valide: stesso asset, ma NON se stesso
+                if (dotAsset === assetName && dotMaster !== masterId) {
+                    dot.classList.remove('hidden');
+                } else {
+                    dot.classList.add('hidden');
+                }
+            });
+
+            if (typeof ContractsUtils !== 'undefined') {
+                ContractsUtils.showMgmtBannerStatus("Predecessor locked. Valid successors within the same Asset are now highlighted in teal.", "warning");
+            }
+        },
+
+        handleTargetAnchorClick: function (masterId, element) {
+            if (!TimelineState.isTimelineEditable) return;
+
+            if (this.linkingSourceMasterId === null) return; // Fail-safe
+            if (this.linkingSourceMasterId === masterId) return; // Non può collegarsi a se stesso
+
+            const targetMaster = (windowPayload.masterContracts || []).find(m => m["Master Contract ID"] === masterId);
+            let prevs = targetMaster ? (targetMaster["Previous Master ID"] || "").toString().split(',').map(s => s.trim()).filter(s => s) : [];
+            const isAlreadyLinked = prevs.includes(this.linkingSourceMasterId);
+
+            this.openLinkConfirmationModal(this.linkingSourceMasterId, masterId, isAlreadyLinked);
+        },
+
+        resetAnchorSelection: function () {
+            this.linkingSourceMasterId = null;
+            this.linkingSourceAsset = null;
+
+            // Ripristina e mostra tutti i pallini sorgente (se in edit mode)
+            document.querySelectorAll('.timeline-source-dot').forEach(dot => {
+                dot.className = `timeline-source-dot absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full cursor-pointer hover:scale-125 transition-all shadow-md z-[60] ${TimelineState.isTimelineEditable ? '' : 'hidden'}`;
+            });
+
+            // Nascondi tutti i pallini destinazione
+            document.querySelectorAll('.timeline-target-dot').forEach(dot => {
+                dot.className = `timeline-target-dot absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-teal-500 border-2 border-white rounded-full cursor-pointer hover:scale-125 transition-all shadow-md z-[60] hidden`;
+            });
+        },
+
+        openLinkConfirmationModal: function (sourceId, targetId, isAlreadyLinked) {
+            const mountPoint = document.getElementById('timeline-modal-mount-point');
+            if (!mountPoint) return;
+
+            mountPoint.innerHTML = TimelineTemplates.getLinkConfirmationModalMarkup(sourceId, targetId, isAlreadyLinked);
+            mountPoint.classList.remove('hidden');
+            mountPoint.classList.add('flex');
+            mountPoint.onclick = null;
+        },
+
+        confirmVisualLink: function (sourceId, targetId) {
+            const targetMaster = (windowPayload.masterContracts || []).find(m => m["Master Contract ID"] === targetId);
+            if (targetMaster) {
+                let currentPrevs = (targetMaster["Previous Master ID"] || "").toString().split(',').map(s => s.trim()).filter(s => s);
+                if (!currentPrevs.includes(sourceId)) {
+                    currentPrevs.push(sourceId);
+                    targetMaster["Previous Master ID"] = currentPrevs.join(', ');
+
+                    this.showCommitButton();
+                    this.renderActiveTimelineCanvas(); // Ridisegna SUBITO con il vettore SVG aggiornato!
+                }
+            }
+            this.resetAnchorSelection();
+            this.closeMasterDetailsModal();
+        },
+
+        confirmLinkRemoval: function (sourceId, targetId) {
+            const targetMaster = (windowPayload.masterContracts || []).find(m => m["Master Contract ID"] === targetId);
+            if (targetMaster) {
+                let currentPrevs = (targetMaster["Previous Master ID"] || "").toString().split(',').map(s => s.trim()).filter(s => s);
+                currentPrevs = currentPrevs.filter(p => p !== sourceId);
+                targetMaster["Previous Master ID"] = currentPrevs.join(', ');
+
+                this.showCommitButton();
+                this.renderActiveTimelineCanvas(); // Cancella SUBITO la linea dallo schermo!
+            }
+            this.resetAnchorSelection();
+            this.closeMasterDetailsModal();
+            if (typeof ContractsUtils !== 'undefined') ContractsUtils.showMgmtBannerStatus("Link removed successfully.", "warning");
+        },
+
+        handleMasterDragOver: function (event, element) {
+            if (!TimelineState.isTimelineEditable) return;
+            event.preventDefault();
+            const overlay = element.querySelector('[id^="drop-overlay-"]');
+            if (overlay) overlay.classList.remove('opacity-0');
+        },
+
+        handleMasterDragLeave: function (event, element) {
+            const overlay = element.querySelector('[id^="drop-overlay-"]');
+            if (overlay) overlay.classList.add('opacity-0');
+        },
+
+        handleMasterDrop: function (event, targetMasterId, element) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const overlay = element.querySelector('[id^="drop-overlay-"]');
+            if (overlay) overlay.classList.add('opacity-0');
+
+            if (!TimelineState.isTimelineEditable) return;
+
+            const rawData = event.dataTransfer.getData('text/plain');
+            if (!rawData) return;
+
+            try {
+                const data = JSON.parse(rawData);
+                if (data.type === 'ORPHAN') {
+                    const contract = (windowPayload.contracts || []).find(c => c["Contract ID"] === data.id);
+                    if (contract) {
+                        contract["Master Contract ID"] = targetMasterId;
+                        this.recalculateMasterInRAM(targetMasterId);
+                        this.showCommitButton();
+                        this.renderActiveTimelineCanvas();
+                        this.renderOrphansList();
+                        if (typeof ContractsUtils !== 'undefined') ContractsUtils.showMgmtBannerStatus("Contract successfully linked to Master.", "success");
+                    }
+                }
+            } catch (e) { console.error("Drop error", e); }
+        },
+
+        unlinkContract: function (contractId, masterId) {
+            const contract = (windowPayload.contracts || []).find(c => c["Contract ID"] === contractId);
+            if (contract) {
+                contract["Master Contract ID"] = "";
+                this.recalculateMasterInRAM(masterId);
+                this.showCommitButton();
+                this.renderActiveTimelineCanvas();
+                this.renderOrphansList();
+
+                const drawer = document.getElementById('timeline-orphans-drawer');
+                if (drawer) drawer.classList.remove('translate-x-full');
+                this.openMasterDetailsModal(masterId);
+
+                if (typeof ContractsUtils !== 'undefined') ContractsUtils.showMgmtBannerStatus("Contract unlinked.", "warning");
+            }
+        },
+
+        showCommitButton: function () {
+            const btn = document.getElementById('timeline-commit-btn');
+            if (btn) btn.classList.replace('hidden', 'flex');
+        },
+
+        showFloatingArrows: function () { },
+
+        commitTimelineChanges: function () {
+            // Pronto per l'ultimo step relazionale delle API
+            alert("Changes submitted from RAM to the core database pipeline layer.");
+            const btn = document.getElementById('timeline-commit-btn');
+            if (btn) btn.classList.replace('flex', 'hidden');
+        },
+
+        closeMasterDetailsModal: function () {
+            this.resetAnchorSelection();
+            const mountPoint = document.getElementById('timeline-modal-mount-point');
+            if (!mountPoint) return;
+            mountPoint.classList.add('hidden');
+            mountPoint.classList.remove('flex');
+            mountPoint.innerHTML = '';
+            mountPoint.onclick = () => this.closeMasterDetailsModal();
         }
     };
 
