@@ -636,8 +636,8 @@
         const endDate = document.getElementById(`edit-contractEndDate-${detailId}`).value;
         const totCommit = document.getElementById(`edit-totalCommitment-${detailId}`).value.replace(/[^0-9]/g, '');
 
-        if (model !== "Minimum Consumption" || terms !== "Ledger-Driven") {
-            FinOpsUI.showAlert("Governance Restriction", "Automation calculations apply exclusively to 'Minimum Consumption' pricing models with 'Ledger-Driven' allocation terms.");
+        if (!["Minimum Consumption", "Capped Consumption"].includes(model) || terms !== "Ledger-Driven") {
+            FinOpsUI.showAlert("Governance Restriction", "Automation calculations apply exclusively to 'Minimum Consumption' or 'Capped Consumption' pricing models with 'Ledger-Driven' allocation terms.");
             return;
         }
 

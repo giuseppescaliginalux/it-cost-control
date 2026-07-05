@@ -16,17 +16,18 @@ Definisce la natura commerciale della tariffa pattuita con il fornitore:
 
 ### 1.2 Commitment Allocation (Il "Come")
 Determina la metodologia di scomposizione ed inserimento del budget lungo il calendario contrattuale:
-* **`Linear`**: Il motore ripartisce in autonomia il valore economico in quote giornaliere speculari (`Annual Value / 365`) distribuendole pro-rata sui mesi fiscali.
-* **`Ledger-Driven`**: L'automatismo lineare viene disattivato. Il motore si congela ed elegge come unica fonte di verità i flussi di cassa o ratei immessi manualmente dall'utente nella tabella `Ledger`.
+* **`Linear`**: Il motore ripartisce in autonomia il valore economico in quote speculari distribuendole pro-rata sui mesi fiscali.
+* **`Ledger-Driven`**: L'automatismo lineare viene disattivato. Il motore si congela ed elegge come unica fonte di verità i flussi di cassa o ratei immessi manualmente dall'utente nella tabella `Ledger`. (Da usare solo per flussi irregolari o imprevedibili).
 
 ### 1.3 Cost Recurrence (Il "Dopo")
 Istruisce il sistema sul destino economico dell'asset al raggiungimento della sua data di scadenza contrattuale (`End Date` o `Adjusted End Date`):
-* **`One-Shot`**: L'asset cessa di esistere finanziariamente. Dal giorno successivo alla scadenza, la sua proiezione crolla istantaneamente e definitivamente a **0€**.
+* **`One-Shot`**: L'asset cessa di esistere finanziariamente. La proiezione crolla istantaneamente e definitivamente a **0€**. Il costo viene tipicamente assorbito per intero nel Fiscal Year in cui ricade la `Start Date`.
 * **`Recurrent`**: L'asset descrive un servizio vitale. Al superamento della data di fine contratto, il motore innesca un **rinnovo virtuale**, continuando a proiettare la quota annualizzata standard (`Annual Value`) per garantire la copertura economica nei Fiscal Year successivi.
 
-### 1.4 Billing Frequency (La Cassa)
-Parametro organizzativo e descrittivo (`Monthly`, `Quarterly`, `Upfront Yearly`, `Upfront Pluriennale`). Agisce come semaforo procedurale per la configurazione:
-* Se un contratto è fatturato in modalità *Upfront* (Yearly o Pluriennale), la governance impone di impostare la *Commitment Allocation* su **`Ledger-Driven`** per mappare l'uscita finanziaria singola nel Ledger, azzerando i mesi e gli anni fiscali non impattati da movimenti monetari reali.
+### 1.4 Billing Terms (Frequenza e Modalità)
+Parametro organizzativo che definisce la frequenza di fatturazione (`Linear`, `Quarterly`, `Full Upfront`, `Ledger-Driven`):
+* **`Full Upfront`**: Pagamento anticipato totale. Essendo un evento temporalmente e finanziariamente deterministico (tutto il commitment alla `Start Date`), il sistema lo gestisce nativamente. **Non è necessario** impostare il contratto su `Ledger-Driven` né compilare manualmente righe nel Ledger.
+* **`Ledger-Driven`**: Da usare *esclusivamente* quando la fatturazione è così irregolare (es. milestone di progetto, servizi a chiamata) da non poter essere dedotta matematicamente, rendendo obbligatorio l'inserimento manuale dei movimenti nel Ledger da parte dell'utente.
 
 ---
 
@@ -44,9 +45,9 @@ La funzione `regenerateLedgerCalculatedProjections()` esegue un purge preventivo
 
 ---
 
-## 3. pipeline Analitica delle Proiezioni Fiscali
+## 3. Pipeline Analitica delle Proiezioni Fiscali
 
-Le proiezioni corrono in memoria all'interno del file `projections_engine.js`. Il calcolo avviene in parallelo per abbattere la complessità computazionale ($O(1)$) tramite tabelle hash a dizionario, valorizzando simultaneamente i campi ufficiali del foglio `FiscalProjections`.
+Le proiezioni corrono in memoria all'interno del file `Projections.js`. Il calcolo avviene in parallelo per abbattere la complessità computazionale ($O(1)$) tramite tabelle hash a dizionario, valorizzando simultaneamente i campi ufficiali del foglio `FiscalProjections`.
 
 ### 3.1 Finestre Temporali di Competenza Fiscale
 Il motore perimetra rigidamente i confini dei Fiscal Year di riferimento:
@@ -59,29 +60,33 @@ Lo script calcola l'intersezione in giorni (`Days_In_FY`) fra l'anno fiscale esa
 ### 3.2 Modelli Economici di Calcolo
 
 #### Ramo 1: Calcolo Baseline Ufficiale
-1.  **Ripartizione Standard (`Linear`)**: Calcola il costo basandosi puramente sul rateo giornaliero:
-    $$\text{Importo Baseline} = \left(\frac{\text{Annual Value}}{365}\right) \times \text{Giorni Competenza FY}$$
-2.  **Ripartizione di Cassa (`Ledger-Driven`)**: Il calcolo lineare si spegne. Il motore estrae dal Ledger tutti i movimenti associati al `Group ID` dell'asset e calcola il pro-rata esatto basandosi sull'effettiva sovrapposizione temporale dei singoli movimenti con il Fiscal Year analizzato.
-3.  **Innesco Rollover**: Se il contratto scade all'interno del Fiscal Year ed è contrassegnato come `Recurrent`, per il sotto-periodo che va dal giorno successivo alla scadenza fino al termine del Fiscal Year viene applicato il Run Rate lineare standard, sommandolo alle evidenze estratte dal Ledger.
+1.  **Standard ERP Monthly Pro-Rata**: Il motore distribuisce il canone annuo in 12 mensilità esatte (`Annual Value / 12`). I mesi pienamente coperti ricevono la quota intatta per prevenire micro-fluttuazioni da calendario. Solo i mesi di sbarramento (inizio/fine contratto) vengono riproporzionati sui giorni commerciali effettivi.
+2.  **Ripartizione di Cassa (`Ledger-Driven`)**: Il calcolo lineare si spegne. Il motore estrae dal Ledger tutti i movimenti associati all'asset e calcola il pro-rata esatto basandosi sull'effettiva sovrapposizione temporale dei movimenti con il Fiscal Year analizzato.
+3.  **Innesco Rollover**: Se il contratto scade all'interno del Fiscal Year ed è `Recurrent`, per il periodo post-scadenza viene applicato il Run-Rate nominale standard (rinnovo virtuale), a meno che non intervenga un contratto successore anagrafato a bloccarlo.
 
-#### Ramo 2: Calcolo Optimized Ufficiale
-Il calcolo Optimized eredita i paletti temporali della Baseline ma esegue l'iniezione asincrona della matrice delle `Initiatives` collegate al `Group ID`, processando array strutturati per supportare iniziative simultanee ed evitare sovrascritture in memoria:
-* **Iniziative di Optimization (Rinegoziazioni/Saving)**: Lo script calcola il peso proporzionale del singolo contratto all'interno del suo gruppo d'acquisto (`Annual Value / Group Total Annual Value`), alloca la quota parte del `Target Saving (Annualized)` e scompone l'anno fiscale in due frazioni tariffarie distinte rispetto alla data target dell'iniziativa:
-    * *Giorni Pre-Iniziativa*: Valorizzati alla tariffa giornaliera baseline standard.
-    * *Giorni Post-Iniziativa*: Valorizzati alla tariffa giornaliera ottimizzata al netto del saving proporzionale.
-* **Iniziative di Dismissione (`Termination`, `Terminate`, `Replace`, `Transfer`)**: Agiscono come un blocco temporale distruttivo assoluto (`Absolute Cap`). Qualsiasi giorno di rinnovo virtuale o movimento predittivo del Ledger situato oltre la data reale di dismissione viene troncato istantaneamente a **0€**, certificando l'azzeramento definitivo dei costi post-switch off.
+#### Ramo 2: Calcolo Optimized Ufficiale e Regole di Business
+Il calcolo Optimized eredita i paletti temporali della Baseline ma inietta la matrice delle `Initiatives` applicando due regole fondamentali di FinOps Governance:
+
+* **Regola 1: Target Date "Naturale" (Go-Live Inclusivo)**
+  La `Target Date` immessa dall'utente rappresenta la data esatta di entrata in vigore. Se si fissa un'iniziativa al `01/01/2027`, l'ottimizzazione o l'azzeramento dei costi parte ESATTAMENTE dalla mattina del 1° Gennaio.
+  
+* **Regola 2: Gradini di Run-Rate (Cascata Moltiplicativa)**
+  Quando più iniziative di `OPTIMIZE` insistono sullo stesso Master Agreement lungo il tempo, il sistema **non** accumula le percentuali (es. -10% e poi -20% non fa -30%). L'algoritmo applica una **cascata moltiplicativa sequenziale** per far sì che ogni iniziativa definisca un nuovo livello di Run-Rate stabile e duraturo a partire dalla sua data target. Questo permette all'utente di definire il nuovo *Target Cost* (es. prima rinegozio a 80k, poi l'anno dopo scendo a 50k) sapendo che l'algoritmo vi atterrerà spaccando il centesimo.
+
+* **Iniziative di Dismissione (`TERMINATE`, `REPLACE`, `TRANSFER`)**:
+  Agiscono come un interruttore definitivo (`Absolute Cap`). A partire dalla `Target Date` (inclusa), la spesa del contratto viene troncata istantaneamente a **0€**.
 
 ---
 
 ## 4. Walkthrough Matematico (Esempio di Validazione)
 
-Per attestare la robustezza logica del sistema, si analizza il comportamento del motore su un asset complesso affetto da upfront pluriennale ed iniziative conflittuali:
+Per attestare la robustezza logica del sistema (confermata dai test unitari), si analizza il comportamento del motore ERP Pro-Rata su un asset complesso:
 
 * **Metadati Contratto**: Valore 700.000€ su 24 mesi (Durata: 01/11/2024 – 31/10/2026) $\rightarrow$ `Annual Value` = 350.000€, `Cost Recurrence` = `Recurrent`, `Commitment Allocation` = `Ledger-Driven`.
 * **Stato del Ledger**: Movimento unico Upfront registrato in data 01/11/2024 (Finanziariamente situato nel passato all'interno del **FY25**). Il Ledger è vuoto nei periodi successivi.
 * **Matrice Iniziative**:
-    1.  *Iniziativa A (Optimization)*: Target Saving di 35.000€ con data target 31/10/2026.
-    2.  *Iniziativa B (Termination)*: Dismissione totale con data target 31/12/2027.
+    1.  *Iniziativa A (Optimization)*: Rinegozia il Run-Rate a 315.000€ (Sconto di 35.000€). Target Date per il Go-Live: **01/11/2026**.
+    2.  *Iniziativa B (Termination)*: Dismissione totale. Target Date per lo spegnimento: **01/01/2028**.
 
 ### Risultati dei Calcoli Generati dal Sistema
 
@@ -92,17 +97,17 @@ Per attestare la robustezza logica del sistema, si analizza il comportamento del
     * *Logica*: Speculare alla baseline. L'ottimizzazione tariffaria non è ancora attiva sul calendario corrente.
 
 #### 4.2 Proiezioni FY27 (01/07/2026 – 30/06/2027)
-Il contratto scade il 31/10/2026. L'anno fiscale viene spaccato in due: i primi **123 giorni** (fino al 31/10) sono a budget 0€ (guidati dal Ledger vuoto), i successivi **242 giorni** (fino al 30/06) sono coperti dal rinnovo virtuale.
-* **`FY27 Baseline` = 232.054,79€**
-    * *Calcolo*: $0.00€ + \left( \frac{350.000€}{365} \times 242 \text{ giorni} \right) = 232.054,79€$
-* **`FY27 Optimized` = 208.849,32€**
-    * *Calcolo*: Lo script intercetta l'Iniziativa A. Dal 01/11/2026 la tariffa annua del rinnovo cala a 315.000€ ($350.000€ - 35.000€$).
-    * $$\text{Importo} = 0.00€ + \left( \frac{315.000€}{365} \times 242 \text{ giorni} \right) = 208.849,32€$$
+Il contratto scade il 31/10/2026. L'anno fiscale viene spaccato in due: i primi 4 mesi esatti (fino al 31/10) sono a budget 0€ (guidati dal Ledger vuoto). Dal 1° Novembre scatta il Rollover Virtuale.
+* **`FY27 Baseline` = 233.333,33€**
+    * *Calcolo*: 8 mesi pieni di Rollover (da Novembre a Giugno inclusi) $\rightarrow$ $\frac{350.000€}{12} \times 8 \text{ mesi} = 233.333,33€$
+* **`FY27 Optimized` = 210.000,00€**
+    * *Calcolo*: Lo script intercetta l'Iniziativa A con decorrenza esatta dal 01/11/2026. La tariffa annua del rinnovo cala al gradino target di 315.000€.
+    * $$\text{Importo} = \left( \frac{315.000€}{12} \times 8 \text{ mesi} \right) = 210.000,00€$$
 
 #### 4.3 Proiezioni FY28 (01/07/2027 – 30/06/2028)
-L'anno fiscale risiede interamente nell'area del rinnovo virtuale. L'Iniziativa B (Termination al 31/12/2027) interrompe l'erogazione: l'asset è attivo per i primi **184 giorni** dell'anno e spento per i restanti **181 giorni**.
+L'anno fiscale risiede interamente nell'area del rinnovo virtuale. L'Iniziativa B (`TERMINATE` al 01/01/2028) spegne il server la mattina di Capodanno: l'asset è attivo per i primi 6 mesi dell'anno (Luglio-Dicembre) e spento per i successivi 6 mesi.
 * **`FY28 Baseline` = 350.000,00€**
-    * *Calcolo*: La baseline ignora le dismissioni e stanzia l'accantonamento standard per l'intera annualità: $\frac{350.000€}{365} \times 365 = 350.000,00€$.
-* **`FY28 Optimized` = 158.794,52€**
-    * *Calcolo*: L'algoritmo multi-iniziativa applica l'Optimization per i 184 giorni pre-chiusura e azzera radicalmente la tariffa giornaliera per i 181 giorni post-chiusura.
-    * $$\text{Importo} = \left( \frac{315.000€}{365} \times 184 \text{ giorni} \right) + \left( 0.00€ \times 181 \text{ giorni} \right) = 158.794,52€$$
+    * *Calcolo*: La baseline ignora le dismissioni e stanzia l'accantonamento per i 12 mesi intatti $\rightarrow 350.000,00€$.
+* **`FY28 Optimized` = 157.500,00€**
+    * *Calcolo*: Il motore pro-rata rileva l'Optimization attiva dal passato e la Termination attiva dal 1° Gennaio. Calcola quindi esattamente 6 mesi a tariffa scontata e 6 mesi a zero.
+    * $$\text{Importo} = \left( \frac{315.000€}{12} \times 6 \text{ mesi attivi} \right) + 0,00€ = 157.500,00€$$
