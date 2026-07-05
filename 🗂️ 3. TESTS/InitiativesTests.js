@@ -7,79 +7,58 @@
   const registry = GLOBAL_TEST_REGISTRY.initiatives;
 
   registry.push({
-    description: "Initiative.getOptimizedRunRate() - Calcolo corretto del tasso di consumo post-ottimizzazione",
+    description: "Initiative.injectContext() - Calcolo Baseline, Lookup Top-Down e Ricalcolo Saving",
     fn: function(assert) {
-      const init = new Initiative({ "Initiative ID": "INC-001", "Target Saving %": 15 });
-      // Iniezione di un Master Contract con Run Rate a 200.000€
-      init.injectMasterContext({ runRate: 200000 });
+      const init = new Initiative({ id: "INC-001", targetCostAnnualized: 170000, decision: "OPTIMIZATION" });
+      init.injectContext({ runRate: 200000, supplier: "AWS", masterEndDate: "2028-12-31" }, []);
 
-      // Saving atteso = 15% di 200k = 30.000€
-      assert.equal(init.getTargetSavingAmount(), 30000);
-      // Run Rate Ottimizzato atteso = 200k - 30k = 170.000€
-      assert.equal(init.getOptimizedRunRate(), 170000);
+      assert.equal(init.supplier, "AWS");
+      assert.equal(formatServerDate(init.lastExpiration), "2028-12-31");
+      assert.equal(init.baselineSpendAnnualized, 200000);
+      assert.equal(init.targetSavingAnnualized, 30000);
+      assert.equal(init.targetSavingPct, 0.15);
     }
   });
 
   registry.push({
     description: "Initiative.getEffectiveDate() - Fallback logico tra Actual e Target Date",
     fn: function(assert) {
-      const initPlanned = new Initiative({ "Target Date": "2026-06-01", "Actual Date": "" });
-      // Se l'iniziativa è pianificata, la data di entrata in vigore è la Target Date
+      const initPlanned = new Initiative({ targetDate: "2026-06-01", actualDate: "" });
       assert.equal(formatServerDate(initPlanned.getEffectiveDate()), "2026-06-01");
 
-      const initCompleted = new Initiative({ "Target Date": "2026-06-01", "Actual Date": "2026-05-15" });
-      // Se l'iniziativa è completata anticipatamente, l'impatto finanziario si sposta sulla Actual Date
+      const initCompleted = new Initiative({ targetDate: "2026-06-01", actualDate: "2026-05-15", status: "COMPLETED" });
       assert.equal(formatServerDate(initCompleted.getEffectiveDate()), "2026-05-15");
     }
   });
 
-  // --------------------------------------------------------------------------
-  // NUOVO TEST: BULK PRESERVATION & METADATA SAFETY
-  // --------------------------------------------------------------------------
-
   registry.push({
-    description: "Initiative.exportToData() - Deve preservare i metadati descrittivi (Asset Name, Tags, Owner) dopo il calcolo bulk",
+    description: "Initiative.exportToData() - Deve preservare il dizionario completo e le colonne esterne",
     fn: function(assert) {
-      // Simuliamo una riga completa proveniente dal tuo foglio con tutte le colonne critiche
       const mockRowFromSheet = {
-        "Initiative ID": "INC-TEST-CONSERVATIVE",
+        "Initiative ID": "INC-TEST",
         "Asset Name": "Cloud Big Data Cluster",
-        "Supplier": "Google Cloud",
-        "Tags": "FinOps-2026, Q3-Optimization",
-        "Service Owner": "Mario Rossi",
-        "Procurement Point": "Direct Contract",
-        "Initiative Name": "Right-sizing instances",
-        "Initiative Status": "IN PROGRESS",
-        "Decision": "OPTIMIZE",
-        "Target Date": "2026-08-01",
-        "Target Saving %": 20,
-        "Notes": "Preserve this note",
-        "Quality Check": "PASSED"
+        "Target Cost (Annualized)": 80000,
+        "Optimization Levers": "Tier Consolidation",
+        "Quality Check": "PASSED",
+        "Colonna Ignota": "Segreto"
       };
 
-      // Istanziamo l'oggetto di dominio
-      const initiative = new Initiative(mockRowFromSheet);
-      
-      // Iniettiamo un finto contesto economico del Master Contract (es. Run Rate di 100.000€)
-      initiative.injectMasterContext({ runRate: 100000 });
-
-      // Generiamo il DTO di esportazione destinato al foglio
+      // Usiamo il mapper di dominio locale
+      const dto = InitiativeMapper.toDto(mockRowFromSheet);
+      const initiative = new Initiative(dto);
+      initiative.injectContext({ runRate: 100000 }, []);
       const exportedData = initiative.exportToData();
 
-      // 1. VERIFICA DEI CALCOLI (20% di 100k = 20k)
-      assert.equal(exportedData["Target Saving Amount"], 20000);
-      assert.equal(exportedData["Optimized Run Rate"], 80000);
+      assert.equal(exportedData.baselineSpendAnnualized, 100000);
+      assert.equal(exportedData.targetCostAnnualized, 80000);
+      assert.equal(exportedData.targetSavingAnnualized, 20000);
 
-      // 2. VERIFICA DELLA RETE DI SICUREZZA (Le colonne descrittive NON devono essere sparite)
-      assert.equal(exportedData["Asset Name"], "Cloud Big Data Cluster");
-      assert.equal(exportedData["Supplier"], "Google Cloud");
-      assert.equal(exportedData["Tags"], "FinOps-2026, Q3-Optimization");
-      assert.equal(exportedData["Service Owner"], "Mario Rossi");
-      assert.equal(exportedData["Procurement Point"], "Direct Contract");
-      assert.equal(exportedData["Quality Check"], "PASSED");
-
-      console.log("      [Check Integrity]: Colonne descrittive preservate intatte in RAM.");
+      assert.equal(exportedData.assetName, "Cloud Big Data Cluster");
+      assert.equal(exportedData.optimizationLevers, "Tier Consolidation");
+      assert.equal(exportedData.qualityCheck, "PASSED");
+      
+      // Rete di Sicurezza
+      assert.equal(exportedData["Colonna Ignota"], "Segreto");
     }
   });
-
 })();

@@ -10,7 +10,9 @@
 const GLOBAL_TEST_REGISTRY = {
   contracts: [],
   initiatives: [],
-  projections: []
+  projections: [],
+  utils: [],
+  assets: []
 };
 
 /**
@@ -24,7 +26,9 @@ function test_LAUNCH_ALL_SUITES() {
   const allTests = [
     ...GLOBAL_TEST_REGISTRY.contracts,
     ...GLOBAL_TEST_REGISTRY.initiatives,
-    ...GLOBAL_TEST_REGISTRY.projections
+    ...GLOBAL_TEST_REGISTRY.projections,
+    ...GLOBAL_TEST_REGISTRY.utils,
+    ...GLOBAL_TEST_REGISTRY.assets
   ];
   
   runner.execute(allTests);
@@ -57,6 +61,18 @@ function test_SUITE_Projections_Only() {
   runner.execute(GLOBAL_TEST_REGISTRY.projections);
 }
 
+function test_SUITE_Utils_Only() {
+  const runner = new MiniTestFramework();
+  console.log("=== 🧪 AVVIO SUITE SELETTIVA: UTILS ===");
+  runner.execute(GLOBAL_TEST_REGISTRY.utils);
+}
+
+function test_SUITE_Assets_Only() {
+  const runner = new MiniTestFramework();
+  console.log("=== 🧪 AVVIO SUITE SELETTIVA: ASSETS ===");
+  runner.execute(GLOBAL_TEST_REGISTRY.assets);
+}
+
 // ============================================================================
 // L'INGEGNERIA DEL FRAMEWORK (IL MOTORE EMULATORE)
 // ============================================================================
@@ -80,6 +96,12 @@ class MiniTestFramework {
         if (Math.abs(actual - expected) > tolerance) {
           throw new Error(`Atteso circa [${expected}] (tolleranza ±${tolerance}), ma ricevuto [${actual}]`);
         }
+      },
+      true: (actual, msg) => {
+        if (actual !== true) throw new Error(msg || `Atteso [true], ma ricevuto [${actual}]`);
+      },
+      false: (actual, msg) => {
+        if (actual !== false) throw new Error(msg || `Atteso [false], ma ricevuto [${actual}]`);
       },
       throws: (fn, expectedErrorText) => {
         try {

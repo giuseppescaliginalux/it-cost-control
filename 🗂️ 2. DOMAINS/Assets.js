@@ -1,158 +1,312 @@
 /**
  * ============================================================================
- * FINOPS ENTERPRISE ARCHITECTURE: ASSETS & BUDGETS DOMAIN (PURE OOP)
+ * FINOPS ENTERPRISE ARCHITECTURE: ASSETS & BUDGETS DOMAIN (PURE DTO PATTERN)
  * ============================================================================
- * Gestisce l'anagrafe degli Asset, gli stanziamenti di Budget economici
- * e il consolidamento dello stato di salute (Budget Status) rispetto alle proiezioni.
+ * Gestisce l'anagrafe degli Asset tecnologici, l'analisi dei driver di business
+ * e la riconciliazione automatica degli indicatori finanziari (Varianze e Status).
  * ============================================================================
  */
 
 // ============================================================================
-// 1. DOMAIN ENTITIES (Oggetti di Dominio Intelligenti)
+// 1. INFRASTRUCTURE & PERSISTENCE SCHEMA (Alta Coesione Locale)
+// ============================================================================
+
+const ASSET_FIELD_MAP = {
+  "Asset ID": "id",
+  "Asset Name": "name",
+  "Manufacturer": "manufacturer",
+  "Business Driver": "businessDriver",
+  "Asset Category": "category",
+  "Asset Type": "assetType",
+  "Description": "description",
+  "Budget Status (FY27)": "budgetStatusFY27",
+  "Run Rate": "runRate",
+  "Current Status": "currentStatus",
+  "Target Status": "targetStatus",
+  "Cost Improvement": "costImprovement",
+  "Exit Date": "exitDate",
+  "Transfer Date": "transferDate",
+  "Initiative Target Date": "initiativeTargetDate",
+  "Last End Date": "lastEndDate"
+};
+
+/**
+ * @object AssetMapper
+ * @description Isola il Modello di Dominio dalle strutture fisiche delle righe di Google Sheets.
+ */
+const AssetMapper = {
+  /**
+   * Trasforma una riga grezza letta dal foglio in un DTO standardizzato in camelCase.
+   * Garantisce l'invarianza e la protezione totale da perdita dati per le colonne extra.
+   */
+  toDto: (rawRow) => {
+    const dto = {};
+    const mappedKeys = Object.keys(ASSET_FIELD_MAP);
+    const mappedCamelKeys = Object.values(ASSET_FIELD_MAP);
+    
+    // Rete di sicurezza: le colonne custom non censite passano intatte nel DTO
+    for (let key in rawRow) {
+      if (!mappedKeys.includes(key) && !mappedCamelKeys.includes(key)) {
+        dto[key] = rawRow[key];
+      }
+    }
+    
+    // Traduzione esplicita delle colonne strutturate
+    for (let sheetHeader in ASSET_FIELD_MAP) {
+      const camelProp = ASSET_FIELD_MAP[sheetHeader];
+      let val = rawRow[sheetHeader] !== undefined ? rawRow[sheetHeader] : rawRow[camelProp];
+      dto[camelProp] = val !== undefined && val !== null ? val : "";
+    }
+    
+    return dto;
+  }
+};
+
+// ============================================================================
+// 2. PURE MODEL DOMAIN ENTITY (SOLID: Single Responsibility Principle)
 // ============================================================================
 
 /**
  * @class Asset
- * @description Entità centrale dell'anagrafe. Governa i suoi metadati e il suo Budget.
+ * @description Entità di puro dominio. Interagisce unicamente con proprietà camelCase.
  */
 class Asset {
-  constructor(rawData) {
-    this.id = rawData["Asset ID"] || rawData.assetId || "";
-    this.name = rawData["Asset Name"] || rawData.assetName || "";
-    this.manufacturer = rawData["Manufacturer"] || "";
-    this.businessDriver = rawData["Business Driver"] || "";
-    this.category = rawData["Asset Category"] || "";
+  constructor(dto = {}) {
+    this.id = dto.id || "";
+    this.name = dto.name || "";
+    this.manufacturer = dto.manufacturer || "";
+    this.businessDriver = dto.businessDriver || "";
+    this.category = dto.category || "";
+    this.assetType = dto.assetType || "";
+    this.description = dto.description || "";
     
-    // Lo stanziamento di budget registrato sull'anagrafe (es. per l'anno corrente)
-    this.budgetFY27 = parseFloat(rawData["Budget FY27"]) || 0; 
+    // Stati e metriche finanziarie fluide calcolate in RAM
+    this.budgetStatusFY27 = dto.budgetStatusFY27 || "Not Budgeted";
+    this.runRate = parseFloat(dto.runRate) || 0;
+    this.currentStatus = dto.currentStatus || "RUNNING";
+    this.targetStatus = dto.targetStatus || "RETAIN";
+    this.costImprovement = parseFloat(dto.costImprovement) || 0;
+    this.exitDate = dto.exitDate || "";
+    this.transferDate = dto.transferDate || "";
+    this.initiativeTargetDate = dto.initiativeTargetDate || "";
+    this.lastEndDate = dto.lastEndDate || "";
     
-    this._raw = rawData;
+    // Buffer isolato per l'invarianza del Bulk Round-Trip
+    this.extraProperties = {};
+    const knownProperties = Object.values(ASSET_FIELD_MAP);
+    for (let key in dto) {
+      if (!knownProperties.includes(key)) {
+        this.extraProperties[key] = dto[key];
+      }
+    }
   }
 
   /**
-   * SOLID Behavioral Engine: Calcola lo stato del budget (Sotto, In Linea, Fuori Budget)
-   * confrontando lo stanziamento dell'Asset con la proiezione ottimizzata reale.
-   * @param {number} optimizedProjectionValue - Il valore calcolato dal ProjectionDomain
-   * @returns {string} Lo stato del semaforo finanziario
+   * @description Modulo logico relazionale puro. Esegue l'orchestrazione dei calcoli in RAM
+   * basandosi esclusivamente su DTO digeriti e normalizzati provenienti dagli altri domini.
    */
-  evaluateBudgetStatus(optimizedProjectionValue) {
-    if (this.budgetFY27 <= 0) return "NO BUDGET DEFINED";
-    if (optimizedProjectionValue === 0) return "NO REAL SPEND";
+  injectContext(assetProjections, assetContracts, assetInits, assetVariances) {
+    // A: RUN RATE (Somma orizzontale dell'Outlook FY27 Ottimizzato)
+    const calculatedRunRate = assetProjections.reduce((sum, p) => sum + (parseFloat(p.fy27Optimized) || 0), 0);
+    this.runRate = parseFloat(calculatedRunRate.toFixed(2));
 
-    const variancePct = ((optimizedProjectionValue - this.budgetFY27) / this.budgetFY27) * 100;
+    // B: LAST END DATE (Estrazione della massima scadenza contrattuale attiva o modificata)
+    let maxEndDate = null;
+    assetContracts.forEach(c => {
+      const dEnd = c.adjustedEndDate ? new Date(c.adjustedEndDate) : (c.contractEndDate ? new Date(c.contractEndDate) : null);
+      if (dEnd && !isNaN(dEnd.getTime()) && (!maxEndDate || dEnd > maxEndDate)) {
+        maxEndDate = dEnd;
+      }
+    });
+    this.lastEndDate = maxEndDate ? formatServerDate(maxEndDate) : "";
 
-    if (variancePct > 5) return "❌ OVER BUDGET (>" + Math.round(variancePct) + "%)";
-    if (variancePct < -5) return "🟢 SAVING GENERATED (" + Math.round(variancePct) + "%)";
-    return "🟡 IN LINE WITH BUDGET";
+    // C: FINANCIAL INITIATIVES (Analisi del ciclo di vita delle rinegoziazioni/dismissioni)
+    let costImprovementSum = 0;
+    let strategy = "RETAIN";
+    let exitDateStr = ""; let transferDateStr = ""; let initTargetDateStr = "";
+    let hasTerminate = false; let hasTransfer = false; let hasOptimize = false;
+
+    assetInits.forEach(init => {
+      const initStatus = String(init.status || "").toUpperCase();
+      const decision = String(init.decision || "").toUpperCase();
+
+      if (["COMPLETED", "IN PROGRESS"].includes(initStatus)) {
+        costImprovementSum += parseFloat(init.actualSavingAnnualized || init.targetSavingAnnualized || 0);
+        
+        if (init.targetDate) {
+          const dTarget = new Date(init.targetDate);
+          if (!isNaN(dTarget.getTime())) initTargetDateStr = formatServerDate(dTarget);
+        }
+
+        if (["TERMINATE", "REPLACE"].includes(decision)) {
+          hasTerminate = true; strategy = "EXIT";
+          const dEff = init.actualDate || init.targetDate;
+          if (dEff) {
+            const d = new Date(dEff);
+            if (!isNaN(d.getTime())) exitDateStr = formatServerDate(d);
+          }
+        } else if (decision === "TRANSFER") {
+          hasTransfer = true; strategy = "HANDOVER";
+          const dEff = init.actualDate || init.targetDate;
+          if (dEff) {
+            const d = new Date(dEff);
+            if (!isNaN(d.getTime())) transferDateStr = formatServerDate(d);
+          }
+        } else if (["OPTIMIZATION", "OPTIMIZE"].includes(decision)) {
+          hasOptimize = true;
+        }
+      }
+    });
+
+    this.costImprovement = parseFloat(costImprovementSum.toFixed(2));
+    this.targetStatus = strategy;
+    this.exitDate = exitDateStr;
+    this.transferDate = transferDateStr;
+    this.initiativeTargetDate = initTargetDateStr;
+
+    // D: MACCHINA A STATI FINITI (Calcolo deterministico del semaforo di ciclo di vita)
+    let computedStatus = "RUNNING";
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+
+    if (hasTransfer) computedStatus = "TRANSFERRED";
+    else if (hasTerminate) computedStatus = (exitDateStr && new Date(exitDateStr) <= today) ? "DISMISSED" : "EXITING";
+    else if (hasOptimize) computedStatus = "OPTIMIZING";
+    else if (maxEndDate && maxEndDate < today) computedStatus = "EXPIRED";
+
+    this.currentStatus = computedStatus;
+
+    // E: BUDGET VARIANCE RECONCILIATION (Trasposizione algoritmica nativa della formula LET di Sheets)
+    let effectiveBudget = 0;
+    let varianceVal = 0;
+
+    assetVariances.forEach(v => {
+      const fYear = String(v["Fiscal Year"] || v.fiscalYear || "").toUpperCase().trim();
+      if (fYear === "FY27") {
+        effectiveBudget += parseFloat(v["Effective Budget"] || v.effectiveBudget || 0);
+        varianceVal += parseFloat(v["Variance"] || v.variance || 0);
+      }
+    });
+
+    if (effectiveBudget === 0) {
+      this.budgetStatusFY27 = "Not Budgeted";
+    } else if (varianceVal < 0) {
+      this.budgetStatusFY27 = "At Risk";
+    } else {
+      this.budgetStatusFY27 = "Secured";
+    }
   }
 
-  exportToData(optimizedProjectionValue = 0) {
-    // Sincronizzazione speculare con il foglio Excel preservando le colonne esistenti
+  /**
+   * Compila il DTO in uscita preservando l'intera mappa delle proprietà dello scope originario.
+   */
+  exportToData() {
     return {
-      ...this._raw,
-      "Asset ID": this.id,
-      "Asset Name": this.name,
-      "Manufacturer": this.manufacturer,
-      "Business Driver": this.businessDriver,
-      "Budget Status (FY27)": this.evaluateBudgetStatus(optimizedProjectionValue),
-      "Run Rate": optimizedProjectionValue // Inietta il costo reale corrente calcolato dalle proiezioni
+      ...this.extraProperties,
+      id: this.id,
+      name: this.name,
+      manufacturer: this.manufacturer,
+      businessDriver: this.businessDriver,
+      category: this.category,
+      assetType: this.assetType,
+      description: this.description,
+      budgetStatusFY27: this.budgetStatusFY27,
+      runRate: this.runRate,
+      currentStatus: this.currentStatus,
+      targetStatus: this.targetStatus,
+      costImprovement: this.costImprovement,
+      exitDate: this.exitDate,
+      transferDate: this.transferDate,
+      initiativeTargetDate: this.initiativeTargetDate,
+      lastEndDate: this.lastEndDate
     };
   }
 }
 
 // ============================================================================
-// 2. DATA ACCESS LAYER (REPOSITORY)
+// 3. DATA ACCESS LAYER (REPOSITORY: Responsabile esclusivo delle scritture)
 // ============================================================================
 
-/**
- * @class AssetRepository
- * @description Unico punto di accesso I/O per i fogli Assets e Variance Report.
- */
 class AssetRepository {
   constructor() {
     this.sheetName = CONFIG.SHEETS.ASSETS;
   }
 
   /**
-   * Ritorna tutti gli asset censiti come oggetti di dominio.
+   * Estrae e idrata l'intero parco asset traducendolo preventivamente in oggetti di dominio purificati.
    */
   findAll() {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const rawData = getSheetDataAsObjects(ss, this.sheetName) || [];
-    return rawData.map(r => new Asset(r));
+    return rawData.map(r => new Asset(AssetMapper.toDto(r)));
   }
 
   /**
-   * Sovrascrive interamente il foglio degli asset con la matrice aggiornata (Bulk Write).
-   * @param {Array<Object>} assetsDataArray 
+   * Rimappa la collezione di oggetti ed esegue il Bulk-Write atomico proiettando sui reali header del database.
    */
-  saveAll(assetsDataArray) {
+  saveAll(assetsDomainCollection) {
     const ctx = getSheetContext(this.sheetName);
-    if (!ctx.sheet) throw new Error("Assets sheet infrastructure missing.");
+    if (!ctx.sheet || assetsDomainCollection.length === 0) return;
 
-    if (assetsDataArray.length === 0) return;
-
-    // Generiamo la matrice di righe mappando le intestazioni originali per non distruggere il foglio
-    const rows = assetsDataArray.map(assetData => {
+    const rows = assetsDomainCollection.map(assetInstance => {
+      const dto = assetInstance.exportToData();
       return ctx.headers.map(h => {
-        let val = assetData[h];
-        return val !== undefined && val !== null ? val : "";
+        const prop = ASSET_FIELD_MAP[h];
+        return prop && dto[prop] !== undefined ? dto[prop] : (dto[h] !== undefined ? dto[h] : "");
       });
     });
 
-    // Scrittura atomica O(1)
     if (ctx.sheet.getLastRow() > 1) {
-      ctx.sheet.getRange(2, 1, ctx.sheet.getLastRow() - 1, ctx.sheet.getTemplateRow ? ctx.sheet.getLastColumn() : ctx.headers.length).clearContent();
+      ctx.sheet.getRange(2, 1, ctx.sheet.getLastRow() - 1, ctx.headers.length).clearContent();
     }
     ctx.sheet.getRange(2, 1, rows.length, ctx.headers.length).setValues(rows);
-    console.log(`ASSET REPOSITORY: Consolidati ${rows.length} asset strutturati.`);
+    console.log(`ASSET REPOSITORY: Sincronizzazione ed allineamento completato per ${rows.length} record.`);
   }
 }
 
 // ============================================================================
-// 3. BUSINESS LOGIC LAYER (SERVICE)
+// 4. APPLICATION SERVICE LAYER (Orchestratore transazionale dei confini)
 // ============================================================================
 
-/**
- * @class AssetService
- * @description Orchestratore di dominio che unisce i Budget anagrafici con le Proiezioni fiscali.
- */
 class AssetService {
   constructor() {
     this.repository = new AssetRepository();
   }
 
   /**
-   * Interroga il dominio delle Proiezioni, estrae i costi reali ottimizzati per l'anno in corso
-   * e consolida il "Budget Status" di ciascun Asset.
+   * Innesca la transazione di ricalcolo incrociando i flussi asincroni di cassa e scadenze.
    */
   consolidateBudgets() {
-    console.log("ASSET SERVICE: Avvio riconciliazione Budget Portafoglio Asset...");
+    console.log("ASSET SERVICE: Avvio della pipeline di consolidamento cross-domain...");
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     
-    // 1. Estrae tutti gli asset tramite il proprio repository
     const assets = this.repository.findAll();
     if (assets.length === 0) return;
 
-    // 2. Estrae i dati grezzi dal foglio FiscalProjections (generato precedentemente dal ProjectionDomain)
-    const activeProjections = getSheetDataAsObjects(ss, CONFIG.SHEETS.PROJECTIONS) || [];
+    // Pescaggio idratato dei confini di dominio in formato camelCase
+    const dtosProjections = (getSheetDataAsObjects(ss, CONFIG.SHEETS.PROJECTIONS) || []).map(p => ContractMapper.toDto(p, PROJECTION_FIELD_MAP));
+    const dtosContracts = (getSheetDataAsObjects(ss, CONFIG.SHEETS.CONTRACTS) || []).map(c => ContractMapper.toDto(c, CONTRACT_FIELD_MAP));
+    const dtosInitiatives = (getSheetDataAsObjects(ss, CONFIG.SHEETS.INITIATIVES) || []).map(i => ContractMapper.toDto(i, INITIATIVE_FIELD_MAP));
+    
+    // Il Variance Report viene estratto grezzo (le chiavi "Fiscal Year", "Variance", ecc. vengono valutate direttamente)
+    const rawVariances = getSheetDataAsObjects(ss, CONFIG.SHEETS.VARIANCE) || [];
 
     const updatedAssetsPayload = assets.map(asset => {
-      // 3. Raggruppa e somma tutte le proiezioni "Optimized" di competenza di questo specifico Asset per l'anno target (es. FY27)
-      const assetOptimizedSpendFY27 = activeProjections
-        .filter(p => 
-          String(p["Asset Name"]).trim().toLowerCase() === asset.name.trim().toLowerCase() &&
-          String(p["Fiscal Period"]).trim().toUpperCase() === "FY27"
-        )
-        .reduce((sum, p) => sum + (parseFloat(p["Optimized Value"]) || 0), 0);
-
-      // 4. Chiede all'entità Asset di autovalutarsi e ritorna il DTO pronto per il database
-      return asset.exportToData(parseFloat(assetOptimizedSpendFY27.toFixed(2)));
+      const assetNameLower = asset.name.trim().toLowerCase();
+      
+      // Filtraggio O(1) in memoria per stringere il perimetro sul singolo asset
+      const assetProjections = dtosProjections.filter(p => String(p.assetName).trim().toLowerCase() === assetNameLower);
+      const assetContracts = dtosContracts.filter(c => String(c.assetName).trim().toLowerCase() === assetNameLower);
+      const assetInits = dtosInitiatives.filter(i => String(i.assetName).trim().toLowerCase() === assetNameLower);
+      const assetVariances = rawVariances.filter(v => String(v["Asset Name"] || v.assetName || "").trim().toLowerCase() === assetNameLower);
+      
+      // Delegazione algoritmica all'Entità pura di dominio
+      asset.injectContext(assetProjections, assetContracts, assetInits, assetVariances);
+      return asset;
     });
 
-    // 5. Spinge l'intera matrice consolidata al repository per la scrittura bulk
+    // Scrittura finale demandata al braccio operativo infrastrutturale
     this.repository.saveAll(updatedAssetsPayload);
-    console.log("ASSET SERVICE: Consolidamento Budget Portafoglio completato.");
+    console.log("ASSET SERVICE: Allineamento e riconciliazione portafoglio concluso.");
   }
 }
 
