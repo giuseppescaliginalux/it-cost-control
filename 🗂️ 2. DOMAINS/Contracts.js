@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * FINOPS ENTERPRISE ARCHITECTURE: CONTRACTS DOMAIN (PURE OOP)
+ * FINOPS ENTERPRISE ARCHITECTURE: CONTRACTS DOMAIN (BULK OOP + TOP-DOWN LOOKUP)
  * ============================================================================
  * Gestisce l'intero ciclo di vita dei contratti attivi, dei master agreements,
  * delle regole di allocazione dei costi (Splits) e dei flussi reali (Ledger).
@@ -11,10 +11,6 @@
 // 1. DOMAIN ENTITIES (Oggetti di Dominio Intelligenti)
 // ============================================================================
 
-/**
- * @class LedgerMovement
- * @description Rappresenta una singola riga di transazione reale o stimata (Actual/Forecast).
- */
 class LedgerMovement {
   constructor(rawData, parentContractId) {
     this.contractId = parentContractId || rawData.contractId || rawData["Contract ID"] || "";
@@ -41,10 +37,6 @@ class LedgerMovement {
   }
 }
 
-/**
- * @class AllocationSplit
- * @description Entità di validazione e calcolo delle regole di scomposizione dei costi sui Cost Center.
- */
 class AllocationSplit {
   constructor(rawData, parentContractId) {
     this.splitId = rawData.splitId || rawData["Split ID"] || "SPL-" + Utilities.getUuid().substring(0, 8).toUpperCase();
@@ -60,23 +52,32 @@ class AllocationSplit {
     this.validFrom = rawData.validFrom || rawData["Valid From"] ? new Date(rawData.validFrom || rawData["Valid From"]) : null;
     this.validTo = rawData.validTo || rawData["Valid To"] ? new Date(rawData.validTo || rawData["Valid To"]) : null;
     this.notes = rawData.notes || rawData["Notes"] || "";
+    this._raw = rawData;
   }
 
   isPercentage() { return this.allocationRule === "Percentage"; }
 
   getRawPercentage() {
     if (!this.isPercentage() || this.percentageShare === "") return 0;
-    return parseFloat(this.percentageShare);
+    let val = parseFloat(this.percentageShare);
+    return val <= 1 ? val * 100 : val;
   }
 
   exportToData() {
+    let outPct = "";
+    if (this.isPercentage() && this.percentageShare !== "") {
+       let val = parseFloat(this.percentageShare);
+       outPct = val > 1 ? val / 100 : val;
+    }
+
     return {
+      ...this._raw,
       "Split ID": this.splitId,
       "Contract ID": this.contractId,
       "Target Legal Entity": this.targetLegalEntity,
       "Target Cost Center": this.targetCostCenter,
       "Allocation Rule": this.allocationRule,
-      "Percentage Share": this.isPercentage() && this.percentageShare !== "" ? (parseFloat(this.percentageShare) / 100) : "",
+      "Percentage Share": outPct,
       "Fixed Amount": this.allocationRule === "Fixed Amount" ? this.fixedAmount : "",
       "Units Assigned": this.allocationRule === "Units" ? this.unitsAssigned : "",
       "Valid From": formatServerDate(this.validFrom),
@@ -86,53 +87,71 @@ class AllocationSplit {
   }
 }
 
-/**
- * @class Contract
- * @description Entità fulcro. Sa calcolare autonomamente le proprie metriche finanziarie pro-rata e lo status.
- */
 class Contract {
-  constructor(rawData) {
-    this.id = rawData.contractId || rawData["Contract ID"] || "";
-    this.masterId = rawData.masterId || rawData["Master Contract ID"] || "";
-    this.costRecurrence = rawData.costRecurrence || rawData["Cost Recurrence"] || "Recurrent";
-    this.totalCommitment = parseFloat(rawData.totalCommitment !== undefined ? rawData.totalCommitment : rawData["Total Commitment"]) || 0;
+  constructor(data = {}) {
+    this.id = data.id || "";
+    this.masterId = data.masterId || "";
     
-    this.startDate = rawData.startDate || rawData["Start Date"] ? new Date(rawData.startDate || rawData["Start Date"]) : null;
-    this.contractEndDate = rawData.contractEndDate || rawData["Contract End Date"] ? new Date(rawData.contractEndDate || rawData["Contract End Date"]) : null;
-    this.adjustedEndDate = rawData.adjustedEndDate || rawData["Adjusted End Date"] ? new Date(rawData.adjustedEndDate || rawData["Adjusted End Date"]) : null;
+    // Date native vive
+    this.startDate = data.startDate ? new Date(data.startDate) : null;
+    this.contractEndDate = data.contractEndDate ? new Date(data.contractEndDate) : null;
+    this.terminationDate = data.terminationDate ? new Date(data.terminationDate) : null;
     
-    // Composizione OOP: Il contratto detiene e governa i suoi split e ledger
-    this.splits = [];
+    // Stringhe e Modelli
+    this.costRecurrence = data.costRecurrence || "Recurrent";
+    this.pricingModel = data.pricingModel || "Flat";
+    this.billingTerms = data.billingTerms || "Linear";
+    
+    // Valori Numerici Puri
+    this.totalCommitment = parseFloat(data.totalCommitment) || 0;
+    this.annualValue = parseFloat(data.annualValue) || 0;
+    
     this.ledger = [];
-    this._raw = rawData;
+    this.splits = [];
   }
 
   getEndDate() {
     return (this.adjustedEndDate && !isNaN(this.adjustedEndDate.getTime())) ? this.adjustedEndDate : this.contractEndDate;
   }
 
+  // Metodo helper privato ERP per estrarre le frazioni esatte di mese
+  _getExactMonths(s, e) {
+    if (!s || !e || s > e) return 0;
+    const startDaysInMonth = new Date(s.getFullYear(), s.getMonth() + 1, 0).getDate();
+    const endDaysInMonth = new Date(e.getFullYear(), e.getMonth() + 1, 0).getDate();
+    
+    // Se è tutto nello stesso mese
+    if (s.getFullYear() === e.getFullYear() && s.getMonth() === e.getMonth()) {
+        return (e.getDate() - s.getDate() + 1) / startDaysInMonth;
+    }
+    
+    const fullMonths = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth()) - 1;
+    const sFrac = (startDaysInMonth - s.getDate() + 1) / startDaysInMonth;
+    const eFrac = e.getDate() / endDaysInMonth;
+    
+    return fullMonths + sFrac + eFrac;
+  }
+
   getDurationMonths() {
-    if (!this.startDate || !this.getEndDate()) return 0;
-    const days = Math.round((this.getEndDate() - this.startDate) / (1000 * 60 * 60 * 24)) + 1;
-    return Math.max(0, Math.round(days / 30.4166));
+    return parseFloat(this._getExactMonths(this.startDate, this.getEndDate()).toFixed(4));
   }
 
   getEffectiveCommitment() {
-    if (this.costRecurrence === "One-Shot") return this.totalCommitment;
+    if (this.costRecurrence === "One-Shot") return parseFloat(this.totalCommitment.toFixed(2));
     if (!this.startDate || !this.contractEndDate || !this.getEndDate()) return 0;
     
-    const origDays = Math.round((this.contractEndDate - this.startDate) / (1000 * 60 * 60 * 24)) + 1;
-    const actDays = Math.round((this.getEndDate() - this.startDate) / (1000 * 60 * 60 * 24)) + 1;
-    return parseFloat((this.totalCommitment * (actDays / (origDays || 1))).toFixed(2));
+    const origMonths = this._getExactMonths(this.startDate, this.contractEndDate);
+    const actMonths = this._getExactMonths(this.startDate, this.getEndDate());
+    
+    return parseFloat((this.totalCommitment * (actMonths / (origMonths || 1))).toFixed(2));
   }
 
   getAnnualValue() {
     if (this.costRecurrence === "One-Shot") return parseFloat(this.totalCommitment.toFixed(2));
     if (!this.startDate || !this.contractEndDate) return 0;
     
-    const origDays = Math.round((this.contractEndDate - this.startDate) / (1000 * 60 * 60 * 24)) + 1;
-    const origMonths = Math.max(1, Math.round(origDays / 30.4166));
-    return parseFloat(((this.totalCommitment / origMonths) * 12).toFixed(2));
+    const origMonths = this._getExactMonths(this.startDate, this.contractEndDate);
+    return parseFloat(((this.totalCommitment / Math.max(0.0001, origMonths)) * 12).toFixed(2));
   }
 
   calculateStatus() {
@@ -147,27 +166,40 @@ class Contract {
   }
 
   validateIntegrity() {
-    // Regola SOLID di Auto-Validazione: Controlla la coerenza aritmetica degli split percentuali
     const pctSplits = this.splits.filter(s => s.isPercentage());
     if (pctSplits.length > 0) {
       const totalPct = pctSplits.reduce((sum, s) => sum + s.getRawPercentage(), 0);
-      if (totalPct > 100.001) { // Tolleranza floating point minimale
-        throw new Error(`Polity Violation: Gli split del contratto ${this.id} ammontano al ${totalPct}%, superando il 100%.`);
+      if (totalPct > 100.001) {
+        throw new Error(`Policy Violation: Gli split del contratto ${this.id} ammontano al ${totalPct}%, superando il 100%.`);
       }
     }
   }
 
   exportToData() {
-    // Mantiene l'accoppiamento speculare con l'infrastruttura di visualizzazione esistente
     const dataOut = {};
     for (let key in CONTRACT_FIELD_MAP) {
       const prop = CONTRACT_FIELD_MAP[key];
-      dataOut[prop] = this._raw[prop] !== undefined ? this._raw[prop] : "";
+      if (this[prop] !== undefined) {
+        dataOut[prop] = this[prop];
+      } else if (this._raw[prop] !== undefined) {
+        dataOut[prop] = this._raw[prop];
+      } else if (this._raw[key] !== undefined) {
+        dataOut[prop] = this._raw[key]; 
+      } else {
+        dataOut[prop] = "";
+      }
     }
     
-    // Inietta i campi calcolati in tempo reale dall'oggetto
     dataOut.contractId = this.id;
-    dataOut.masterId = this.masterId;
+    
+    // Sicurezza Top-Down: 
+    // Sovrascriviamo l'anagrafe SOLO SE il contratto è stato adottato da un Master (addChild)
+    // Se è isolato o orfano, preserviamo i dati originali appena estratti dal dizionario.
+    if (this.masterId !== undefined) dataOut.masterId = this.masterId;
+    if (this.assetName !== undefined) dataOut.assetName = this.assetName;
+    if (this.supplier !== undefined) dataOut.supplier = this.supplier;
+    if (this.billingChannel !== undefined) dataOut.billingChannel = this.billingChannel;
+    
     dataOut.endDate = formatServerDate(this.getEndDate());
     dataOut.contractTerm = this.getDurationMonths();
     dataOut.effectiveCommitment = this.getEffectiveCommitment();
@@ -177,58 +209,100 @@ class Contract {
     return dataOut;
   }
 
-  /**
-   * LEDGER ENGINE INTEGRATO: Genera le righe di Forecast mensili pro-rata 
-   * per tutta la durata del contratto.
-   * @returns {Array<LedgerMovement>}
-   */
   generateForecastLedger() {
+    const pm = String(this.pricingModel).toUpperCase().trim();
+    const bt = String(this.billingTerms).toUpperCase().trim();
+    
+    // BUSINESS RULE 1: Auto-forecast abilitato SOLO per Minimum e Capped Consumption
+    const isForecastable = pm === "MINIMUM CONSUMPTION" || pm === "CAPPED CONSUMPTION";
+    if (!isForecastable) return [];
+    
+    // BUSINESS RULE 2: Se è Full Upfront o Ledger-Driven, non si autogenera nulla
+    if (bt === "FULL UPFRONT" || bt === "LEDGER-DRIVEN") return [];
+    
     if (this.costRecurrence === "One-Shot" || !this.startDate || !this.getEndDate()) return [];
     
     const movements = [];
-    const monthlyAmount = this.getAnnualValue() / 12;
-    
-    let currentCursor = new Date(this.startDate.getTime());
     const finalEnd = this.getEndDate();
+    let currentCursor = new Date(this.startDate.getTime());
     
-    // Cicla mese per mese fino alla fine del contratto
+    // Configurazione dinamica del passo temporale e dell'importo in base al Billing Terms
+    let stepMonths = 1;
+    let periodAmount = this.getAnnualValue() / 12;
+    let labelType = "Monthly";
+    
+    if (bt === "QUARTERLY") {
+      stepMonths = 3;
+      periodAmount = this.getAnnualValue() / 4;
+      labelType = "Quarterly";
+    }
+    
     while (currentCursor <= finalEnd) {
       const chunkStart = new Date(currentCursor.getTime());
       
-      // Calcola la fine del mese corrente
-      const chunkEnd = new Date(currentCursor.getFullYear(), currentCursor.getMonth() + 1, 0);
+      // Calcoliamo la fine del periodo (es: +1 mese -1 giorno per mensile, +3 mesi -1 giorno per trimestrale)
+      const chunkEnd = new Date(currentCursor.getFullYear(), currentCursor.getMonth() + stepMonths, 0);
       const actualEnd = chunkEnd > finalEnd ? finalEnd : chunkEnd;
       
       movements.push(new LedgerMovement({
         "Contract ID": this.id,
         "Start Date": formatServerDate(chunkStart),
         "End Date": formatServerDate(actualEnd),
-        "Type": "FORECAST",
-        "Amount": parseFloat(monthlyAmount.toFixed(2)),
-        "Notes": `Autogenerated Forecast for ${chunkStart.toLocaleString('default', { month: 'long' })} ${chunkStart.getFullYear()}`
+        "Type": "CALCULATED",
+        "Amount": parseFloat(periodAmount.toFixed(2)),
+        "Notes": `Engine-generated forecast (${labelType}) starting ${chunkStart.toLocaleString('default', { month: 'short' })} ${chunkStart.getFullYear()}`
       }, this.id));
       
-      // Avanza al primo giorno del mese successivo
-      currentCursor = new Date(currentCursor.getFullYear(), currentCursor.getMonth() + 1, 1);
+      // Spostiamo in avanti il cursore del numero esatto di mesi previsti dal termine di fatturazione
+      currentCursor = new Date(currentCursor.getFullYear(), currentCursor.getMonth() + stepMonths, 1);
     }
     
     return movements;
   }
+
+  exportFullLedger() {
+    const pm = String(this.pricingModel).toUpperCase().trim();
+    const bt = String(this.billingTerms).toUpperCase().trim();
+
+    const isConsumption = pm.includes("CONSUMPTION");
+    const isLedgerDriven = bt === "LEDGER-DRIVEN";
+
+    // BUSINESS RULE 2: Se è Flat (e non ha un vincolo Ledger-Driven esplicito), VAPORIZZA il Ledger.
+    if (!isConsumption && !isLedgerDriven) return [];
+
+    const fullLedger = [];
+    
+    // 1. Preserva storici (Actual) perché il modello lo consente
+    this.ledger.forEach(l => fullLedger.push(l.exportToData()));
+    
+    // 2. Accoda eventuali Forecast (che il metodo sopra genererà o meno in base alla regola)
+    const generatedForecasts = this.generateForecastLedger();
+    generatedForecasts.forEach(f => fullLedger.push(f.exportToData()));
+    
+    return fullLedger;
+  }
 }
 
-/**
- * @class MasterContract
- * @description Root Aggregate. Incapsula i contratti figli e ne aggrega dinamicamente le metriche.
- */
 class MasterContract {
   constructor(rawData) {
     this.id = rawData.masterId || rawData["Master Contract ID"] || "";
     this.supplier = rawData.supplier || rawData["Supplier"] || "";
+    
+    // Acquisizione campi per Top-Down Lookup
+    this.assetName = rawData.assetName || rawData["Asset Name"] || "";
+    this.billingChannel = rawData.billingChannel || rawData["Billing Channel"] || "";
+    
     this.childContracts = [];
     this._raw = rawData;
   }
 
   addChild(contractInstance) {
+    // ENFORCEMENT LOOKUP TOP-DOWN: Il Master è Re! Sovrascrive istantaneamente i campi anagrafici del figlio.
+    contractInstance.masterId = this.id;
+    contractInstance.supplier = this.supplier;
+    contractInstance.assetName = this.assetName;
+    contractInstance.billingChannel = this.billingChannel;
+    
     this.childContracts.push(contractInstance);
   }
 
@@ -288,11 +362,22 @@ class MasterContract {
     const dataOut = {};
     for (let key in MASTER_FIELD_MAP) {
       const prop = MASTER_FIELD_MAP[key];
-      dataOut[prop] = this._raw[prop] !== undefined ? this._raw[prop] : "";
+      if (this[prop] !== undefined) {
+        dataOut[prop] = this[prop];
+      } else if (this._raw[prop] !== undefined) {
+        dataOut[prop] = this._raw[prop];
+      } else if (this._raw[key] !== undefined) {
+        dataOut[prop] = this._raw[key]; 
+      } else {
+        dataOut[prop] = "";
+      }
     }
     
     dataOut.masterId = this.id;
     dataOut.supplier = this.supplier;
+    dataOut.assetName = this.assetName;
+    dataOut.billingChannel = this.billingChannel;
+    
     dataOut.masterStartDate = formatServerDate(this.getMinStartDate());
     dataOut.masterEndDate = formatServerDate(this.getMaxEndDate());
     dataOut.totalCommitment = this.getTotalCommitment();
@@ -304,30 +389,20 @@ class MasterContract {
 }
 
 // ============================================================================
-// 2. DATA ACCESS LAYER (REPOSITORY)
+// 2. DATA ACCESS LAYER (REPOSITORY) - BULK O(1) OVERWRITE
 // ============================================================================
 
-/**
- * @class ContractRepository
- * @description Gestore atomico ed unico dell'I/O relazionale dei contratti su Google Sheets.
- */
 class ContractRepository {
-  
+
   saveMasterRow(masterData) {
     const ctx = getSheetContext(CONFIG.SHEETS.MASTER_CONTRACTS);
     const idCol = ctx.headers.indexOf("Master Contract ID");
     let rowIdx = -1;
-    
     for (let i = 1; i < ctx.data.length; i++) {
-      if (String(ctx.data[i][idCol]).trim() === String(masterData.masterId).trim()) {
-        rowIdx = i + 1;
-        break;
-      }
+      if (String(ctx.data[i][idCol]).trim() === String(masterData.masterId).trim()) { rowIdx = i + 1; break; }
     }
-    
-    if (rowIdx > 0) {
-      updateRowSafe(ctx.sheet, rowIdx, ctx.headers, masterData, EDITABLE_MASTER, MASTER_FIELD_MAP);
-    } else {
+    if (rowIdx > 0) { updateRowSafe(ctx.sheet, rowIdx, ctx.headers, masterData, EDITABLE_MASTER, MASTER_FIELD_MAP); } 
+    else {
       let newRow = new Array(ctx.headers.length).fill("");
       newRow[idCol] = masterData.masterId;
       ctx.sheet.appendRow(newRow);
@@ -342,11 +417,8 @@ class ContractRepository {
     
     const dbRowsMap = new Map();
     for (let i = 1; i < ctx.data.length; i++) {
-      if (String(ctx.data[i][mIdCol]).trim() === String(masterId).trim()) {
-        dbRowsMap.set(String(ctx.data[i][cIdCol]).trim(), i + 1);
-      }
+      if (String(ctx.data[i][mIdCol]).trim() === String(masterId).trim()) { dbRowsMap.set(String(ctx.data[i][cIdCol]).trim(), i + 1); }
     }
-    
     detailsDataArray.forEach(detail => {
       const cid = String(detail.contractId).trim();
       if (dbRowsMap.has(cid)) {
@@ -360,8 +432,6 @@ class ContractRepository {
         updateRowSafe(ctx.sheet, ctx.sheet.getLastRow(), ctx.headers, detail, EDITABLE_CONTRACTS, CONTRACT_FIELD_MAP);
       }
     });
-    
-    // Rimozione righe cancellate orfane (Ordinamento invertito per preservare gli indici)
     const toDelete = Array.from(dbRowsMap.values()).sort((a, b) => b - a);
     toDelete.forEach(idx => ctx.sheet.deleteRow(idx));
   }
@@ -370,20 +440,12 @@ class ContractRepository {
     if (contractIds.length === 0) return;
     const ctx = getSheetContext(CONFIG.SHEETS.ALLOCATION_SPLITS);
     if (!ctx.sheet) return;
-    
     const cIdCol = ctx.headers.indexOf("Contract ID");
     for (let i = ctx.data.length - 1; i >= 1; i--) {
-      if (contractIds.includes(String(ctx.data[i][cIdCol]).trim())) {
-        ctx.sheet.deleteRow(i + 1);
-      }
+      if (contractIds.includes(String(ctx.data[i][cIdCol]).trim())) ctx.sheet.deleteRow(i + 1);
     }
-    
     if (splitsDataArray.length === 0) return;
-    const rows = splitsDataArray.map(s => [
-      s["Split ID"], s["Contract ID"], s["Target Legal Entity"], s["Target Cost Center"],
-      s["Allocation Rule"], s["Percentage Share"], s["Fixed Amount"], s["Units Assigned"],
-      s["Valid From"], s["Valid To"], s["Notes"]
-    ]);
+    const rows = splitsDataArray.map(s => [s["Split ID"], s["Contract ID"], s["Target Legal Entity"], s["Target Cost Center"], s["Allocation Rule"], s["Percentage Share"], s["Fixed Amount"], s["Units Assigned"], s["Valid From"], s["Valid To"], s["Notes"]]);
     ctx.sheet.getRange(ctx.sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
   }
 
@@ -391,19 +453,48 @@ class ContractRepository {
     if (contractIds.length === 0) return;
     const ctx = getSheetContext(CONFIG.SHEETS.LEDGER);
     if (!ctx.sheet) return;
-    
     const cIdCol = ctx.headers.indexOf("Contract ID");
     for (let i = ctx.data.length - 1; i >= 1; i--) {
-      if (contractIds.includes(String(ctx.data[i][cIdCol]).trim())) {
-        ctx.sheet.deleteRow(i + 1);
-      }
+      if (contractIds.includes(String(ctx.data[i][cIdCol]).trim())) ctx.sheet.deleteRow(i + 1);
     }
-    
     if (ledgerDataArray.length === 0) return;
-    const rows = ledgerDataArray.map(l => [
-      l["Contract ID"], l["Start Date"], l["End Date"], l["Type"], l["Amount"], l["Notes"]
-    ]);
+    const rows = ledgerDataArray.map(l => [l["Contract ID"], l["Start Date"], l["End Date"], l["Type"], l["Amount"], l["Notes"]]);
     ctx.sheet.getRange(ctx.sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+  }
+
+  // OVERWRITE DI MASSA (USATO DAI BATCH)
+  overwriteAllMasters(mastersArray) {
+    this._bulkOverwrite(CONFIG.SHEETS.MASTER_CONTRACTS, mastersArray, MASTER_FIELD_MAP);
+  }
+  overwriteAllContracts(contractsArray) {
+    this._bulkOverwrite(CONFIG.SHEETS.CONTRACTS, contractsArray, CONTRACT_FIELD_MAP);
+  }
+  overwriteAllSplits(splitsArray) {
+    this._bulkOverwrite(CONFIG.SHEETS.ALLOCATION_SPLITS, splitsArray, null);
+  }
+  overwriteAllLedger(ledgerArray) {
+    this._bulkOverwrite(CONFIG.SHEETS.LEDGER, ledgerArray, null);
+  }
+
+  _bulkOverwrite(sheetName, dataObjectsArray, fieldMap) {
+    const ctx = getSheetContext(sheetName);
+    if (!ctx.sheet) return;
+    if (ctx.sheet.getLastRow() > 1) {
+      ctx.sheet.getRange(2, 1, ctx.sheet.getLastRow() - 1, ctx.headers.length).clearContent();
+    }
+    if (dataObjectsArray.length === 0) return;
+    
+    const rows = dataObjectsArray.map(obj => {
+      return ctx.headers.map(header => {
+        if (fieldMap && fieldMap[header]) {
+          const prop = fieldMap[header];
+          return obj[prop] !== undefined ? obj[prop] : "";
+        }
+        return obj[header] !== undefined ? obj[header] : "";
+      });
+    });
+    
+    ctx.sheet.getRange(2, 1, rows.length, ctx.headers.length).setValues(rows);
   }
 }
 
@@ -411,34 +502,69 @@ class ContractRepository {
 // 3. BUSINESS LOGIC LAYER (SERVICE)
 // ============================================================================
 
-/**
- * @class ContractService
- * @description Orchestratore di Dominio. Costruisce l'albero a oggetti e gestisce la transazione.
- */
+// ============================================================================
+// 3. BUSINESS LOGIC LAYER (SERVICE)
+// ============================================================================
+
+// ============================================================================
+// 3. BUSINESS LOGIC LAYER (SERVICE) - HASH MAP OPTIMIZED
+// ============================================================================
+
 class ContractService {
   constructor() {
     this.repository = new ContractRepository();
   }
 
-  /**
-   * Genera un ID univoco standardizzato rimuovendo vocali, spazi, punti e VIRGOLE.
-   */
   generateId(prefix, supplier, assetName, year, count) {
-    // Aggiunta la virgola dentro la classe dei caratteri da rimuovere [aeiou.,\s]
     const cleanSupplier = String(supplier || "GEN").replace(/[aeiou.,\s]/gi, "").substring(0, 4).toUpperCase();
     const cleanAsset = String(assetName || "AST").replace(/[aeiou.,\s]/gi, "").substring(0, 4).toUpperCase();
-    
     const padCount = count < 10 ? "0" + count : count;
     return `${prefix}-${cleanSupplier}-${cleanAsset}-${year}-${padCount}`;
+  }
+
+  removeDuplicatesByKey(array, key) {
+    const seen = new Set();
+    return array.filter(item => {
+      const val = String(item[key] || "").trim();
+      if (val === "") return true; 
+      if (seen.has(val)) return false;
+      seen.add(val);
+      return true;
+    });
+  }
+
+  /**
+   * PERFORMANCE FIX: Crea un Hash Map O(1) per evitare i cicli annidati (O(N^2)).
+   * Accetta un array di "chiavi possibili" per gestire sia le intestazioni del foglio che le proprietà dell'oggetto.
+   */
+  groupBy(array, possibleKeys) {
+    const map = {};
+    array.forEach(item => {
+      let val = "";
+      for (let k of possibleKeys) {
+        if (item[k] !== undefined && item[k] !== "") { 
+          val = String(item[k]).trim(); 
+          break; 
+        }
+      }
+      if (val) {
+        if (!map[val]) map[val] = [];
+        map[val].push(item);
+      }
+    });
+    return map;
   }
 
   processAndSync(payload) {
     console.log("CONTRACT DOMAIN: Fabbricazione oggetti di dominio ed elaborazione...");
     
-    // 1. Creazione dell'Aggregate Root
-    const master = new MasterContract(payload);
+    const master = new MasterContract({
+      ...payload,
+      assetName: payload.assetName,
+      supplier: payload.supplier,
+      billingChannel: payload.billingChannel || (payload.details.length > 0 ? payload.details[0].billingChannel : "")
+    });
     
-    // 2. Risoluzione dei contatori globali per la generazione ID stabili
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const ctxContracts = getSheetContext(CONFIG.SHEETS.CONTRACTS);
     const supColIdx = ctxContracts.headers.indexOf("Supplier");
@@ -449,26 +575,18 @@ class ContractService {
       }
     }
 
-    // 3. Istanziazione e associazione dei contratti figli operativi
     payload.details.forEach(rawDetail => {
       const contract = new Contract(rawDetail);
-      
-      // Associazione Composita dei flussi Ledger
       if (rawDetail.ledger && Array.isArray(rawDetail.ledger)) {
         rawDetail.ledger.forEach(l => contract.ledger.push(new LedgerMovement(l, contract.id)));
       }
-      
-      // Associazione Composita degli Split
       if (rawDetail.splits && Array.isArray(rawDetail.splits)) {
         rawDetail.splits.forEach(s => contract.splits.push(new AllocationSplit(s, contract.id)));
       }
-      
-      // Auto-Validazione SOLID interna all'entità
       contract.validateIntegrity();
       master.addChild(contract);
     });
 
-    // 4. Generazione ID latenti
     if (!master.id) {
       const allMasters = getSheetDataAsObjects(ss, CONFIG.SHEETS.MASTER_CONTRACTS) || [];
       const mCount = allMasters.filter(m => String(m["Supplier"]).toLowerCase().trim() === String(master.supplier).toLowerCase().trim()).length + 1;
@@ -481,14 +599,12 @@ class ContractService {
         globalSupplierCount++;
         const cYear = c.startDate ? c.startDate.getFullYear() : new Date().getFullYear();
         c.id = this.generateId("CTR", master.supplier, payload.assetName, cYear, globalSupplierCount);
-        // Cascata dell'ID generato sulle sotto-entità dipendenti
         c.splits.forEach(s => s.contractId = c.id);
         c.ledger.forEach(l => l.contractId = c.id);
       }
       c.masterId = master.id;
     });
 
-    // 5. Conversione degli oggetti in DTO puri (Serializzazione sicura per il Client ed Excel)
     const exportedMaster = master.exportToData(payload.initiatives || []);
     const exportedDetails = master.childContracts.map(c => c.exportToData());
     
@@ -496,12 +612,9 @@ class ContractService {
     let exportedLedger = [];
     master.childContracts.forEach(c => {
       exportedSplits = exportedSplits.concat(c.splits.map(s => s.exportToData()));
-
-      const generatedForecasts = c.generateForecastLedger();
-      exportedLedger = exportedLedger.concat(generatedForecasts.map(f => f.exportToData()));
+      exportedLedger = exportedLedger.concat(c.exportFullLedger());
     });
 
-    // 6. Persistenza atomica sul Data Layer
     const contractIds = master.childContracts.map(c => c.id);
     this.repository.saveMasterRow(exportedMaster);
     this.repository.saveDetailsCollection(master.id, exportedDetails);
@@ -513,16 +626,40 @@ class ContractService {
   }
 
   forceRecalculateAll() {
-    console.log("CONTRACT DOMAIN: Avvio ricalcolo massivo forzato...");
+    console.log("CONTRACT DOMAIN: Avvio ricalcolo massivo forzato (BULK MODE in RAM)...");
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const allMasters = getSheetDataAsObjects(ss, CONFIG.SHEETS.MASTER_CONTRACTS) || [];
-    const allDetails = getSheetDataAsObjects(ss, CONFIG.SHEETS.CONTRACTS) || [];
+    
+    const rawMasters = getSheetDataAsObjects(ss, CONFIG.SHEETS.MASTER_CONTRACTS) || [];
+    const allMasters = this.removeDuplicatesByKey(rawMasters, "Master Contract ID");
+
+    const rawDetails = getSheetDataAsObjects(ss, CONFIG.SHEETS.CONTRACTS) || [];
+    const allDetails = this.removeDuplicatesByKey(rawDetails, "Contract ID");
+    
     const allSplits = getSheetDataAsObjects(ss, CONFIG.SHEETS.ALLOCATION_SPLITS) || [];
     const allLedger = getSheetDataAsObjects(ss, CONFIG.SHEETS.LEDGER) || [];
+    const allInits = getSheetDataAsObjects(ss, CONFIG.SHEETS.INITIATIVES) || [];
+
+    // ========================================================================
+    // CREAZIONE DEGLI INDICI O(1) (Il segreto della velocità)
+    // ========================================================================
+    const detailsByMaster = this.groupBy(allDetails, ["Master Contract ID", "masterId"]);
+    const splitsByContract = this.groupBy(allSplits, ["Contract ID", "contractId"]);
+    const ledgerByContract = this.groupBy(allLedger, ["Contract ID", "contractId"]);
+    const initsByMaster = this.groupBy(allInits, ["Master Contract ID", "masterId"]);
+
+    let finalMasters = [];
+    let finalDetails = [];
+    let finalSplits = [];
+    let finalLedger = [];
+    
+    let globalSupplierCount = allDetails.length;
 
     allMasters.forEach(m => {
       const mId = String(m["Master Contract ID"] || m.masterId).trim();
-      const rawDetailsForMaster = allDetails.filter(d => String(d["Master Contract ID"] || d.masterId).trim() === mId);
+      
+      // PESCAGGIO ISTANTANEO (Zero cicli .filter() annidati!)
+      const rawDetailsForMaster = detailsByMaster[mId] || [];
+      const masterInits = initsByMaster[mId] || [];
       
       const detailsPayload = rawDetailsForMaster.map(d => {
         const cId = String(d["Contract ID"] || d.contractId).trim();
@@ -530,8 +667,8 @@ class ContractService {
           ...d,
           contractId: cId,
           masterId: mId,
-          splits: allSplits.filter(s => String(s["Contract ID"] || s.contractId).trim() === cId),
-          ledger: allLedger.filter(l => String(l["Contract ID"] || l.contractId).trim() === cId)
+          splits: splitsByContract[cId] || [], // Accesso diretto in O(1)
+          ledger: ledgerByContract[cId] || []  // Accesso diretto in O(1)
         };
       });
 
@@ -539,13 +676,58 @@ class ContractService {
         ...m,
         masterId: mId,
         supplier: m["Supplier"] || m.supplier,
-        assetName: rawDetailsForMaster.length > 0 ? (rawDetailsForMaster[0]["Asset Name"] || rawDetailsForMaster[0].assetName) : "GENERIC",
+        assetName: m["Asset Name"] || m.assetName || (rawDetailsForMaster.length > 0 ? (rawDetailsForMaster[0]["Asset Name"] || rawDetailsForMaster[0].assetName) : "GENERIC"),
+        billingChannel: m["Billing Channel"] || m.billingChannel || (rawDetailsForMaster.length > 0 ? (rawDetailsForMaster[0]["Billing Channel"] || rawDetailsForMaster[0].billingChannel) : ""),
         details: detailsPayload,
-        initiatives: getSheetDataAsObjects(ss, CONFIG.SHEETS.INITIATIVES).filter(i => String(i["Master Contract ID"]).trim() === mId)
+        initiatives: masterInits
       };
 
-      this.processAndSync(singlePayload);
+      const master = new MasterContract(singlePayload);
+      
+      singlePayload.details.forEach(rawDetail => {
+        const contract = new Contract(rawDetail);
+        if (rawDetail.ledger && Array.isArray(rawDetail.ledger)) {
+          rawDetail.ledger.forEach(l => contract.ledger.push(new LedgerMovement(l, contract.id)));
+        }
+        if (rawDetail.splits && Array.isArray(rawDetail.splits)) {
+          rawDetail.splits.forEach(s => contract.splits.push(new AllocationSplit(s, contract.id)));
+        }
+        contract.validateIntegrity();
+        master.addChild(contract);
+      });
+
+      if (!master.id) {
+        const mCount = finalMasters.filter(fm => String(fm.supplier).toLowerCase().trim() === String(master.supplier).toLowerCase().trim()).length + 1;
+        const mYear = master.getMinStartDate() ? master.getMinStartDate().getFullYear() : new Date().getFullYear();
+        master.id = this.generateId("MCT", master.supplier, singlePayload.assetName, mYear, mCount);
+      }
+
+      master.childContracts.forEach(c => {
+        if (!c.id) {
+          globalSupplierCount++;
+          const cYear = c.startDate ? c.startDate.getFullYear() : new Date().getFullYear();
+          c.id = this.generateId("CTR", master.supplier, singlePayload.assetName, cYear, globalSupplierCount);
+          c.splits.forEach(s => s.contractId = c.id);
+          c.ledger.forEach(l => l.contractId = c.id);
+        }
+        c.masterId = master.id;
+      });
+
+      finalMasters.push(master.exportToData(masterInits));
+      
+      master.childContracts.forEach(c => {
+        finalDetails.push(c.exportToData());
+        c.splits.forEach(s => finalSplits.push(s.exportToData()));
+        finalLedger = finalLedger.concat(c.exportFullLedger());
+      });
     });
+
+    this.repository.overwriteAllMasters(finalMasters);
+    this.repository.overwriteAllContracts(finalDetails);
+    this.repository.overwriteAllSplits(finalSplits);
+    this.repository.overwriteAllLedger(finalLedger);
+    
+    console.log("CONTRACT DOMAIN: Ricalcolo massivo Bulk O(1) completato.");
   }
 }
 

@@ -9,11 +9,11 @@
 const CONFIG = {
   // Nomi ufficiali dei fogli sul database Google Sheets
   SHEETS: {
-    MASTER_CONTRACTS: "Master Contracts",
+    MASTER_CONTRACTS: "MasterContracts",
     CONTRACTS: "Contracts",
     INITIATIVES: "Initiatives",
     LEDGER: "Ledger",
-    ALLOCATION_SPLITS: "Allocation Splits",
+    ALLOCATION_SPLITS: "AllocationSplits",
     ASSETS: "Assets",
     VARIANCE: "AssetVarianceReport",
     PROJECTIONS: "FiscalProjections"
@@ -28,6 +28,9 @@ const CONFIG = {
 
 const MASTER_FIELD_MAP = {
   "Master Contract ID": "masterId",
+  "Previous Master ID": "previousMasterId",
+  "Asset Name": "assetName",
+  "Asset ID": "assetId",
   "Supplier": "supplier",
   "Scope": "masterScope",
   "Comments": "masterComments",
@@ -37,7 +40,7 @@ const MASTER_FIELD_MAP = {
   "Master End Date": "masterEndDate",
   "Contract Term (Months)": "contractTerm",
   "Total Commitment": "totalCommitment",
-  "Run Rate (Annualized)": "runRate",
+  "Run Rate": "runRate",
   "Billing Channel": "billingChannel"
 };
 

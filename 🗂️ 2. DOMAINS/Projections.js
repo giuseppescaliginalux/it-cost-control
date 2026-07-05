@@ -1,9 +1,10 @@
 /**
  * ============================================================================
- * FINOPS ENTERPRISE ARCHITECTURE: PROJECTIONS DOMAIN (HYBRID TABULAR)
+ * FINOPS ENTERPRISE ARCHITECTURE: PROJECTIONS DOMAIN (ANTI DOUBLE-COUNTING)
  * ============================================================================
- * Sviluppa le proiezioni fiscali pluriennali mantenendo la compatibilità totale
- * con la suite di Unit Testing nativa e le funzioni matematiche day-by-day.
+ * Sviluppa le proiezioni fiscali pluriennali.
+ * Integra l'intelligenza topologica per arrestare il rollover dei contratti
+ * nel momento esatto in cui subentra un contratto successore.
  * ============================================================================
  */
 
@@ -14,10 +15,12 @@ class TimePeriod {
     this.endDate = new Date(endDateStr);
   }
 
-  getOverlapDays(contractStart, contractEnd) {
-    if (!contractStart || !contractEnd) return 0;
+  getOverlapDays(contractStart, effectiveEnd) {
+    if (!contractStart || !effectiveEnd) return 0;
+    
     const start = new Date(Math.max(this.startDate, contractStart));
-    const end = new Date(Math.min(this.endDate, contractEnd));
+    const end = new Date(Math.min(this.endDate, effectiveEnd));
+    
     if (start > end) return 0;
     return Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
   }
@@ -25,10 +28,11 @@ class TimePeriod {
 
 /**
  * @class ContractProjection
- * @description Modello finanziario day-by-day allineato al costruttore originale dei test.
+ * @description Modello ERP Monthly Pro-Rata (Standard IFRS/SAP).
+ * Applica Rate Flat sui mesi interi e ratei proporzionali sui bordi spezzati.
  */
 class ContractProjection {
-  constructor(contract, period, linkedInitiatives = []) {
+  constructor(contract, period, linkedInitiatives = [], successorStartDate = null) {
     this.contract = contract;
     this.period = period;
     this.linkedInitiatives = linkedInitiatives;
@@ -36,16 +40,25 @@ class ContractProjection {
     this.contractStart = contract["Start Date"] ? new Date(contract["Start Date"]) : null;
     this.contractEnd = contract["End Date"] ? new Date(contract["End Date"]) : null;
     
-    // Giorni calcolati sul periodo passato nel costruttore (per compatibilità test)
-    this.daysOfCompetence = this.period ? this.period.getOverlapDays(this.contractStart, this.contractEnd) : 0;
+    const isRecurrent = String(this.contract["Cost Recurrence"]).toLowerCase() === "recurrent";
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isHistoricallyExpired = this.contractEnd && this.contractEnd < today;
+    
+    if (successorStartDate) {
+        this.effectiveEndDate = new Date(successorStartDate);
+        this.effectiveEndDate.setDate(this.effectiveEndDate.getDate() - 1);
+    } else if (isRecurrent && !isHistoricallyExpired) {
+        this.effectiveEndDate = new Date(2099, 11, 31);
+    } else {
+        this.effectiveEndDate = this.contractEnd;
+    }
+    
+    this.daysOfCompetence = this.period ? this.period.getOverlapDays(this.contractStart, this.effectiveEndDate) : 0;
   }
 
-  /**
-   * Logica Matematica Originale dei Test per la Baseline
-   */
   calculateBaseline() {
     if (this.daysOfCompetence <= 0) return 0;
-    
     if (this.contract["Cost Recurrence"] === "One-Shot") {
       if (this.contractStart >= this.period.startDate && this.contractStart <= this.period.endDate) {
         return parseFloat(this.contract["Total Commitment"]) || 0;
@@ -53,64 +66,99 @@ class ContractProjection {
       return 0;
     }
 
-    const dailyRate = (parseFloat(this.contract["Annual Value"]) || 0) / 365;
-    return parseFloat((dailyRate * this.daysOfCompetence).toFixed(2));
+    const monthlyFlatRate = (parseFloat(this.contract["Annual Value"]) || 0) / 12;
+    let totalBaseline = 0;
+
+    const startCursor = new Date(Math.max(this.period.startDate, this.contractStart));
+    const endCursor = new Date(Math.min(this.period.endDate, this.effectiveEndDate));
+    if (startCursor > endCursor) return 0;
+
+    let current = new Date(startCursor);
+    current.setDate(1); // Allinea lo scanner al primo giorno del mese
+
+    while (current <= endCursor) {
+      let monthStart = new Date(current.getFullYear(), current.getMonth(), 1);
+      let monthEnd = new Date(current.getFullYear(), current.getMonth() + 1, 0);
+
+      let overlapStart = monthStart < startCursor ? startCursor : monthStart;
+      let overlapEnd = monthEnd > endCursor ? endCursor : monthEnd;
+
+      if (overlapStart <= overlapEnd) {
+        let activeDays = Math.round((overlapEnd - overlapStart) / (1000 * 60 * 60 * 24)) + 1;
+        let daysInMonth = Math.round((monthEnd - monthStart) / (1000 * 60 * 60 * 24)) + 1;
+
+        if (activeDays === daysInMonth) {
+          totalBaseline += monthlyFlatRate; // Mese intero: Rata Flat!
+        } else {
+          totalBaseline += monthlyFlatRate * (activeDays / daysInMonth); // Mese spezzato: Spezzatura ERP!
+        }
+      }
+      current.setMonth(current.getMonth() + 1); // Salto quantico di un mese! (Performance)
+    }
+    return parseFloat(totalBaseline.toFixed(2));
   }
 
-  /**
-   * Logica Matematica Originale dei Test per l'Optimized (Cascading progressivo)
-   */
   calculateOptimized() {
     if (this.daysOfCompetence <= 0) return 0;
     if (this.contract["Cost Recurrence"] === "One-Shot") return this.calculateBaseline();
 
-    const baselineValue = this.calculateBaseline();
-    
     const activeInits = this.linkedInitiatives.filter(init => 
       ["COMPLETED", "IN PROGRESS"].includes(String(init.status || init.initiativeStatus).toUpperCase())
     );
 
-    if (activeInits.length === 0) return baselineValue;
-
+    if (activeInits.length === 0) return this.calculateBaseline();
     activeInits.sort((a, b) => a.getEffectiveDate() - b.getEffectiveDate());
 
-    let optimizedValue = 0;
-    const dailyRate = (parseFloat(this.contract["Annual Value"]) || 0) / 365;
+    const monthlyFlatRate = (parseFloat(this.contract["Annual Value"]) || 0) / 12;
+    let totalOptimized = 0;
 
-    let currentCursor = new Date(Math.max(this.period.startDate, this.contractStart));
-    const finalBoundary = new Date(Math.min(this.period.endDate, this.contractEnd));
+    const startCursor = new Date(Math.max(this.period.startDate, this.contractStart));
+    const endCursor = new Date(Math.min(this.period.endDate, this.effectiveEndDate));
+    if (startCursor > endCursor) return 0;
 
-    while (currentCursor <= finalBoundary) {
-      let dayRateModifier = 1.0;
-      let isTerminated = false;
+    let current = new Date(startCursor);
+    current.setDate(1);
 
-      for (let init of activeInits) {
-        if (currentCursor >= init.getEffectiveDate()) {
-          const strategy = String(init.decision).toUpperCase();
-          
-          if (["TERMINATE", "REPLACE"].includes(strategy)) {
-            isTerminated = true;
-            break;
-          } else {
-            const pct = init.targetSavingPct > 1 ? init.targetSavingPct / 100 : init.targetSavingPct;
-            dayRateModifier = Math.max(0, dayRateModifier - pct);
+    while (current <= endCursor) {
+      let monthStart = new Date(current.getFullYear(), current.getMonth(), 1);
+      let monthEnd = new Date(current.getFullYear(), current.getMonth() + 1, 0);
+
+      let overlapStart = monthStart < startCursor ? startCursor : monthStart;
+      let overlapEnd = monthEnd > endCursor ? endCursor : monthEnd;
+
+      if (overlapStart <= overlapEnd) {
+        let daysInMonth = Math.round((monthEnd - monthStart) / (1000 * 60 * 60 * 24)) + 1;
+        let activeDays = Math.round((overlapEnd - overlapStart) / (1000 * 60 * 60 * 24)) + 1;
+        
+        // Quota giornaliera speculare per QUESTO preciso mese
+        let dailyRateForMonth = monthlyFlatRate / daysInMonth;
+
+        let dayCursor = new Date(overlapStart);
+        while (dayCursor <= overlapEnd) {
+          let dayRateModifier = 1.0;
+          let isTerminated = false;
+
+          for (let init of activeInits) {
+            if (dayCursor >= init.getEffectiveDate()) {
+              const strategy = String(init.decision).toUpperCase();
+              if (["TERMINATE", "REPLACE", "TRANSFER"].includes(strategy)) {
+                isTerminated = true; break;
+              } else {
+                const pct = init.targetSavingPct > 1 ? init.targetSavingPct / 100 : init.targetSavingPct;
+                dayRateModifier = Math.max(0, dayRateModifier - pct);
+              }
+            }
           }
+
+          if (!isTerminated) totalOptimized += dailyRateForMonth * dayRateModifier;
+          dayCursor.setDate(dayCursor.getDate() + 1);
         }
       }
-
-      if (!isTerminated) {
-        optimizedValue += (dailyRate * dayRateModifier);
-      }
-      
-      currentCursor.setDate(currentCursor.getDate() + 1);
+      current.setMonth(current.getMonth() + 1); // Salto quantico mensile
     }
-
-    return parseFloat(optimizedValue.toFixed(2));
+    return parseFloat(totalOptimized.toFixed(2));
   }
 
-  /**
-   * Vecchio export richiesto dal quarto test della tua suite originale
-   */
   exportToData() {
     const baseline = this.calculateBaseline();
     const optimized = this.calculateOptimized();
@@ -169,6 +217,8 @@ class ProjectionService {
     console.log("PROJECTION SERVICE: Generazione report orizzontale in corso...");
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     
+    // Acquisizione topologia di rete
+    const allMasters = getSheetDataAsObjects(ss, CONFIG.SHEETS.MASTER_CONTRACTS) || [];
     const allContracts = getSheetDataAsObjects(ss, CONFIG.SHEETS.CONTRACTS) || [];
     const allInitsRaw = getSheetDataAsObjects(ss, CONFIG.SHEETS.INITIATIVES) || [];
     
@@ -188,10 +238,21 @@ class ProjectionService {
       const mId = String(contract["Master Contract ID"] || contract.masterId).trim();
       const linkedInits = domainInitiatives.filter(init => String(init.masterId).trim() === mId);
 
-      // Sfruttiamo la stessa classe instanziandola dinamicamente per i tre anni richiesti
-      const proj26 = new ContractProjection(contract, this.fy26, linkedInits);
-      const proj27 = new ContractProjection(contract, this.fy27, linkedInits);
-      const proj28 = new ContractProjection(contract, this.fy28, linkedInits);
+      // Ricerca dell'eventuale master successore nella Timeline
+      const successorMaster = allMasters.find(m => {
+          const prevs = String(m["Previous Master ID"] || "").split(',').map(s => s.trim());
+          return prevs.includes(mId);
+      });
+      
+      let successorStart = null;
+      if (successorMaster && successorMaster["Master Start Date"]) {
+          successorStart = new Date(successorMaster["Master Start Date"]);
+      }
+
+      // Iniezione della consapevolezza del successore nei calcoli del periodo
+      const proj26 = new ContractProjection(contract, this.fy26, linkedInits, successorStart);
+      const proj27 = new ContractProjection(contract, this.fy27, linkedInits, successorStart);
+      const proj28 = new ContractProjection(contract, this.fy28, linkedInits, successorStart);
 
       const rowData = {
         "Contract ID": contract["Contract ID"] || "",
@@ -212,7 +273,6 @@ class ProjectionService {
         "FY28 Optimized": proj28.calculateOptimized()
       };
 
-      // Includiamo la riga solo se ha impatto finanziario reale sul piano triennale
       if (rowData["FY26 Baseline"] > 0 || rowData["FY27 Baseline"] > 0 || rowData["FY28 Baseline"] > 0) {
         outputRows.push(rowData);
       }

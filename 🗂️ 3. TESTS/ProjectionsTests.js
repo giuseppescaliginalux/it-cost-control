@@ -50,7 +50,7 @@
       const projection = new ContractProjection(contractDto, fy26, [terminateInit]);
       
       assert.equal(projection.calculateBaseline(), 365000);
-      assert.closeTo(projection.calculateOptimized(), 274000, 10);
+      assert.closeTo(projection.calculateOptimized(), 273782.71, 10);
     }
   });
 
@@ -105,7 +105,7 @@
 
       // 1. Controlliamo che la matematica giri (181 giorni da gennaio a giugno nel FY26)
       assert.equal(exported["Days of Competence"], 181);
-      assert.equal(exported["Baseline Spend"], 181000);
+      assert.equal(exported["Baseline Spend"], 182500);
 
       // 2. SCUOLO DI SICUREZZA: I campi descrittivi originari non devono essere stati cancellati!
       assert.equal(exported["Supplier"], "Amazon Web Services");
@@ -114,6 +114,94 @@
       assert.equal(exported["Owner"], "Team DevOps");
 
       console.log("      [Check Projections Integrity]: Colonne anagrafiche del contratto salvate nel Bulk.");
+    }
+  });
+
+  // --------------------------------------------------------------------------
+  // TDD: ROLLOVER PLURIENNALE SUI CONTRATTI RICORRENTI (BUG DEL 2028)
+  // --------------------------------------------------------------------------
+  registry.push({
+    description: "TDD: ContractProjection - Rinnovo virtuale (Rollover) per i contratti Recurrent oltre la End Date",
+    fn: function(assert) {
+      const mockContract = {
+        "Contract ID": "CTR-TDD-ROLLOVER",
+        "Start Date": "2025-01-01",
+        "End Date": "2026-12-31", // Scade fisicamente alla fine del 2026
+        "Cost Recurrence": "Recurrent",
+        "Annual Value": 100000 // 100.000€ all'anno
+      };
+
+      // Testiamo il FY28: 01 Luglio 2027 - 30 Giugno 2028.
+      // Questa finestra è interamente "nel futuro" rispetto alla End Date fisica del contratto.
+      const fy28 = new TimePeriod("FY28", "2027-07-01", "2028-06-30");
+      const projection = new ContractProjection(mockContract, fy28, []);
+
+      // Essendo Recurrent, ci aspettiamo che il motore simuli il rinnovo e proietti gli interi 100.000€ nel FY28
+      assert.equal(projection.calculateBaseline(), 100000);
+      assert.equal(projection.calculateOptimized(), 100000);
+    }
+  });
+
+  // --------------------------------------------------------------------------
+  // TDD: ANTI DOUBLE-COUNTING (SCADENZE SOVRAPPOSTE E SUCCESSIONI)
+  // --------------------------------------------------------------------------
+  registry.push({
+    description: "TDD: ContractProjection - Il Rollover virtuale DEVE interrompersi se esiste un Master Successore",
+    fn: function(assert) {
+      const mockPredecessor = {
+        "Contract ID": "CTR-PRED-01",
+        "Start Date": "2025-01-01",
+        "End Date": "2026-12-31", // Scadenza a metà del FY27
+        "Cost Recurrence": "Recurrent",
+        "Annual Value": 365000 // 1.000€ al giorno
+      };
+      
+      // La Timeline ci dice che questo servizio verrà rimpiazzato dal nuovo contratto 
+      // a partire dal 1° Luglio 2027 (Esattamente all'inizio del FY28)
+      const successorStartDate = new Date("2027-07-01");
+      
+      const fy28 = new TimePeriod("FY28", "2027-07-01", "2028-06-30");
+      
+      // Inizializziamo il predecessore passando al motore la consapevolezza del successore
+      const projection = new ContractProjection(mockPredecessor, fy28, [], successorStartDate);
+
+      // Poiché il FY28 è totalmente coperto dal SUCCESSORE, il PREDECESSORE deve generare zero costi.
+      // Se il test restituisce 366.000, significa che stiamo subendo un gravissimo doppio conteggio.
+      assert.equal(projection.calculateBaseline(), 0);
+      assert.equal(projection.calculateOptimized(), 0);
+      
+      console.log("      [Check Succession]: Il predecessore è stato correttamente spento dal successore.");
+    }
+  });
+
+  // --------------------------------------------------------------------------
+  // TDD: ERP MONTHLY PRO-RATA (Standard SAP / Business Central)
+  // --------------------------------------------------------------------------
+  registry.push({
+    description: "TDD: ContractProjection - Standard ERP Monthly Pro-Rata (Rate flat e spezzature ai bordi)",
+    fn: function(assert) {
+      const mockContract = {
+        "Contract ID": "CTR-ERP-TEST",
+        "Start Date": "2026-11-16", // Inizia a metà Novembre
+        "End Date": "2028-12-31",
+        "Cost Recurrence": "Recurrent",
+        "Annual Value": 12000 // Rata Flat: Esattamente 1.000€ al mese
+      };
+
+      // TEST A: Mese Spezzato (Novembre ha 30 gg. Dal 16 al 30 sono 15 giorni)
+      // Aspettativa ERP: (RataMensile / 30) * 15 = 500€
+      const periodNov = new TimePeriod("NOV-26", "2026-11-01", "2026-11-30");
+      const projNov = new ContractProjection(mockContract, periodNov, []);
+
+      // TEST B: Mese Intero (Dicembre ha 31 gg)
+      // Aspettativa ERP: Rata Flat = 1.000€ (NON deve fare calcoli sui 31 giorni)
+      const periodDec = new TimePeriod("DEC-26", "2026-12-01", "2026-12-31");
+      const projDec = new ContractProjection(mockContract, periodDec, []);
+
+      assert.equal(projNov.calculateBaseline(), 500);
+      assert.equal(projDec.calculateBaseline(), 1000);
+      
+      console.log("      [Check ERP]: Pro-Rata mensile applicato con successo.");
     }
   });
 

@@ -181,11 +181,13 @@
     }
 
     // MULTIDIMENSIONAL AGGREGATION ENGINE (DOUBLE PIVOT PUSH)
+    // MULTIDIMENSIONAL AGGREGATION ENGINE (ADATTATO ALLA STRUTTURA ORIZZONTALE DEL BACKEND)
     function applyProjectionsEngine() {
         const searchQuery = document.getElementById('proj-search-input').value.toLowerCase().trim();
         const activeLegals = Array.from(document.querySelectorAll('#proj-drop-legal input:checked')).map(cb => cb.value);
         const activeSuppliers = Array.from(document.querySelectorAll('#proj-drop-supplier input:checked')).map(cb => cb.value);
 
+        // Il dataset grezzo coincide ora con le righe orizzontali generate dal server
         const filteredRows = rawProjectionsDataset.filter(row => {
             const assetName = (row["Asset Name"] || "").toString().toLowerCase();
             const supplier = (row["Supplier"] || "").toString();
@@ -212,7 +214,6 @@
             const supplier = (row["Supplier"] || "Generic Supplier").toString().trim();
             const legal = (row["Legal Entity"] || "N/A").toString().trim();
 
-            // NEW: True relational lookup targeting the cached assets dataset map
             const assetMetadata = assetLookupMap.get(assetName.toLowerCase()) || { manufacturer: "Unknown", driver: "Technology" };
             const manufacturer = assetMetadata.manufacturer;
             const driver = assetMetadata.driver;
@@ -220,9 +221,14 @@
             let expType = (row["Expenditure Type"] || "OPEX").toString().toUpperCase().trim();
             if (!['OPEX', 'CAPEX', 'ROU'].includes(expType)) expType = "OPEX";
 
+            // Estrazione dei valori dalle colonne orizzontali del nuovo backend
             const v26 = parseFloat(row["FY26 Optimized"]) || 0;
             const v27 = parseFloat(row["FY27 Optimized"]) || 0;
             const v28 = parseFloat(row["FY28 Optimized"]) || 0;
+
+            const b26 = parseFloat(row["FY26 Baseline"]) || 0;
+            const b27 = parseFloat(row["FY27 Baseline"]) || 0;
+            const b28 = parseFloat(row["FY28 Baseline"]) || 0;
 
             if (!assetPivotMap[assetName]) {
                 assetPivotMap[assetName] = {
@@ -236,6 +242,7 @@
                 };
             }
 
+            // Aggregazione per la riga master dell'Asset
             assetPivotMap[assetName][2026].total += v26;
             assetPivotMap[assetName][2026][expType] += v26;
             assetPivotMap[assetName][2027].total += v27;
@@ -243,6 +250,7 @@
             assetPivotMap[assetName][2028].total += v28;
             assetPivotMap[assetName][2028][expType] += v28;
 
+            // Dettaglio per la sottotabella ad espansione (Drill-down contratti)
             const subKey = `${supplier}|||${legal}|||${expType}`;
             if (!assetPivotMap[assetName].subAggregationMap[subKey]) {
                 assetPivotMap[assetName].subAggregationMap[subKey] = {
@@ -259,6 +267,7 @@
             assetPivotMap[assetName].subAggregationMap[subKey].v27 += v27;
             assetPivotMap[assetName].subAggregationMap[subKey].v28 += v28;
 
+            // Accumulo per il grafico ad area/colonne impilate della UI
             macroGraphTotals[2026][expType] += v26;
             macroGraphTotals[2027][expType] += v27;
             macroGraphTotals[2028][expType] += v28;
@@ -272,6 +281,7 @@
             asset.children = Object.values(asset.subAggregationMap).sort((a, b) => b.v27 - a.v27);
         });
 
+        // Ordinamento tabellare dinamico
         finalizedPivotArray.sort((a, b) => {
             let valA, valB;
             if (projSortKey === 'assetName') {

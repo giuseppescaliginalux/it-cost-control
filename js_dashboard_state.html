@@ -23,10 +23,14 @@
 
         computeExecutiveMetrics: function () {
             let totalBudget = 0;
-            let totalProjection = 0;
             this.assets.forEach(a => {
                 totalBudget += parseFloat(a["Effective Budget"]) || 0;
-                totalProjection += parseFloat(a["Fiscal Projection"]) || 0;
+            });
+
+            // Sfruttiamo le nuove colonne orizzontali calcolate in tempo reale dal backend bulk!
+            let totalProjection = 0;
+            this.projections.forEach(p => {
+                totalProjection += parseFloat(p["FY27 Optimized"]) || 0; // Outlook FY27 istantaneo O(1)
             });
 
             const activeContracts = this.contracts.filter(c => (c["Status"] || "").toString().trim().toUpperCase() === "ACTIVE");
