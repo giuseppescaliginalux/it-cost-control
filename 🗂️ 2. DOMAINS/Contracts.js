@@ -23,7 +23,7 @@ const MASTER_FIELD_MAP = {
 
 const CONTRACT_FIELD_MAP = {
   "Contract ID": "contractId", "Master Contract ID": "masterId", "Legal Entity": "legalEntity",
-  "Location": "location", "Service Owner": "serviceOwner", "Scope": "scope",
+  "Location": "location", "Service Owner": "serviceOwner", "Scope": "scope", "Billing Frequency": "billingFrequency",
   "Cost Recurrence": "costRecurrence", "Pricing Model": "pricingModel", "Billing Terms": "billingTerms",
   "Total Commitment": "totalCommitment", "Expenditure Type": "expenditureType", "Cost Center": "costCenter",
   "Start Date": "startDate", "Contract End Date": "contractEndDate", "Adjusted End Date": "adjustedEndDate",
@@ -48,7 +48,7 @@ const LEDGER_FIELD_MAP = {
 const EDITABLE_MASTER = ["Supplier", "Scope", "Comments", "Contract Links"];
 const EDITABLE_CONTRACTS = [
   "Legal Entity", "Location", "Service Owner", "Scope", "Cost Recurrence",
-  "Pricing Model", "Billing Terms", "Total Commitment", "Expenditure Type",
+  "Pricing Model", "Billing Terms", "Billing Frequency", "Total Commitment", "Expenditure Type",
   "Cost Center", "Start Date", "Contract End Date", "Adjusted End Date",
   "Notice Period (Days)", "Auto-Renewal", "BL ID", "Request Code", "Comments", "Contract Links"
 ];
@@ -186,7 +186,44 @@ class Contract {
 
     this.costRecurrence = dto.costRecurrence || "Recurrent";
     this.pricingModel = dto.pricingModel || "Flat";
-    this.billingTerms = dto.billingTerms || "Linear";
+
+
+    // --- SILENT MIGRATION (Retrocompatibilità Dati Storici) ---
+    let rawBt = (dto.billingTerms || "").trim();
+    let rawBf = (dto.billingFrequency || "").trim();
+    const pm = (dto.pricingModel || "").trim();
+
+    // FIX: Gestione della "mezza migrazione" (Termini cambiati ma Frequenza persa)
+    if (rawBt === "Fixed Recurring" && rawBf === "") {
+        rawBf = "Monthly"; // Ripristina il vecchio default del "Linear"
+    }
+    // Regole standard
+    else if (rawBt === "Linear") { 
+        rawBt = "Fixed Recurring"; rawBf = "Monthly"; 
+    }
+    else if (rawBt === "Quarterly") { 
+        rawBt = "Fixed Recurring"; rawBf = "Quarterly"; 
+    }
+    else if (rawBt === "Full Upfront") { 
+        rawBt = "Full Upfront / Prepaid"; rawBf = ""; 
+    }
+    else if (rawBt === "Ledger-Driven") {
+        if (pm === "Minimum Consumption" || pm === "Capped Consumption") {
+            rawBt = "Pay-As-You-Go";
+        } else {
+            rawBt = "Custom / Ledger Driven";
+        }
+    }
+    else if (rawBt === "") {
+        rawBt = "Fixed Recurring"; rawBf = "Monthly";
+    }
+
+    this.billingTerms = rawBt;
+    this.billingFrequency = rawBf;
+    // -----------------------------------------------------------
+
+    //this.billingTerms = dto.billingTerms || "Linear";
+    //this.billingFrequency = dto.billingFrequency || "";
 
     this.totalCommitment = parseFloat(dto.totalCommitment) || 0;
     this.annualValue = parseFloat(dto.annualValue) || 0;
@@ -284,6 +321,7 @@ class Contract {
       costRecurrence: this.costRecurrence,
       pricingModel: this.pricingModel,
       billingTerms: this.billingTerms,
+      billingFrequency: this.billingFrequency,
       totalCommitment: this.totalCommitment,
       expenditureType: this.expenditureType,
       costCenter: this.costCenter,
@@ -304,64 +342,163 @@ class Contract {
     };
   }
 
-  generateForecastLedger() {
-    const pm = String(this.pricingModel).toUpperCase().trim();
+  generateForecastLedger(currentLedger = []) {
     const bt = String(this.billingTerms).toUpperCase().trim();
+    const pm = String(this.pricingModel).toUpperCase().trim();
+    const freq = String(this.billingFrequency).toUpperCase().trim();
 
-    const isForecastable = pm === "MINIMUM CONSUMPTION" || pm === "CAPPED CONSUMPTION";
-    if (!isForecastable) return [];
-    if (bt === "FULL UPFRONT") return []; // L'Upfront puro disattiva l'autogenerazione mensile
     if (this.costRecurrence === "One-Shot" || !this.startDate || !this.getEndDate()) return [];
+
+    // 1. Full Upfront / Custom -> Nessun rateo automatico generato
+    if (bt.includes("UPFRONT") || bt.includes("PREPAID") || bt.includes("CUSTOM")) return [];
 
     const movements = [];
     const finalEnd = this.getEndDate();
     let currentCursor = new Date(this.startDate.getTime());
 
-    let stepMonths = 1;
-    let periodAmount = this.getAnnualValue() / 12;
-    let labelType = "Monthly";
+    // 2. Fixed Recurring -> Piano di fatturazione esatto
+    if (bt.includes("FIXED RECURRING")) {
+      let stepMonths = 1; // Default Monthly
+      if (freq === "QUARTERLY") stepMonths = 3;
+      else if (freq === "EVERY 4 MONTHS") stepMonths = 4;
+      else if (freq === "BI-ANNUALLY") stepMonths = 6;
+      else if (freq === "ANNUALLY") stepMonths = 12;
 
-    if (bt === "QUARTERLY") {
-      stepMonths = 3;
-      periodAmount = this.getAnnualValue() / 4;
-      labelType = "Quarterly";
+      const annualChunks = 12 / stepMonths;
+      const periodAmount = this.getAnnualValue() / annualChunks;
+
+      while (currentCursor <= finalEnd) {
+        const chunkStart = new Date(currentCursor.getTime());
+        const chunkEnd = new Date(currentCursor.getFullYear(), currentCursor.getMonth() + stepMonths, 0);
+
+        // Anti-Duplicazione: Se c'è già una fattura vera in questo mese, non autogenera l'attesa
+        const hasActual = currentLedger.some(l => {
+          if (l.type !== "ACTUAL" || !l.startDate) return false;
+          const d = new Date(l.startDate);
+          return d.getFullYear() === chunkStart.getFullYear() && d.getMonth() === chunkStart.getMonth();
+        });
+
+        if (!hasActual) {
+          const actualEnd = chunkEnd > finalEnd ? finalEnd : chunkEnd;
+          movements.push(new LedgerMovement({
+            contractId: this.id,
+            startDate: formatServerDate(chunkStart),
+            endDate: formatServerDate(actualEnd),
+            type: "CALCULATED",
+            amount: parseFloat(periodAmount.toFixed(2)),
+            notes: `Expected Invoice (${freq || 'Monthly'})`
+          }));
+        }
+        currentCursor = new Date(currentCursor.getFullYear(), currentCursor.getMonth() + stepMonths, 1);
+      }
+      return movements;
     }
 
-    while (currentCursor <= finalEnd) {
-      const chunkStart = new Date(currentCursor.getTime());
-      const chunkEnd = new Date(currentCursor.getFullYear(), currentCursor.getMonth() + stepMonths, 0);
-      const actualEnd = chunkEnd > finalEnd ? finalEnd : chunkEnd;
+    // 3. Pay-As-You-Go -> Autocalcolo a protezione del budget residuo
+    if (bt.includes("PAY-AS-YOU-GO") && (pm.includes("MINIMUM") || pm.includes("CAPPED"))) {
+      const actualsSum = currentLedger
+        .filter(l => l.type === "ACTUAL")
+        .reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
 
-      movements.push(new LedgerMovement({
-        contractId: this.id,
-        startDate: formatServerDate(chunkStart),
-        endDate: formatServerDate(actualEnd),
-        type: "CALCULATED",
-        amount: parseFloat(periodAmount.toFixed(2)),
-        notes: `Engine-generated forecast (${labelType}) starting ${chunkStart.toLocaleString('default', { month: 'short' })} ${chunkStart.getFullYear()}`
-      }));
+      const remainingCommitment = Math.max(0, this.totalCommitment - actualsSum);
 
-      currentCursor = new Date(currentCursor.getFullYear(), currentCursor.getMonth() + stepMonths, 1);
+      let lastActualEnd = new Date(this.startDate.getTime() - 86400000);
+      currentLedger.forEach(l => {
+        if (l.type === "ACTUAL" && l.endDate) {
+          const d = new Date(l.endDate);
+          if (d > lastActualEnd) lastActualEnd = d;
+        }
+      });
+
+      let forecastStart = new Date(lastActualEnd.getTime());
+      forecastStart.setDate(forecastStart.getDate() + 1);
+      if (forecastStart < this.startDate) forecastStart = new Date(this.startDate.getTime());
+      if (forecastStart > finalEnd) return [];
+
+      let tempCursor = new Date(forecastStart.getTime());
+      tempCursor.setDate(1);
+      let monthsRemaining = 0;
+      while (tempCursor <= finalEnd) {
+        monthsRemaining++;
+        tempCursor.setMonth(tempCursor.getMonth() + 1);
+      }
+
+      if (monthsRemaining <= 0) return [];
+      const monthlyForecast = remainingCommitment / monthsRemaining;
+
+      let generateCursor = new Date(forecastStart.getTime());
+      generateCursor.setDate(1);
+
+      while (generateCursor <= finalEnd) {
+        const chunkStart = new Date(generateCursor.getTime());
+        const chunkEnd = new Date(generateCursor.getFullYear(), generateCursor.getMonth() + 1, 0);
+        const actualEnd = chunkEnd > finalEnd ? finalEnd : chunkEnd;
+
+        movements.push(new LedgerMovement({
+          contractId: this.id,
+          startDate: formatServerDate(chunkStart),
+          endDate: formatServerDate(actualEnd),
+          type: "CALCULATED",
+          amount: parseFloat(monthlyForecast.toFixed(2)),
+          notes: `Engine-generated forecast (Remaining Commitment)`
+        }));
+        generateCursor = new Date(generateCursor.getFullYear(), generateCursor.getMonth() + 1, 1);
+      }
+      return movements;
     }
 
-    return movements;
+    return [];
   }
 
   exportFullLedger() {
     const fullLedger = [];
-
-    // ⚡ Filtro Rigido: Pulisce i vecchi CALCULATED autogenerati, ma preserva
-    // per QUALSIASI contratto tutti gli ACTUAL e i FORECAST manuali inseriti "on top" dall'utente
     this.ledger.forEach(l => {
-      if (l.type !== "CALCULATED") {
-        fullLedger.push(l.exportToData());
-      }
+      if (l.type !== "CALCULATED") fullLedger.push(l.exportToData());
     });
-
-    // Accoda le proiezioni predittive fresche (solo per chi ne ha diritto)
-    this.generateForecastLedger().forEach(f => fullLedger.push(f.exportToData()));
-
+    // Passiamo i movimenti reali al motore affinché possa fare le sottrazioni per i consumi!
+    this.generateForecastLedger(this.ledger).forEach(f => fullLedger.push(f.exportToData()));
     return fullLedger;
+  }
+
+  calculateYtdRoySplit(simulatedToday = new Date(), currentLedger = null) {
+    const bt = String(this.billingTerms).toUpperCase().trim();
+    let ytd = 0;
+    let roy = 0;
+
+    const ledgerToUse = currentLedger || this.ledger || [];
+
+    // Oracolo del tempo (Nessun Ledger) per i contratti Upfront Lineari
+    if (bt.includes("UPFRONT") || bt.includes("PREPAID")) {
+      if (this.costRecurrence === "One-Shot") {
+        if (this.startDate <= simulatedToday) ytd = this.totalCommitment;
+        else roy = this.totalCommitment;
+      } else {
+        const startMonth = this.startDate.getFullYear() * 12 + this.startDate.getMonth();
+        const endMonth = this.getEndDate().getFullYear() * 12 + this.getEndDate().getMonth();
+        const currentMonth = simulatedToday.getFullYear() * 12 + simulatedToday.getMonth();
+
+        let passedMonths = currentMonth - startMonth;
+        if (passedMonths < 0) passedMonths = 0;
+
+        const totalDurationMonths = endMonth - startMonth + 1;
+        if (passedMonths > totalDurationMonths) passedMonths = totalDurationMonths;
+
+        const monthlyRate = this.getAnnualValue() / 12;
+        ytd = passedMonths * monthlyRate;
+        roy = (totalDurationMonths - passedMonths) * monthlyRate;
+      }
+    }
+    // Lettura Cassa per tutti gli altri (Ledger Driven)
+    else {
+      ledgerToUse.forEach(m => {
+        const type = String(m.type || m.Type || "ACTUAL").toUpperCase();
+        const amt = parseFloat(m.amount || m.Amount) || 0;
+        if (type === "ACTUAL") ytd += amt;
+        else roy += amt;
+      });
+    }
+
+    return { ytdActuals: ytd, royForecast: roy };
   }
 }
 

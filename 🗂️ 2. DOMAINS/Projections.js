@@ -46,10 +46,12 @@ class TimePeriod {
 }
 
 class ContractProjection {
-  constructor(contractDto, period, linkedInitiatives = [], successorStartDate = null) {
+  // Il segreto è qui: inseriamo il 5° parametro blindato con un default ad array vuoto []
+  constructor(contractDto, period, linkedInitiatives = [], successorStartDate = null, fullLedger = []) {
     this.contract = contractDto;
     this.period = period;
     this.linkedInitiatives = linkedInitiatives;
+    this.fullLedger = fullLedger || []; // Rete di sicurezza anti-null
 
     this.contractStart = contractDto.startDate ? new Date(contractDto.startDate) : null;
     this.contractEnd = contractDto.contractEndDate || contractDto.endDate ? new Date(contractDto.contractEndDate || contractDto.endDate) : null;
@@ -72,6 +74,37 @@ class ContractProjection {
 
   calculateBaseline() {
     if (this.daysOfCompetence <= 0) return 0;
+
+    const bt = String(this.contract.billingTerms || "").toUpperCase().trim();
+
+    // 🌟 SE È A CONSUMO O CUSTOM: Il motore ignora la matematica lineare e legge le fatture/forecast dal Ledger!
+    if (bt.includes("PAY-AS-YOU-GO") || bt.includes("CUSTOM") || bt.includes("LEDGER")) {
+      let periodTotal = 0;
+      const pStart = this.period.startDate;
+      const pEnd = this.period.endDate;
+
+      this.fullLedger.forEach(mov => {
+        const mStart = new Date(mov.startDate || mov.StartDate);
+        if (isNaN(mStart.getTime())) return; // Salta righe corrotte
+        
+        const mEnd = mov.endDate ? new Date(mov.endDate) : new Date(mStart.getTime() + 86400000);
+        
+        const overlapStart = mStart < pStart ? pStart : mStart;
+        const overlapEnd = mEnd > pEnd ? pEnd : mEnd;
+
+        if (overlapStart <= overlapEnd) {
+           const movDays = Math.max(1, Math.round((mEnd - mStart) / 86400000) + 1);
+           const overlapDays = Math.max(1, Math.round((overlapEnd - overlapStart) / 86400000) + 1);
+           const amt = parseFloat(mov.amount || mov.Amount) || 0;
+           
+           if (movDays === overlapDays) periodTotal += amt;
+           else periodTotal += amt * (overlapDays / movDays); // Pro-rata sui giorni per movimenti a cavallo d'anno
+        }
+      });
+      return parseFloat(periodTotal.toFixed(2));
+    }
+
+    // 🌟 SE È FISSO (Flat / Fixed Recurring): Continua con la competenza matematica lineare standard
     if (this.contract.costRecurrence === "One-Shot") {
       if (this.contractStart >= this.period.startDate && this.contractStart <= this.period.endDate) {
         return parseFloat(this.contract.totalCommitment) || 0;
@@ -99,11 +132,8 @@ class ContractProjection {
         let activeDays = Math.round((overlapEnd - overlapStart) / (1000 * 60 * 60 * 24)) + 1;
         let daysInMonth = Math.round((monthEnd - monthStart) / (1000 * 60 * 60 * 24)) + 1;
 
-        if (activeDays === daysInMonth) {
-          totalBaseline += monthlyFlatRate;
-        } else {
-          totalBaseline += monthlyFlatRate * (activeDays / daysInMonth);
-        }
+        if (activeDays === daysInMonth) totalBaseline += monthlyFlatRate;
+        else totalBaseline += monthlyFlatRate * (activeDays / daysInMonth);
       }
       current.setMonth(current.getMonth() + 1);
     }
@@ -117,7 +147,12 @@ class ContractProjection {
     const activeInits = this.linkedInitiatives.filter(init =>
       ["COMPLETED", "IN PROGRESS", "IDEA", "APPROVED", "PLANNED"].includes(String(init.status).toUpperCase())
     );
-    if (activeInits.length === 0) return this.calculateBaseline();
+    
+    // Se non ci sono rinegoziazioni attive ed è un contratto Ledger-Driven, bypassa il ciclo e restituisce la cassa
+    const bt = String(this.contract.billingTerms || "").toUpperCase().trim();
+    if (activeInits.length === 0 || bt.includes("PAY-AS-YOU-GO") || bt.includes("CUSTOM") || bt.includes("LEDGER")) {
+      if (activeInits.length === 0) return this.calculateBaseline();
+    }
 
     // Ordina le iniziative per data di efficacia crescente
     activeInits.sort((a, b) => a.getEffectiveDate() - b.getEffectiveDate());
@@ -155,19 +190,16 @@ class ContractProjection {
           const testDay = new Date(dayCursor);
           testDay.setHours(0,0,0,0);
 
-          // Analizza le iniziative attive
           for (let init of activeInits) {
             const initEffDate = init.getEffectiveDate();
             if (initEffDate) initEffDate.setHours(0,0,0,0);
 
-            // ✨ LOGICA INTUITIVA NATURALE: Il saving o lo spegnimento partono ESATTAMENTE dal giorno della Target Date
             if (testDay >= initEffDate) {
               if (["TERMINATE", "REPLACE", "TRANSFER"].includes(String(init.decision).toUpperCase())) {
                 isTerminated = true;
               } else {
                 let globalSavingPct = parseFloat(init.targetSavingPct) || 0;
                 if (globalSavingPct > 1) globalSavingPct = globalSavingPct / 100;
-                
                 currentRunRate = currentRunRate * (1.0 - globalSavingPct);
               }
             }
@@ -239,9 +271,13 @@ class ProjectionService {
 
       const contractDtoFlat = contractInstance.exportToData();
 
-      const proj26 = new ContractProjection(contractDtoFlat, this.fy26, linkedInits, successorStart);
-      const proj27 = new ContractProjection(contractDtoFlat, this.fy27, linkedInits, successorStart);
-      const proj28 = new ContractProjection(contractDtoFlat, this.fy28, linkedInits, successorStart);
+      // ✨ ESTRAIAMO IL LEDGER PIENO (Actuals + Forecast calcolati dal motore anti-duplicazione)
+      const fullLedger = contractInstance.exportFullLedger();
+
+      // ✨ PASSIAMO IL LEDGER ALLE PROIEZIONI
+      const proj26 = new ContractProjection(contractDtoFlat, this.fy26, linkedInits, successorStart, fullLedger);
+      const proj27 = new ContractProjection(contractDtoFlat, this.fy27, linkedInits, successorStart, fullLedger);
+      const proj28 = new ContractProjection(contractDtoFlat, this.fy28, linkedInits, successorStart, fullLedger);
 
       const rowDto = {
         contractId: contractInstance.id,
