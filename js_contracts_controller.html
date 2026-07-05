@@ -320,7 +320,10 @@
         });
 
         ContractsState.currentDetailItems.forEach(item => {
-            if (item.isEditing) toggleLedgerVisibility(item.id);
+            if (item.isEditing) {
+                toggleLedgerVisibility(item.id);
+                handleExpenditureTypeChange(item.id); // Forza l'allineamento dei vincoli appena si entra in Edit Mode
+            }
         });
 
         const targetLinks = container.querySelectorAll('.live-doc-link');
@@ -395,13 +398,35 @@
         });
 
         const ledgerRows = document.querySelectorAll(`#ledger-container-${id} .ledger-row-item`);
+        let ledgerDateValidationError = false;
+        
         item.ledger = Array.from(ledgerRows).map(row => {
+            const sDate = row.querySelector('.ledger-start').value || "";
+            const eDate = row.querySelector('.ledger-end').value || "";
+            
+            // 🔒 CONTROLLO DATE LEDGER: Verifica inversione temporale
+            if (sDate && eDate && new Date(sDate) > new Date(eDate)) {
+                ledgerDateValidationError = true;
+            }
+            
             const rawAmtStr = row.querySelector('.ledger-amount').value.replace(/[^0-9]/g, '');
             return {
-                "Contract ID": item.data["Contract ID"] || "", "Start Date": row.querySelector('.ledger-start').value || "", "End Date": row.querySelector('.ledger-end').value || "",
+                "Contract ID": item.data["Contract ID"] || "", "Start Date": sDate, "End Date": eDate,
                 "Type": row.querySelector('.ledger-type').value || "ACTUAL", "Amount": parseInt(rawAmtStr, 10) || 0, "Notes": row.querySelector('.ledger-notes').value || ""
             };
         });
+
+        // 🔒 CONTROLLO DI GOVERNANCE ASSOLUTO SUL CAPEX
+        if (item.data["Expenditure Type"] === "CAPEX" && (item.data["Billing Terms"] === "Linear" || item.data["Billing Terms"] === "Quarterly")) {
+            FinOpsUI.showAlert("Governance Restriction", "Un asset registrato come CAPEX non può essere vincolato a scadenze temporali fisse (Linear/Quarterly). Seleziona 'Full Upfront' o 'Ledger-Driven'.");
+            return;
+        }
+
+        // 🔒 BLOCCO EMISSIONE ERRORE DATE LEDGER
+        if (ledgerDateValidationError) {
+            FinOpsUI.showAlert("Validation Error", "Incongruenza nel Ledger: la Data di Inizio di un movimento non può essere successiva alla sua Data di Fine.");
+            return;
+        }
 
         try {
             ContractsUtils.validateContractData(item.data);
@@ -627,6 +652,27 @@
                 else autoForecastBtn.classList.add('hidden');
             }
         }
+    }
+
+    function handleExpenditureTypeChange(detailId) {
+        const expTypeSelect = document.getElementById(`edit-expenditureType-${detailId}`);
+        const billingTermsSelect = document.getElementById(`edit-billingTerms-${detailId}`);
+        if (!expTypeSelect || !billingTermsSelect) return;
+
+        const isCapex = expTypeSelect.value === "CAPEX";
+        
+        // 🔒 Se è CAPEX, disabilitiamo Linear e Quarterly (Leasing/ROU non sono CAPEX)
+        Array.from(billingTermsSelect.options).forEach(opt => {
+            if (isCapex && (opt.value === "Linear" || opt.value === "Quarterly")) {
+                opt.disabled = true;
+                if (opt.selected) {
+                    billingTermsSelect.value = "Full Upfront"; // Reset automatico su termine sicuro
+                }
+            } else {
+                opt.disabled = false;
+            }
+        });
+        toggleLedgerVisibility(detailId);
     }
 
     function triggerLedgerAutomationForContract(detailId) {

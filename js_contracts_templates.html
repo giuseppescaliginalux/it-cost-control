@@ -493,7 +493,7 @@
                     </div>
                     <div>
                         <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Expenditure Type</label>
-                        <select id="edit-expenditureType-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs">
+                        <select id="edit-expenditureType-${item.id}" onchange="handleExpenditureTypeChange(${item.id})" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs">
                             <option value="">Optional</option>
                             <option value="OPEX" ${d["Expenditure Type"] === 'OPEX' ? 'selected' : ''}>OPEX</option>
                             <option value="CAPEX" ${d["Expenditure Type"] === 'CAPEX' ? 'selected' : ''}>CAPEX</option>
