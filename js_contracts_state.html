@@ -12,12 +12,16 @@ const ContractsState = {
     currentMasterData: null,
     currentDetailItems: [],
     isMasterEditable: false,
+    hasUnsavedChanges: false,
+    globalEditMode: false,
 
     // Methods
     resetMaster: function() {
         this.currentMasterData = { "Master Contract ID": "", "Supplier": "", "Scope": "", "Comments": "" };
         this.currentDetailItems = [];
         this.isMasterEditable = true;
+        this.hasUnsavedChanges = true; // Un nuovo master è considerabile "non salvato"
+        this.globalEditMode = true;
     },
 
     loadMasterDetails: function(masterId, allMasterContracts, allContracts, allocationSplits, ledger) {
@@ -39,6 +43,8 @@ const ContractsState = {
         });
 
         this.isMasterEditable = false;
+        this.hasUnsavedChanges = false;
+        this.globalEditMode = false;
     },
 
     addNewDetailRow: function() {
@@ -50,6 +56,7 @@ const ContractsState = {
             splits: [],
             ledger: []
         });
+        this.hasUnsavedChanges = true;
     },
 
     cloneDetailRow: function(id) {
@@ -71,11 +78,13 @@ const ContractsState = {
             splits: [],
             ledger: []
         });
+        this.hasUnsavedChanges = true;
         return true;
     },
 
     removeDetailRow: function(id) {
         this.currentDetailItems = this.currentDetailItems.filter(i => i.id !== id);
+        this.hasUnsavedChanges = true;
     },
 
     setRowEditMode: function(id, editable) {

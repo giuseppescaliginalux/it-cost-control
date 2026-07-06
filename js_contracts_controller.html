@@ -5,15 +5,66 @@
      * and re-renders the View by invoking Templates.
      */
 
+    // Flag per evitare di re-iniettare l'HTML se è già stato caricato
+    let isContractsLayoutRendered = false;
+
     // --- Tab Router Override ---
     const originalSwitchTab = switchTab;
     switchTab = function (tabId) {
         originalSwitchTab(tabId);
         if (tabId === 'tab-contracts') {
+            if (!isContractsLayoutRendered) {
+                document.getElementById('tab-contracts').innerHTML = ContractsTemplates.getBaseLayout();
+                isContractsLayoutRendered = true;
+            }
+            
             document.getElementById('mgmt-asset-search-input').value = '';
+            ContractsState.currentSelectedAsset = null;
             renderAssetSearchList();
         }
     };
+
+    function toggleGlobalEditMode() {
+        ContractsState.globalEditMode = !ContractsState.globalEditMode;
+        
+        // Logica IDENTICA a toggleTimelineEditMode per classi e colori
+        const editBtn = document.getElementById('contracts-edit-mode-btn');
+        if (ContractsState.globalEditMode) {
+            if (editBtn) {
+                editBtn.className = "px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-black text-[11px] uppercase tracking-wider rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer";
+                editBtn.innerHTML = `<svg class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg> Editing Mode`;
+            }
+        } else {
+            if (editBtn) {
+                editBtn.className = "px-4 py-2 bg-white border border-slate-300 text-slate-700 font-black text-[11px] uppercase tracking-wider rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer hover:bg-slate-50";
+                editBtn.innerHTML = `<svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.25 0 113.536 3.536L6.5 21.036H3v-3.536L16.5 3.536z" /></svg> Edit Mode`;
+            }
+        }
+
+        const allMasterContracts = windowPayload.masterContracts || [];
+        if (ContractsState.currentSelectedAsset) {
+            const assetMasters = allMasterContracts.filter(m => (m["Asset Name"] || "").toString().toLowerCase().trim() === ContractsState.currentSelectedAsset.name.toLowerCase().trim());
+            renderMasterContractsList(assetMasters);
+        }
+        
+        if (ContractsState.currentMasterData) {
+            renderMasterFormBox();
+            renderDetailItemsTable();
+        }
+    }
+
+    function updateCommitButtonVisibility() {
+        const commitBtn = document.getElementById('contracts-commit-btn');
+        if (!commitBtn) return;
+        
+        if (ContractsState.hasUnsavedChanges) {
+            commitBtn.classList.remove('hidden');
+            commitBtn.classList.add('flex'); // Align to timeline logic
+        } else {
+            commitBtn.classList.add('hidden');
+            commitBtn.classList.remove('flex');
+        }
+    }
 
     // --- Search & Selection ---
     function renderAssetSearchList() {
@@ -78,12 +129,18 @@
     // --- Master Contract Flows ---
     function renderMasterContractsList(list) {
         const container = document.getElementById('mgmt-master-list-container');
+
+        // Tasto New Master subordinato alla modalità di Modifica Globale
+        const newMasterBtn = ContractsState.globalEditMode
+            ? `<button onclick="setupNewMasterAgreement()" class="text-[9px] font-black bg-teal-50 border border-teal-200 text-teal-700 px-2 py-1 rounded-md hover:bg-teal-100 shadow-sm transition-colors">+ New Master</button>`
+            : ``;
+
         let html = `
         <div class="flex justify-between items-center mb-2">
             <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Linked Master Agreements</span>
-            <button onclick="setupNewMasterAgreement()" class="text-[9px] font-black bg-teal-50 border border-teal-200 text-teal-700 px-2 py-1 rounded-md hover:bg-teal-100">+ New Master</button>
+            ${newMasterBtn}
         </div>
-    `;
+        `;
 
         if (list.length === 0) {
             container.innerHTML = html + `<p class="text-slate-400 italic text-[11px] text-center py-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl">No Master Agreements linked.</p>`;
@@ -133,8 +190,46 @@
         renderDetailItemsTable();
     }
 
+    function toggleGlobalEditMode() {
+        ContractsState.globalEditMode = !ContractsState.globalEditMode;
+        renderMasterFormBox();
+        renderDetailItemsTable();
+    }
+
+    function updateCommitButtonVisibility() {
+        const commitBtn = document.querySelector('button[onclick="saveCurrentContract()"]');
+        if (!commitBtn) return;
+
+        if (ContractsState.hasUnsavedChanges) {
+            commitBtn.classList.remove('hidden');
+        } else {
+            commitBtn.classList.add('hidden');
+        }
+    }
+
     function renderMasterFormBox() {
-        document.getElementById('mgmt-master-form-container').classList.remove('hidden');
+        const masterContainer = document.getElementById('mgmt-master-form-container');
+        if (!masterContainer) return;
+        masterContainer.classList.remove('hidden');
+
+        // Gestione dinamica ed isolata della barra di comando EDIT MODE sopra la card del Master
+        let globalBar = document.getElementById('mgmt-global-edit-bar');
+        if (!globalBar) {
+            globalBar = document.createElement('div');
+            globalBar.id = 'mgmt-global-edit-bar';
+            globalBar.className = 'flex justify-end mb-3';
+            masterContainer.insertBefore(globalBar, document.getElementById('mgmt-master-form-box-inner'));
+        }
+
+        globalBar.innerHTML = `
+            <button onclick="toggleGlobalEditMode()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border ${ContractsState.globalEditMode ? 'bg-indigo-600 border-indigo-700 text-white font-black' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 font-bold'} text-[10px] uppercase tracking-wider transition-all shadow-sm cursor-pointer select-none">
+                <svg class="w-3.5 h-3.5 ${ContractsState.globalEditMode ? 'text-white' : 'text-slate-400'}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+                EDIT MODE: ${ContractsState.globalEditMode ? 'ON' : 'OFF'}
+            </button>
+        `;
+
         const container = document.getElementById('mgmt-master-form-box-inner');
         if (!container) return;
 
@@ -146,16 +241,19 @@
             const status = (data["Status"] || "ACTIVE").toUpperCase().trim();
             const cleanStart = data["Master Start Date"] ? ContractsUtils.formatToEnglishCustomDate(data["Master Start Date"]) : '—';
             const cleanEnd = data["Master End Date"] ? ContractsUtils.formatToEnglishCustomDate(data["Master End Date"]) : '—';
-            const termMonths = data["Contract Term (Months)"] !== undefined ? data["Contract Term (Months)"] : '—';
+
+            // Lettura pulita dal foglio per bloccare stringhe decimali sporche
+            let rawTerm = data["Contract Term (Months)"] !== undefined && data["Contract Term (Months)"] !== "" ? data["Contract Term (Months)"] : (data["contractTerm"] !== undefined ? data["contractTerm"] : '—');
+            let termMonths = (typeof rawTerm === 'number' || !isNaN(parseFloat(rawTerm))) ? Math.round(parseFloat(rawTerm)) : rawTerm;
 
             let statusClass = "bg-slate-50 text-slate-500 border-slate-200";
             if (status === "ACTIVE") statusClass = "bg-emerald-50 text-emerald-700 border-emerald-200/50";
             if (status === "EXPIRED" || status === "TERMINATED") statusClass = "bg-rose-50 text-rose-600 border-rose-200/50";
             if (status === "IN NEGOTIATION") statusClass = "bg-amber-50 text-amber-700 border-amber-200/50";
 
-            container.innerHTML = ContractsTemplates.getMasterReadOnly(data, masterLinks, cleanStart, cleanEnd, termMonths, status, statusClass);
+            container.innerHTML = ContractsTemplates.getMasterReadOnly(data, masterLinks, cleanStart, cleanEnd, termMonths, status, statusClass, ContractsState.globalEditMode);
         } else {
-            const suppliersList = ContractsUtils.extractUniqueField(windowPayload.suppliers, "Supplier");
+            const suppliersList = ContractsUtils.extractUniqueField(windowPayload.masterContracts || windowPayload.contracts, "Supplier");
             const isNew = data["Master Contract ID"] === "";
 
             container.innerHTML = ContractsTemplates.getMasterEditCard(data, isNew, suppliersList, masterLinks);
@@ -167,6 +265,8 @@
             const uniqueUrlsString = [...new Set(rawUrls)].join(',');
             ContractsAPI.resolveLiveDocumentNames(uniqueUrlsString, targetLinks);
         }
+
+        updateCommitButtonVisibility();
     }
 
     function toggleMasterEditState(editable) {
@@ -206,6 +306,7 @@
                                 data["Contract Links"] = currentLinks.join(', ');
                                 hideLoading();
                                 ContractsState.updateMasterEditState(false);
+                                ContractsState.hasUnsavedChanges = true; // Traccia la modifica
                                 renderMasterFormBox();
                             },
                             (err) => { hideLoading(); alert("Upload Error: " + err.message); }
@@ -217,6 +318,7 @@
         } else {
             data["Contract Links"] = baseLinks;
             ContractsState.updateMasterEditState(false);
+            ContractsState.hasUnsavedChanges = true; // Traccia la modifica
             renderMasterFormBox();
         }
     }
@@ -226,19 +328,23 @@
         const container = document.getElementById('mgmt-detailRowsContainer');
         if (!container) return;
 
+        // Il tasto di aggiunta contratto si mostra esclusivamente se l'EDIT MODE globale è attivo
+        const addBtn = document.getElementById('btn-add-contract-row');
+        if (addBtn) addBtn.style.display = ContractsState.globalEditMode ? 'inline-block' : 'none';
+
         if (ContractsState.currentDetailItems.length === 0) {
             container.innerHTML = `
             <div class="text-center py-8 border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/20">
                 <p class="text-slate-400 text-xs italic">No allocation or ramping detail records found for this Master Agreement.</p>
             </div>
         `;
+            updateCommitButtonVisibility();
             return;
         }
 
         container.innerHTML = `<div id="mgmt-flexible-cards-list" class="space-y-2"></div>`;
         const listWrapper = document.getElementById('mgmt-flexible-cards-list');
 
-        // Generic base options (no "selected" state) for Split rows
         const baseLeOptions = ContractsUtils.extractUniqueField(windowPayload.legalEntities, "Legal Entity").map(le => `<option value="${le}">${le}</option>`).join('');
         const baseCcOptions = ContractsUtils.extractUniqueField(windowPayload.costCenters, "Cost Center").map(cc => `<option value="${cc}">${cc}</option>`).join('');
 
@@ -248,42 +354,43 @@
             const docLinks = (d["Contract Links"] || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
 
             if (!item.isEditing) {
-                // ... READ ONLY MODE ...
-                const ledgerTotalSum = (item.ledger || []).reduce((acc, curr) => acc + (parseFloat(curr["Amount"]) || 0), 0);
-                const rawCommitment = parseFloat(d["Total Commitment"]) || 0;
+                const formatFinance = (val) => (val || 0).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+
+                const ledgerTotalSum = (item.ledger || []).reduce((acc, curr) => acc + (ContractsUtils.parseFinancialValue(curr["Amount"])), 0);
+                const rawCommitment = ContractsUtils.parseFinancialValue(d["Total Commitment"]);
+                const effCommitNum = ContractsUtils.parseFinancialValue(d["Effective Commitment"]);
+                const annValNum = ContractsUtils.parseFinancialValue(d["Annual Value"]);
+
                 const pricingModel = d["Pricing Model"] || "Flat";
                 const billingTerms = d["Billing Terms"] || "Linear";
 
                 let warningBadgeHTML = '';
-
-                // FinOps Tolerance: ignora scostamenti irrilevanti dovuti ad arrotondamenti matematici (±100€)
                 const tolerance = 100;
 
                 if (billingTerms === "Ledger-Driven" && rawCommitment > 0 && !item.isEditing) {
                     const diff = ledgerTotalSum - rawCommitment;
 
                     if (diff > tolerance) {
-                        warningBadgeHTML = `<div class="flex flex-col justify-center text-right border-r border-rose-200 pr-3 mr-1 animate-pulse shrink-0" title="Ledger sum exceeds Total Commitment"><span class="text-[8px] text-rose-500 block uppercase font-black tracking-wider whitespace-nowrap">Overage</span><span class="font-mono font-black text-rose-600 text-[12px] whitespace-nowrap">+ €${diff.formatCurrency()}</span></div>`;
+                        warningBadgeHTML = `<div class="flex flex-col justify-center text-right border-r border-rose-200 pr-3 mr-1 animate-pulse shrink-0" title="Ledger sum exceeds Total Commitment"><span class="text-[8px] text-rose-500 block uppercase font-black tracking-wider whitespace-nowrap">Overage</span><span class="font-mono font-black text-rose-600 text-[12px] whitespace-nowrap">+ €${formatFinance(diff)}</span></div>`;
                     } else if (diff < -tolerance) {
                         const gap = Math.abs(diff);
                         if (["Minimum Consumption", "Capped Consumption"].includes(pricingModel)) {
-                            warningBadgeHTML = `<div class="flex flex-col justify-center text-right border-r border-amber-200 pr-3 mr-1 shrink-0" title="Missing forecasts to fulfill the contractual Commitment"><span class="text-[8px] text-amber-500 block uppercase font-black tracking-wider whitespace-nowrap">Forecast Gap</span><span class="font-mono font-black text-amber-600 text-[12px] whitespace-nowrap">- €${gap.formatCurrency()}</span></div>`;
+                            warningBadgeHTML = `<div class="flex flex-col justify-center text-right border-r border-amber-200 pr-3 mr-1 shrink-0" title="Missing forecasts to fulfill the contractual Commitment"><span class="text-[8px] text-amber-500 block uppercase font-black tracking-wider whitespace-nowrap">Forecast Gap</span><span class="font-mono font-black text-amber-600 text-[12px] whitespace-nowrap">- €${formatFinance(gap)}</span></div>`;
                         } else if (pricingModel === "Pure Consumption") {
-                            warningBadgeHTML = `<div class="flex flex-col justify-center text-right border-r border-sky-200 pr-3 mr-1 shrink-0" title="Current consumption is below the target estimate"><span class="text-[8px] text-sky-500 block uppercase font-black tracking-wider whitespace-nowrap">Under Target</span><span class="font-mono font-black text-sky-600 text-[12px] whitespace-nowrap">- €${gap.formatCurrency()}</span></div>`;
+                            warningBadgeHTML = `<div class="flex flex-col justify-center text-right border-r border-sky-200 pr-3 mr-1 shrink-0" title="Current consumption is below the target estimate"><span class="text-[8px] text-sky-500 block uppercase font-black tracking-wider whitespace-nowrap">Under Target</span><span class="font-mono font-black text-sky-600 text-[12px] whitespace-nowrap">- €${formatFinance(gap)}</span></div>`;
                         } else {
-                            warningBadgeHTML = `<div class="flex flex-col justify-center text-right border-r border-orange-200 pr-3 mr-1 shrink-0" title="Logged installments do not cover the full fixed amount"><span class="text-[8px] text-orange-500 block uppercase font-black tracking-wider whitespace-nowrap">Ledger Mismatch</span><span class="font-mono font-black text-orange-600 text-[12px] whitespace-nowrap">- €${gap.formatCurrency()}</span></div>`;
+                            warningBadgeHTML = `<div class="flex flex-col justify-center text-right border-r border-orange-200 pr-3 mr-1 shrink-0" title="Logged installments do not cover the full fixed amount"><span class="text-[8px] text-orange-500 block uppercase font-black tracking-wider whitespace-nowrap">Ledger Mismatch</span><span class="font-mono font-black text-orange-600 text-[12px] whitespace-nowrap">- €${formatFinance(gap)}</span></div>`;
                         }
                     }
                 } else if (billingTerms !== "Ledger-Driven" && ["Minimum Consumption", "Capped Consumption", "Pure Consumption"].includes(pricingModel) && !item.isEditing) {
-                    // Per i modelli a consumo "on-top" applichiamo la stessa tolleranza anti-rumore
                     if (ledgerTotalSum > tolerance) {
-                        warningBadgeHTML = `<div class="flex flex-col justify-center text-right border-r border-rose-200 pr-3 mr-1 animate-pulse shrink-0" title="Extra consumption logged on top of the fixed baseline"><span class="text-[8px] text-rose-500 block uppercase font-black tracking-wider whitespace-nowrap">Overage Alert</span><span class="font-mono font-black text-rose-600 text-[12px] whitespace-nowrap">+ €${ledgerTotalSum.formatCurrency()}</span></div>`;
+                        warningBadgeHTML = `<div class="flex flex-col justify-center text-right border-r border-rose-200 pr-3 mr-1 animate-pulse shrink-0" title="Extra consumption logged on top of the fixed baseline"><span class="text-[8px] text-rose-500 block uppercase font-black tracking-wider whitespace-nowrap">Overage Alert</span><span class="font-mono font-black text-rose-600 text-[12px] whitespace-nowrap">+ €${formatFinance(ledgerTotalSum)}</span></div>`;
                     }
                 }
 
-                const effCommit = typeof d["Effective Commitment"] === 'number' ? d["Effective Commitment"].formatCurrency() : (parseFloat(d["Effective Commitment"]) || 0).formatCurrency();
-                const annVal = typeof d["Annual Value"] === 'number' ? d["Annual Value"].formatCurrency() : (parseFloat(d["Annual Value"]) || 0).formatCurrency();
-                const totCommit = typeof d["Total Commitment"] === 'number' ? d["Total Commitment"].formatCurrency() : (parseFloat(d["Total Commitment"]) || 0).formatCurrency();
+                const effCommit = formatFinance(effCommitNum);
+                const annVal = formatFinance(annValNum);
+                const totCommit = formatFinance(rawCommitment);
                 const cleanStart = d["Start Date"] ? ContractsUtils.formatToEnglishCustomDate(d["Start Date"]) : '—';
                 const cleanEnd = d["End Date"] ? ContractsUtils.formatToEnglishCustomDate(d["End Date"]) : '—';
                 const contractEnd = d["Contract End Date"] ? ContractsUtils.formatToEnglishCustomDate(d["Contract End Date"]) : '—';
@@ -292,13 +399,10 @@
                 cardDiv.className = "p-3 bg-white border border-slate-200/80 rounded-xl hover:border-teal-200 hover:shadow-sm transition-all flex flex-col gap-2 cursor-pointer select-none";
                 cardDiv.setAttribute("onclick", `toggleCompactAccordion(${item.id}, event)`);
 
-                cardDiv.innerHTML = ContractsTemplates.getDetailReadOnlyCard(item, warningBadgeHTML, effCommit, annVal, totCommit, cleanStart, cleanEnd, contractEnd, adjEnd, docLinks);
+                cardDiv.innerHTML = ContractsTemplates.getDetailReadOnlyCard(item, warningBadgeHTML, effCommit, annVal, totCommit, cleanStart, cleanEnd, contractEnd, adjEnd, docLinks, ContractsState.globalEditMode);
 
             } else {
-                // ... EDIT MODE ...
                 cardDiv.className = "bg-white border border-slate-200 rounded-xl p-4 shadow-md relative space-y-3 animate-fade-in";
-
-                // Dropdown options specific to the editing record
                 const editLeOptions = ContractsUtils.extractUniqueField(windowPayload.legalEntities, "Legal Entity").map(le => `<option value="${le}" ${le === d["Legal Entity"] ? 'selected' : ''}>${le}</option>`).join('');
                 const tgOptions = ContractsState.currentAssetGroupIds.map(g => `<option value="${g}" ${g === d["Target Group ID"] ? 'selected' : ''}>${g}</option>`).join('');
                 const locOptions = ContractsUtils.extractUniqueField(windowPayload.locations, "Location").map(loc => `<option value="${loc}" ${loc === d["Location"] ? 'selected' : ''}>${loc}</option>`).join('');
@@ -319,19 +423,14 @@
             listWrapper.appendChild(cardDiv);
         });
 
-        ContractsState.currentDetailItems.forEach(item => {
-            if (item.isEditing) {
-                toggleLedgerVisibility(item.id);
-                handleExpenditureTypeChange(item.id); // Forza l'allineamento dei vincoli appena si entra in Edit Mode
-            }
-        });
-
         const targetLinks = container.querySelectorAll('.live-doc-link');
         if (targetLinks.length > 0) {
             const rawUrls = Array.from(targetLinks).map(el => el.getAttribute('data-raw'));
             const uniqueUrlsString = [...new Set(rawUrls)].join(',');
             ContractsAPI.resolveLiveDocumentNames(uniqueUrlsString, targetLinks);
         }
+
+        updateCommitButtonVisibility();
     }
 
     function cloneDetailRowItem(id) {
@@ -475,6 +574,7 @@
                 hideLoading();
                 item.data = calculatedItem;
                 item.isEditing = false;
+                ContractsState.hasUnsavedChanges = true; // Traccia la modifica
                 renderDetailItemsTable();
             },
             (err) => {

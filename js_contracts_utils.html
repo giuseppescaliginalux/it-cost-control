@@ -40,16 +40,23 @@
             return true;
         },
 
+        // --- Safe Financial Parsing (LA FUNZIONE CHE MANCAVA) ---
+        parseFinancialValue: function (rawVal) {
+            if (typeof rawVal === 'number') return rawVal;
+            if (!rawVal || String(rawVal).trim() === "") return 0;
+            // Rimuove i simboli valuta, lettere, e normalizza la virgola in punto
+            const cleaned = String(rawVal).replace(/[^0-9,.-]/g, '').replace(/,/g, '.');
+            return parseFloat(cleaned) || 0;
+        },
+
         // --- Formatters ---
         formatToEnglishCustomDate: function (dateStr) {
             if (!dateStr || String(dateStr).trim() === "" || String(dateStr) === "—") return "—";
 
-            // Se hai copiato il motore FinOpsDate in js_common_templates, usa quello
             if (typeof FinOpsDate !== 'undefined') {
                 return FinOpsDate.toVisualLong(dateStr);
             }
 
-            // Fallback nativo e robusto (Cattura le date sporche tipo "Mon Feb 28 2028...")
             let d = new Date(dateStr);
             if (!isNaN(d.getTime())) {
                 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
