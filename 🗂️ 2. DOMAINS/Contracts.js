@@ -45,13 +45,6 @@ const LEDGER_FIELD_MAP = {
   "Type": "type", "Amount": "amount", "Notes": "notes"
 };
 
-const EDITABLE_MASTER = ["Supplier", "Scope", "Comments", "Contract Links"];
-const EDITABLE_CONTRACTS = [
-  "Legal Entity", "Location", "Service Owner", "Scope", "Cost Recurrence",
-  "Pricing Model", "Billing Terms", "Billing Frequency", "Total Commitment", "Expenditure Type",
-  "Cost Center", "Start Date", "Contract End Date", "Adjusted End Date",
-  "Notice Period (Days)", "Auto-Renewal", "BL ID", "Request Code", "Comments", "Contract Links"
-];
 
 /**
  * @object ContractMapper
@@ -195,27 +188,27 @@ class Contract {
 
     // FIX: Gestione della "mezza migrazione" (Termini cambiati ma Frequenza persa)
     if (rawBt === "Fixed Recurring" && rawBf === "") {
-        rawBf = "Monthly"; // Ripristina il vecchio default del "Linear"
+      rawBf = "Monthly"; // Ripristina il vecchio default del "Linear"
     }
     // Regole standard
-    else if (rawBt === "Linear") { 
-        rawBt = "Fixed Recurring"; rawBf = "Monthly"; 
+    else if (rawBt === "Linear") {
+      rawBt = "Fixed Recurring"; rawBf = "Monthly";
     }
-    else if (rawBt === "Quarterly") { 
-        rawBt = "Fixed Recurring"; rawBf = "Quarterly"; 
+    else if (rawBt === "Quarterly") {
+      rawBt = "Fixed Recurring"; rawBf = "Quarterly";
     }
-    else if (rawBt === "Full Upfront") { 
-        rawBt = "Full Upfront / Prepaid"; rawBf = ""; 
+    else if (rawBt === "Full Upfront") {
+      rawBt = "Full Upfront / Prepaid"; rawBf = "";
     }
     else if (rawBt === "Ledger-Driven") {
-        if (pm === "Minimum Consumption" || pm === "Capped Consumption") {
-            rawBt = "Pay-As-You-Go";
-        } else {
-            rawBt = "Custom / Ledger Driven";
-        }
+      if (pm === "Minimum Consumption" || pm === "Capped Consumption") {
+        rawBt = "Pay-As-You-Go";
+      } else {
+        rawBt = "Custom / Ledger Driven";
+      }
     }
     else if (rawBt === "") {
-        rawBt = "Fixed Recurring"; rawBf = "Monthly";
+      rawBt = "Fixed Recurring"; rawBf = "Monthly";
     }
 
     this.billingTerms = rawBt;
@@ -550,16 +543,13 @@ class MasterContract {
   }
 
   getRunRate() {
+    // Filtra solo i contratti effettivi ricorrenti associati al Master
     const recurrentContracts = this.childContracts.filter(c => String(c.costRecurrence).toLowerCase() === "recurrent");
-    const start = this.getMinStartDate();
-    const end = this.getMaxEndDate();
-    if (!start || !end || recurrentContracts.length === 0) return 0;
+    if (recurrentContracts.length === 0) return 0;
 
-    const masterDays = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
-    const masterTermMonths = Math.max(1, Math.round(masterDays / 30.4166));
-
-    const totalRecurrentEff = recurrentContracts.reduce((sum, c) => sum + c.getEffectiveCommitment(), 0);
-    return parseFloat(((totalRecurrentEff / masterTermMonths) * 12).toFixed(2));
+    // Somma dei run rate (Valore Annualizzato) reali dei contratti figli
+    const sumRunRates = recurrentContracts.reduce((sum, c) => sum + c.getAnnualValue(), 0);
+    return parseFloat(sumRunRates.toFixed(2));
   }
 
   deriveStatus(linkedInitiatives) {
@@ -581,6 +571,14 @@ class MasterContract {
   }
 
   exportToData(linkedInitiatives) {
+    const start = this.getMinStartDate();
+    const end = this.getMaxEndDate();
+    let termMonths = 0;
+    if (start && end && start <= end) {
+      // Calcolo preciso dei mesi complessivi del Master usando la logica condivisa
+      termMonths = parseFloat(this._getExactMonths(start, end).toFixed(4));
+    }
+
     return {
       ...this.extraProperties,
       masterId: this.id,
@@ -591,12 +589,27 @@ class MasterContract {
       masterComments: this.masterComments,
       contractLinks: this.contractLinks,
       billingChannel: this.billingChannel,
-      masterStartDate: formatServerDate(this.getMinStartDate()),
-      masterEndDate: formatServerDate(this.getMaxEndDate()),
+      masterStartDate: formatServerDate(start),
+      masterEndDate: formatServerDate(end),
+      contractTerm: termMonths, // <--- FIX: Ora viene valorizzato correttamente!
       totalCommitment: this.getTotalCommitment(),
       runRate: this.getRunRate(),
       status: this.deriveStatus(linkedInitiatives)
     };
+  }
+
+  // Helper interno speculare a quello dei contratti singoli per mantenere consistenza matematica
+  _getExactMonths(s, e) {
+    if (!s || !e || s > e) return 0;
+    const startDaysInMonth = new Date(s.getFullYear(), s.getMonth() + 1, 0).getDate();
+    const endDaysInMonth = new Date(e.getFullYear(), e.getMonth() + 1, 0).getDate();
+    if (s.getFullYear() === e.getFullYear() && s.getMonth() === e.getMonth()) {
+      return (e.getDate() - s.getDate() + 1) / startDaysInMonth;
+    }
+    const fullMonths = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth()) - 1;
+    const sFrac = (startDaysInMonth - s.getDate() + 1) / startDaysInMonth;
+    const eFrac = e.getDate() / endDaysInMonth;
+    return fullMonths + sFrac + eFrac;
   }
 }
 
@@ -606,20 +619,33 @@ class MasterContract {
 
 class ContractRepository {
 
+  // Helper nativo: mappa il DTO esattamente sulle colonne fisiche del foglio
+  _mapDtoToRow(dto, headers, fieldMap) {
+    return headers.map(header => {
+      if (fieldMap && fieldMap[header]) {
+        const prop = fieldMap[header];
+        return dto[prop] !== undefined ? dto[prop] : (dto[header] !== undefined ? dto[header] : "");
+      }
+      return dto[header] !== undefined ? dto[header] : "";
+    });
+  }
+
   saveMasterRow(masterDto) {
     const ctx = getSheetContext(CONFIG.SHEETS.MASTER_CONTRACTS);
     const idCol = ctx.headers.indexOf("Master Contract ID");
     let rowIdx = -1;
+
     for (let i = 1; i < ctx.data.length; i++) {
       if (String(ctx.data[i][idCol]).trim() === String(masterDto.masterId).trim()) { rowIdx = i + 1; break; }
     }
-    // DatabaseUtils gestisce il dictionary di Mapping in modo sicuro
-    if (rowIdx > 0) { updateRowSafe(ctx.sheet, rowIdx, ctx.headers, masterDto, EDITABLE_MASTER, MASTER_FIELD_MAP); }
-    else {
-      let newRow = new Array(ctx.headers.length).fill("");
-      newRow[idCol] = masterDto.masterId;
-      ctx.sheet.appendRow(newRow);
-      updateRowSafe(ctx.sheet, ctx.sheet.getLastRow(), ctx.headers, masterDto, EDITABLE_MASTER, MASTER_FIELD_MAP);
+
+    const mappedRow = this._mapDtoToRow(masterDto, ctx.headers, MASTER_FIELD_MAP);
+
+    // Scrittura nativa diretta: l'intero DTO (inclusi i campi extra e non mappati) viene consolidato
+    if (rowIdx > 0) {
+      ctx.sheet.getRange(rowIdx, 1, 1, ctx.headers.length).setValues([mappedRow]);
+    } else {
+      ctx.sheet.appendRow(mappedRow);
     }
   }
 
@@ -630,21 +656,23 @@ class ContractRepository {
 
     const dbRowsMap = new Map();
     for (let i = 1; i < ctx.data.length; i++) {
-      if (String(ctx.data[i][mIdCol]).trim() === String(masterId).trim()) { dbRowsMap.set(String(ctx.data[i][cIdCol]).trim(), i + 1); }
+      if (String(ctx.data[i][mIdCol]).trim() === String(masterId).trim()) {
+        dbRowsMap.set(String(ctx.data[i][cIdCol]).trim(), i + 1);
+      }
     }
+
     detailsDtoArray.forEach(detail => {
       const cid = String(detail.contractId).trim();
+      const mappedRow = this._mapDtoToRow(detail, ctx.headers, CONTRACT_FIELD_MAP);
+
       if (dbRowsMap.has(cid)) {
-        updateRowSafe(ctx.sheet, dbRowsMap.get(cid), ctx.headers, detail, EDITABLE_CONTRACTS, CONTRACT_FIELD_MAP);
+        ctx.sheet.getRange(dbRowsMap.get(cid), 1, 1, ctx.headers.length).setValues([mappedRow]);
         dbRowsMap.delete(cid);
       } else {
-        let newRow = new Array(ctx.headers.length).fill("");
-        if (mIdCol > -1) newRow[mIdCol] = masterId;
-        if (cIdCol > -1) newRow[cIdCol] = detail.contractId;
-        ctx.sheet.appendRow(newRow);
-        updateRowSafe(ctx.sheet, ctx.sheet.getLastRow(), ctx.headers, detail, EDITABLE_CONTRACTS, CONTRACT_FIELD_MAP);
+        ctx.sheet.appendRow(mappedRow);
       }
     });
+
     const toDelete = Array.from(dbRowsMap.values()).sort((a, b) => b - a);
     toDelete.forEach(idx => ctx.sheet.deleteRow(idx));
   }

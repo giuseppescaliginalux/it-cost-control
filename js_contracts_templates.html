@@ -419,12 +419,7 @@
                             <span class="tt-wrapper text-slate-400 hover:text-teal-500 transition-colors">
                                 <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                 <div class="tt-content tt-left font-sans text-left normal-case w-64 z-[100]">
-                                    <p class="font-bold text-teal-400 text-[10px] mb-1 uppercase tracking-wider">Pricing Mechanics</p>
-                                    <ul class="list-disc pl-3 space-y-1 text-[9px] text-slate-200">
-                                        <li><b class="text-white">Flat:</b> Fixed recurring cost. No overage expected.</li>
-                                        <li><b class="text-white">Pure Consumption:</b> 100% variable. Requires Ledger entries.</li>
-                                        <li><b class="text-white">Minimum / Capped:</b> Fixed baseline commitment. Any unexpected overage must be manually logged in the Ledger.</li>
-                                    </ul>
+                                    ${ContractsVocabulary.buildTooltipHTML('pricingModel')}
                                 </div>
                             </span>
                         </div>
@@ -441,20 +436,15 @@
                             <span class="tt-wrapper text-slate-400 hover:text-teal-500 transition-colors">
                                 <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                 <div class="tt-content tt-left font-sans text-left normal-case w-64 z-[100]">
-                                    <p class="font-bold text-teal-400 text-[10px] mb-1 uppercase tracking-wider">Engine Impact</p>
-                                    <ul class="list-disc pl-3 space-y-1 text-[9px] text-slate-200">
-                                        <li><b class="text-white">Linear / Quarterly:</b> Engine automatically spreads the Total Commitment across the Fiscal Year.</li>
-                                        <li><b class="text-white">Full Upfront:</b> 100% of the cost hits the Fiscal Year of the Start Date.</li>
-                                        <li><b class="text-white">Ledger-Driven:</b> Automatic projection is disabled. Engine trusts ONLY the dates and amounts logged in the Ledger Movements.</li>
-                                    </ul>
+                                    ${ContractsVocabulary.buildTooltipHTML('billingTerms')}
                                 </div>
                             </span>
                         </div>
                         <select id="edit-billingTerms-${item.id}" onchange="toggleLedgerVisibility(${item.id})" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs text-slate-900 shadow-sm">
-                            <option value="Linear" ${d["Billing Terms"] === 'Linear' || !d["Billing Terms"] ? 'selected' : ''}>Linear</option>
-                            <option value="Full Upfront" ${d["Billing Terms"] === 'Full Upfront' ? 'selected' : ''}>Full Upfront</option>
-                            <option value="Quarterly" ${d["Billing Terms"] === 'Quarterly' ? 'selected' : ''}>Quarterly</option>
-                            <option value="Ledger-Driven" ${d["Billing Terms"] === 'Ledger-Driven' ? 'selected' : ''}>Ledger-Driven</option>
+                            <option value="Fixed Recurring" ${d["Billing Terms"] === 'Fixed Recurring' || d["Billing Terms"] === 'Linear' || d["Billing Terms"] === 'Quarterly' || !d["Billing Terms"] ? 'selected' : ''}>Fixed Recurring</option>
+                            <option value="Full Upfront / Prepaid" ${d["Billing Terms"] === 'Full Upfront / Prepaid' || d["Billing Terms"] === 'Full Upfront' ? 'selected' : ''}>Full Upfront / Prepaid</option>
+                            <option value="Pay-As-You-Go" ${d["Billing Terms"] === 'Pay-As-You-Go' ? 'selected' : ''}>Pay-As-You-Go</option>
+                            <option value="Custom / Ledger Driven" ${d["Billing Terms"] === 'Custom / Ledger Driven' || d["Billing Terms"] === 'Ledger-Driven' ? 'selected' : ''}>Custom / Ledger Driven</option>
                         </select>
                     </div>
                 </div>

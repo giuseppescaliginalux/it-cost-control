@@ -16,7 +16,11 @@ const CONFIG = {
     ALLOCATION_SPLITS: "AllocationSplits",
     ASSETS: "Assets",
     VARIANCE: "AssetVarianceReport",
-    PROJECTIONS: "FiscalProjections"
+    PROJECTIONS: "FiscalProjections",
+    SUPPLIERS: "Suppliers",
+    LOCATIONS: "Locations",
+    COST_CENTERS: "CostCenters",
+    LEGAL_ENTITIES: "LegalEntities"
   },
   
   // Impostazioni regionali e temporali

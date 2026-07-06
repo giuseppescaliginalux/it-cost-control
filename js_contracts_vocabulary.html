@@ -1,0 +1,39 @@
+<script>
+/**
+ * js_contracts_vocabulary.html
+ * VOCABULARY: Centralized dictionary for FinOps definitions, tooltips, and business terms 
+ * used within the Contracts domain. Keeps templates clean.
+ */
+const ContractsVocabulary = {
+    tooltips: {
+        pricingModel: {
+            title: "Pricing Mechanics",
+            items: [
+                { label: "Flat", desc: "Fixed recurring cost. No overage tracking required." },
+                { label: "Pure Consumption", desc: "100% variable rate. Requires strict manual Ledger tracking." },
+                { label: "Minimum / Capped", desc: "Baseline commitment guaranteed. Ledger is used solely to log overages exceeding the baseline." }
+            ]
+        },
+        billingTerms: {
+            title: "Projection Engine Rules",
+            items: [
+                { label: "Fixed Recurring", desc: "The engine linearly splits the total commitment across the fiscal calendar based on frequency." },
+                { label: "Full Upfront / Prepaid", desc: "100% of the cost hits the fiscal year containing the Start Date." },
+                { label: "Pay-As-You-Go", desc: "Dynamic engine calculation to protect residual budget against actuals." },
+                { label: "Custom / Ledger Driven", desc: "Automatic projection is disabled. The engine strictly trusts manual inputs mapped in the Ledger." }
+            ]
+        }
+    },
+
+    buildTooltipHTML: function(key) {
+        const data = this.tooltips[key];
+        if (!data) return '';
+        
+        let listHtml = data.items.map(i => `<li><b class="text-white">${i.label}:</b> ${i.desc}</li>`).join('');
+        return `
+            <p class="font-bold text-teal-400 text-[10px] mb-1 uppercase tracking-wider">${data.title}</p>
+            <ul class="list-disc pl-3 space-y-1 text-[9px] text-slate-200">${listHtml}</ul>
+        `;
+    }
+};
+</script>

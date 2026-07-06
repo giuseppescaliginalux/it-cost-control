@@ -399,16 +399,16 @@
 
         const ledgerRows = document.querySelectorAll(`#ledger-container-${id} .ledger-row-item`);
         let ledgerDateValidationError = false;
-        
+
         item.ledger = Array.from(ledgerRows).map(row => {
             const sDate = row.querySelector('.ledger-start').value || "";
             const eDate = row.querySelector('.ledger-end').value || "";
-            
+
             // 🔒 CONTROLLO DATE LEDGER: Verifica inversione temporale
             if (sDate && eDate && new Date(sDate) > new Date(eDate)) {
                 ledgerDateValidationError = true;
             }
-            
+
             const rawAmtStr = row.querySelector('.ledger-amount').value.replace(/[^0-9]/g, '');
             return {
                 "Contract ID": item.data["Contract ID"] || "", "Start Date": sDate, "End Date": eDate,
@@ -531,6 +531,7 @@
             details: ContractsState.currentDetailItems.map(item => {
                 return {
                     contractId: item.data["Contract ID"] || "",
+                    billingChannel: item.data["Billing Channel"] || "",
                     legalEntity: item.data["Legal Entity"] || "",
                     location: item.data["Location"] || "",
                     serviceOwner: item.data["Service Owner"] || "",
@@ -660,7 +661,7 @@
         if (!expTypeSelect || !billingTermsSelect) return;
 
         const isCapex = expTypeSelect.value === "CAPEX";
-        
+
         // 🔒 Se è CAPEX, disabilitiamo Linear e Quarterly (Leasing/ROU non sono CAPEX)
         Array.from(billingTermsSelect.options).forEach(opt => {
             if (isCapex && (opt.value === "Linear" || opt.value === "Quarterly")) {
