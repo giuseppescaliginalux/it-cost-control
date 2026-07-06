@@ -129,15 +129,19 @@
                 const costLabel = targetLane === "REALIZED" ? "Actual" : "Target";
                 const dateLabel = targetLane === "REALIZED" ? "Actual Date" : "Target Date";
 
-                let savingPercentText = "0%";
-                if (baselineSpend > 0 && appliedSaving > 0) {
-                    savingPercentText = `-${Math.round((appliedSaving / baselineSpend) * 100)}%`;
-                }
-
+                // 🌟 FIX CRITICO: Re-introduzione delle variabili di strategia e decisione per la UI
                 const strategy = (init["Initial Strategy"] || "OPTIMIZATION").toUpperCase().trim();
                 const decision = (init["Decision"] || strategy).toUpperCase().trim();
 
-                const fmtSaving = '€' + Math.round(appliedSaving / 1000).toLocaleString('it-IT') + 'k';
+                // Calcolo percentuale bidirezionale reale (+ per aumento spesa, - per risparmio)
+                let savingPercentText = "0%";
+                if (baselineSpend > 0) {
+                    const pct = Math.round((appliedSaving / baselineSpend) * 100);
+                    if (pct > 0) savingPercentText = `-${pct}%`;
+                    else if (pct < 0) savingPercentText = `+${Math.abs(pct)}%`;
+                }
+
+                const fmtSaving = (appliedSaving >= 0 ? '€' : '-€') + Math.round(Math.abs(appliedSaving) / 1000).toLocaleString('it-IT') + 'k';
                 const fmtRunRate = baselineSpend > 0 ? '€' + Math.round(baselineSpend / 1000).toLocaleString('it-IT') + 'k' : '—';
 
                 let fmtTargetCost = '—';
@@ -295,7 +299,6 @@
             if (!hiddenInput) return;
             hiddenInput.value = masterId;
 
-            // 1. Reset visivo di tutte le altre card
             document.querySelectorAll('.master-card').forEach(card => {
                 card.classList.remove('border-teal-500', 'bg-teal-50/20', 'ring-1', 'ring-teal-500', 'shadow-sm');
                 card.classList.add('border-slate-200', 'bg-white', 'hover:border-teal-300');
@@ -303,13 +306,10 @@
             document.querySelectorAll('[id^="master-check-"]').forEach(icon => {
                 icon.innerHTML = `<div class="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0"></div>`;
             });
-
-            // 2. Nasconde i dettagli di tutti gli altri master aperti per compattare la vista
             document.querySelectorAll('[id^="master-details-"]').forEach(detailBox => {
                 detailBox.classList.add('hidden');
             });
 
-            // 3. Attiva lo stato selezionato ed espande la tabella dei contratti
             const selectedCard = document.getElementById(`master-card-${masterId}`);
             const selectedIcon = document.getElementById(`master-check-${masterId}`);
             const selectedDetails = document.getElementById(`master-details-${masterId}`);
@@ -318,10 +318,22 @@
                 selectedCard.classList.remove('border-slate-200', 'bg-white', 'hover:border-teal-300');
                 selectedCard.classList.add('border-teal-500', 'bg-teal-50/20', 'ring-1', 'ring-teal-500', 'shadow-sm');
                 selectedIcon.innerHTML = `<svg class="w-4 h-4 text-teal-600 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>`;
+                if (selectedDetails) selectedDetails.classList.remove('hidden');
+            }
 
-                if (selectedDetails) {
-                    selectedDetails.classList.remove('hidden');
-                }
+            // 🌟 CORREZIONE: Estrae la Run Rate reale dal Master selezionato e valorizza il display della Baseline
+            const targetMaster = (windowPayload.masterContracts || []).find(m => String(m["Master Contract ID"]).trim() === String(masterId).trim());
+            const baselineSpend = targetMaster ? (parseFloat(targetMaster["Run Rate"] || targetMaster.runRate) || 0) : 0;
+
+            const bDisplay = document.getElementById('modal-init-baseline-display');
+            const bHidden = document.getElementById('modal-init-baseline-display-val');
+            if (bDisplay) bDisplay.innerHTML = '€ ' + Math.round(baselineSpend).toLocaleString('it-IT');
+            if (bHidden) bHidden.value = baselineSpend;
+
+            // Forza il riallineamento istantaneo dell'impatto economico speculare
+            const costInput = document.getElementById('modal-init-target-cost');
+            if (costInput && costInput.value.trim() !== "") {
+                this.handleTargetCostInputChange(costInput);
             }
         },
 
@@ -387,6 +399,7 @@
 
         handleDecisionChange: function (val) {
             const costInput = document.getElementById('modal-init-target-cost');
+            const pctInput = document.getElementById('modal-init-target-saving-pct');
             if (!costInput) return;
             const decision = (val || "").toUpperCase().trim();
 
@@ -395,10 +408,113 @@
                 costInput.disabled = true;
                 costInput.classList.add('bg-slate-100', 'text-slate-400', 'cursor-not-allowed');
                 costInput.classList.remove('text-indigo-800');
+                if (pctInput) {
+                    pctInput.value = "100%";
+                    pctInput.disabled = true;
+                    pctInput.classList.add('bg-slate-100', 'text-slate-400', 'cursor-not-allowed');
+                }
             } else {
                 costInput.disabled = false;
                 costInput.classList.remove('bg-slate-100', 'text-slate-400', 'cursor-not-allowed');
                 costInput.classList.add('text-indigo-800');
+                if (pctInput) {
+                    pctInput.disabled = false;
+                    pctInput.classList.remove('bg-slate-100', 'text-slate-400', 'cursor-not-allowed');
+                }
+            }
+        },
+
+        handleTargetCostInputChange: function (el) {
+            const pctInput = document.getElementById('modal-init-target-saving-pct');
+            const baseline = parseFloat(document.getElementById('modal-init-baseline-display-val').value) || 0;
+            let rawCostStr = el.value.replace(/[^0-9]/g, '');
+
+            if (rawCostStr !== "") {
+                const cost = parseInt(rawCostStr, 10);
+                el.value = cost.toLocaleString('it-IT');
+                if (pctInput && baseline > 0) {
+                    // Calcola il saving % rispetto alla baseline spend
+                    const pct = ((baseline - cost) / baseline) * 100;
+                    pctInput.value = Math.round(pct) + '%';
+                    pctInput.dataset.lastClean = Math.round(pct).toString(); // Allinea la cache
+                }
+            } else {
+                el.value = "";
+                if (pctInput) {
+                    pctInput.value = "";
+                    pctInput.dataset.lastClean = "";
+                }
+            }
+        },
+
+        handleTargetSavingPctChange: function (el) {
+            const costInput = document.getElementById('modal-init-target-cost');
+            const baseline = parseFloat(document.getElementById('modal-init-baseline-display-val').value) || 0;
+
+            let currentClean = el.value.replace(/[^0-9-]/g, '');
+            let lastClean = el.dataset.lastClean || "";
+
+            if (currentClean === "") {
+                el.value = "";
+                el.dataset.lastClean = "";
+                if (costInput) costInput.value = "";
+                return;
+            }
+
+            // 🌟 LOGICA ANTI-BLOCCO BACKSPACE: Se cancella il simbolo %, rimuove forzatamente l'ultimo numero digitato
+            if (currentClean === lastClean && el.value.indexOf('%') === -1) {
+                currentClean = currentClean.slice(0, -1);
+            }
+
+            if (currentClean !== "" && currentClean !== "-") {
+                const pct = parseInt(currentClean, 10);
+                el.value = pct + '%';
+                el.dataset.lastClean = currentClean; // Aggiorna la memoria di posizione della stringa
+
+                if (costInput && baseline > 0) {
+                    const saving = (pct / 100) * baseline;
+                    const cost = Math.max(0, Math.round(baseline - saving));
+                    costInput.value = cost.toLocaleString('it-IT');
+                }
+            } else {
+                el.value = currentClean === "-" ? "-" : "";
+                el.dataset.lastClean = el.value;
+                if (costInput) costInput.value = "";
+            }
+        },
+
+        handleTargetSavingPctChange: function (el) {
+            let valStr = el.value.replace(/[^0-9.]/g, '');
+            const costInput = document.getElementById('modal-init-target-cost');
+            const baseline = parseFloat(document.getElementById('modal-init-baseline-display-val').value) || 0;
+
+            if (valStr !== "") {
+                let pct = parseFloat(valStr) || 0;
+                el.value = pct + '%';
+                if (costInput) {
+                    costInput.disabled = true;
+                    const saving = (pct / 100) * baseline;
+                    const cost = Math.max(0, Math.round(baseline - saving));
+                    costInput.value = cost.toLocaleString('it-IT');
+                }
+            } else {
+                if (costInput) {
+                    costInput.disabled = false;
+                    costInput.value = "";
+                }
+            }
+        },
+
+        clearFinancialInputs: function () {
+            const costInput = document.getElementById('modal-init-target-cost');
+            const pctInput = document.getElementById('modal-init-target-saving-pct');
+            if (costInput) {
+                costInput.value = "";
+                costInput.disabled = false;
+            }
+            if (pctInput) {
+                pctInput.value = "";
+                pctInput.disabled = false;
             }
         },
 
@@ -430,14 +546,11 @@
             const isNew = id === null;
             InitiativesState.currentEditingInitiative = id;
 
-            let initData = { "Initiative Name": "", "Initiative Status": "IDEA", "Initial Strategy": "OPTIMIZATION", "Decision": "OPTIMIZATION", "Tags": "", "Optimization Levers": "", "Target Cost (Annualized)": 0, "Description": "", "Service Owner": "", "Procurement Point Focal": "", "Contracts Group ID": "" };
+            let initData = { "Initiative Name": "", "Initiative Status": "IDEA", "Initial Strategy": "OPTIMIZATION", "Decision": "OPTIMIZATION", "Tags": "", "Optimization Levers": "", "Target Cost (Annualized)": 0, "Target Saving %": 0, "Baseline Spend (Annualized)": 0, "Description": "", "Service Owner": "", "Procurement Point Focal": "", "Contracts Group ID": "" };
 
             if (!isNew) {
                 initData = InitiativesState.getInitiativeById(id);
             }
-
-            const assetsList = ContractsUtils.extractUniqueField(windowPayload.assets, "Asset Name");
-            const assetDropdownHtml = assetsList.map(a => `<option value="${a}" ${a === initData["Asset Name"] ? 'selected' : ''}>${a}</option>`).join('');
 
             const attachedLevers = (initData["Optimization Levers"] || "").split(',').map(l => l.trim());
             const leversHtml = InitiativesState.optimizationLevers.map(lever => `
@@ -445,10 +558,18 @@
                 <input type="checkbox" value="${lever}" ${attachedLevers.includes(lever) ? 'checked' : ''} class="split-lever-checkbox w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600">
                 <span class="truncate">${lever}</span>
             </label>
-        `).join('');
+            `).join('');
 
             const mountPoint = document.getElementById('initiatives-modal-mount-point');
-            mountPoint.innerHTML = InitiativesTemplates.getModalFormStructure(isNew, assetDropdownHtml, "", leversHtml);
+            mountPoint.innerHTML = InitiativesTemplates.getModalFormStructure(isNew, "", "", leversHtml);
+
+            document.getElementById('modal-init-asset-search').value = initData["Asset Name"] || "";
+            document.getElementById('modal-init-asset-select').value = initData["Asset Name"] || "";
+
+            // 🌟 SINCRONIZZAZIONE DI MONTE: Carica ed espone la Baseline Spend salvata sul record
+            const baselineSpend = parseFloat(initData["Baseline Spend (Annualized)"]) || 0;
+            document.getElementById('modal-init-baseline-display').innerHTML = baselineSpend > 0 ? '€ ' + Math.round(baselineSpend).toLocaleString('it-IT') : '€ 0';
+            document.getElementById('modal-init-baseline-display-val').value = baselineSpend;
 
             if (!isNew) {
                 document.getElementById('modal-init-name').value = initData["Initiative Name"] || "";
@@ -459,21 +580,41 @@
                 document.getElementById('modal-init-decision').value = readDecision;
                 document.getElementById('modal-init-status').value = (initData["Initiative Status"] || "IDEA").toUpperCase().trim();
 
-                // Centralizzazione date: estrae la stringa ISO pulita YYYY-MM-DD per il tag input html
                 document.getElementById('modal-init-target-date').value = FinOpsDate.toIso(initData["Target Date"]);
 
-                document.getElementById('modal-init-target-cost').value = initData["Target Cost (Annualized)"] ? Math.round(initData["Target Cost (Annualized)"]).toLocaleString('it-IT') : "0";
-                this.handleDecisionChange(readDecision);
+                const targetCost = parseFloat(initData["Target Cost (Annualized)"]) || 0;
+                let targetSavingPct = parseFloat(initData["Target Saving %"]) || 0;
+                if (targetSavingPct > 0 && targetSavingPct <= 1) targetSavingPct = targetSavingPct * 100;
+                else if (targetSavingPct === 0 && baselineSpend > 0) {
+                    targetSavingPct = ((baselineSpend - targetCost) / baselineSpend) * 100;
+                }
 
-                document.getElementById('modal-init-owner').value = initData["Service Owner"] || "";
-                document.getElementById('modal-init-procurement').value = initData["Procurement Point Focal"] || initData["Procurement Point"] || "";
-                document.getElementById('modal-init-description').value = initData["Description"] || "";
+                const costInput = document.getElementById('modal-init-target-cost');
+                const pctInput = document.getElementById('modal-init-target-saving-pct');
+
+                if (costInput) costInput.value = targetCost > 0 ? Math.round(targetCost).toLocaleString('it-IT') : "0";
+                if (pctInput) {
+                    pctInput.value = Math.round(targetSavingPct) + '%';
+                    pctInput.dataset.lastClean = Math.round(targetSavingPct).toString(); // Innesca la cache anti-blocco
+                }
+
+                // 🌟 GARANZIA DI ACCESSO: Entrambi i campi rimangono sempre attivi e sbloccati
+                if (costInput) {
+                    costInput.disabled = false;
+                    costInput.classList.remove('bg-slate-100', 'text-slate-400', 'cursor-not-allowed');
+                }
+                if (pctInput) {
+                    pctInput.disabled = false;
+                    pctInput.classList.remove('bg-slate-100', 'text-slate-400', 'cursor-not-allowed');
+                }
+
+                this.handleDecisionChange(readDecision);
 
                 if (initData["Asset Name"]) {
                     this.handleAssetCascadeDropdownChange(initData["Asset Name"], initData["Master Contract ID"]);
                     const hInput = document.getElementById('modal-init-selected-master-id');
                     if (hInput) hInput.value = initData["Master Contract ID"] || "";
-                    
+
                     if (initData["Master Contract ID"]) {
                         setTimeout(() => { this.selectMasterCard(initData["Master Contract ID"]); }, 50);
                     }
@@ -488,14 +629,18 @@
         commitInitiativeFormToLocalState: function () {
             const initName = document.getElementById('modal-init-name').value.trim();
             const assetName = document.getElementById('modal-init-asset-select').value;
-            const masterId = document.getElementById('modal-init-selected-master-id').value; 
+            const masterId = document.getElementById('modal-init-selected-master-id').value;
             const tDate = document.getElementById('modal-init-target-date').value;
-            const tCostInput = document.getElementById('modal-init-target-cost');
-            const tCostStr = tCostInput ? tCostInput.value.replace(/\./g, '').trim() : "0";
 
-            if (!initName || !assetName || !masterId || !tDate || tCostStr === "") {
-                // Sostituito con il nostro nuovo Alert Centralizzato
-                FinOpsUI.showAlert("Validation Error", "Initiative Name, Asset Context, Linked Master ID, Target Date and Target Cost fields are strictly mandatory.");
+            const tCostInput = document.getElementById('modal-init-target-cost');
+            const baselineSpend = parseFloat(document.getElementById('modal-init-baseline-display-val').value) || 0;
+
+            // Poiché i campi si aggiornano live a vicenda, il target-cost contiene sempre la verità matematica assoluta
+            const tCostVal = tCostInput ? parseInt(tCostInput.value.replace(/[^0-9]/g, ''), 10) || 0 : 0;
+            const tSavingPctVal = baselineSpend > 0 ? (baselineSpend - tCostVal) / baselineSpend : 0;
+
+            if (!initName || !assetName || !masterId || !tDate) {
+                FinOpsUI.showAlert("Validation Error", "Initiative Name, Asset Context, Linked Master ID and Target Date are strictly mandatory.");
                 return;
             }
 
@@ -506,23 +651,21 @@
             instance["Asset Name"] = assetName;
             instance["Master Contract ID"] = masterId;
 
-            const targetMaster = (windowPayload.masterContracts || []).find(m => m["Master Contract ID"] === masterId);
-
+            const targetMaster = (windowPayload.masterContracts || []).find(m => String(m["Master Contract ID"]).trim() === masterId.trim());
             if (targetMaster) {
                 instance["Supplier"] = targetMaster["Supplier"] || "";
                 instance["Contract Term (Months)"] = targetMaster["Contract Term (Months)"] || "";
-                instance["Baseline Spend (Annualized)"] = parseFloat(targetMaster["Run Rate"]) || 0;
+                instance["Baseline Spend (Annualized)"] = baselineSpend;
                 instance["Last Expiration"] = targetMaster["Master End Date"] ? FinOpsDate.toIso(targetMaster["Master End Date"]) : "";
             }
 
-            const savedStrategy = document.getElementById('modal-init-strategy').value;
-            instance["Initial Strategy"] = savedStrategy;
+            instance["Initial Strategy"] = document.getElementById('modal-init-strategy').value;
             instance["Decision"] = document.getElementById('modal-init-decision').value;
-
             instance["Initiative Status"] = document.getElementById('modal-init-status').value;
-            // Normalizzazione in scrittura
             instance["Target Date"] = FinOpsDate.toIso(tDate);
-            instance["Target Cost (Annualized)"] = parseInt(tCostStr, 10) || 0;
+            instance["Target Cost (Annualized)"] = tCostVal;
+            instance["Target Saving %"] = tSavingPctVal; // Scrive la percentuale corretta sul foglio
+
             instance["Service Owner"] = document.getElementById('modal-init-owner').value.trim();
             instance["Procurement Point Focal"] = document.getElementById('modal-init-procurement').value.trim();
             instance["Procurement Point"] = document.getElementById('modal-init-procurement').value.trim();
@@ -545,10 +688,64 @@
             FinOpsUI.showNotificationBanner("Initiative changes applied locally in memory cache. Commit to persist changes.", "warning");
         },
 
+        filterModalAssetOptions: function (query) {
+            const listContainer = document.getElementById('modal-asset-options-list');
+            if (!listContainer) return;
+            const q = query.toLowerCase().trim();
+            const assetsList = ContractsUtils.extractUniqueField(windowPayload.assets, "Asset Name");
+
+            const matched = assetsList.filter(a => a.toLowerCase().includes(q));
+            if (matched.length === 0) {
+                listContainer.innerHTML = `<div class="p-2 text-slate-400 italic text-[10px] text-center">No assets found</div>`;
+                return;
+            }
+
+            listContainer.innerHTML = matched.map(a => `
+                <div onclick="InitiativesController.selectModalAssetOption('${a.replace(/'/g, "\\'")}')" class="p-1.5 text-[11px] font-bold text-slate-700 hover:bg-teal-50 hover:text-teal-900 rounded-md cursor-pointer transition-colors">${a}</div>
+            `).join('');
+        },
+
+        toggleModalAssetDropdown: function (show, forceAll = false) {
+            const listContainer = document.getElementById('modal-asset-options-list');
+            if (!listContainer) return;
+            if (show) {
+                listContainer.classList.remove('hidden');
+                const searchInput = document.getElementById('modal-init-asset-search');
+                if (searchInput) {
+                    // 🌟 Se forceAll è vero ignora la stringa scritta e mostra l'intero anagrafico
+                    if (forceAll) {
+                        this.filterModalAssetOptions("");
+                    } else {
+                        this.filterModalAssetOptions(searchInput.value);
+                    }
+                }
+            } else {
+                setTimeout(() => { listContainer.classList.add('hidden'); }, 200);
+            }
+        },
+
+        selectModalAssetOption: function (assetName) {
+            document.getElementById('modal-init-asset-search').value = assetName;
+            document.getElementById('modal-init-asset-select').value = assetName;
+            document.getElementById('modal-asset-options-list').classList.add('hidden');
+            this.handleAssetCascadeDropdownChange(assetName);
+        },
+
+        handleTargetCostInputLiveFormatting: function (input) {
+            let val = input.value.trim();
+            if (val.endsWith('%')) {
+                let num = val.replace(/[^0-9]/g, '');
+                input.value = num ? num + '%' : '';
+            } else {
+                let clean = val.replace(/[^0-9]/g, '');
+                input.value = clean ? parseInt(clean, 10).toLocaleString('it-IT') : '';
+            }
+        },
+
         deleteInitiativeFromArchitecture: function () {
             // Sostituito con il nostro nuovo Confirm Centralizzato
             FinOpsUI.showConfirm(
-                "Delete Initiative?", 
+                "Delete Initiative?",
                 "Are you entirely sure you want to completely erase this initiative from the FinOps registry? This action cannot be undone once committed.",
                 () => {
                     InitiativesState.deleteInitiativeInstance(InitiativesState.currentEditingInitiative);
@@ -572,9 +769,9 @@
                         FinOpsUI.showAlert("Sync Error", "The database pipeline returned a mismatch code. Changes might not be saved.");
                     }
                 },
-                (err) => { 
-                    hideLoading(); 
-                    FinOpsUI.showAlert("Cloud Sync Failed", err.message); 
+                (err) => {
+                    hideLoading();
+                    FinOpsUI.showAlert("Cloud Sync Failed", err.message);
                 }
             );
         },
@@ -920,14 +1117,22 @@
         },
     };
 
+    // 🌟 UNICA FUNZIONE DI ASCOLTO CLIC GLOBALE (Accorpata per evitare debito tecnico)
     document.addEventListener('click', function (e) {
         const pipelineDrop = document.getElementById('dropdown-pipeline');
         const realizedDrop = document.getElementById('dropdown-realized');
+        const assetDrop = document.getElementById('modal-asset-options-list');
+        const comboContainer = document.getElementById('modal-asset-combo-container');
+
         if (pipelineDrop && !pipelineDrop.classList.contains('hidden') && !pipelineDrop.contains(e.target) && !e.target.closest('button')) {
             pipelineDrop.classList.add('hidden');
         }
         if (realizedDrop && !realizedDrop.classList.contains('hidden') && !realizedDrop.contains(e.target) && !e.target.closest('button')) {
             realizedDrop.classList.add('hidden');
+        }
+        // 🔒 Integrazione pulita: chiude la tendina dei risultati Asset se clicchi fuori dal box di ricerca
+        if (assetDrop && comboContainer && !assetDrop.classList.contains('hidden') && !comboContainer.contains(e.target)) {
+            assetDrop.classList.add('hidden');
         }
     });
 </script>
