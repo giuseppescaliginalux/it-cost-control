@@ -5,7 +5,6 @@
      * and re-renders the View by invoking Templates.
      */
 
-    // Flag per evitare di re-iniettare l'HTML se è già stato caricato
     let isContractsLayoutRendered = false;
 
     // --- Tab Router Override ---
@@ -17,7 +16,7 @@
                 document.getElementById('tab-contracts').innerHTML = ContractsTemplates.getBaseLayout();
                 isContractsLayoutRendered = true;
             }
-            
+
             document.getElementById('mgmt-asset-search-input').value = '';
             ContractsState.currentSelectedAsset = null;
             renderAssetSearchList();
@@ -26,18 +25,17 @@
 
     function toggleGlobalEditMode() {
         ContractsState.globalEditMode = !ContractsState.globalEditMode;
-        
-        // Logica IDENTICA a toggleTimelineEditMode per classi e colori
+
         const editBtn = document.getElementById('contracts-edit-mode-btn');
         if (ContractsState.globalEditMode) {
             if (editBtn) {
-                editBtn.className = "px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-black text-[11px] uppercase tracking-wider rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer";
-                editBtn.innerHTML = `<svg class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg> Editing Mode`;
+                editBtn.className = "px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-black text-[11px] uppercase tracking-wider rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap";
+                editBtn.innerHTML = `<svg class="w-3.5 h-3.5 text-white shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg> <span>Editing Mode</span>`;
             }
         } else {
             if (editBtn) {
-                editBtn.className = "px-4 py-2 bg-white border border-slate-300 text-slate-700 font-black text-[11px] uppercase tracking-wider rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer hover:bg-slate-50";
-                editBtn.innerHTML = `<svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.25 0 113.536 3.536L6.5 21.036H3v-3.536L16.5 3.536z" /></svg> Edit Mode`;
+                editBtn.className = "px-4 py-2 bg-white border border-slate-300 text-slate-700 font-black text-[11px] uppercase tracking-wider rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-50 shrink-0 whitespace-nowrap";
+                editBtn.innerHTML = `<svg class="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.25 0 113.536 3.536L6.5 21.036H3v-3.536L16.5 3.536z" /></svg> <span>Edit Mode</span>`;
             }
         }
 
@@ -46,7 +44,7 @@
             const assetMasters = allMasterContracts.filter(m => (m["Asset Name"] || "").toString().toLowerCase().trim() === ContractsState.currentSelectedAsset.name.toLowerCase().trim());
             renderMasterContractsList(assetMasters);
         }
-        
+
         if (ContractsState.currentMasterData) {
             renderMasterFormBox();
             renderDetailItemsTable();
@@ -56,10 +54,10 @@
     function updateCommitButtonVisibility() {
         const commitBtn = document.getElementById('contracts-commit-btn');
         if (!commitBtn) return;
-        
+
         if (ContractsState.hasUnsavedChanges) {
             commitBtn.classList.remove('hidden');
-            commitBtn.classList.add('flex'); // Align to timeline logic
+            commitBtn.classList.add('flex');
         } else {
             commitBtn.classList.add('hidden');
             commitBtn.classList.remove('flex');
@@ -109,7 +107,7 @@
             </div>
             <span class="font-mono text-[10px] bg-white border border-teal-100 px-2 py-1 rounded-lg text-slate-600">ID: ${assetId}</span>
         </div>
-    `;
+        `;
 
         const allContracts = windowPayload.contracts || [];
         const filteredGroupIds = allContracts.filter(c => (c["Asset Name"] || "").toString().toLowerCase() === assetName.toLowerCase())
@@ -130,7 +128,6 @@
     function renderMasterContractsList(list) {
         const container = document.getElementById('mgmt-master-list-container');
 
-        // Tasto New Master subordinato alla modalità di Modifica Globale
         const newMasterBtn = ContractsState.globalEditMode
             ? `<button onclick="setupNewMasterAgreement()" class="text-[9px] font-black bg-teal-50 border border-teal-200 text-teal-700 px-2 py-1 rounded-md hover:bg-teal-100 shadow-sm transition-colors">+ New Master</button>`
             : ``;
@@ -190,45 +187,10 @@
         renderDetailItemsTable();
     }
 
-    function toggleGlobalEditMode() {
-        ContractsState.globalEditMode = !ContractsState.globalEditMode;
-        renderMasterFormBox();
-        renderDetailItemsTable();
-    }
-
-    function updateCommitButtonVisibility() {
-        const commitBtn = document.querySelector('button[onclick="saveCurrentContract()"]');
-        if (!commitBtn) return;
-
-        if (ContractsState.hasUnsavedChanges) {
-            commitBtn.classList.remove('hidden');
-        } else {
-            commitBtn.classList.add('hidden');
-        }
-    }
-
     function renderMasterFormBox() {
         const masterContainer = document.getElementById('mgmt-master-form-container');
         if (!masterContainer) return;
         masterContainer.classList.remove('hidden');
-
-        // Gestione dinamica ed isolata della barra di comando EDIT MODE sopra la card del Master
-        let globalBar = document.getElementById('mgmt-global-edit-bar');
-        if (!globalBar) {
-            globalBar = document.createElement('div');
-            globalBar.id = 'mgmt-global-edit-bar';
-            globalBar.className = 'flex justify-end mb-3';
-            masterContainer.insertBefore(globalBar, document.getElementById('mgmt-master-form-box-inner'));
-        }
-
-        globalBar.innerHTML = `
-            <button onclick="toggleGlobalEditMode()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border ${ContractsState.globalEditMode ? 'bg-indigo-600 border-indigo-700 text-white font-black' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 font-bold'} text-[10px] uppercase tracking-wider transition-all shadow-sm cursor-pointer select-none">
-                <svg class="w-3.5 h-3.5 ${ContractsState.globalEditMode ? 'text-white' : 'text-slate-400'}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                </svg>
-                EDIT MODE: ${ContractsState.globalEditMode ? 'ON' : 'OFF'}
-            </button>
-        `;
 
         const container = document.getElementById('mgmt-master-form-box-inner');
         if (!container) return;
@@ -242,8 +204,7 @@
             const cleanStart = data["Master Start Date"] ? ContractsUtils.formatToEnglishCustomDate(data["Master Start Date"]) : '—';
             const cleanEnd = data["Master End Date"] ? ContractsUtils.formatToEnglishCustomDate(data["Master End Date"]) : '—';
 
-            // Lettura pulita dal foglio per bloccare stringhe decimali sporche
-            let rawTerm = data["Contract Term (Months)"] !== undefined && data["Contract Term (Months)"] !== "" ? data["Contract Term (Months)"] : (data["contractTerm"] !== undefined ? data["contractTerm"] : '—');
+            let rawTerm = data["contractTerm"] !== undefined ? data["contractTerm"] : (data["Contract Term (Months)"] !== undefined ? data["Contract Term (Months)"] : '—');
             let termMonths = (typeof rawTerm === 'number' || !isNaN(parseFloat(rawTerm))) ? Math.round(parseFloat(rawTerm)) : rawTerm;
 
             let statusClass = "bg-slate-50 text-slate-500 border-slate-200";
@@ -256,7 +217,7 @@
             const suppliersList = ContractsUtils.extractUniqueField(windowPayload.masterContracts || windowPayload.contracts, "Supplier");
             const isNew = data["Master Contract ID"] === "";
 
-            container.innerHTML = ContractsTemplates.getMasterEditCard(data, isNew, suppliersList, masterLinks);
+            container.innerHTML = ContractsTemplates.getMasterEditCard(data, isNew, suppliersList, masterLinks, ContractsState.globalEditMode);
         }
 
         const targetLinks = container.querySelectorAll('.live-doc-link');
@@ -306,7 +267,7 @@
                                 data["Contract Links"] = currentLinks.join(', ');
                                 hideLoading();
                                 ContractsState.updateMasterEditState(false);
-                                ContractsState.hasUnsavedChanges = true; // Traccia la modifica
+                                ContractsState.hasUnsavedChanges = true;
                                 renderMasterFormBox();
                             },
                             (err) => { hideLoading(); alert("Upload Error: " + err.message); }
@@ -318,7 +279,7 @@
         } else {
             data["Contract Links"] = baseLinks;
             ContractsState.updateMasterEditState(false);
-            ContractsState.hasUnsavedChanges = true; // Traccia la modifica
+            ContractsState.hasUnsavedChanges = true;
             renderMasterFormBox();
         }
     }
@@ -328,7 +289,6 @@
         const container = document.getElementById('mgmt-detailRowsContainer');
         if (!container) return;
 
-        // Il tasto di aggiunta contratto si mostra esclusivamente se l'EDIT MODE globale è attivo
         const addBtn = document.getElementById('btn-add-contract-row');
         if (addBtn) addBtn.style.display = ContractsState.globalEditMode ? 'inline-block' : 'none';
 
@@ -354,6 +314,9 @@
             const docLinks = (d["Contract Links"] || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
 
             if (!item.isEditing) {
+                cardDiv.className = "p-4 bg-white border border-slate-200/80 rounded-xl hover:border-teal-400 hover:shadow-md transition-all cursor-pointer select-none text-left";
+                cardDiv.setAttribute("onclick", `toggleCompactAccordion(${item.id}, event)`);
+
                 const formatFinance = (val) => (val || 0).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
                 const ledgerTotalSum = (item.ledger || []).reduce((acc, curr) => acc + (ContractsUtils.parseFinancialValue(curr["Amount"])), 0);
@@ -396,13 +359,11 @@
                 const contractEnd = d["Contract End Date"] ? ContractsUtils.formatToEnglishCustomDate(d["Contract End Date"]) : '—';
                 const adjEnd = d["Adjusted End Date"] ? ContractsUtils.formatToEnglishCustomDate(d["Adjusted End Date"]) : '—';
 
-                cardDiv.className = "p-3 bg-white border border-slate-200/80 rounded-xl hover:border-teal-200 hover:shadow-sm transition-all flex flex-col gap-2 cursor-pointer select-none";
-                cardDiv.setAttribute("onclick", `toggleCompactAccordion(${item.id}, event)`);
-
                 cardDiv.innerHTML = ContractsTemplates.getDetailReadOnlyCard(item, warningBadgeHTML, effCommit, annVal, totCommit, cleanStart, cleanEnd, contractEnd, adjEnd, docLinks, ContractsState.globalEditMode);
 
             } else {
-                cardDiv.className = "bg-white border border-slate-200 rounded-xl p-4 shadow-md relative space-y-3 animate-fade-in";
+                cardDiv.className = "p-4 bg-white border border-slate-200 rounded-xl shadow-md relative space-y-3 animate-fade-in text-left";
+
                 const editLeOptions = ContractsUtils.extractUniqueField(windowPayload.legalEntities, "Legal Entity").map(le => `<option value="${le}" ${le === d["Legal Entity"] ? 'selected' : ''}>${le}</option>`).join('');
                 const tgOptions = ContractsState.currentAssetGroupIds.map(g => `<option value="${g}" ${g === d["Target Group ID"] ? 'selected' : ''}>${g}</option>`).join('');
                 const locOptions = ContractsUtils.extractUniqueField(windowPayload.locations, "Location").map(loc => `<option value="${loc}" ${loc === d["Location"] ? 'selected' : ''}>${loc}</option>`).join('');
@@ -503,7 +464,6 @@
             const sDate = row.querySelector('.ledger-start').value || "";
             const eDate = row.querySelector('.ledger-end').value || "";
 
-            // 🔒 CONTROLLO DATE LEDGER: Verifica inversione temporale
             if (sDate && eDate && new Date(sDate) > new Date(eDate)) {
                 ledgerDateValidationError = true;
             }
@@ -515,13 +475,11 @@
             };
         });
 
-        // 🔒 CONTROLLO DI GOVERNANCE ASSOLUTO SUL CAPEX
         if (item.data["Expenditure Type"] === "CAPEX" && (item.data["Billing Terms"] === "Linear" || item.data["Billing Terms"] === "Quarterly")) {
             FinOpsUI.showAlert("Governance Restriction", "Un asset registrato come CAPEX non può essere vincolato a scadenze temporali fisse (Linear/Quarterly). Seleziona 'Full Upfront' o 'Ledger-Driven'.");
             return;
         }
 
-        // 🔒 BLOCCO EMISSIONE ERRORE DATE LEDGER
         if (ledgerDateValidationError) {
             FinOpsUI.showAlert("Validation Error", "Incongruenza nel Ledger: la Data di Inizio di un movimento non può essere successiva alla sua Data di Fine.");
             return;
@@ -574,7 +532,7 @@
                 hideLoading();
                 item.data = calculatedItem;
                 item.isEditing = false;
-                ContractsState.hasUnsavedChanges = true; // Traccia la modifica
+                ContractsState.hasUnsavedChanges = true;
                 renderDetailItemsTable();
             },
             (err) => {
@@ -626,6 +584,7 @@
             masterScope: ContractsState.currentMasterData["Scope"],
             masterComments: ContractsState.currentMasterData["Comments"],
             contractLinks: ContractsState.currentMasterData["Contract Links"],
+            billingChannel: ContractsState.currentMasterData["Billing Channel"] || "",
             suppliers: (windowPayload.suppliers || []).filter(s => String(s["Supplier"]).trim().toLowerCase() === String(spl).trim().toLowerCase()),
             initiatives: mId && mId.trim() !== "" ? (windowPayload.initiatives || []).filter(i => String(i["Master Contract ID"]).trim().toLowerCase() === mId.trim().toLowerCase()) : [],
             details: ContractsState.currentDetailItems.map(item => {
@@ -707,19 +666,13 @@
         const emptyMsg = container.querySelector('.empty-ledger-msg');
         if (emptyMsg) emptyMsg.remove();
 
-        // Iniettiamo il template passando l'oggetto movimento (vuoto o precompilato)
         container.insertAdjacentHTML('beforeend', ContractsTemplates.getLedgerRow(detailId, mov));
     }
 
-    /**
-     * Legge i dati in tempo reale dall'input DOM della riga cliccata 
-     * e istanzia una nuova riga con gli stessi identici valori.
-     */
     function duplicateLedgerRowInUI(btnElement, detailId) {
         const row = btnElement.closest('.ledger-row-item');
         if (!row) return;
 
-        // Estrazione dei dati attuali inseriti dall'utente nella riga (Logica speculare alla save)
         const rawAmtStr = row.querySelector('.ledger-amount').value.replace(/[^0-9]/g, '');
 
         const currentMovementData = {
@@ -730,7 +683,6 @@
             "Notes": row.querySelector('.ledger-notes').value || ""
         };
 
-        // Passiamo i dati alla funzione riutilizzabile per creare la copia sotto alle altre
         addLedgerRowToUI(detailId, currentMovementData);
     }
 
@@ -762,12 +714,11 @@
 
         const isCapex = expTypeSelect.value === "CAPEX";
 
-        // 🔒 Se è CAPEX, disabilitiamo Linear e Quarterly (Leasing/ROU non sono CAPEX)
         Array.from(billingTermsSelect.options).forEach(opt => {
             if (isCapex && (opt.value === "Linear" || opt.value === "Quarterly")) {
                 opt.disabled = true;
                 if (opt.selected) {
-                    billingTermsSelect.value = "Full Upfront"; // Reset automatico su termine sicuro
+                    billingTermsSelect.value = "Full Upfront";
                 }
             } else {
                 opt.disabled = false;
@@ -834,7 +785,6 @@
         );
     }
 
-    // Wrapper for inline HTML bindings to isolated namespaces
     window.ContractsController = {
         updateSplitPlaceholder: function (selectEl) {
             const row = selectEl.closest('.split-row-item');

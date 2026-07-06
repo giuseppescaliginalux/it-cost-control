@@ -1,99 +1,99 @@
 <script>
-/**
- * js_contracts_state.html
- * MODEL: Centralized state management for the Contracts Center.
- * Handles memory caching and state mutations safely.
- */
+    /**
+     * js_contracts_state.html
+     * MODEL: Centralized state management for the Contracts Center.
+     * Handles memory caching and state mutations safely.
+     */
 
-const ContractsState = {
-    // Variables
-    currentSelectedAsset: null,
-    currentAssetGroupIds: [],
-    currentMasterData: null,
-    currentDetailItems: [],
-    isMasterEditable: false,
-    hasUnsavedChanges: false,
-    globalEditMode: false,
+    const ContractsState = {
+        // Variables
+        currentSelectedAsset: null,
+        currentAssetGroupIds: [],
+        currentMasterData: null,
+        currentDetailItems: [],
+        isMasterEditable: false,
+        hasUnsavedChanges: false,
+        globalEditMode: false,
 
-    // Methods
-    resetMaster: function() {
-        this.currentMasterData = { "Master Contract ID": "", "Supplier": "", "Scope": "", "Comments": "" };
-        this.currentDetailItems = [];
-        this.isMasterEditable = true;
-        this.hasUnsavedChanges = true; // Un nuovo master è considerabile "non salvato"
-        this.globalEditMode = true;
-    },
+        // Methods
+        resetMaster: function () {
+            this.currentMasterData = { "Master Contract ID": "", "Supplier": "", "Scope": "", "Comments": "" };
+            this.currentDetailItems = [];
+            this.isMasterEditable = true;
+            this.hasUnsavedChanges = true;
+            this.globalEditMode = true;
+        },
 
-    loadMasterDetails: function(masterId, allMasterContracts, allContracts, allocationSplits, ledger) {
-        this.currentMasterData = allMasterContracts.find(m => m["Master Contract ID"].toString().trim() === masterId.toString().trim());
-        const rawDetails = allContracts.filter(c => c["Master Contract ID"].toString().trim() === masterId.toString().trim());
+        loadMasterDetails: function (masterId, allMasterContracts, allContracts, allocationSplits, ledger) {
+            this.currentMasterData = allMasterContracts.find(m => m["Master Contract ID"].toString().trim() === masterId.toString().trim());
+            const rawDetails = allContracts.filter(c => c["Master Contract ID"].toString().trim() === masterId.toString().trim());
 
-        this.currentDetailItems = rawDetails.map((row, index) => {
-            const cId = (row["Contract ID"] || "").toString().trim();
-            const linkedSplits = allocationSplits.filter(s => (s["Contract ID"] || "").toString().trim() === cId);
-            const linkedLedger = ledger.filter(l => (l["Contract ID"] || "").toString().trim() === cId);
+            this.currentDetailItems = rawDetails.map((row, index) => {
+                const cId = (row["Contract ID"] || "").toString().trim();
+                const linkedSplits = allocationSplits.filter(s => (s["Contract ID"] || "").toString().trim() === cId);
+                const linkedLedger = ledger.filter(l => (l["Contract ID"] || "").toString().trim() === cId);
 
-            return {
-                id: index,
-                isEditing: false,
-                data: row,
-                splits: linkedSplits,
-                ledger: linkedLedger
-            };
-        });
+                return {
+                    id: index,
+                    isEditing: false,
+                    data: row,
+                    splits: linkedSplits,
+                    ledger: linkedLedger
+                };
+            });
 
-        this.isMasterEditable = false;
-        this.hasUnsavedChanges = false;
-        this.globalEditMode = false;
-    },
+            this.isMasterEditable = false;
+            this.hasUnsavedChanges = false;
+            this.globalEditMode = false;
+        },
 
-    addNewDetailRow: function() {
-        const newId = this.currentDetailItems.length > 0 ? Math.max(...this.currentDetailItems.map(i => i.id)) + 1 : 0;
-        this.currentDetailItems.push({
-            id: newId,
-            isEditing: true,
-            data: { "Status": "ACTIVE", "Cost Recurrence": "Recurrent", "Total Commitment": 0, "Contract ID": "", "Contract Ref": "" },
-            splits: [],
-            ledger: []
-        });
-        this.hasUnsavedChanges = true;
-    },
+        addNewDetailRow: function () {
+            const newId = this.currentDetailItems.length > 0 ? Math.max(...this.currentDetailItems.map(i => i.id)) + 1 : 0;
+            this.currentDetailItems.push({
+                id: newId,
+                isEditing: true,
+                data: { "Status": "ACTIVE", "Cost Recurrence": "Recurrent", "Total Commitment": 0, "Contract ID": "", "Contract Ref": "" },
+                splits: [],
+                ledger: []
+            });
+            this.hasUnsavedChanges = true;
+        },
 
-    cloneDetailRow: function(id) {
-        const itemToClone = this.currentDetailItems.find(i => i.id === id);
-        if (!itemToClone) return false;
+        cloneDetailRow: function (id) {
+            const itemToClone = this.currentDetailItems.find(i => i.id === id);
+            if (!itemToClone) return false;
 
-        const newId = this.currentDetailItems.length > 0 ? Math.max(...this.currentDetailItems.map(i => i.id)) + 1 : 0;
-        const clonedData = JSON.parse(JSON.stringify(itemToClone.data));
-        
-        clonedData["Scope"] = "";
-        clonedData["Contract ID"] = "";
-        clonedData["Status"] = "ACTIVE";
-        clonedData["Contract Links"] = "";
+            const newId = this.currentDetailItems.length > 0 ? Math.max(...this.currentDetailItems.map(i => i.id)) + 1 : 0;
+            const clonedData = JSON.parse(JSON.stringify(itemToClone.data));
 
-        this.currentDetailItems.push({
-            id: newId,
-            isEditing: true,
-            data: clonedData,
-            splits: [],
-            ledger: []
-        });
-        this.hasUnsavedChanges = true;
-        return true;
-    },
+            clonedData["Scope"] = "";
+            clonedData["Contract ID"] = "";
+            clonedData["Status"] = "ACTIVE";
+            clonedData["Contract Links"] = "";
 
-    removeDetailRow: function(id) {
-        this.currentDetailItems = this.currentDetailItems.filter(i => i.id !== id);
-        this.hasUnsavedChanges = true;
-    },
+            this.currentDetailItems.push({
+                id: newId,
+                isEditing: true,
+                data: clonedData,
+                splits: [],
+                ledger: []
+            });
+            this.hasUnsavedChanges = true;
+            return true;
+        },
 
-    setRowEditMode: function(id, editable) {
-        const item = this.currentDetailItems.find(i => i.id === id);
-        if (item) item.isEditing = editable;
-    },
+        removeDetailRow: function (id) {
+            this.currentDetailItems = this.currentDetailItems.filter(i => i.id !== id);
+            this.hasUnsavedChanges = true;
+        },
 
-    updateMasterEditState: function(editable) {
-        this.isMasterEditable = editable;
-    }
-};
+        setRowEditMode: function (id, editable) {
+            const item = this.currentDetailItems.find(i => i.id === id);
+            if (item) item.isEditing = editable;
+        },
+
+        updateMasterEditState: function (editable) {
+            this.isMasterEditable = editable;
+        }
+    };
 </script>

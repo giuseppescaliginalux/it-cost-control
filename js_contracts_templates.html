@@ -7,22 +7,22 @@
 
     const ContractsTemplates = {
 
-        getBaseLayout: function() {
+        getBaseLayout: function () {
             return `
             <div class="flex flex-col lg:flex-row justify-between items-start lg:items-end w-full gap-4 mb-5 shrink-0">
-                <div>
-                    <h2 class="text-xl font-black text-slate-800 uppercase tracking-widest">Contracts Center</h2>
-                    <p class="text-slate-500 text-[11px] font-medium mt-1">Search an Asset capability, define Master Agreements, and allocate granular contract items.</p>
+                <div class="min-w-0">
+                    <h2 class="text-xl font-black text-slate-800 uppercase tracking-widest truncate">Contracts Center</h2>
+                    <p class="text-slate-500 text-[11px] font-medium mt-1 truncate">Search an Asset capability, define Master Agreements, and allocate granular contract items.</p>
                 </div>
                 
-                <div class="flex items-center gap-3 shrink-0">
-                    <button onclick="toggleGlobalEditMode()" id="contracts-edit-mode-btn" class="px-4 py-2 bg-white border border-slate-300 text-slate-700 font-black text-[11px] uppercase tracking-wider rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer hover:bg-slate-50">
-                        <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.25 0 113.536 3.536L6.5 21.036H3v-3.536L16.5 3.536z" /></svg>
-                        Edit Mode
+                <div class="flex items-center justify-end gap-3 shrink-0 flex-nowrap w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0">
+                    <button onclick="toggleGlobalEditMode()" id="contracts-edit-mode-btn" class="px-4 py-2 bg-white border border-slate-300 text-slate-700 font-black text-[11px] uppercase tracking-wider rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-50 shrink-0 whitespace-nowrap">
+                        <svg class="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.25 0 113.536 3.536L6.5 21.036H3v-3.536L16.5 3.536z" /></svg>
+                        <span>Edit Mode</span>
                     </button>
-                    <button onclick="saveCurrentContract()" id="contracts-commit-btn" class="hidden px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white font-black text-[11px] uppercase tracking-wider rounded-xl shadow-md transition-all items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
-                        Commit & Push
+                    <button onclick="saveCurrentContract()" id="contracts-commit-btn" class="hidden px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white font-black text-[11px] uppercase tracking-wider rounded-xl shadow-md transition-all items-center justify-center gap-1.5 shrink-0 whitespace-nowrap">
+                        <svg class="w-4 h-4 text-white shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
+                        <span>Commit & Push</span>
                     </button>
                 </div>
             </div>
@@ -62,7 +62,7 @@
                         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
                             <div class="flex justify-between items-center pb-2 border-b border-slate-200 mb-4">
                                 <h3 class="text-xs font-black text-slate-700 uppercase tracking-widest">Step 3: Granular Items Allocation (Contracts table)</h3>
-                                <button onclick="addNewDetailRowItem()" id="btn-add-contract-row" style="display: none;" class="px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 font-black text-[10px] uppercase tracking-wider rounded-lg hover:bg-emerald-100 transition-colors shadow-sm">+ Add Contract</button>
+                                <button onclick="addNewDetailRowItem()" id="btn-add-contract-row" style="display: none;" class="px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 font-black text-[10px] uppercase tracking-wider rounded-lg hover:bg-emerald-100 transition-colors shadow-sm shrink-0 whitespace-nowrap">+ Add Contract</button>
                             </div>
 
                             <div id="mgmt-detailRowsContainer" class="space-y-4 max-h-[600px] overflow-y-auto pr-1.5 pb-2"></div>
@@ -265,15 +265,15 @@
             let rawTerm = d["contractTerm"] !== undefined ? d["contractTerm"] : (d["Contract Term (Months)"] !== undefined ? d["Contract Term (Months)"] : '—');
             let termMonths = (typeof rawTerm === 'number' || !isNaN(parseFloat(rawTerm))) ? Math.round(parseFloat(rawTerm)) : rawTerm;
 
-            // Pulsanti azioni spostati in alto a destra, in linea con la Legal Entity
+            // Pulsanti Azione ancorati in alto a destra
             const actionsHtml = globalEditMode ? `
                 <div class="flex items-start gap-1.5 shrink-0" onclick="event.stopPropagation();">
-                    <button onclick="cloneDetailRowItem(${item.id})" class="px-2.5 py-1 bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white font-black rounded text-[9px] uppercase tracking-wider border border-amber-100 transition-all shadow-sm">Clone</button>
-                    <button onclick="toggleRowEditMode(${item.id}, true)" class="px-3 py-1 bg-teal-50 hover:bg-teal-700 text-teal-700 hover:text-white font-black rounded text-[9px] uppercase tracking-wider border border-teal-100 transition-all shadow-sm">Edit</button>
+                    <button onclick="cloneDetailRowItem(${item.id})" class="px-3 py-1 bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white font-black rounded-lg text-[9px] uppercase tracking-wider border border-amber-100 transition-all shadow-sm">Clone</button>
+                    <button onclick="toggleRowEditMode(${item.id}, true)" class="px-4 py-1 bg-teal-50 hover:bg-teal-700 text-teal-700 hover:text-white font-black rounded-lg text-[9px] uppercase tracking-wider border border-teal-100 transition-all shadow-sm">Edit</button>
                 </div>
             ` : '';
 
-            // (Codice Splits e Ledger invariato per pulizia)
+            // ... Omissis variabili (Splits e Ledger) per pulizia di lettura, tieni quelle che ci sono
             let splitsReadOnlyHtml = '';
             if (item.splits && item.splits.length > 0) {
                 splitsReadOnlyHtml = `
@@ -327,66 +327,69 @@
                 </div>`;
             }
 
+            // QUI INIZIA IL LAYOUT RIGIDO E BLINDATO
             return `
-            <div class="w-full flex flex-col gap-2">
+            <div class="w-full text-left">
                 
-                <div class="flex justify-between items-start w-full gap-4">
+                <div class="flex justify-between items-start w-full border-b border-slate-100 pb-2.5 mb-2.5">
                     <div class="flex items-start gap-2 min-w-0">
-                        <svg id="compact-chevron-${item.id}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" class="w-4 h-4 text-slate-400 shrink-0 mt-0.5 transition-transform">
+                        <svg id="compact-chevron-${item.id}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" class="w-4 h-4 text-slate-400 mt-1 cursor-pointer transition-transform shrink-0">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                         </svg>
                         <div class="flex flex-col">
-                            <div class="font-black text-slate-900 text-[13px] leading-tight truncate" title="${safeEntityName}">
+                            <div class="font-black text-slate-800 text-sm leading-tight truncate" title="${safeEntityName}">
                                 ${d["Legal Entity"] || '—'}
                             </div>
-                            <div class="font-mono text-[9px] font-black text-slate-400 mt-0.5">
-                                CC: <span class="bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-600 font-bold">${d["Cost Center"] || '—'}</span>
+                            <div class="font-mono text-[10px] font-bold text-slate-500 mt-1.5">
+                                CC: <span class="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700">${d["Cost Center"] || '—'}</span>
                             </div>
                         </div>
                     </div>
                     ${actionsHtml}
                 </div>
 
-                <div class="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/60 p-2.5 rounded-xl border border-slate-100 text-xs w-full mt-1">
+                <div class="flex items-center justify-between bg-slate-50/60 p-2.5 rounded-xl border border-slate-100 mb-3 w-full">
                     
-                    <div class="flex items-center gap-1.5 text-slate-500 font-mono text-[10px] whitespace-nowrap bg-white border border-slate-200 px-2 py-1 rounded-md shrink-0 shadow-3xs w-full sm:w-auto">
-                        <span>${cleanStart}</span>
-                        <span class="text-slate-300 font-sans">➔</span>
-                        <span>${cleanEnd}</span>
-                        <span class="ml-1 pl-1.5 border-l border-slate-200 font-sans font-black text-slate-700">${termMonths} M</span>
+                    <div class="w-1/3 text-left">
+                        <span class="flex items-center gap-1.5 text-slate-500 font-mono text-[10px] bg-white border border-slate-200 px-2 py-1 rounded-md shadow-3xs w-fit">
+                            <span>${cleanStart}</span>
+                            <span class="text-slate-300 font-sans">➔</span>
+                            <span>${cleanEnd}</span>
+                            <span class="ml-1 pl-1.5 border-l border-slate-200 font-sans font-black text-slate-700">${termMonths} M</span>
+                        </span>
                     </div>
 
-                    <div class="flex-1 flex justify-center">
+                    <div class="w-1/3 text-center flex justify-center">
                         <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${statusClass} shadow-sm">${d["Status"] || 'ACTIVE'}</span>
                     </div>
 
-                    <div class="flex items-center justify-start sm:justify-end gap-5 shrink-0 sm:ml-auto w-full sm:w-auto">
+                    <div class="w-1/3 flex justify-end items-center gap-4 text-right">
                         ${warningBadgeHTML}
-                        <div class="text-right shrink-0">
+                        <div class="border-l border-slate-200 pl-3">
                             <span class="text-[8px] text-slate-400 block uppercase font-black tracking-wider whitespace-nowrap">Eff. Commitment</span>
-                            <span class="font-mono font-black text-slate-900 text-[13px]">€${effCommit}</span>
+                            <span class="font-mono font-black text-slate-900 text-[12px]">€${effCommit}</span>
                         </div>
-                        <div class="text-right shrink-0 border-l border-slate-200 pl-4">
+                        <div class="border-l border-slate-200 pl-3">
                             <span class="text-[8px] text-teal-600 block uppercase font-black tracking-wider whitespace-nowrap">Run Rate</span>
-                            <span class="font-mono font-black text-teal-800 text-[13px]">€${annVal}</span>
+                            <span class="font-mono font-black text-teal-800 text-[12px]">€${annVal}</span>
                         </div>
                     </div>
 
                 </div>
 
+                <div class="flex justify-between items-start text-[10px]">
+                    <div class="flex items-start gap-2 flex-1 pr-2 min-w-0">
+                        <span class="text-slate-400 font-black uppercase text-[7px] tracking-widest bg-slate-100 px-1.5 py-0.5 rounded mt-0.5 shrink-0">Scope</span>
+                        <span class="text-slate-600 font-medium break-words leading-snug">${d["Scope"] || '<span class="text-slate-300 italic">No specific scope defined</span>'}</span>
+                    </div>
+                    <div class="flex gap-1.5 shrink-0" onclick="event.stopPropagation();">
+                        ${splitBadge} ${ledgerBadge} ${docsHtml}
+                    </div>
+                </div>
+
             </div>
 
-            <div class="mt-2 pt-2 border-t border-slate-100 flex justify-between items-start gap-2 text-[10px]">
-                <div class="flex items-start gap-2 flex-1 min-w-0">
-                    <span class="text-slate-400 font-black uppercase text-[7px] tracking-widest bg-slate-100 px-1.5 py-0.5 rounded shrink-0">Scope</span>
-                    <span class="text-slate-600 font-medium break-words">${d["Scope"] || '<span class="text-slate-300 italic">No specific scope defined</span>'}</span>
-                </div>
-                <div class="flex flex-wrap gap-1.5 justify-end items-center shrink-0" onclick="event.stopPropagation();">
-                    ${splitBadge} ${ledgerBadge} ${docsHtml}
-                </div>
-            </div>
-
-            <div id="compact-accordion-${item.id}" class="hidden mt-2 pt-3 border-t border-slate-100 animate-fade-in text-[10px]" onclick="event.stopPropagation();">
+            <div id="compact-accordion-${item.id}" class="hidden mt-3 pt-3 border-t border-slate-100 animate-fade-in text-[10px]" onclick="event.stopPropagation();">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="p-3 bg-slate-50/80 rounded-xl border border-slate-100 flex flex-col gap-2.5">
                         <div class="flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
