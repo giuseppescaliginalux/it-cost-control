@@ -12,7 +12,7 @@
 const INITIATIVE_FIELD_MAP = {
   "Initiative ID": "id", "Initiative Name": "name", "Initiative Status": "status",
   "Initial Strategy": "initialStrategy", "Decision": "decision", "Asset Name": "assetName",
-  "Master Contract ID": "masterId", "Contracts Group ID": "groupId", "Supplier": "supplier",
+  "Master Contract ID": "masterId", "Contract ID": "contractId", "Supplier": "supplier",
   "Expenditure Type": "expenditureType", "Target Date": "targetDate", "Actual Date": "actualDate",
   "Target Cost (Annualized)": "targetCostAnnualized", "Baseline Spend (Annualized)": "baselineSpendAnnualized",
   "Target Saving (Annualized)": "targetSavingAnnualized", "Target Saving %": "targetSavingPct",
@@ -53,6 +53,7 @@ class Initiative {
   constructor(dto = {}) {
     this.id = dto.id || "";
     this.masterId = dto.masterId || "";
+    this.contractId = dto.contractId || "";
     this.groupId = dto.groupId || "";
     this.assetName = dto.assetName || "";
     this.supplier = dto.supplier || "";
@@ -130,7 +131,7 @@ class Initiative {
   exportToData() {
     return {
       ...this.extraProperties,
-      id: this.id, masterId: this.masterId, groupId: this.groupId, assetName: this.assetName,
+      id: this.id, masterId: this.masterId, contractId: this.contractId, assetName: this.assetName,
       supplier: this.supplier, expenditureType: this.expenditureType, tags: this.tags,
       optimizationLevers: this.optimizationLevers, serviceOwner: this.serviceOwner,
       procurementPoint: this.procurementPoint, procurementPointFocal: this.procurementPoint,

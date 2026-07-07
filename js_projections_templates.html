@@ -1,0 +1,215 @@
+<script>
+    /**
+     * js_projections_templates.html
+     * VIEW: Component UI template factory for multi-dimensional financial structures.
+     */
+    const ProjectionsTemplates = {
+        
+        getWorkspaceLayout: function() {
+            return `
+            <div class="mb-4 shrink-0">
+                <h2 class="text-xl font-black text-slate-800 uppercase tracking-widest">Assets Projections Matrix</h2>
+                <p class="text-slate-500 text-xs font-medium mt-1">Multi-dimensional Fiscal Projections analyzer with dynamic multidimensional pivot and cascading asset groupings.</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+                <div class="lg:col-span-1 space-y-4 sticky top-20 z-40">
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+                        <div class="flex justify-between items-center pb-2 border-b border-slate-200 mb-2">
+                            <h2 class="text-xs font-black text-slate-700 uppercase tracking-widest">OLAP Controls</h2>
+                            <button onclick="ProjectionsController.resetFiltersAndEngine()" class="text-[10px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded transition-colors cursor-pointer">Reset All</button>
+                        </div>
+
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">1. Pivot Dimension</label>
+                            <div class="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/60 shadow-inner">
+                                <button onclick="ProjectionsController.changePivotDimension('expenditureType')" id="btn-pivot-expenditureType" class="py-1 text-[9px] font-black uppercase tracking-tight rounded-lg transition-all cursor-pointer text-center">Exp Type</button>
+                                <button onclick="ProjectionsController.changePivotDimension('costCenter')" id="btn-pivot-costCenter" class="py-1 text-[9px] font-black uppercase tracking-tight rounded-lg transition-all cursor-pointer text-center">Cost Ctr</button>
+                                <button onclick="ProjectionsController.changePivotDimension('legalEntity')" id="btn-pivot-legalEntity" class="py-1 text-[9px] font-black uppercase tracking-tight rounded-lg transition-all cursor-pointer text-center">Legal Ent</button>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3">
+                            <div class="relative">
+                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Filter Expenditure Type</label>
+                                <button onclick="ProjectionsController.toggleMenuDropdown(event, 'proj-filter-drop-exp')" id="proj-btn-filter-exp" class="w-full text-left px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg flex justify-between items-center font-bold text-slate-700 text-xs select-none cursor-pointer">
+                                    <span class="truncate">All Exp Types</span>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="text-slate-400 shrink-0 ml-2" id="proj-arrow-filter-exp"><path d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <div id="proj-filter-drop-exp" class="hidden absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl p-2.5 z-50 max-h-48 overflow-y-auto space-y-1"></div>
+                            </div>
+
+                            <div class="relative">
+                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Filter Cost Center</label>
+                                <button onclick="ProjectionsController.toggleMenuDropdown(event, 'proj-filter-drop-cc')" id="proj-btn-filter-cc" class="w-full text-left px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg flex justify-between items-center font-bold text-slate-700 text-xs select-none cursor-pointer">
+                                    <span class="truncate">All Cost Centers</span>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="text-slate-400 shrink-0 ml-2" id="proj-arrow-filter-cc"><path d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <div id="proj-filter-drop-cc" class="hidden absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl p-2.5 z-50 max-h-48 overflow-y-auto space-y-1"></div>
+                            </div>
+
+                            <div class="relative">
+                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Filter Legal Entity</label>
+                                <button onclick="ProjectionsController.toggleMenuDropdown(event, 'proj-filter-drop-le')" id="proj-btn-filter-le" class="w-full text-left px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg flex justify-between items-center font-bold text-slate-700 text-xs select-none cursor-pointer">
+                                    <span class="truncate">All Legal Entities</span>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="text-slate-400 shrink-0 ml-2" id="proj-arrow-filter-le"><path d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <div id="proj-filter-drop-le" class="hidden absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl p-2.5 z-50 max-h-48 overflow-y-auto space-y-1"></div>
+                            </div>
+
+                            <div class="relative">
+                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Filter Supplier</label>
+                                <button onclick="ProjectionsController.toggleMenuDropdown(event, 'proj-filter-drop-sup')" id="proj-btn-filter-sup" class="w-full text-left px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg flex justify-between items-center font-bold text-slate-700 text-xs select-none cursor-pointer">
+                                    <span class="truncate">All Suppliers</span>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="text-slate-400 shrink-0 ml-2" id="proj-arrow-filter-sup"><path d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <div id="proj-filter-drop-sup" class="hidden absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl p-2.5 z-50 max-h-48 overflow-y-auto space-y-1">
+                                    <div class="p-1 mb-1.5 sticky top-0 bg-white border-b border-slate-100 z-10">
+                                        <input type="text" id="proj-dropdown-supplier-search" onkeyup="ProjectionsController.filterSupplierSearchInline()" placeholder="Search supplier..." class="w-full px-2 py-1 text-[11px] bg-slate-50 border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium">
+                                    </div>
+                                    <div id="proj-dropdown-supplier-items-box" class="space-y-1"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-3 space-y-4">
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                        <h3 class="text-xs font-black text-slate-800 uppercase tracking-wider mb-4" id="proj-dynamic-chart-title">Macro Trend Outlook</h3>
+                        <div style="position: relative; height:240px; width:100%;"><canvas id="projectionsDynamicOlapChart"></canvas></div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-5">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 pb-3 border-b border-slate-100">
+                            <span class="text-xs font-black text-slate-400 uppercase tracking-widest" id="proj-matrix-rows-counter">Matrix Structures</span>
+                            <div class="relative w-full sm:w-64">
+                                <input type="text" id="proj-global-search-input" onkeyup="ProjectionsController.handleTextSearchExecution(this.value)" placeholder="Search asset name..." class="w-full pl-3 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-teal-500 outline-none font-medium">
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs border-collapse table-fixed">
+                                <thead>
+                                    <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-black uppercase tracking-widest text-[10px] select-none">
+                                        <th class="p-3 w-2/5 cursor-pointer hover:bg-slate-100 transition-colors" onclick="ProjectionsController.applySortingRule('name')">
+                                            Dimension Tree <span id="proj-sort-ico-name" class="ml-1 text-[9px]"></span>
+                                        </th>
+                                        <th class="p-3 text-right w-1/5 bg-slate-100/50 text-slate-700 cursor-pointer hover:bg-slate-200 transition-colors" onclick="ProjectionsController.applySortingRule('2026')">
+                                            FY26 <span id="proj-sort-ico-2026" class="ml-1 text-[9px]"></span>
+                                        </th>
+                                        <th class="p-3 text-right w-1/5 bg-teal-50/20 text-teal-900 cursor-pointer hover:bg-teal-100 transition-colors" onclick="ProjectionsController.applySortingRule('2027')">
+                                            FY27 <span id="proj-sort-ico-2027" class="ml-1 text-[9px]"></span>
+                                        </th>
+                                        <th class="p-3 text-right w-1/5 bg-indigo-50/20 text-indigo-900 cursor-pointer hover:bg-indigo-100 transition-colors" onclick="ProjectionsController.applySortingRule('2028')">
+                                            FY28 <span id="proj-sort-ico-2028" class="ml-1 text-[9px]"></span>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody id="projections-matrix-olap-body" class="font-medium text-slate-600"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        },
+
+        // LEVEL 1: Top-Level Dimension Header Card
+        getGroupHeaderRowMarkup: function(groupIdx, label, assetCount, v26, v27, v28) {
+            return `
+            <tr onclick="ProjectionsController.toggleLevel1Accordion(${groupIdx})" class="bg-slate-100/80 border-b border-slate-200 hover:bg-slate-100 transition-all font-black text-slate-900 select-none cursor-pointer">
+                <td class="p-3 text-left align-middle w-2/5">
+                    <div style="display: flex; align-items: center; justify-content: flex-start; width: 100%; min-width: 0;">
+                        <div style="flex-shrink: 0; width: 20px; display: flex; justify-content: center;">
+                            <svg id="proj-l1-chevron-${groupIdx}" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" class="text-slate-500 transition-transform duration-200" style="transform: rotate(0deg);">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                            </svg>
+                        </div>
+                        <div style="flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px;" class="text-xs uppercase font-black tracking-wider text-slate-800" title="${label || 'UNSPECIFIED'}">
+                            ${label || 'UNSPECIFIED'}
+                        </div>
+                        <div style="flex-shrink: 0;">
+                            <span class="bg-white border border-slate-300 text-slate-600 text-[8px] font-extrabold px-1.5 py-0.5 rounded shadow-3xs leading-none" title="Contains ${assetCount} active scoped assets">${assetCount} Assets</span>
+                        </div>
+                    </div>
+                </td>
+                <td class="p-3 text-right align-middle font-mono text-slate-700 w-1/5">€ ${v26.formatCurrency()}</td>
+                <td class="p-3 text-right align-middle font-mono text-teal-800 bg-teal-50/10 w-1/5">€ ${v27.formatCurrency()}</td>
+                <td class="p-3 text-right align-middle font-mono text-indigo-800 w-1/5">€ ${v28.formatCurrency()}</td>
+            </tr>
+            <tr id="proj-l1-body-row-${groupIdx}" class="hidden bg-transparent">
+                <td colspan="4" class="p-0">
+                    <table class="w-full table-fixed border-collapse bg-white">
+                        <tbody id="proj-l1-container-${groupIdx}"></tbody>
+                    </table>
+                </td>
+            </tr>`;
+        },
+
+        // LEVEL 2: Nested Intermediate Asset Row
+        getAssetRowMarkup: function(groupIdx, assetIdx, assetName, manufacturer, driver, v26, v27, v28, childTableHtml) {
+            return `
+            <tr onclick="ProjectionsController.toggleLevel2Accordion(${groupIdx}, ${assetIdx})" class="hover:bg-slate-50/70 transition-all border-b border-slate-100 cursor-pointer select-none">
+                <td class="p-3 pl-8 text-left align-middle w-2/5">
+                    <div style="display: flex; align-items: center; justify-content: flex-start; width: 100%; min-width: 0;">
+                        <div style="flex-shrink: 0; width: 20px; display: flex; justify-content: center;">
+                            <svg id="proj-l2-chevron-${groupIdx}-${assetIdx}" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="text-slate-400 transition-transform duration-200" style="transform: rotate(0deg);">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                            </svg>
+                        </div>
+                        <div style="flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px;" class="font-extrabold text-slate-900 text-xs tracking-tight" title="${assetName}">
+                            ${assetName}
+                        </div>
+                    </div>
+                    <div class="text-[9px] font-bold text-slate-400 uppercase tracking-tight mt-0.5 pl-[20px] truncate w-full">
+                        ${manufacturer} <span class="text-slate-300 font-normal mx-1 select-none">•</span> <span class="text-slate-400/60 font-medium normal-case tracking-normal">for: ${driver}</span>
+                    </div>
+                </td>
+                <td class="p-3 text-right align-middle font-mono text-slate-600 w-1/5">€ ${v26.formatCurrency()}</td>
+                <td class="p-3 text-right align-middle font-mono font-bold text-teal-700 bg-teal-50/5 w-1/5">€ ${v27.formatCurrency()}</td>
+                <td class="p-3 text-right align-middle font-mono text-slate-600 w-1/5">€ ${v28.formatCurrency()}</td>
+            </tr>
+            <tr id="proj-l2-body-row-${groupIdx}-${assetIdx}" class="hidden bg-slate-50/30 shadow-inner">
+                <td colspan="4" class="p-3 pl-12">
+                    ${childTableHtml}
+                </td>
+            </tr>`;
+        },
+
+        // LEVEL 3: Deep Drill-Down Contract Items Sub-Table
+        getContractDrillDownTableStructure: function(rowsHtml) {
+            return `
+            <div class="border border-slate-200 rounded-xl bg-white p-3 shadow-3xs max-w-full overflow-hidden">
+                <table class="w-full text-left text-[11px] border-collapse table-fixed whitespace-nowrap">
+                    <thead>
+                        <tr class="border-b border-slate-200 text-slate-400 font-black uppercase tracking-wider text-[9px] select-none">
+                            <th class="pb-2 w-[20%]">Supplier</th>
+                            <th class="pb-2 w-[15%]">Entity</th>
+                            <th class="pb-2 w-[20%]">Cost Center</th>
+                            <th class="pb-2 w-[10%]">Type</th>
+                            <th class="pb-2 text-right w-[10%]">FY26</th>
+                            <th class="pb-2 text-right text-teal-900 bg-teal-50/20 px-1 rounded w-[12%]">FY27</th>
+                            <th class="pb-2 text-right w-[13%]">FY28</th>
+                        </tr>
+                    </thead>
+                    <tbody class="font-medium text-slate-600">
+                        ${rowsHtml}
+                    </tbody>
+                </table>
+            </div>`;
+        },
+
+        getContractDrillDownItemRow: function(c) {
+            // 🌟 FIX: Aggiunto 'border-b border-slate-100 last:border-0' esplicito su questa riga
+            return `
+            <tr class="hover:bg-slate-50/50 border-b border-slate-100 last:border-0">
+                <td class="py-2 font-bold text-slate-800 truncate pr-2" title="${c.supplier}">${c.supplier}</td>
+                <td class="py-2 truncate pr-2" title="${c.legalEntity}">${c.legalEntity}</td>
+                <td class="py-2 font-mono text-slate-500 truncate pr-2" title="${c.costCenter || 'N/A'}">${c.costCenter || 'N/A'}</td>
+                <td class="py-2 font-mono font-black text-[9px] text-slate-400"><span class="px-1.5 py-0.5 border rounded bg-slate-50">${c.expType}</span></td>
+                <td class="py-2 text-right font-mono text-slate-500 truncate">€ ${c.v26.formatCurrency()}</td>
+                <td class="py-2 text-right font-mono font-black text-teal-700 bg-teal-50/10 px-1 truncate">€ ${c.v27.formatCurrency()}</td>
+                <td class="py-2 text-right font-mono text-slate-500 truncate">€ ${c.v28.formatCurrency()}</td>
+            </tr>`;
+        }
+    };
+</script>

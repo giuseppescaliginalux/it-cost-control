@@ -386,125 +386,7 @@
             </div>
 
             <div id="tab-projections" class="hidden">
-                <div class="mb-3">
-                    <h2 class="text-xl font-black text-slate-800 uppercase tracking-widest">Assets Projections Matrix
-                    </h2>
-                    <p class="text-slate-500 text-xs font-medium mt-1">Real-time Fiscal Projections pivot aggregated by
-                        Asset with Supplier and Legal Entity drill-down capabilities.</p>
-                </div>
-
-                <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-                    <div class="lg:col-span-1 space-y-4 sticky top-20 z-40">
-                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
-                            <div class="flex justify-between items-center pb-2 border-b border-slate-200 mb-2">
-                                <h2 class="text-xs font-black text-slate-700 uppercase tracking-widest">Matrix Filters
-                                </h2>
-                                <button onclick="resetProjectionFilters()"
-                                    class="text-[10px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded transition-colors">Reset
-                                    All</button>
-                            </div>
-
-                            <div>
-                                <label
-                                    class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Expenditure
-                                    Type</label>
-                                <div id="proj-filter-type-buttons" class="flex flex-wrap gap-1">
-                                    <button onclick="toggleExpenditureTypeButton(this, 'OPEX')"
-                                        class="px-2.5 py-1 text-[10px] font-black uppercase border border-slate-200 rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 transition-all cursor-pointer">OPEX</button>
-                                    <button onclick="toggleExpenditureTypeButton(this, 'CAPEX')"
-                                        class="px-2.5 py-1 text-[10px] font-black uppercase border border-slate-200 rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 transition-all cursor-pointer">CAPEX</button>
-                                    <button onclick="toggleExpenditureTypeButton(this, 'ROU')"
-                                        class="px-2.5 py-1 text-[10px] font-black uppercase border border-slate-200 rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 transition-all cursor-pointer">ROU</button>
-                                </div>
-                            </div>
-
-                            <div class="relative">
-                                <label
-                                    class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Legal
-                                    Entity</label>
-                                <button onclick="toggleProjDropdown(event, 'proj-drop-legal')" id="proj-btn-legal"
-                                    class="w-full text-left px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg flex justify-between items-center font-bold text-slate-700 hover:bg-slate-100/70 transition-all cursor-pointer select-none">
-                                    <span class="truncate">All Legal Entities</span>
-                                    <svg class="w-3 h-3 text-slate-400 shrink-0 ml-1 transition-transform duration-200"
-                                        id="proj-arrow-legal" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                                        stroke-width="2.5">
-                                        <path d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </button>
-                                <div id="proj-drop-legal"
-                                    class="hidden absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl p-3 z-50 max-h-52 overflow-y-auto space-y-1.5 animate-fade-in">
-                                </div>
-                            </div>
-
-                            <div class="relative">
-                                <label
-                                    class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Supplier</label>
-                                <button onclick="toggleProjDropdown(event, 'proj-drop-supplier')" id="proj-btn-supplier"
-                                    class="w-full text-left px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg flex justify-between items-center font-bold text-slate-700 hover:bg-slate-100/70 transition-all cursor-pointer select-none">
-                                    <span class="truncate">All Suppliers</span>
-                                    <svg class="w-3 h-3 text-slate-400 shrink-0 ml-1 transition-transform duration-200"
-                                        id="proj-arrow-supplier" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                                        stroke-width="2.5">
-                                        <path d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </button>
-                                <div id="proj-drop-supplier"
-                                    class="hidden absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl p-3 z-50 max-h-52 overflow-y-auto space-y-1.5 animate-fade-in">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="lg:col-span-3 space-y-4">
-                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4">Portfolio Macro
-                                Trend (Optimized Projections)</h3>
-                            <div style="position: relative; height:220px; width:100%;"><canvas
-                                    id="projectionsStackedChart"></canvas></div>
-                        </div>
-
-                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-5">
-                            <div
-                                class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 pb-3 border-b border-slate-100">
-                                <span class="text-xs font-black text-slate-400 uppercase tracking-widest"
-                                    id="proj-count-badge">Matrix Rows</span>
-                                <div class="relative w-full sm:w-64">
-                                    <input type="text" id="proj-search-input" onkeyup="applyProjectionsEngine()"
-                                        placeholder="Filter by asset name..."
-                                        class="w-full pl-3 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500">
-                                </div>
-                            </div>
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-left text-xs border-collapse">
-                                    <thead>
-                                        <tr
-                                            class="bg-slate-50 border-b border-slate-200 text-slate-500 font-black uppercase tracking-widest text-[10px] select-none">
-                                            <th class="p-3 w-[36%] cursor-pointer hover:bg-slate-100 transition-colors"
-                                                onclick="handleProjSort('assetName')">
-                                                Asset Name <span id="proj-ico-assetName" class="ml-1 text-[9px]"></span>
-                                            </th>
-                                            <th class="p-3 text-right w-[21%] bg-slate-100/50 text-slate-700 cursor-pointer hover:bg-slate-200 transition-colors"
-                                                onclick="handleProjSort('2026')">
-                                                FY26 Projection <span id="proj-ico-2026" class="ml-1 text-[9px]"></span>
-                                            </th>
-                                            <th class="p-3 text-right w-[21%] bg-teal-50/20 text-teal-900 cursor-pointer hover:bg-teal-100 transition-colors"
-                                                onclick="handleProjSort('2027')">
-                                                FY27 Projection <span id="proj-ico-2027" class="ml-1 text-[9px]"></span>
-                                            </th>
-                                            <th class="p-3 text-right w-[21%] bg-indigo-50/20 text-indigo-900 cursor-pointer hover:bg-indigo-100 transition-colors"
-                                                onclick="handleProjSort('2028')">
-                                                FY28 Projection <span id="proj-ico-2028" class="ml-1 text-[9px]"></span>
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="projections-matrix-body"
-                                        class="divide-y divide-slate-100 font-medium text-slate-600">
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+    
             </div>
 
         </div>
@@ -538,11 +420,15 @@
     <?!= include('js_contracts_utils'); ?>
     <?!= include('js_contracts_vocabulary'); ?>
 
-    <?!= include('js_projections'); ?>
-
     <?!= include('js_timeline_state'); ?>
     <?!= include('js_timeline_templates'); ?>
     <?!= include('js_timeline_controller'); ?>
+
+    <?!= include('js_projections_state'); ?>
+    <?!= include('js_projections_templates'); ?>
+    <?!= include('js_projections_controller'); ?>
+</body>
+</html>
 
 </body>
 

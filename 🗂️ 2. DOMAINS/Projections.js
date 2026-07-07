@@ -7,7 +7,7 @@
 const PROJECTION_FIELD_MAP = {
   "Contract ID": "contractId", "Asset Name": "assetName", "Status": "status",
   "Annual Value": "annualValue", "Start Date": "startDate", "End Date": "endDate",
-  "Supplier": "supplier", "Legal Entity": "legalEntity", "Expenditure Type": "expenditureType",
+  "Supplier": "supplier", "Legal Entity": "legalEntity", "Expenditure Type": "expenditureType", "Cost Center": "costCenter",
   "FY26 Baseline": "fy26Baseline", "FY26 Optimized": "fy26Optimized",
   "FY27 Baseline": "fy27Baseline", "FY27 Optimized": "fy27Optimized",
   "FY28 Baseline": "fy28Baseline", "FY28 Optimized": "fy28Optimized"
@@ -86,19 +86,19 @@ class ContractProjection {
       this.fullLedger.forEach(mov => {
         const mStart = new Date(mov.startDate || mov.StartDate);
         if (isNaN(mStart.getTime())) return; // Salta righe corrotte
-        
+
         const mEnd = mov.endDate ? new Date(mov.endDate) : new Date(mStart.getTime() + 86400000);
-        
+
         const overlapStart = mStart < pStart ? pStart : mStart;
         const overlapEnd = mEnd > pEnd ? pEnd : mEnd;
 
         if (overlapStart <= overlapEnd) {
-           const movDays = Math.max(1, Math.round((mEnd - mStart) / 86400000) + 1);
-           const overlapDays = Math.max(1, Math.round((overlapEnd - overlapStart) / 86400000) + 1);
-           const amt = parseFloat(mov.amount || mov.Amount) || 0;
-           
-           if (movDays === overlapDays) periodTotal += amt;
-           else periodTotal += amt * (overlapDays / movDays); // Pro-rata sui giorni per movimenti a cavallo d'anno
+          const movDays = Math.max(1, Math.round((mEnd - mStart) / 86400000) + 1);
+          const overlapDays = Math.max(1, Math.round((overlapEnd - overlapStart) / 86400000) + 1);
+          const amt = parseFloat(mov.amount || mov.Amount) || 0;
+
+          if (movDays === overlapDays) periodTotal += amt;
+          else periodTotal += amt * (overlapDays / movDays); // Pro-rata sui giorni per movimenti a cavallo d'anno
         }
       });
       return parseFloat(periodTotal.toFixed(2));
@@ -147,7 +147,7 @@ class ContractProjection {
     const activeInits = this.linkedInitiatives.filter(init =>
       ["COMPLETED", "IN PROGRESS", "IDEA", "APPROVED", "PLANNED"].includes(String(init.status).toUpperCase())
     );
-    
+
     // Se non ci sono rinegoziazioni attive ed è un contratto Ledger-Driven, bypassa il ciclo e restituisce la cassa
     const bt = String(this.contract.billingTerms || "").toUpperCase().trim();
     if (activeInits.length === 0 || bt.includes("PAY-AS-YOU-GO") || bt.includes("CUSTOM") || bt.includes("LEDGER")) {
@@ -188,11 +188,11 @@ class ContractProjection {
           let isTerminated = false;
 
           const testDay = new Date(dayCursor);
-          testDay.setHours(0,0,0,0);
+          testDay.setHours(0, 0, 0, 0);
 
           for (let init of activeInits) {
             const initEffDate = init.getEffectiveDate();
-            if (initEffDate) initEffDate.setHours(0,0,0,0);
+            if (initEffDate) initEffDate.setHours(0, 0, 0, 0);
 
             if (testDay >= initEffDate) {
               if (["TERMINATE", "REPLACE", "TRANSFER"].includes(String(init.decision).toUpperCase())) {
@@ -257,7 +257,20 @@ class ProjectionService {
 
     activeDomainContracts.forEach(contractInstance => {
       const mId = String(contractInstance.masterId).trim();
-      const linkedInits = domainInitiatives.filter(init => String(init.masterId).trim() === mId);
+      const cId = String(contractInstance.id).trim();
+      
+      const linkedInits = domainInitiatives.filter(init => {
+          const initMaster = String(init.masterId).trim();
+          const initContract = String(init.contractId || "").trim();
+          
+          // Se non appartiene a questo Master, la scarto a prescindere
+          if (initMaster !== mId) return false;
+          
+          // Se l'iniziativa ha un target locale specifico, deve combaciare con QUESTO contratto
+          if (initContract !== "" && initContract !== cId) return false;
+          
+          return true; // Altrimenti (o se è globale) la applico
+      });
 
       const successorMaster = dtosMasters.find(m => {
         const prevs = String(m.previousMasterId || "").split(',').map(s => s.trim()).filter(s => s);
@@ -288,6 +301,7 @@ class ProjectionService {
         endDate: formatServerDate(contractInstance.getEndDate()),
         supplier: contractInstance.supplier,
         legalEntity: contractInstance.legalEntity,
+        costCenter: contractInstance.costCenter,
         expenditureType: contractInstance.expenditureType,
 
         fy26Baseline: proj26.calculateBaseline(), fy26Optimized: proj26.calculateOptimized(),

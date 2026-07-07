@@ -1,0 +1,460 @@
+<script>
+    /**
+     * js_projections_controller.html
+     * CONTROLLER: High-performance multi-tier data pipeline and visualization driver.
+     */
+    const ProjectionsController = {
+
+        initProjectionsWorkspace: function (payload) {
+            const container = document.getElementById('tab-projections');
+            if (!container) return;
+
+            // 1. Initialize State Architecture
+            ProjectionsState.loadPayload(payload);
+
+            // 2. Inject Complete View Framework
+            container.innerHTML = ProjectionsTemplates.getWorkspaceLayout();
+
+            // 3. Mount Inline Filter Sub-Dropdown Menus
+            this.buildFilterDropdownMenus();
+
+            // 4. Fire Calculations and Rendering Operations
+            this.applyEngine();
+        },
+
+        buildFilterDropdownMenus: function () {
+            const raw = ProjectionsState.rawDataset;
+
+            // 🌟 CORREZIONE REQ 1: Estrazione difensiva delle chiavi uniche dai record
+            const getUniqueValues = (key) => [...new Set(raw.map(r => (r[key] || r[key.replace(" ", "")] || "").toString().trim()).filter(v => v !== ""))].sort();
+
+            const buildCheckboxItems = (valuesArray, containerId, stateFilterCategory) => {
+                const domBox = document.getElementById(containerId);
+                if (!domBox) return;
+
+                domBox.innerHTML = valuesArray.map(val => `
+                    <label class="flex items-center gap-2 px-1.5 py-0.5 hover:bg-slate-50 rounded cursor-pointer text-[11px] font-bold text-slate-700">
+                        <input type="checkbox" value="${val}" onchange="ProjectionsController.handleCheckboxToggle('${stateFilterCategory}', '${val.replace(/'/g, "\\'")}')" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
+                        <span class="truncate">${val}</span>
+                    </label>
+                `).join('');
+            };
+
+            buildCheckboxItems(getUniqueValues("Legal Entity"), "proj-filter-drop-le", "legalEntities");
+            buildCheckboxItems(getUniqueValues("Cost Center"), "proj-filter-drop-cc", "costCenters");
+            buildCheckboxItems(getUniqueValues("Expenditure Type"), "proj-filter-drop-exp", "expenditureTypes");
+
+            const suppliers = getUniqueValues("Supplier");
+            const supBox = document.getElementById("proj-dropdown-supplier-items-box");
+            if (supBox) {
+                supBox.innerHTML = suppliers.map(val => `
+                    <label class="proj-sup-menu-row flex items-center gap-2 px-1.5 py-0.5 hover:bg-slate-50 rounded cursor-pointer text-[11px] font-bold text-slate-700">
+                        <input type="checkbox" value="${val}" onchange="ProjectionsController.handleCheckboxToggle('suppliers', '${val.replace(/'/g, "\\'")}')" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
+                        <span class="truncate">${val}</span>
+                    </label>
+                `).join('');
+            }
+        },
+
+        filterSupplierSearchInline: function () {
+            const query = document.getElementById('proj-dropdown-supplier-search').value.toLowerCase().trim();
+            document.querySelectorAll('.proj-sup-menu-row').forEach(row => {
+                const text = row.querySelector('span').textContent.toLowerCase();
+                row.style.display = text.includes(query) ? "flex" : "none";
+            });
+        },
+
+        toggleMenuDropdown: function (event, dropdownId) {
+            if (event) event.stopPropagation();
+            const menus = ['proj-filter-drop-exp', 'proj-filter-drop-cc', 'proj-filter-drop-le', 'proj-filter-drop-sup'];
+            menus.forEach(id => {
+                const el = document.getElementById(id);
+                const arrow = document.getElementById(id.replace('filter-drop', 'arrow-filter'));
+                if (id === dropdownId) {
+                    const isHidden = el.classList.toggle('hidden');
+                    if (arrow) arrow.style.transform = isHidden ? "rotate(0deg)" : "rotate(180deg)";
+                } else if (el) {
+                    el.classList.add('hidden');
+                    if (arrow) arrow.style.transform = "rotate(0deg)";
+                }
+            });
+        },
+
+        handleCheckboxToggle: function (category, value) {
+            ProjectionsState.toggleFilterValue(category, value);
+            this.updateLabelsDisplay();
+            this.applyEngine();
+        },
+
+        handleTextSearchExecution: function (val) {
+            ProjectionsState.filters.searchKeyword = val.toLowerCase().trim();
+            this.applyEngine();
+        },
+
+        changePivotDimension: function (dim) {
+            ProjectionsState.pivotDimension = dim;
+            this.applyEngine();
+        },
+
+        applySortingRule: function (key) {
+            if (ProjectionsState.sortKey === key) {
+                ProjectionsState.sortOrder = ProjectionsState.sortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                ProjectionsState.sortKey = key;
+                ProjectionsState.sortOrder = 'asc';
+            }
+            this.applyEngine();
+        },
+
+        updateLabelsDisplay: function () {
+            const syncDisplay = (containerId, buttonId, defaultText) => {
+                const checkedCount = document.querySelectorAll(`#${containerId} input:checked`).length;
+                const btnSpan = document.querySelector(`#${buttonId} span`);
+                if (!btnSpan) return;
+
+                if (checkedCount === 0) {
+                    btnSpan.textContent = defaultText;
+                    btnSpan.className = "truncate";
+                } else if (checkedCount === 1) {
+                    btnSpan.textContent = document.querySelector(`#${containerId} input:checked`).value;
+                    btnSpan.className = "truncate text-teal-700 font-black";
+                } else {
+                    btnSpan.textContent = `${checkedCount} Selected`;
+                    btnSpan.className = "truncate text-teal-700 font-black";
+                }
+            };
+
+            syncDisplay('proj-filter-drop-exp', 'proj-btn-filter-exp', 'All Exp Types');
+            syncDisplay('proj-filter-drop-cc', 'proj-btn-filter-cc', 'All Cost Centers');
+            syncDisplay('proj-filter-drop-le', 'proj-btn-filter-le', 'All Legal Entities');
+            syncDisplay('proj-filter-drop-sup', 'proj-btn-filter-sup', 'All Suppliers');
+        },
+
+        resetFiltersAndEngine: function () {
+            document.querySelectorAll('#tab-projections input[type="checkbox"]').forEach(cb => cb.checked = false);
+            const textSearch = document.getElementById('proj-global-search-input');
+            if (textSearch) textSearch.value = '';
+            const inlineSupSearch = document.getElementById('proj-dropdown-supplier-search');
+            if (inlineSupSearch) inlineSupSearch.value = '';
+
+            document.querySelectorAll('.proj-sup-menu-row').forEach(row => row.style.display = "flex");
+
+            ProjectionsState.resetAllFilters();
+            this.updateLabelsDisplay();
+            this.applyEngine();
+        },
+
+        // 🌟 CORREZIONE REQ 3: Toggle riproporzionato partendo dallo stato collassato
+        toggleLevel1Accordion: function (idx) {
+            const bodyRow = document.getElementById(`proj-l1-body-row-${idx}`);
+            const chevron = document.getElementById(`proj-l1-chevron-${idx}`);
+            if (!bodyRow) return;
+            const isHidden = bodyRow.classList.toggle('hidden');
+            if (chevron) chevron.style.transform = isHidden ? "rotate(0deg)" : "rotate(90deg)";
+        },
+
+        toggleLevel2Accordion: function (groupIdx, assetIdx) {
+            const bodyRow = document.getElementById(`proj-l2-body-row-${groupIdx}-${assetIdx}`);
+            const chevron = document.getElementById(`proj-l2-chevron-${groupIdx}-${assetIdx}`);
+            if (!bodyRow) return;
+            const isHidden = bodyRow.classList.toggle('hidden');
+            if (chevron) chevron.style.transform = isHidden ? "rotate(0deg)" : "rotate(90deg)";
+        },
+
+        applyEngine: function () {
+            this.syncPivotSelectorsUI();
+            const f = ProjectionsState.filters;
+
+            const filteredRows = ProjectionsState.rawDataset.filter(row => {
+                const assetName = (row["Asset Name"] || "").toString().toLowerCase();
+                const supplier = (row["Supplier"] || "").toString().trim();
+                const legal = (row["Legal Entity"] || "").toString().trim();
+                // 🌟 CORREZIONE REQ 1: Lettura difensiva orizzontale
+                const costCenter = (row["Cost Center"] || row.costCenter || "").toString().trim();
+                const expType = (row["Expenditure Type"] || "").toString().toUpperCase().trim();
+
+                if (f.searchKeyword && !assetName.includes(f.searchKeyword)) return false;
+                if (f.expenditureTypes.length > 0 && !f.expenditureTypes.includes(expType)) return false;
+                if (f.legalEntities.length > 0 && !f.legalEntities.includes(legal)) return false;
+                if (f.costCenters.length > 0 && !f.costCenters.includes(costCenter)) return false;
+                if (f.suppliers.length > 0 && !f.suppliers.includes(supplier)) return false;
+
+                return true;
+            });
+
+            const pivotMap = {};
+            const activeDimension = ProjectionsState.pivotDimension;
+            const graphDatasetTotals = {};
+
+            filteredRows.forEach(row => {
+                let dimensionLabel = "";
+                if (activeDimension === 'expenditureType') dimensionLabel = row["Expenditure Type"] || row.expenditureType;
+                // 🌟 CORREZIONE REQ 1: Allineamento pivot dinamico centrato
+                else if (activeDimension === 'costCenter') dimensionLabel = row["Cost Center"] || row.costCenter;
+                else if (activeDimension === 'legalEntity') dimensionLabel = row["Legal Entity"] || row.legalEntity;
+
+                dimensionLabel = (dimensionLabel || "UNSPECIFIED").toString().trim();
+
+                const assetName = (row["Asset Name"] || "Unknown Asset").toString().trim();
+                const supplier = (row["Supplier"] || "Generic Supplier").toString().trim();
+                const legal = (row["Legal Entity"] || "N/A").toString().trim();
+                const costCenter = (row["Cost Center"] || row.costCenter || "N/A").toString().trim();
+                const expType = (row["Expenditure Type"] || "OPEX").toString().toUpperCase().trim();
+
+                const v26 = parseFloat(row["FY26 Optimized"]) || 0;
+                const v27 = parseFloat(row["FY27 Optimized"]) || 0;
+                const v28 = parseFloat(row["FY28 Optimized"]) || 0;
+
+                if (!graphDatasetTotals[dimensionLabel]) {
+                    graphDatasetTotals[dimensionLabel] = { 2026: 0, 2027: 0, 2028: 0 };
+                }
+                graphDatasetTotals[dimensionLabel][2026] += v26;
+                graphDatasetTotals[dimensionLabel][2027] += v27;
+                graphDatasetTotals[dimensionLabel][2028] += v28;
+
+                if (!pivotMap[dimensionLabel]) {
+                    pivotMap[dimensionLabel] = {
+                        label: dimensionLabel,
+                        v26: 0, v27: 0, v28: 0,
+                        assetsMap: {}
+                    };
+                }
+                pivotMap[dimensionLabel].v26 += v26;
+                pivotMap[dimensionLabel].v27 += v27;
+                pivotMap[dimensionLabel].v28 += v28;
+
+                if (!pivotMap[dimensionLabel].assetsMap[assetName]) {
+                    const meta = ProjectionsState.assetLookupMap.get(assetName.toLowerCase()) || { manufacturer: "Generic", driver: "Technology" };
+                    pivotMap[dimensionLabel].assetsMap[assetName] = {
+                        name: assetName,
+                        manufacturer: meta.manufacturer,
+                        driver: meta.driver,
+                        v26: 0, v27: 0, v28: 0,
+                        contractsMap: {}
+                    };
+                }
+                pivotMap[dimensionLabel].assetsMap[assetName].v26 += v26;
+                pivotMap[dimensionLabel].assetsMap[assetName].v27 += v27;
+                pivotMap[dimensionLabel].assetsMap[assetName].v28 += v28;
+
+                const contractKey = `${supplier}|||${legal}|||${costCenter}|||${expType}`;
+                if (!pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey]) {
+                    pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey] = {
+                        supplier: supplier, legalEntity: legal, costCenter: costCenter, expType: expType,
+                        v26: 0, v27: 0, v28: 0
+                    };
+                }
+                pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey].v26 += v26;
+                pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey].v27 += v27;
+                pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey].v28 += v28;
+            });
+
+            const finalGroupedArray = Object.values(pivotMap).map(group => {
+                const assetsList = Object.values(group.assetsMap).map(asset => {
+                    asset.contracts = Object.values(asset.contractsMap).sort((a, b) => b.v27 - a.v27);
+                    return asset;
+                });
+                group.assets = assetsList;
+                group.assetCount = assetsList.length;
+                return group;
+            });
+
+            this.sortOLAPEngineData(finalGroupedArray);
+            this.buildMatrixTableDOM(finalGroupedArray);
+            this.renderMacroStackedChart(graphDatasetTotals);
+        },
+
+        sortOLAPEngineData: function (dataArray) {
+            const sk = ProjectionsState.sortKey;
+            const order = ProjectionsState.sortOrder;
+
+            // Ordina i Gruppi (Livello 1)
+            dataArray.sort((a, b) => {
+                let res = 0;
+                if (sk === 'name') {
+                    res = a.label.localeCompare(b.label, 'en');
+                } else {
+                    // Traduce '2026' in 'v26' per leggere il dato corretto
+                    const valKey = 'v' + sk.slice(-2);
+                    res = (a[valKey] || 0) - (b[valKey] || 0);
+                }
+                return order === 'asc' ? res : -res;
+            });
+
+            // Ordina gli Asset dentro i gruppi (Livello 2)
+            dataArray.forEach(group => {
+                group.assets.sort((a, b) => {
+                    let res = 0;
+                    if (sk === 'name') {
+                        res = a.name.localeCompare(b.name, 'en');
+                    } else {
+                        // Traduce '2026' in 'v26' per leggere il dato corretto
+                        const valKey = 'v' + sk.slice(-2);
+                        res = (a[valKey] || 0) - (b[valKey] || 0);
+                    }
+                    return order === 'asc' ? res : -res;
+                });
+            });
+        },
+
+        buildMatrixTableDOM: function (finalStructure) {
+            const body = document.getElementById('projections-matrix-olap-body');
+            const counter = document.getElementById('proj-matrix-rows-counter');
+            if (!body) return;
+
+            if (counter) {
+                let totalAssetCount = finalStructure.reduce((sum, g) => sum + g.assetCount, 0);
+                counter.textContent = `${finalStructure.length} Groups / ${totalAssetCount} Connected Assets`;
+            }
+
+            if (finalStructure.length === 0) {
+                body.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-slate-400 italic">No historical rows match active multidimensional filters.</td></tr>`;
+                return;
+            }
+
+            let html = '';
+            finalStructure.forEach((group, gIdx) => {
+                html += ProjectionsTemplates.getGroupHeaderRowMarkup(gIdx, group.label, group.assetCount, group.v26, group.v27, group.v28);
+            });
+            body.innerHTML = html;
+
+            finalStructure.forEach((group, gIdx) => {
+                const subLane = document.getElementById(`proj-l1-container-${gIdx}`);
+                if (!subLane) return;
+
+                let subHtml = '';
+                group.assets.forEach((asset, aIdx) => {
+                    let rowsHtml = asset.contracts.map(c => ProjectionsTemplates.getContractDrillDownItemRow(c)).join('');
+                    let drillDownTable = ProjectionsTemplates.getContractDrillDownTableStructure(rowsHtml);
+
+                    subHtml += ProjectionsTemplates.getAssetRowMarkup(gIdx, aIdx, asset.name, asset.manufacturer, asset.driver, asset.v26, asset.v27, asset.v28, drillDownTable);
+                });
+                subLane.innerHTML = subHtml;
+            });
+        },
+
+        renderMacroStackedChart: function (totalsMap) {
+            const ctxEl = document.getElementById('projectionsDynamicOlapChart');
+            if (!ctxEl) return;
+
+            if (!window.chartInstances) window.chartInstances = {};
+            if (window.chartInstances.olapDynamic) window.chartInstances.olapDynamic.destroy();
+
+            const dimensions = Object.keys(totalsMap).sort();
+            const colors = ['#0f766e', '#0d9488', '#14b8a6', '#06b6d4', '#2563eb', '#3b82f6', '#6366f1', '#475569', '#64748b', '#94a3b8', '#cbd5e1'];
+
+            const labels = ['FY26 Outlook', 'FY27 Outlook', 'FY28 Outlook'];
+            const datasets = dimensions.map((dim, index) => {
+                return {
+                    label: dim,
+                    data: [totalsMap[dim][2026], totalsMap[dim][2027], totalsMap[dim][2028]],
+                    backgroundColor: colors[index % colors.length],
+                    borderRadius: 4,
+                    barPercentage: 0.38,
+                    categoryPercentage: 0.8
+                };
+            });
+
+            const titleEl = document.getElementById('proj-dynamic-chart-title');
+            if (titleEl) {
+                const mapTitles = { 'expenditureType': 'Expenditure Type', 'costCenter': 'Cost Center', 'legalEntity': 'Legal Entity' };
+                titleEl.textContent = `Optimized Financial Outlook by ${mapTitles[ProjectionsState.pivotDimension]}`;
+            }
+
+            this.updateSortingIconsDisplay();
+
+            window.chartInstances.olapDynamic = new Chart(ctxEl.getContext('2d'), {
+                type: 'bar',
+                data: { labels: labels, datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { stacked: true, grid: { display: false } },
+                        y: { stacked: true, ticks: { callback: v => v >= 1000000 ? '€' + (v / 1000000).toFixed(1) + 'M' : '€' + (v / 1000).toFixed(0) + 'k' } }
+                    },
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 9, weight: 'bold' } } },
+                        tooltip: { callbacks: { label: c => ` ${c.dataset.label}: €${Math.round(c.raw).toLocaleString('it-IT')}` } }
+                    }
+                },
+                plugins: [{
+                    id: 'olapStackedBarTotals',
+                    afterDatasetsDraw: function (chart) {
+                        const { ctx, scales: { x, y } } = chart;
+                        ctx.save();
+                        ctx.font = 'black 10px Inter, sans-serif';
+                        ctx.fillStyle = '#1e293b';
+                        ctx.textAlign = 'center';
+
+                        const totals = [0, 0, 0];
+                        chart.data.datasets.forEach(dataset => {
+                            dataset.data.forEach((val, i) => { totals[i] += (val || 0); });
+                        });
+
+                        const lastMeta = chart.getDatasetMeta(chart.data.datasets.length - 1);
+                        lastMeta.data.forEach((bar, i) => {
+                            const val = totals[i];
+                            if (val > 0) {
+                                const formatted = val >= 1000000
+                                    ? '€' + (val / 1000000).toFixed(2) + 'M'
+                                    : '€' + (val / 1000).toFixed(0) + 'k';
+                                ctx.fillText(formatted, bar.x, bar.y - 8);
+                            }
+                        });
+                        ctx.restore();
+                    }
+                }]
+            });
+        },
+
+        syncPivotSelectorsUI: function () {
+            const activeDim = ProjectionsState.pivotDimension;
+            ['expenditureType', 'costCenter', 'legalEntity'].forEach(dim => {
+                const btn = document.getElementById('btn-pivot-' + dim);
+                if (!btn) return;
+                if (dim === activeDim) {
+                    btn.className = "py-1 text-[9px] font-black uppercase tracking-tight rounded-lg bg-teal-700 text-white shadow-md transition-all cursor-pointer text-center";
+                } else {
+                    btn.className = "py-1 text-[9px] font-black uppercase tracking-tight rounded-lg text-slate-500 hover:text-slate-800 hover:bg-white/60 transition-all cursor-pointer text-center";
+                }
+            });
+        },
+
+        updateSortingIconsDisplay: function () {
+            const keys = ['name', '2026', '2027', '2028'];
+            keys.forEach(k => {
+                const el = document.getElementById(`proj-sort-ico-${k}`);
+                if (!el) return;
+                if (ProjectionsState.sortKey === k) {
+                    el.textContent = ProjectionsState.sortOrder === 'asc' ? ' ▲' : ' ▼';
+                    el.className = "ml-1 text-[9px] text-teal-600 font-black";
+                } else {
+                    el.textContent = ' ▲';
+                    el.className = "ml-1 text-[9px] text-slate-300 opacity-30";
+                }
+            });
+        }
+    };
+
+    const olapOriginalSwitchTab = switchTab;
+    switchTab = function (tabId) {
+        olapOriginalSwitchTab(tabId);
+        if (tabId === 'tab-projections') {
+            ProjectionsController.initProjectionsWorkspace(window.windowPayload);
+        }
+    };
+
+    document.addEventListener('click', function (e) {
+        const dropCategories = ['exp', 'cc', 'le', 'sup'];
+        dropCategories.forEach(cat => {
+            const drop = document.getElementById(`proj-filter-drop-${cat}`);
+            const btn = document.getElementById(`proj-btn-filter-${cat}`);
+            if (drop && !drop.classList.contains('hidden') && btn && !btn.contains(e.target) && !drop.contains(e.target)) {
+                drop.classList.add('hidden');
+                const arrow = document.getElementById(`proj-arrow-filter-${cat}`);
+                if (arrow) arrow.style.transform = "rotate(0deg)";
+            }
+        });
+    });
+</script>

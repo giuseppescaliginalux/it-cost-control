@@ -1,0 +1,61 @@
+<script>
+    /**
+     * js_projections_state.html
+     * MODEL: Centralized state engine for multi-dimensional OLAP analytics.
+     */
+    const ProjectionsState = {
+        rawDataset: [],
+        assetLookupMap: new Map(),
+        
+        // OLAP Configuration
+        pivotDimension: 'expenditureType', // Options: 'expenditureType', 'costCenter', 'legalEntity'
+        sortKey: 'name',                  // Options: 'name', '2026', '2027', '2028'
+        sortOrder: 'asc',
+        
+        // Active Multi-Select Filters
+        filters: {
+            searchKeyword: '',
+            expenditureTypes: [],
+            legalEntities: [],
+            costCenters: [],
+            suppliers: []
+        },
+
+        loadPayload: function(payload) {
+            this.rawDataset = payload.projections || [];
+            
+            // Re-map asset metadata for fast top-level cross-referencing
+            this.assetLookupMap.clear();
+            (payload.assets || []).forEach(asset => {
+                const name = (asset["Asset Name"] || "").toString().trim().toLowerCase();
+                if (name) {
+                    this.assetLookupMap.set(name, {
+                        manufacturer: (asset["Manufacturer"] || "Unknown").toString().trim(),
+                        driver: (asset["Business Driver"] || "Technology").toString().trim()
+                    });
+                }
+            });
+        },
+
+        toggleFilterValue: function(category, value) {
+            const arr = this.filters[category];
+            const idx = arr.indexOf(value);
+            if (idx > -1) {
+                arr.splice(idx, 1);
+            } else {
+                arr.push(value);
+            }
+        },
+
+        resetAllFilters: function() {
+            this.pivotDimension = 'expenditureType';
+            this.sortKey = 'name';
+            this.sortOrder = 'asc';
+            this.filters.searchKeyword = '';
+            this.filters.expenditureTypes = [];
+            this.filters.legalEntities = [];
+            this.filters.costCenters = [];
+            this.filters.suppliers = [];
+        }
+    };
+</script>
