@@ -556,17 +556,22 @@ class MasterContract {
   deriveStatus(linkedInitiatives) {
     let checkTerminated = 0;
     let checkNegotiation = 0;
-    const hasActiveChilds = this.childContracts.some(c => c.calculateStatus() === "ACTIVE");
+    
+    // 🌟 FIX PUNTO 6: Estraiamo tutti gli stati reali dei figli vivi
+    const childStatuses = this.childContracts.map(c => c.calculateStatus());
+    const hasActiveChilds = childStatuses.includes("ACTIVE");
+    const hasUpcomingChilds = childStatuses.includes("UPCOMING");
 
     linkedInitiatives.forEach(init => {
-      const initStatus = String(init["Initiative Status"] || init.status || "").toUpperCase();
-      const decision = String(init["Decision"] || init.decision || "").toUpperCase();
+      const initStatus = String(init["Initiative Status"] || init.status || "").toUpperCase().trim();
+      const decision = String(init["Decision"] || init.decision || "").toUpperCase().trim();
       if (initStatus === "COMPLETED" && ["TERMINATE", "REPLACE", "TRANSFER"].includes(decision)) checkTerminated++;
       if (initStatus === "IN PROGRESS") checkNegotiation++;
     });
 
     if (checkTerminated > 0) return "TERMINATED";
     if (hasActiveChilds) return "ACTIVE";
+    if (hasUpcomingChilds) return "UPCOMING"; // Se non ci sono contratti attivi ma ce n'è uno futuro, il master è UPCOMING
     if (checkNegotiation > 0) return "IN NEGOTIATION";
     return "EXPIRED";
   }

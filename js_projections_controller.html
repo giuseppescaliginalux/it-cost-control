@@ -169,7 +169,6 @@
                 const assetName = (row["Asset Name"] || "").toString().toLowerCase();
                 const supplier = (row["Supplier"] || "").toString().trim();
                 const legal = (row["Legal Entity"] || "").toString().trim();
-                // 🌟 CORREZIONE REQ 1: Lettura difensiva orizzontale
                 const costCenter = (row["Cost Center"] || row.costCenter || "").toString().trim();
                 const expType = (row["Expenditure Type"] || "").toString().toUpperCase().trim();
 
@@ -189,7 +188,6 @@
             filteredRows.forEach(row => {
                 let dimensionLabel = "";
                 if (activeDimension === 'expenditureType') dimensionLabel = row["Expenditure Type"] || row.expenditureType;
-                // 🌟 CORREZIONE REQ 1: Allineamento pivot dinamico centrato
                 else if (activeDimension === 'costCenter') dimensionLabel = row["Cost Center"] || row.costCenter;
                 else if (activeDimension === 'legalEntity') dimensionLabel = row["Legal Entity"] || row.legalEntity;
 
@@ -205,6 +203,11 @@
                 const v27 = parseFloat(row["FY27 Optimized"]) || 0;
                 const v28 = parseFloat(row["FY28 Optimized"]) || 0;
 
+                // 🌟 INIEZIONE: Estrazione delle Baseline originali dal database
+                const b26 = parseFloat(row["FY26 Baseline"]) || 0;
+                const b27 = parseFloat(row["FY27 Baseline"]) || 0;
+                const b28 = parseFloat(row["FY28 Baseline"]) || 0;
+
                 if (!graphDatasetTotals[dimensionLabel]) {
                     graphDatasetTotals[dimensionLabel] = { 2026: 0, 2027: 0, 2028: 0 };
                 }
@@ -216,12 +219,16 @@
                     pivotMap[dimensionLabel] = {
                         label: dimensionLabel,
                         v26: 0, v27: 0, v28: 0,
+                        b26: 0, b27: 0, b28: 0, // 🌟 Aggiunta tracciatura per la root
                         assetsMap: {}
                     };
                 }
                 pivotMap[dimensionLabel].v26 += v26;
                 pivotMap[dimensionLabel].v27 += v27;
                 pivotMap[dimensionLabel].v28 += v28;
+                pivotMap[dimensionLabel].b26 += b26; // 🌟
+                pivotMap[dimensionLabel].b27 += b27; // 🌟
+                pivotMap[dimensionLabel].b28 += b28; // 🌟
 
                 if (!pivotMap[dimensionLabel].assetsMap[assetName]) {
                     const meta = ProjectionsState.assetLookupMap.get(assetName.toLowerCase()) || { manufacturer: "Generic", driver: "Technology" };
@@ -230,33 +237,44 @@
                         manufacturer: meta.manufacturer,
                         driver: meta.driver,
                         v26: 0, v27: 0, v28: 0,
+                        b26: 0, b27: 0, b28: 0, // 🌟 Aggiunta tracciatura per gli asset
                         contractsMap: {}
                     };
                 }
                 pivotMap[dimensionLabel].assetsMap[assetName].v26 += v26;
                 pivotMap[dimensionLabel].assetsMap[assetName].v27 += v27;
                 pivotMap[dimensionLabel].assetsMap[assetName].v28 += v28;
+                pivotMap[dimensionLabel].assetsMap[assetName].b26 += b26; // 🌟
+                pivotMap[dimensionLabel].assetsMap[assetName].b27 += b27; // 🌟
+                pivotMap[dimensionLabel].assetsMap[assetName].b28 += b28; // 🌟
 
                 const contractKey = `${supplier}|||${legal}|||${costCenter}|||${expType}`;
                 if (!pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey]) {
                     pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey] = {
                         supplier: supplier, legalEntity: legal, costCenter: costCenter, expType: expType,
-                        v26: 0, v27: 0, v28: 0
+                        v26: 0, v27: 0, v28: 0,
+                        b26: 0, b27: 0, b28: 0 // 🌟 Aggiunta tracciatura per il singolo contratto
                     };
                 }
                 pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey].v26 += v26;
                 pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey].v27 += v27;
                 pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey].v28 += v28;
+                pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey].b26 += b26; // 🌟
+                pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey].b27 += b27; // 🌟
+                pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey].b28 += b28; // 🌟
             });
 
-            const finalGroupedArray = Object.values(pivotMap).map(group => {
+            const finalGroupedArray = Object.values(pivotMap).filter(asset =>
+                asset.v26 > 0 || asset.v27 > 0 || asset.v28 > 0
+            );
+
+            finalGroupedArray.forEach(group => {
                 const assetsList = Object.values(group.assetsMap).map(asset => {
                     asset.contracts = Object.values(asset.contractsMap).sort((a, b) => b.v27 - a.v27);
                     return asset;
                 });
                 group.assets = assetsList;
                 group.assetCount = assetsList.length;
-                return group;
             });
 
             this.sortOLAPEngineData(finalGroupedArray);
@@ -313,21 +331,61 @@
             }
 
             let html = '';
+
+            // 🌟 GENERAZIONE RIGHE PADRE (Livello 1 - Gruppi)
             finalStructure.forEach((group, gIdx) => {
-                html += ProjectionsTemplates.getGroupHeaderRowMarkup(gIdx, group.label, group.assetCount, group.v26, group.v27, group.v28);
+                // Calcolo dinamico dello sconto per l'intero aggregato dimensionale
+                const p26_l1 = group.b26 > 0 ? ((group.b26 - group.v26) / group.b26) * 100 : 0;
+                const p27_l1 = group.b27 > 0 ? ((group.b27 - group.v27) / group.b27) * 100 : 0;
+                const p28_l1 = group.b28 > 0 ? ((group.b28 - group.v28) / group.b28) * 100 : 0;
+
+                html += ProjectionsTemplates.getGroupHeaderRowMarkup(
+                    gIdx, group.label, group.assetCount,
+                    group.v26, p26_l1,
+                    group.v27, p27_l1,
+                    group.v28, p28_l1
+                );
             });
             body.innerHTML = html;
 
+            // 🌟 GENERAZIONE SOTTORIGHE (Livelli 2 e 3)
             finalStructure.forEach((group, gIdx) => {
                 const subLane = document.getElementById(`proj-l1-container-${gIdx}`);
                 if (!subLane) return;
 
                 let subHtml = '';
                 group.assets.forEach((asset, aIdx) => {
-                    let rowsHtml = asset.contracts.map(c => ProjectionsTemplates.getContractDrillDownItemRow(c)).join('');
+                    // Calcolo dinamico dello sconto per il singolo Asset
+                    const p26_l2 = asset.b26 > 0 ? ((asset.b26 - asset.v26) / asset.b26) * 100 : 0;
+                    const p27_l2 = asset.b27 > 0 ? ((asset.b27 - asset.v27) / asset.b27) * 100 : 0;
+                    const p28_l2 = asset.b28 > 0 ? ((asset.b28 - asset.v28) / asset.b28) * 100 : 0;
+
+                    let rowsHtml = asset.contracts.map(c => {
+                        // Calcolo dinamico dello sconto chirurgico a livello di singolo drill-down contrattuale
+                        const p26_l3 = c.b26 > 0 ? ((c.b26 - c.v26) / c.b26) * 100 : 0;
+                        const p27_l3 = c.b27 > 0 ? ((c.b27 - c.v27) / c.b27) * 100 : 0;
+                        const p28_l3 = c.b28 > 0 ? ((c.b28 - c.v28) / c.b28) * 100 : 0;
+
+                        return ProjectionsTemplates.getContractDrillDownItemRow({
+                            supplier: c.supplier,
+                            legalEntity: c.legalEntity,
+                            costCenter: c.costCenter,
+                            expType: c.expType,
+                            v26: c.v26, p26: p26_l3,
+                            v27: c.v27, p27: p27_l3,
+                            v28: c.v28, p28: p28_l3
+                        });
+                    }).join('');
+
                     let drillDownTable = ProjectionsTemplates.getContractDrillDownTableStructure(rowsHtml);
 
-                    subHtml += ProjectionsTemplates.getAssetRowMarkup(gIdx, aIdx, asset.name, asset.manufacturer, asset.driver, asset.v26, asset.v27, asset.v28, drillDownTable);
+                    subHtml += ProjectionsTemplates.getAssetRowMarkup(
+                        gIdx, aIdx, asset.name, asset.manufacturer, asset.driver,
+                        asset.v26, p26_l2,
+                        asset.v27, p27_l2,
+                        asset.v28, p28_l2,
+                        drillDownTable
+                    );
                 });
                 subLane.innerHTML = subHtml;
             });

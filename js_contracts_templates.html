@@ -2,7 +2,7 @@
     /**
      * js_contracts_templates.html
      * VIEW TEMPLATES: Generates all HTML strings for the UI.
-     * Keeps DOM rendering strictly separated from business logic.
+     * FULL VERSION - NO OMISSIONS
      */
 
     const ContractsTemplates = {
@@ -31,9 +31,7 @@
                 <div class="lg:col-span-1 space-y-4 sticky top-20">
                     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
                         <h3 class="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-1">
-                            <svg class="w-3.5 h-3.5 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
+                            <svg class="w-3.5 h-3.5 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                             Step 1: Locate Asset Target
                         </h3>
                         <input type="text" id="mgmt-asset-search-input" onkeyup="renderAssetSearchList()" placeholder="Type asset or manufacturer name..." class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 transition-shadow">
@@ -42,9 +40,7 @@
 
                     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
                         <h3 class="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-1">
-                            <svg class="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
+                            <svg class="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                             Step 2: Master Agreements
                         </h3>
                         <div id="mgmt-selected-asset-header">
@@ -56,56 +52,45 @@
 
                 <div class="lg:col-span-3 space-y-4">
                     <div id="mgmt-master-form-container" class="hidden space-y-4">
-                        
                         <div id="mgmt-master-form-box-inner" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3"></div>
-
                         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
                             <div class="flex justify-between items-center pb-2 border-b border-slate-200 mb-4">
                                 <h3 class="text-xs font-black text-slate-700 uppercase tracking-widest">Step 3: Granular Items Allocation (Contracts table)</h3>
-                                <button onclick="addNewDetailRowItem()" id="btn-add-contract-row" style="display: none;" class="px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 font-black text-[10px] uppercase tracking-wider rounded-lg hover:bg-emerald-100 transition-colors shadow-sm shrink-0 whitespace-nowrap">+ Add Contract</button>
+                                <button onclick="addNewDetailRowItem()" id="btn-add-contract-row" style="display: none;" class="px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 font-black text-[10px] uppercase tracking-wider rounded-lg hover:bg-emerald-100 transition-colors shadow-sm shrink-0">Add Contract Line 📄</button>
                             </div>
-
-                            <div id="mgmt-detailRowsContainer" class="space-y-4 max-h-[600px] overflow-y-auto pr-1.5 pb-2"></div>
-                            
-                            </div>
-
+                            <div id="mgmt-detailRowsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[600px] overflow-y-auto pr-1.5 pb-2"></div>
+                        </div>
                     </div>
                 </div>
             </div>
+            
+            <div id="contracts-modal-mount-point" onclick="ContractsController.closeContractModalWindow()" class="hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4"></div>
             `;
         },
 
         getAssetSearchResult: function (name, id, manufacturer) {
             return `
-            <div onclick="selectAssetForManagement('${name.replace(/'/g, "\\'")}', '${id}')" 
-                 class="p-2 border-b border-slate-100 hover:bg-teal-50/60 cursor-pointer transition-colors flex justify-between items-center text-xs group">
+            <div onclick="selectAssetForManagement('${name.replace(/'/g, "\\'")}', '${id}')" class="p-2 border-b border-slate-100 hover:bg-teal-50/60 cursor-pointer transition-colors flex justify-between items-center text-xs group">
                 <div>
                     <div class="font-black text-slate-800 group-hover:text-teal-900">${name}</div>
                     <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">${manufacturer || 'Generic'}</div>
                 </div>
                 <span class="bg-slate-100 text-slate-500 font-mono text-[9px] px-1.5 py-0.5 rounded">ID: ${id}</span>
-            </div>
-        `;
+            </div>`;
         },
 
         getMasterSidebarCard: function (mId, supplier, status, totalCommitment, isExpired, statusClass) {
-            const cardClasses = isExpired
-                ? "bg-slate-50 border-slate-200 opacity-60 hover:opacity-80 grayscale-[0.2]"
-                : "bg-white border-slate-100 hover:border-teal-200 hover:shadow-md cursor-pointer";
-
+            const cardClasses = isExpired ? "bg-slate-50 border-slate-200 opacity-60 hover:opacity-80 grayscale-[0.2]" : "bg-white border-slate-100 hover:border-teal-200 hover:shadow-md cursor-pointer";
             return `
             <div onclick="loadFullMasterDetailArchitecture('${mId}')" class="p-3 rounded-xl shadow-sm flex flex-col gap-2 group transition-all relative overflow-hidden border ${cardClasses}">
-                
                 ${isExpired ? `<div class="absolute top-0 right-0 bg-slate-200 text-slate-500 text-[7px] font-black uppercase tracking-widest px-2 py-0.5 rounded-bl-lg z-10 pointer-events-none">Historical</div>` : ''}
-                
-                <div class="flex justify-between items-start gap-2 Panding-top ${isExpired ? 'mt-2' : ''}">
+                <div class="flex justify-between items-start gap-2 ${isExpired ? 'mt-2' : ''}">
                     <div class="min-w-0 flex-1">
                         <div class="font-black text-slate-800 text-xs truncate" title="${supplier}">Supplier: <span class="text-teal-700 font-black">${supplier}</span></div>
                         <div class="text-[9px] font-mono font-bold text-slate-400 uppercase mt-0.5">ID: ${mId}</div>
                     </div>
                     <span class="px-1.5 py-0.5 rounded-full text-[7px] font-black uppercase tracking-wider shrink-0 border ${statusClass}">${status}</span>
                 </div>
-                
                 <div class="flex justify-between items-center border-t border-slate-100 pt-2 text-[10px]">
                     <div>
                         <span class="text-slate-400 font-bold uppercase text-[8px] tracking-wider">Total Commit</span>
@@ -115,35 +100,29 @@
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
                     </div>
                 </div>
-            </div>
-        `;
+            </div>`;
         },
 
         getMasterReadOnly: function (data, masterLinks, cleanStart, cleanEnd, termMonths, status, statusClass, globalEditMode) {
             const linksHtml = masterLinks.length > 0 ? `
             <div class="flex items-center gap-1.5 mr-1 border-r border-slate-200 pr-3">
-                ${masterLinks.map((url, idx) => `
-                    <a href="#" target="_blank" class="live-doc-link px-2 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white border border-indigo-200 rounded-md text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all shadow-sm" data-raw="${url.trim()}" title="Syncing...">
-                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg> Doc ${idx + 1}
-                    </a>
-                `).join('')}
+                ${masterLinks.map((url, idx) => `<a href="#" target="_blank" class="live-doc-link px-2 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white border border-indigo-200 rounded-md text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all shadow-sm" data-raw="${url.trim()}"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg> Doc ${idx + 1}</a>`).join('')}
             </div>` : '';
 
             const runRate = parseFloat(data["runRate"] || data["Run Rate"]) || 0;
             const totCommit = parseFloat(data["totalCommitment"] || data["Total Commitment"]) || 0;
+            const bChannel = data["Billing Channel"] || data.billingChannel || 'Direct Vendor';
 
-            const editBtnHtml = globalEditMode ? `<button onclick="toggleMasterEditState(true)" class="px-3 py-1.5 bg-slate-100 border border-slate-200 text-slate-700 font-black text-[10px] uppercase tracking-wider rounded-lg hover:bg-slate-200 transition-colors shadow-sm cursor-pointer">Edit Master Info</button>` : '';
+            const editBtnHtml = globalEditMode ? `<button onclick="toggleMasterEditState(true)" class="px-3 py-1.5 bg-slate-100 border border-slate-200 text-slate-700 font-black text-[10px] uppercase tracking-wider rounded-lg hover:bg-slate-200 transition-colors shadow-sm">Edit Master Info</button>` : '';
 
             return `
             <div class="flex justify-between items-start border-b border-slate-100 pb-2.5 mb-2.5">
                 <div>
                     <div class="flex items-center gap-2 flex-wrap">
-                        <h4 class="text-sm font-black text-slate-800">Supplier: <span class="text-teal-700">${data["Supplier"] || 'Not Specified'}</span></h4>
-                        ${data["Billing Channel"] ? `<span class="bg-teal-50 border border-teal-100 text-teal-700 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider shrink-0 shadow-3xs" title="Billing Channel">${data["Billing Channel"]}</span>` : ''}
+                        <h4 class="text-sm font-black text-slate-800">Supplier: <span class="text-teal-700">${data["Supplier"] || data.supplier || 'Not Specified'}</span></h4>
+                        <span class="bg-teal-50 border border-teal-100 text-teal-700 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider shrink-0 shadow-3xs" title="Billing Channel">${bChannel}</span>
                     </div>
-                    <div class="text-[9px] font-mono font-bold text-slate-400 uppercase mt-1.5 select-none">
-                        Internal Tech ID: <span class="text-slate-500 font-medium select-all">${data["Master Contract ID"] || 'NEW MASTER'}</span>
-                    </div>
+                    <div class="text-[9px] font-mono font-bold text-slate-400 uppercase mt-1.5 select-none">Internal Tech ID: <span class="text-slate-500 font-medium select-all">${data["Master Contract ID"] || data.masterId || 'NEW MASTER'}</span></div>
                 </div>
                 <div class="flex flex-wrap justify-end items-center gap-2">
                     ${linksHtml}
@@ -152,83 +131,82 @@
             </div>
 
             <div class="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/60 p-2.5 rounded-xl border border-slate-100 mb-3 text-xs w-full">
-                
                 <div class="flex items-center gap-1.5 text-slate-500 font-mono text-[10px] whitespace-nowrap bg-white border border-slate-200 px-2 py-1 rounded-md shrink-0 shadow-3xs">
-                    <span>${cleanStart}</span>
-                    <span class="text-slate-300 font-sans">➔</span>
-                    <span>${cleanEnd}</span>
+                    <span>${cleanStart}</span> <span class="text-slate-300 font-sans">➔</span> <span>${cleanEnd}</span>
                     <span class="ml-1 pl-1.5 border-l border-slate-200 font-sans font-black text-slate-700">${termMonths} M</span>
                 </div>
-
-                <div class="flex-1 flex justify-center">
-                    <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${statusClass} shadow-sm">${status}</span>
-                </div>
-
+                <div class="flex-1 flex justify-center"><span class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${statusClass} shadow-sm">${status}</span></div>
                 <div class="flex items-center justify-start sm:justify-end gap-5 shrink-0 sm:ml-auto w-full sm:w-auto">
                     <div class="text-right shrink-0">
                         <span class="text-[8px] text-slate-400 block uppercase font-black tracking-wider whitespace-nowrap">Total Commitment</span>
-                        <span class="font-mono font-black text-slate-900 text-[13px]">€${totCommit.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
+                        <span class="font-mono font-black text-slate-900 text-[13px]">€${totCommit.toLocaleString('it-IT')}</span>
                     </div>
                     <div class="text-right shrink-0 border-l border-slate-200 pl-4">
                         <span class="text-[8px] text-teal-600 block uppercase font-black tracking-wider whitespace-nowrap">Master Run Rate</span>
-                        <span class="font-mono font-black text-teal-800 text-[13px]">€${runRate.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
+                        <span class="font-mono font-black text-teal-800 text-[13px]">€${runRate.toLocaleString('it-IT')}</span>
                     </div>
                 </div>
-
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-12 gap-3 text-xs border-t border-slate-100/40 pt-2">
-                <div class="md:col-span-8 border-r border-slate-100/60 pr-2">
-                    <span class="text-slate-400 font-bold uppercase text-[8px] tracking-wider block">Master Scope</span>
-                    <span class="text-slate-700 font-medium leading-tight block mt-0.5 break-words">${data["Scope"] || '—'}</span>
-                </div>
-                <div class="md:col-span-4 pl-0 md:pl-2">
-                    <span class="text-slate-400 font-bold uppercase text-[8px] tracking-wider block">Master Comments</span>
-                    <span class="text-slate-500 italic font-medium leading-tight block mt-0.5">${data["Comments"] || '—'}</span>
-                </div>
-            </div>
-        `;
+                <div class="md:col-span-8 border-r border-slate-100/60 pr-2"><span class="text-slate-400 font-bold uppercase text-[8px] tracking-wider block">Master Scope</span><span class="text-slate-700 font-medium leading-tight block mt-0.5 break-words">${data["Scope"] || data.masterScope || '—'}</span></div>
+                <div class="md:col-span-4 pl-0 md:pl-2"><span class="text-slate-400 font-bold uppercase text-[8px] tracking-wider block">Master Comments</span><span class="text-slate-500 italic font-medium leading-tight block mt-0.5">${data["Comments"] || data.masterComments || '—'}</span></div>
+            </div>`;
         },
 
         getMasterEditCard: function (data, isNew, suppliersList, masterLinks) {
+            const currentSupplier = data["Supplier"] || data.supplier || '';
+            const bChannel = data["Billing Channel"] || data.billingChannel || 'Direct Vendor';
+
             return `
             <div class="flex justify-between items-center border-b border-slate-200 pb-2 mb-4">
                 <h3 class="text-xs font-black text-slate-700 uppercase tracking-widest">Master Info Setup</h3>
-                ${!isNew ? `<button onclick="toggleMasterEditState(false)" class="text-[10px] font-bold text-slate-400 hover:text-slate-600">Cancel</button>` : ''}
+                <button onclick="ContractsController.cancelMasterFormEditState(${isNew})" class="text-[10px] font-black uppercase text-rose-500 hover:text-rose-700 bg-rose-50 px-2 py-1 rounded">Cancel</button>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                 ${!isNew ? `
                 <div>
                     <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Master Contract ID</label>
-                    <input type="text" id="ins-masterId" disabled value="${data["Master Contract ID"]}" class="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg font-bold uppercase text-xs text-slate-500">
+                    <input type="text" id="ins-masterId" disabled value="${data["Master Contract ID"] || data.masterId || ''}" class="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg font-bold uppercase text-xs text-slate-500">
                 </div>
                 ` : ''}
-                <div class="${isNew ? 'md:col-span-2' : ''}">
-                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Supplier</label>
-                    <select id="ins-masterSupplier" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 font-bold text-slate-800 bg-white text-xs">
-                        <option value="">-- Select Supplier --</option>
-                        ${suppliersList.map(s => `<option value="${s}" ${s === data["Supplier"] ? 'selected' : ''}>${s}</option>`).join('')}
+                
+                <div class="${isNew ? 'md:col-span-2' : ''} relative">
+                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 required-label">Supplier Context</label>
+                    <input type="text" id="ins-masterSupplier-search" oninput="ContractsController.filterSupplierOptions(this.value)" onclick="ContractsController.toggleSupplierDropdown(true)" placeholder="🔍 Type supplier name..." class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-1 focus:ring-teal-500 font-bold text-slate-800 text-xs shadow-3xs" autocomplete="off" value="${currentSupplier}">
+                    <input type="hidden" id="ins-masterSupplier" value="${currentSupplier}">
+                    <div id="ins-supplier-options-list" class="hidden absolute left-0 right-0 top-full mt-1 max-h-40 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-xl z-[99999] p-1 space-y-0.5"></div>
+                </div>
+
+                <div>
+                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Billing Channel</label>
+                    <select id="ins-masterBillingChannel" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg font-bold text-xs">
+                        <option value="Direct Vendor" ${bChannel === 'Direct Vendor' ? 'selected' : ''}>Direct Vendor</option>
+                        <option value="Reseller" ${bChannel === 'Reseller' ? 'selected' : ''}>Reseller</option>
+                        <option value="Financing Partner" ${bChannel === 'Financing Partner' ? 'selected' : ''}>Financing Partner</option>
                     </select>
                 </div>
-                <div class="md:col-span-2 mt-1">
-                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Previous Master ID (Optional - For Renewals/Merges)</label>
-                    <input type="text" id="ins-previousMasterId" value="${data["Previous Master ID"] || ''}" placeholder="e.g. MCT-AWS-2024-01 (use commas for multiple)" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs font-mono text-indigo-700">
-                </div>
             </div>
+            
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs mt-3">
+                <div class="md:col-span-2">
+                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Previous Master ID (Optional - For Renewals/Merges)</label>
+                    <input type="text" id="ins-previousMasterId" value="${data["Previous Master ID"] || data.previousMasterId || ''}" placeholder="e.g. MCT-AWS-2024-01 (use commas for multiple)" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs font-mono text-indigo-700">
+                </div>
                 <div>
                     <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Master Scope</label>
-                    <input type="text" id="ins-masterScope" value="${data["Scope"] || ''}" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs">
+                    <input type="text" id="ins-masterScope" value="${data["Scope"] || data.masterScope || ''}" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs">
                 </div>
                 <div>
                     <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Master Comments</label>
-                    <input type="text" id="ins-masterComments" value="${data["Comments"] || ''}" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 italic text-slate-500 text-xs">
+                    <input type="text" id="ins-masterComments" value="${data["Comments"] || data.masterComments || ''}" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 italic text-slate-500 text-xs">
                 </div>
             </div>
-            ${!isNew ? `
+            
             <div class="mt-3 flex justify-end">
-                <button onclick="confirmMasterEditLocalChanges()" class="px-4 py-1.5 bg-slate-800 text-white rounded-lg font-black text-[10px] uppercase tracking-wider">Confirm Master Changes</button>
-            </div>` : ''}
+                <button onclick="confirmMasterEditLocalChanges()" class="px-5 py-2 bg-slate-800 text-white rounded-xl font-black text-[10px] uppercase tracking-wider shadow-md">Apply Master Configuration</button>
+            </div>
+
             <div class="mt-4 border border-dashed border-slate-300 bg-slate-50 p-3 rounded-lg">
                 <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Upload & Manage Documents</label>
                 ${masterLinks.length > 0 ? `
@@ -237,465 +215,348 @@
                         <div class="flex flex-wrap gap-1.5">
                             ${masterLinks.map((url, idx) => `
                                 <div class="flex items-center gap-0 bg-indigo-50 border border-indigo-200 rounded-md shadow-sm overflow-hidden group">
-                                    <a href="#" target="_blank" class="live-doc-link px-2 py-0.5 text-indigo-700 hover:bg-indigo-600 hover:text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-1 transition-colors" data-raw="${url.trim()}" title="Syncing...">Doc ${idx + 1}</a>
-                                    <button type="button" onclick="ContractsUtils.removeDocumentLink(event, '${url.trim()}', true)" class="px-1.5 py-0.5 text-indigo-400 hover:bg-rose-500 hover:text-white transition-colors border-l border-indigo-200" title="Remove Document">×</button>
-                                </div>
-                            `).join('')}
+                                    <a href="#" target="_blank" class="live-doc-link px-2 py-0.5 text-indigo-700 hover:bg-indigo-600 hover:text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-1 transition-colors" data-raw="${url.trim()}">Doc ${idx + 1}</a>
+                                    <button type="button" onclick="ContractsUtils.removeDocumentLink(event, '${url.trim()}', true)" class="px-1.5 py-0.5 text-indigo-400 hover:bg-rose-500 hover:text-white transition-colors border-l border-indigo-200">×</button>
+                                </div>`).join('')}
                         </div>
-                    </div>
-                ` : ''}
-                <input type="text" id="ins-masterDocumentLink" value="${data["Contract Links"] || ''}" class="hidden">
+                    </div>` : ''}
+                <input type="text" id="ins-masterDocumentLink" value="${data["Contract Links"] || data.contractLinks || ''}" class="hidden">
                 <div class="flex items-center gap-3">
-                    <input type="file" id="upload-files" multiple class="w-full text-xs text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-[10px] file:font-black file:uppercase file:tracking-wider file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer border border-dashed border-slate-300 bg-white p-1 rounded-md">
+                    <input type="file" id="upload-files" multiple class="w-full text-xs text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer border border-dashed border-slate-300 bg-white p-1 rounded-md">
                 </div>
-                <p class="text-[9px] text-slate-400 italic mt-1.5">Files will be uploaded automatically when you click "Confirm Master Changes".</p>
-            </div>
-        `;
+            </div>`;
         },
 
         getDetailReadOnlyCard: function (item, warningBadgeHTML, effCommit, annVal, totCommit, cleanStart, cleanEnd, contractEnd, adjEnd, docLinks, globalEditMode) {
             const d = item.data;
-            const statusClass = d["Status"] === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-200/50' : d["Status"] === 'EXPIRED' ? 'bg-rose-50 text-rose-600 border-rose-200/50' : 'bg-amber-50 text-amber-700 border-amber-200/50';
+            const getVal = (sheetKey, camelKey) => d[sheetKey] !== undefined ? d[sheetKey] : (d[camelKey] !== undefined ? d[camelKey] : '');
+
+            const legalEntity = getVal("Legal Entity", "legalEntity");
+            const costCenter = getVal("Cost Center", "costCenter");
+            const status = getVal("Status", "status") || "ACTIVE";
+            const scope = getVal("Scope", "scope");
+            const comments = getVal("Comments", "comments");
+            const expType = getVal("Expenditure Type", "expenditureType") || "OPEX";
+            const location = getVal("Location", "location") || "N/A";
+            const serviceOwner = getVal("Service Owner", "serviceOwner") || "TBD";
+            const blId = getVal("BL ID", "blId") || "—";
+            const requestCode = getVal("Request Code", "requestCode") || "—";
+            const term = getVal("Contract Term (Months)", "contractTerm") || "—";
+            const recurrence = getVal("Cost Recurrence", "costRecurrence") || "Recurrent";
+            const autoRenewal = getVal("Auto-Renewal", "autoRenewal") || "No";
+            const noticePeriod = getVal("Notice Period (Days)", "noticePeriod") || "—";
+            const cId = getVal("Contract ID", "contractId") || "NEW_LINE";
+
+            const statusClass = status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-200/50' : status === 'EXPIRED' ? 'bg-rose-50 text-rose-600 border-rose-200/50' : 'bg-amber-50 text-amber-700 border-amber-200/50';
 
             let splitBadge = item.splits && item.splits.length > 0 ? `<span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 border border-indigo-200 rounded text-[8px] font-black uppercase tracking-wider shadow-sm flex items-center gap-0.5" title="Custom Allocation Split Active">Split (${item.splits.length})</span>` : '';
             let ledgerBadge = item.ledger && item.ledger.length > 0 ? `<span class="px-1.5 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 rounded text-[8px] font-black uppercase tracking-wider shadow-sm flex items-center gap-0.5" title="Ledger Movements Present">Ledger (${item.ledger.length})</span>` : '';
             let docsHtml = docLinks.length > 0 ? `<div class="flex gap-1 ml-1 pl-1.5 border-l border-slate-200">${docLinks.map((url, idx) => `<a href="#" target="_blank" class="live-doc-link px-2 py-0.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white border border-indigo-200 rounded-md text-[8px] font-black uppercase tracking-wider flex items-center gap-1 transition-all shadow-sm" data-raw="${url.trim()}" title="Syncing...">Doc ${idx + 1}</a>`).join('')}</div>` : '';
 
-            const safeEntityName = (d["Legal Entity"] || '—').replace(/"/g, '&quot;');
-            let rawTerm = d["contractTerm"] !== undefined ? d["contractTerm"] : (d["Contract Term (Months)"] !== undefined ? d["Contract Term (Months)"] : '—');
-            let termMonths = (typeof rawTerm === 'number' || !isNaN(parseFloat(rawTerm))) ? Math.round(parseFloat(rawTerm)) : rawTerm;
-
-            // Pulsanti Azione ancorati in alto a destra
             const actionsHtml = globalEditMode ? `
-                <div class="flex items-start gap-1.5 shrink-0" onclick="event.stopPropagation();">
-                    <button onclick="cloneDetailRowItem(${item.id})" class="px-3 py-1 bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white font-black rounded-lg text-[9px] uppercase tracking-wider border border-amber-100 transition-all shadow-sm">Clone</button>
-                    <button onclick="toggleRowEditMode(${item.id}, true)" class="px-4 py-1 bg-teal-50 hover:bg-teal-700 text-teal-700 hover:text-white font-black rounded-lg text-[9px] uppercase tracking-wider border border-teal-100 transition-all shadow-sm">Edit</button>
-                </div>
-            ` : '';
+                <div class="flex items-center gap-1 shrink-0" onclick="event.stopPropagation();">
+                    <button onclick="cloneDetailRowItem(${item.id})" class="px-2.5 py-1 bg-slate-100 text-slate-600 hover:bg-slate-200 font-bold rounded-lg text-[9px] uppercase tracking-wider border border-slate-200 shadow-sm">Clone</button>
+                    <button onclick="ContractsController.openContractModalWindow(${item.id})" class="px-3 py-1 bg-teal-50 hover:bg-teal-700 text-teal-700 hover:text-white font-black rounded-lg text-[9px] uppercase tracking-wider border border-teal-100 transition-colors shadow-sm">Modify Line ⚙️</button>
+                </div>` : '';
 
-            // ... Omissis variabili (Splits e Ledger) per pulizia di lettura, tieni quelle che ci sono
             let splitsReadOnlyHtml = '';
             if (item.splits && item.splits.length > 0) {
-                splitsReadOnlyHtml = `
-                <div class="p-3 bg-indigo-50/40 rounded-xl border border-indigo-100 shadow-2xs w-full mt-3">
-                    <span class="block text-[9px] font-black text-indigo-500 uppercase tracking-widest mb-2.5">Custom Allocation Splits</span>
-                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
-                        ${item.splits.map(s => {
-                    let rule = s["Allocation Rule"] || "Percentage";
+                splitsReadOnlyHtml = `<div class="p-2.5 bg-indigo-50/40 rounded-lg border border-indigo-100 text-[10px] w-full mt-2"><span class="block font-black text-indigo-500 uppercase tracking-widest text-[8px] mb-1.5">Active Financial Splits</span><div class="grid grid-cols-1 sm:grid-cols-2 gap-2">${item.splits.map(s => {
+                    let rule = s["Allocation Rule"] || s.allocationRule || "Percentage";
                     let rawVal = "";
-                    if (rule === "Percentage" && s["Percentage Share"] != null && s["Percentage Share"] !== "") {
-                        let pShare = parseFloat(s["Percentage Share"]);
-                        rawVal = (pShare > 0 && pShare <= 1) ? Math.round(pShare * 100) + "%" : Math.round(pShare) + "%";
-                    }
-                    else if (rule === "Fixed Amount" && s["Fixed Amount"] != null && s["Fixed Amount"] !== "") rawVal = "€ " + Math.round(s["Fixed Amount"]).toLocaleString('it-IT');
-                    else if (rule === "Units" && s["Units Assigned"] != null && s["Units Assigned"] !== "") rawVal = Math.round(s["Units Assigned"]) + " Qty";
-
-                    return `
-                            <div class="bg-white p-2 border border-slate-200 rounded-lg shadow-3xs text-[10px]">
-                                <div class="font-bold text-slate-800 truncate">${s["Target Legal Entity"] || 'N/A'}</div>
-                                <div class="text-[9px] text-slate-400 mt-0.5">CC: ${s["Target Cost Center"] || 'N/A'} | Rule: <span class="text-indigo-600 font-bold">${rule}</span></div>
-                                <div class="flex justify-between items-center mt-1.5 pt-1.5 border-t border-slate-50 font-mono">
-                                    <span class="text-slate-500">Value:</span>
-                                    <span class="font-black text-slate-800">${rawVal}</span>
-                                </div>
-                            </div>`;
-                }).join('')}
-                    </div>
-                </div>`;
+                    if (rule === "Percentage") { let p = parseFloat(s["Percentage Share"] || s.percentageShare || 0); rawVal = p <= 1 ? Math.round(p * 100) + "%" : Math.round(p) + "%"; }
+                    else if (rule === "Fixed Amount") rawVal = "€ " + Math.round(s["Fixed Amount"] || s.fixedAmount || 0).toLocaleString('it-IT');
+                    else rawVal = Math.round(s["Units Assigned"] || s.unitsAssigned || 0) + " Qty";
+                    return `<div class="bg-white p-1.5 border border-slate-100 rounded-md shadow-3xs flex justify-between"><div><strong>${s["Target Legal Entity"] || s.targetLegalEntity || 'N/A'}</strong> <span class="text-slate-400">(${s["Target Cost Center"] || s.targetCostCenter || 'N/A'})</span></div><span class="font-mono font-black text-indigo-600">${rawVal}</span></div>`;
+                }).join('')}</div></div>`;
             }
 
             let ledgerReadOnlyHtml = '';
             if (item.ledger && item.ledger.length > 0) {
-                ledgerReadOnlyHtml = `
-                <div class="p-3 bg-amber-50/40 rounded-xl border border-amber-100 shadow-2xs w-full mt-3">
-                    <span class="block text-[9px] font-black text-amber-500 uppercase tracking-widest mb-2.5">Ledger Movements</span>
-                    <div class="space-y-1.5">
-                        ${item.ledger.map(l => {
-                    const lStart = l["Start Date"] ? ContractsUtils.formatToEnglishCustomDate(l["Start Date"]) : "—";
-                    const lEnd = l["End Date"] ? ContractsUtils.formatToEnglishCustomDate(l["End Date"]) : "—";
-                    return `
-                            <div class="flex items-center justify-between bg-white px-3 py-1.5 rounded-lg border border-slate-100 shadow-3xs text-[10px] gap-2">
-                                <div class="flex items-center gap-2 shrink-0">
-                                    <span class="text-[7px] font-black ${l["Type"] === 'ACTUAL' ? 'text-emerald-700 bg-emerald-50 border border-emerald-100' : (l["Type"] === 'CALCULATED' ? 'text-slate-500 bg-slate-100' : 'text-amber-700 bg-amber-50 border border-amber-100')} px-1.5 py-0.5 rounded uppercase tracking-wider">${l["Type"]}</span>
-                                    <span class="font-mono text-slate-500">${lStart} ➔ ${lEnd}</span>
-                                </div>
-                                <div class="flex-1 text-slate-400 italic px-2 truncate text-left" title="${l["Notes"] || ''}">${l["Notes"] || '—'}</div>
-                                <div class="font-mono font-black text-slate-700 shrink-0">€ ${(parseFloat(l["Amount"]) || 0).toLocaleString('it-IT')}</div>
-                            </div>`;
-                }).join('')}
-                    </div>
-                </div>`;
+                ledgerReadOnlyHtml = `<div class="p-2.5 bg-amber-50/40 rounded-lg border border-amber-100 text-[10px] w-full mt-2"><span class="block font-black text-amber-500 uppercase tracking-widest text-[8px] mb-1.5">Logged Invoices / Milestones</span><div class="space-y-1 max-h-24 overflow-y-auto pr-0.5 custom-scrollbar">${item.ledger.map(l => {
+                    return `<div class="flex items-center justify-between bg-white px-2 py-1 rounded border border-slate-100 text-[9px]"><span class="px-1 bg-slate-100 font-mono font-bold rounded text-slate-500 text-[7px]">${l["Type"] || l.type}</span><span class="font-mono text-slate-400 pl-2">${l["Notes"] || l.notes || '—'}</span><span class="font-mono font-black text-slate-700 ml-auto">€ ${Math.round(l["Amount"] || l.amount || 0).toLocaleString('it-IT')}</span></div>`;
+                }).join('')}</div></div>`;
             }
 
-            // QUI INIZIA IL LAYOUT RIGIDO E BLINDATO
             return `
-            <div class="w-full text-left">
-                
-                <div class="flex justify-between items-start w-full border-b border-slate-100 pb-2.5 mb-2.5">
-                    <div class="flex items-start gap-2 min-w-0">
-                        <svg id="compact-chevron-${item.id}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" class="w-4 h-4 text-slate-400 mt-1 cursor-pointer transition-transform shrink-0">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                        </svg>
-                        <div class="flex flex-col">
-                            <div class="font-black text-slate-800 text-sm leading-tight truncate" title="${safeEntityName}">
-                                ${d["Legal Entity"] || '—'}
-                            </div>
-                            <div class="font-mono text-[10px] font-bold text-slate-500 mt-1.5">
-                                CC: <span class="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700">${d["Cost Center"] || '—'}</span>
-                            </div>
-                        </div>
+            <div class="bg-white border border-slate-200 shadow-sm rounded-xl p-3 flex flex-col justify-between h-full relative group">
+                <div class="flex justify-between items-start w-full pb-2 border-b border-slate-100 mb-2">
+                    <div class="min-w-0">
+                        <div class="font-black text-slate-900 text-xs truncate max-w-[190px]" title="${legalEntity}">${legalEntity}</div>
+                        <div class="text-[8px] font-mono text-slate-400 mt-0.5">CC: <span class="text-slate-600 font-bold">${costCenter}</span> <span class="mx-1 text-slate-200">•</span> ID: <span class="text-slate-500 select-all">${cId}</span></div>
                     </div>
                     ${actionsHtml}
                 </div>
-
-                <div class="flex items-center justify-between bg-slate-50/60 p-2.5 rounded-xl border border-slate-100 mb-3 w-full">
-                    
-                    <div class="w-1/3 text-left">
-                        <span class="flex items-center gap-1.5 text-slate-500 font-mono text-[10px] bg-white border border-slate-200 px-2 py-1 rounded-md shadow-3xs w-fit">
-                            <span>${cleanStart}</span>
-                            <span class="text-slate-300 font-sans">➔</span>
-                            <span>${cleanEnd}</span>
-                            <span class="ml-1 pl-1.5 border-l border-slate-200 font-sans font-black text-slate-700">${termMonths} M</span>
-                        </span>
-                    </div>
-
-                    <div class="w-1/3 text-center flex justify-center">
-                        <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${statusClass} shadow-sm">${d["Status"] || 'ACTIVE'}</span>
-                    </div>
-
-                    <div class="w-1/3 flex justify-end items-center gap-4 text-right">
-                        ${warningBadgeHTML}
-                        <div class="border-l border-slate-200 pl-3">
-                            <span class="text-[8px] text-slate-400 block uppercase font-black tracking-wider whitespace-nowrap">Eff. Commitment</span>
-                            <span class="font-mono font-black text-slate-900 text-[12px]">€${effCommit}</span>
-                        </div>
-                        <div class="border-l border-slate-200 pl-3">
-                            <span class="text-[8px] text-teal-600 block uppercase font-black tracking-wider whitespace-nowrap">Run Rate</span>
-                            <span class="font-mono font-black text-teal-800 text-[12px]">€${annVal}</span>
-                        </div>
-                    </div>
-
-                </div>
-
-                <div class="flex justify-between items-start text-[10px]">
-                    <div class="flex items-start gap-2 flex-1 pr-2 min-w-0">
-                        <span class="text-slate-400 font-black uppercase text-[7px] tracking-widest bg-slate-100 px-1.5 py-0.5 rounded mt-0.5 shrink-0">Scope</span>
-                        <span class="text-slate-600 font-medium break-words leading-snug">${d["Scope"] || '<span class="text-slate-300 italic">No specific scope defined</span>'}</span>
-                    </div>
-                    <div class="flex gap-1.5 shrink-0" onclick="event.stopPropagation();">
-                        ${splitBadge} ${ledgerBadge} ${docsHtml}
-                    </div>
-                </div>
-
-            </div>
-
-            <div id="compact-accordion-${item.id}" class="hidden mt-3 pt-3 border-t border-slate-100 animate-fade-in text-[10px]" onclick="event.stopPropagation();">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="p-3 bg-slate-50/80 rounded-xl border border-slate-100 flex flex-col gap-2.5">
-                        <div class="flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
-                            <span class="text-[9px] font-black text-teal-700 uppercase tracking-wider block">Corporate governance</span>
-                        </div>
-                        <div class="grid grid-cols-2 gap-2">
-                            <div><span class="block text-[8px] font-bold text-slate-400 uppercase">Expenditure Type</span><span class="font-mono text-[10px] font-bold text-slate-600 bg-slate-200/50 px-1 rounded w-fit">${d["Expenditure Type"] || '—'}</span></div>
-                            <div><span class="block text-[8px] font-bold text-slate-400 uppercase">Location</span><span class="font-medium text-slate-700">${d["Location"] || '—'}</span></div>
-                        </div>
-                        <div class="grid grid-cols-3 gap-2 border-t border-slate-200/50 pt-2">
-                            <div><span class="block text-[8px] font-bold text-slate-400 uppercase">Service Owner</span><span class="font-medium text-slate-700 truncate block" title="${d["Service Owner"] || ''}">${d["Service Owner"] || '—'}</span></div>
-                            <div><span class="block text-[8px] font-bold text-slate-400 uppercase">BL ID</span><span class="font-mono text-[10px] font-bold text-slate-700 bg-slate-200/50 px-1 rounded block truncate">${d["BL ID"] || '—'}</span></div>
-                            <div><span class="block text-[8px] font-bold text-slate-400 uppercase">Request Code</span><span class="font-mono text-[10px] font-bold text-slate-700 bg-slate-200/50 px-1 rounded block truncate">${d["Request Code"] || '—'}</span></div>
-                        </div>
-                    </div>
-                    
-                    <div class="p-3 bg-slate-50/80 rounded-xl border border-slate-100 flex flex-col gap-2.5">
-                        <div class="flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
-                            <span class="text-[9px] font-black text-indigo-700 uppercase tracking-wider block">Financial Lifecycle & Commitments</span>
-                        </div>
-                        <div class="grid grid-cols-2 gap-3 bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm">
-                            <div class="border-r border-slate-100 pr-2">
-                                <span class="text-[8px] font-black text-slate-400 uppercase tracking-tight block mb-1">📋 Nominal Baseline</span>
-                                <div class="flex justify-between items-center"><span class="text-[8px] text-slate-500">Total Commit:</span><span class="font-mono font-bold text-slate-700">€${totCommit}</span></div>
-                                <div class="flex justify-between items-center mt-0.5"><span class="text-[8px] text-slate-500">Contract End:</span><span class="font-mono text-slate-500 font-medium">${contractEnd}</span></div>
-                        </div>
-                        <div class="pl-1">
-                                <span class="text-[8px] font-black text-teal-600 uppercase tracking-tight block mb-1">⚡ Actual / Mitigated</span>
-                                <div class="flex justify-between items-center"><span class="text-[8px] text-teal-700">Eff. Commit:</span><span class="font-mono font-black text-teal-800">€${effCommit}</span></div>
-                                <div class="flex justify-between items-center mt-0.5"><span class="text-[8px] text-rose-600">Early Term.:</span><span class="font-mono font-bold text-rose-700">${adjEnd}</span></div>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-3 gap-2 pt-1">
-                            <div><span class="block text-[8px] font-bold text-slate-400 uppercase">Recurrence</span><span class="font-medium text-slate-600">${d["Cost Recurrence"] || '—'}</span></div>
-                            <div><span class="block text-[8px] font-bold text-slate-400 uppercase">Notice Period</span><span class="font-medium text-slate-700">${d["Notice Period (Days)"] ? d["Notice Period (Days)"] + ' Days' : '—'}</span></div>
-                            <div><span class="block text-[8px] font-bold text-slate-400 uppercase">Auto-Renewal</span><span class="font-bold ${d["Auto-Renewal"] === 'Yes' ? 'text-emerald-600' : 'text-slate-500'}">${d["Auto-Renewal"] || '—'}</span></div>
-                        </div>
-                    </div>
-                </div>
                 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
-                    <div class="p-3 bg-slate-50/80 rounded-xl border border-slate-100 flex flex-col gap-1 justify-between">
-                        <span class="text-[8px] font-bold text-slate-400 uppercase tracking-wide mb-1">System Identifiers</span>
-                        <div><span class="block text-[7px] text-slate-400 uppercase font-bold">Contract ID</span><span class="font-mono text-[9px] text-slate-500 bg-slate-200/50 px-1 py-0.5 rounded block truncate select-all">${d["Contract ID"] || '—'}</span></div>
-                    </div>
-                    <div class="p-3 bg-slate-50/80 rounded-xl border border-slate-100 md:col-span-2 flex flex-col justify-start">
-                        <span class="block text-[8px] font-bold text-slate-400 uppercase tracking-wider mb-1">Line Comments</span>
-                        <p class="text-slate-600 italic font-medium leading-relaxed">${d["Comments"] || '<span class="text-slate-400 text-[10px]">No additional comments.</span>'}</p>
+                <div class="flex justify-between items-center text-[10px] font-mono bg-slate-50 p-1.5 rounded-lg border border-slate-100 mb-2 w-full gap-2">
+                    <div class="text-slate-500 text-[8px] truncate tracking-tighter">${cleanStart} ➔ ${cleanEnd} (${Math.round(term)}M)</div>
+                    <span class="px-1.5 py-0.5 rounded text-[7px] font-black border ${statusClass} tracking-wider shrink-0 leading-none">${status}</span>
+                    <div class="text-right shrink-0 border-l border-slate-200/60 pl-2">
+                        <span class="text-[7px] text-teal-600 font-sans block uppercase font-black tracking-tighter">Run Rate</span>
+                        <span class="font-mono font-black text-teal-800 text-[10px]">€${annVal}</span>
                     </div>
                 </div>
 
-                ${splitsReadOnlyHtml}
-                ${ledgerReadOnlyHtml}
-            </div>
-        `;
+                <div class="text-[10px] text-slate-600 font-medium leading-tight line-clamp-2 min-h-[28px] border-b border-slate-50 pb-2 mb-2" title="${scope}">
+                    ${scope || '<span class="text-slate-300 italic">No description provided</span>'}
+                </div>
+
+                <div class="flex flex-wrap items-center gap-1 mt-auto relative z-10">
+                    <span class="px-1.5 py-0.5 bg-slate-50 border rounded text-[8px] font-mono font-black text-slate-400">${expType}</span>
+                    <span class="px-1.5 py-0.5 bg-slate-50 border rounded text-[8px] font-bold text-slate-500">${recurrence}</span>
+                    ${splitBadge} ${ledgerBadge} ${docsHtml} ${warningBadgeHTML}
+                </div>
+
+                <details class="mt-2 text-[9px] border-t border-slate-100 pt-2 group/acc">
+                    <summary class="text-slate-400 hover:text-slate-600 font-black uppercase text-[7px] tracking-widest cursor-pointer list-none select-none flex items-center justify-between">
+                        <span>View Extended Metadata</span>
+                        <span class="transition-transform group-open/acc:rotate-180">▼</span>
+                    </summary>
+                    <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 mt-2 bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+                        <div><span class="text-slate-400 block font-bold text-[7px] uppercase">Service Owner</span><span class="text-slate-700 font-semibold truncate block">${serviceOwner}</span></div>
+                        <div><span class="text-slate-400 block font-bold text-[7px] uppercase">Location Zone</span><span class="text-slate-700 font-medium truncate block">${location}</span></div>
+                        <div><span class="text-slate-400 block font-bold text-[7px] uppercase">BL ID Reference</span><span class="text-slate-600 font-mono font-bold">${blId}</span></div>
+                        <div><span class="text-slate-400 block font-bold text-[7px] uppercase">Request Code</span><span class="text-slate-600 font-mono font-bold">${requestCode}</span></div>
+                        <div><span class="text-slate-400 block font-bold text-[7px] uppercase">Total Commitment</span><span class="text-slate-700 font-mono font-bold">€${totCommit}</span></div>
+                        <div><span class="text-slate-400 block font-bold text-[7px] uppercase">Auto-Renewal / Notice</span><span class="text-slate-600 font-bold">${autoRenewal} / ${noticePeriod}D</span></div>
+                    </div>
+                    ${splitsReadOnlyHtml}
+                    ${ledgerReadOnlyHtml}
+                </details>
+            </div>`;
         },
 
-        getDetailEditCard: function (item, editLeOptions, tgOptions, locOptions, soOptions, editCcOptions, docLinks, splitsHtml, ledgerHtml) {
-            const d = item.data;
+        getContractModalFormStructure: function (id, editLeOptions, tgOptions, locOptions, soOptions, editCcOptions, docLinks, splitsHtml, ledgerHtml, d) {
+            const getVal = (sheetKey, camelKey) => d[sheetKey] !== undefined ? d[sheetKey] : (d[camelKey] !== undefined ? d[camelKey] : '');
+
             return `
-            <div class="flex justify-between items-start border-b border-slate-100 pb-2 mb-3">
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 w-full max-w-3xl shadow-2xl relative animate-fade-in text-xs flex flex-col h-[85vh] min-h-[600px]" onclick="event.stopPropagation()">
+            
+            <div class="flex justify-between items-center border-b border-slate-100 pb-2.5 mb-4 shrink-0">
                 <div>
-                    <h2 class="text-xs font-black text-slate-800 tracking-tight">Edit Allocation Line</h2>
-                    <p class="text-[9px] text-slate-400">Modify allocation thresholds and operational keys.</p>
+                    <h3 class="text-xs font-black text-slate-700 uppercase tracking-widest">Line Allocation Setup & Financial Configuration</h3>
+                    <p class="text-slate-400 text-[10px] font-medium mt-0.5">Configure compliance scopes, corporate mappings, and custom accounting structures.</p>
                 </div>
-                <div class="flex gap-1">
-                    <button onclick="saveRowLocalChanges(${item.id})" class="px-2.5 py-1 bg-emerald-600 text-white font-black text-[10px] uppercase tracking-wider rounded-md shadow-sm hover:bg-emerald-700 transition-all">Apply</button>
-                    <button onclick="toggleRowEditMode(${item.id}, false)" class="px-2.5 py-1 bg-slate-100 text-slate-600 font-black text-[10px] uppercase tracking-wider rounded-md hover:bg-slate-200 transition-all">Cancel</button>
-                    <button onclick="removeRowFromLocalArchitecture(${item.id})" class="px-2.5 py-1 bg-rose-50 text-rose-600 font-black text-[10px] uppercase tracking-wider rounded-md hover:bg-rose-100 border border-rose-100 transition-all">Remove</button>
-                </div>
+                <button onclick="ContractsController.closeContractModalWindow()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">×</button>
             </div>
 
-            <div class="space-y-2">
-                <span class="text-[8px] font-black text-teal-800 uppercase tracking-widest bg-teal-50 px-2 py-0.5 rounded-md w-fit">Primary Terms</span>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                    <div>
-                        <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Legal Entity</label>
-                        <select id="edit-legalEntity-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs text-slate-900">
-                            <option value="" disabled selected class="text-slate-400 italic">Select Legal Entity...</option>
-                            ${editLeOptions}
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Total Commitment (€)</label>
-                        <input type="text" id="edit-totalCommitment-${item.id}" oninput="ContractsUtils.formatInputAsIntegerCurrency(this)" placeholder="e.g. 150.000" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs text-slate-900 font-medium" value="${d["Total Commitment"] ? Math.round(d["Total Commitment"]).toLocaleString('it-IT') : ''}">
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-                    <div>
-                        <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Start Date</label>
-                        <input type="date" id="edit-startDate-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs text-slate-900 font-mono" value="${d["Start Date"] ? d["Start Date"].toString().split('T')[0] : ''}">
-                    </div>
-                    <div>
-                        <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">End Date</label>
-                        <input type="date" id="edit-contractEndDate-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs text-slate-900 font-mono" value="${d["Contract End Date"] ? d["Contract End Date"].toString().split('T')[0] : ''}">
-                    </div>
-                    <div>
-                        <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Recurrence</label>
-                        <select id="edit-costRecurrence-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs text-slate-900">
-                            <option value="Recurrent" ${d["Cost Recurrence"] !== 'One-Shot' ? 'selected' : ''}>Recurrent</option>
-                            <option value="One-Shot" ${d["Cost Recurrence"] === 'One-Shot' ? 'selected' : ''}>One-Shot</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                    <div>
-                        <div class="flex items-center gap-1 mb-0.5">
-                            <label class="block text-[8px] font-bold uppercase text-slate-500">Pricing Model</label>
-                            <span class="tt-wrapper text-slate-400 hover:text-teal-500 transition-colors">
-                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                <div class="tt-content tt-left font-sans text-left normal-case w-64 z-[100]">
-                                    ${ContractsVocabulary.buildTooltipHTML('pricingModel')}
-                                </div>
-                            </span>
-                        </div>
-                        <select id="edit-pricingModel-${item.id}" onchange="toggleLedgerVisibility(${item.id})" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs text-slate-900 shadow-sm">
-                            <option value="Flat" ${d["Pricing Model"] === 'Flat' || !d["Pricing Model"] ? 'selected' : ''}>Flat</option>
-                            <option value="Pure Consumption" ${d["Pricing Model"] === 'Pure Consumption' ? 'selected' : ''}>Pure Consumption</option>
-                            <option value="Minimum Consumption" ${d["Pricing Model"] === 'Minimum Consumption' ? 'selected' : ''}>Minimum Consumption</option>
-                            <option value="Capped Consumption" ${d["Pricing Model"] === 'Capped Consumption' ? 'selected' : ''}>Capped Consumption</option>
-                        </select>
-                    </div>
-                    <div>
-                        <div class="flex items-center gap-1 mb-0.5">
-                            <label class="block text-[8px] font-bold uppercase text-slate-500">Billing Terms</label>
-                            <span class="tt-wrapper text-slate-400 hover:text-teal-500 transition-colors">
-                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                <div class="tt-content tt-left font-sans text-left normal-case w-64 z-[100]">
-                                    ${ContractsVocabulary.buildTooltipHTML('billingTerms')}
-                                </div>
-                            </span>
-                        </div>
-                        <select id="edit-billingTerms-${item.id}" onchange="toggleLedgerVisibility(${item.id})" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs text-slate-900 shadow-sm">
-                            <option value="Fixed Recurring" ${d["Billing Terms"] === 'Fixed Recurring' || d["Billing Terms"] === 'Linear' || d["Billing Terms"] === 'Quarterly' || !d["Billing Terms"] ? 'selected' : ''}>Fixed Recurring</option>
-                            <option value="Full Upfront / Prepaid" ${d["Billing Terms"] === 'Full Upfront / Prepaid' || d["Billing Terms"] === 'Full Upfront' ? 'selected' : ''}>Full Upfront / Prepaid</option>
-                            <option value="Pay-As-You-Go" ${d["Billing Terms"] === 'Pay-As-You-Go' ? 'selected' : ''}>Pay-As-You-Go</option>
-                            <option value="Custom / Ledger Driven" ${d["Billing Terms"] === 'Custom / Ledger Driven' || d["Billing Terms"] === 'Ledger-Driven' ? 'selected' : ''}>Custom / Ledger Driven</option>
-                        </select>
-                    </div>
-                </div>
-                <div>
-                    <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Scope / Line Description</label>
-                    <input type="text" id="edit-scope-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs text-slate-900" value="${d["Scope"] || ''}">
-                </div>
-            </div>
-
-            <div class="border-t border-slate-100 pt-2"></div>
-
-            <div class="space-y-2">
-                <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded-md w-fit">Operational Allocation & FinOps</span>
+            <div class="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-2">
                 
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-2.5">
-                    <div>
-                        <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Location</label>
-                        <select id="edit-location-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs">
-                            <option value="" disabled selected class="text-slate-400 italic">Optional</option>
-                            ${locOptions}
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Service Owner</label>
-                        <select id="edit-serviceOwner-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs text-slate-900 font-medium">
-                            <option value="" disabled selected class="text-slate-400 italic">Select Owner...</option>
-                            ${soOptions}
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Cost Center</label>
-                        <select id="edit-costCenter-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs">
-                            <option value="" disabled selected class="text-slate-400 italic">Optional</option>
-                            ${editCcOptions}
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Expenditure Type</label>
-                        <select id="edit-expenditureType-${item.id}" onchange="handleExpenditureTypeChange(${item.id})" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs">
-                            <option value="">Optional</option>
-                            <option value="OPEX" ${d["Expenditure Type"] === 'OPEX' ? 'selected' : ''}>OPEX</option>
-                            <option value="CAPEX" ${d["Expenditure Type"] === 'CAPEX' ? 'selected' : ''}>CAPEX</option>
-                            <option value="ROU" ${d["Expenditure Type"] === 'ROU' ? 'selected' : ''}>ROU</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-                    <div>
-                        <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Early Termination</label>
-                        <input type="date" id="edit-adjustedEndDate-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs font-mono text-slate-900" value="${d["Adjusted End Date"] ? d["Adjusted End Date"].toString().split('T')[0] : ''}">
-                    </div>
-                    <div>
-                        <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Notice (Days)</label>
-                        <input type="number" id="edit-noticePeriod-${item.id}" placeholder="Optional" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs" value="${d["Notice Period (Days)"] || ''}">
-                    </div>
-                    <div>
-                        <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Auto-Renewal</label>
-                        <select id="edit-autoRenewal-${item.id}" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs">
-                            <option value="" ${!d["Auto-Renewal"] ? 'selected' : ''}>Optional</option>
-                            <option value="No" ${d["Auto-Renewal"] === 'No' ? 'selected' : ''}>No</option>
-                            <option value="Yes" ${d["Auto-Renewal"] === 'Yes' ? 'selected' : ''}>Yes</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            <div class="border-t border-slate-100 pt-2"></div>
-
-            <div class="space-y-2">
-                <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded-md w-fit">Procurement Keys & Identifiers</span>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                    <div>
-                        <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">BL ID</label>
-                        <input type="text" id="edit-blId-${item.id}" placeholder="Optional" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs font-mono" value="${d["BL ID"] || ''}">
-                    </div>
-                    <div>
-                        <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Request Code</label>
-                        <input type="text" id="edit-requestCode-${item.id}" placeholder="Optional" class="w-full px-2 py-1 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs font-mono" value="${d["Request Code"] || ''}">
-                    </div>
-                </div>
-                <div>
-                    <label class="block mb-0.5 text-[8px] font-bold uppercase text-slate-500">Line Comments</label>
-                    <input type="text" id="edit-comments-${item.id}" placeholder="Add annotations..." class="w-full px-2 py-1 bg-slate-50/50 border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 text-xs italic text-slate-600" value="${d["Comments"] || ''}">
-                </div>
-            </div>
-
-            <div class="border-t border-slate-100 pt-3 mt-3 space-y-2">
-                <details class="group bg-white border border-slate-200 rounded-lg shadow-sm [&_summary::-webkit-details-marker]:hidden">
-                    <summary class="flex justify-between items-center cursor-pointer p-2.5 text-[9px] text-slate-600 uppercase font-black tracking-widest hover:bg-slate-50 transition-colors rounded-lg">
-                        <span>Line Documents ${docLinks.length > 0 ? `<span class="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full text-[7px] ml-1">${docLinks.length}</span>` : ''}</span>
-                    </summary>
-                    <div class="p-3 border-t border-slate-100 bg-slate-50/50 rounded-b-lg">
-                        ${docLinks.length > 0 ? `
-                            <div class="mb-3 bg-white p-2 rounded border border-slate-200 flex flex-wrap gap-1.5">
-                                ${docLinks.map((url, idx) => `
-                                    <div class="flex items-center gap-0 bg-indigo-50 border border-indigo-200 rounded-md overflow-hidden">
-                                        <a href="#" class="live-doc-link px-2 py-0.5 text-indigo-700 text-[8px] font-black uppercase" data-raw="${url.trim()}">Doc ${idx + 1}</a>
-                                        <button type="button" onclick="ContractsUtils.removeDocumentLink(event, '${url.trim()}', false, ${item.id})" class="px-1.5 py-0.5 text-indigo-400 hover:bg-rose-500 hover:text-white border-l border-indigo-200">×</button>
-                                    </div>`).join('')}
-                            </div>` : ''}
-                        <input type="text" id="edit-contractLinks-${item.id}" value="${d["Contract Links"] || ''}" class="hidden">
-                        <input type="file" id="upload-files-${item.id}" multiple class="w-full text-xs text-slate-500 p-1 rounded-md border border-dashed border-slate-300 bg-white">
-                        <p class="text-[9px] text-slate-400 italic mt-1">Files uploaded automatically on "Apply".</p>
-                    </div>
-                </details>
-
-                <details class="group bg-indigo-50/30 border border-indigo-100 rounded-lg shadow-sm [&_summary::-webkit-details-marker]:hidden" ${item.splits && item.splits.length > 0 ? 'open' : ''}>
-                    <summary class="flex justify-between items-center cursor-pointer p-2.5 text-[9px] text-indigo-700 uppercase font-black tracking-widest hover:bg-indigo-50 transition-colors rounded-lg">
-                        <span>Allocation Splits ${item.splits && item.splits.length > 0 ? `<span class="bg-indigo-200 text-indigo-800 px-1.5 py-0.5 rounded-full text-[7px] ml-1">${item.splits.length}</span>` : ''}</span>
-                    </summary>
-                    <div class="p-3 border-t border-indigo-100 bg-white rounded-b-lg">
-                        <div class="flex justify-between items-center mb-3">
-                            <p class="text-[9px] text-indigo-500 italic">Leave empty to assign 100% to main entity.</p>
-                            <button type="button" onclick="addSplitRowToUI(${item.id})" class="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2.5 py-1 border border-indigo-200 rounded-md">+ Add Split</button>
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-3 flex flex-col gap-2.5 shadow-inner">
+                    <span class="text-[8px] font-black text-teal-800 uppercase tracking-widest">1. Corporate Governance & Demarcation</span>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block mb-0.5 text-[8px] font-black uppercase text-slate-400 tracking-wider required-label">Legal Entity</label>
+                            <select id="edit-legalEntity-${id}" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 text-xs">
+                                <option value="" disabled ${!getVal("Legal Entity", "legalEntity") ? 'selected' : ''} class="text-slate-400 italic">Select Legal Entity...</option>
+                                ${editLeOptions}
+                            </select>
                         </div>
-                        <div id="splits-container-${item.id}" class="space-y-1.5">${splitsHtml}</div>
+                        <div>
+                            <label class="block mb-0.5 text-[8px] font-black uppercase text-slate-400 tracking-wider required-label">Total Commitment Value (€)</label>
+                            <input type="text" id="edit-totalCommitment-${id}" oninput="ContractsUtils.formatInputAsIntegerCurrency(this)" placeholder="e.g. 150.000" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-black text-slate-900 text-xs" value="${getVal("Total Commitment", "totalCommitment") ? Math.round(getVal("Total Commitment", "totalCommitment")).toLocaleString('it-IT') : ''}">
+                        </div>
                     </div>
-                </details>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                        <div>
+                            <label class="block mb-0.5 text-[8px] font-black uppercase text-slate-400 tracking-wider required-label">Start Date</label>
+                            <input type="date" id="edit-startDate-${id}" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-700 text-xs" value="${getVal("Start Date", "startDate") ? getVal("Start Date", "startDate").toString().split('T')[0] : ''}">
+                        </div>
+                        <div>
+                            <label class="block mb-0.5 text-[8px] font-black uppercase text-slate-400 tracking-wider required-label">Contract End Date</label>
+                            <input type="date" id="edit-contractEndDate-${id}" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-700 text-xs" value="${getVal("Contract End Date", "contractEndDate") ? getVal("Contract End Date", "contractEndDate").toString().split('T')[0] : ''}">
+                        </div>
+                        <div>
+                            <label class="block mb-0.5 text-[8px] font-black uppercase text-slate-400 tracking-wider">Cost Renewal Recurrence</label>
+                            <select id="edit-costRecurrence-${id}" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-slate-700 text-xs">
+                                <option value="Recurrent" ${getVal("Cost Recurrence", "costRecurrence") !== 'One-Shot' ? 'selected' : ''}>Recurrent (Auto-Renew Template)</option>
+                                <option value="One-Shot" ${getVal("Cost Recurrence", "costRecurrence") === 'One-Shot' ? 'selected' : ''}>One-Shot (Drop to Zero at Expiry)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
 
-                <details id="ledger-section-container-${item.id}" class="hidden group bg-amber-50/30 border border-amber-200 rounded-lg shadow-sm [&_summary::-webkit-details-marker]:hidden">
-                    <summary class="flex justify-between items-center cursor-pointer p-2.5 text-[9px] text-amber-700 uppercase font-black tracking-widest hover:bg-amber-50 transition-colors rounded-lg">
-                        <span>Ledger Movements ${item.ledger && item.ledger.length > 0 ? `<span class="bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded-full text-[7px] ml-1">${item.ledger.length}</span>` : ''}</span>
-                    </summary>
-                    <div class="p-3 border-t border-amber-200 bg-white rounded-b-lg">
-                        <div class="flex justify-between items-center mb-2">
-                            <p class="text-[9px] text-amber-600 italic">Manage manual or automatic entries.</p>
-                            <div class="flex gap-1.5">
-                                <button type="button" id="auto-forecast-btn-${item.id}" onclick="triggerLedgerAutomationForContract(${item.id})" class="text-[9px] font-black text-amber-800 bg-white px-2.5 py-1 border border-amber-300 rounded-md ${(['Minimum Consumption', 'Capped Consumption'].includes(d['Pricing Model']) && d['Billing Terms'] === 'Ledger-Driven') ? '' : 'hidden'}">⚡ Auto-Forecast</button>
-                                <button type="button" onclick="addLedgerRowToUI(${item.id})" class="text-[9px] font-black text-amber-700 bg-amber-50 px-2.5 py-1 border border-amber-200 rounded-md">+ Add</button>
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-3 flex flex-col gap-2.5 shadow-inner">
+                    <span class="text-[8px] font-black text-indigo-800 uppercase tracking-widest">2. FinOps Accounting Models & Rules</span>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <div class="flex items-center gap-1 mb-0.5">
+                                <label class="block text-[8px] font-black uppercase text-slate-400 tracking-wider">Pricing Model Mechanics</label>
                             </div>
+                            <select id="edit-pricingModel-${id}" onchange="toggleLedgerVisibility(${id})" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 text-xs shadow-3xs">
+                                <option value="Flat" ${getVal("Pricing Model", "pricingModel") === 'Flat' || !getVal("Pricing Model", "pricingModel") ? 'selected' : ''}>Flat (Fixed Standard Cost)</option>
+                                <option value="Pure Consumption" ${getVal("Pricing Model", "pricingModel") === 'Pure Consumption' ? 'selected' : ''}>Pure Consumption (100% Variable rate)</option>
+                                <option value="Minimum Consumption" ${getVal("Pricing Model", "pricingModel") === 'Minimum Consumption' ? 'selected' : ''}>Minimum Consumption (Hybrid minimum floor)</option>
+                                <option value="Capped Consumption" ${getVal("Pricing Model", "pricingModel") === 'Capped Consumption' ? 'selected' : ''}>Capped Consumption (Hard ceiling limit)</option>
+                            </select>
                         </div>
-                        <div id="ledger-container-${item.id}" class="space-y-1.5">${ledgerHtml}</div>
+                        <div>
+                            <div class="flex items-center gap-1 mb-0.5">
+                                <label class="block text-[8px] font-black uppercase text-slate-400 tracking-wider">Billing Terms Frequence</label>
+                            </div>
+                            <select id="edit-billingTerms-${id}" onchange="toggleLedgerVisibility(${id})" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-indigo-700 text-xs shadow-3xs">
+                                <option value="Fixed Recurring" ${getVal("Billing Terms", "billingTerms") === 'Fixed Recurring' || getVal("Billing Terms", "billingTerms") === 'Linear' || getVal("Billing Terms", "billingTerms") === 'Quarterly' || !getVal("Billing Terms", "billingTerms") ? 'selected' : ''}>Fixed Recurring (Linear distribution)</option>
+                                <option value="Full Upfront / Prepaid" ${getVal("Billing Terms", "billingTerms") === 'Full Upfront / Prepaid' || getVal("Billing Terms", "billingTerms") === 'Full Upfront' ? 'selected' : ''}>Full Upfront / Prepaid (Day-1 cash out)</option>
+                                <option value="Pay-As-You-Go" ${getVal("Billing Terms", "billingTerms") === 'Pay-As-You-Go' ? 'selected' : ''}>Pay-As-You-Go (Remaining commitment buffer)</option>
+                                <option value="Custom / Ledger Driven" ${getVal("Billing Terms", "billingTerms") === 'Custom / Ledger Driven' || getVal("Billing Terms", "billingTerms") === 'Ledger-Driven' ? 'selected' : ''}>Custom / Ledger Driven (Manual mapping only)</option>
+                            </select>
+                        </div>
                     </div>
-                </details>
+                    <div>
+                        <label class="block mb-0.5 text-[8px] font-black uppercase text-slate-400 tracking-wider">Scope / Allocation Line Description</label>
+                        <input type="text" id="edit-scope-${id}" placeholder="e.g. 500 Basic SaaS seat licenses..." class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-slate-700 text-xs" value="${getVal("Scope", "scope")}">
+                    </div>
+                </div>
+
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-3 flex flex-col gap-2.5 shadow-inner">
+                    <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest">3. Cost Centers, Lifecycles & Procurement Keys</span>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div>
+                            <label class="block mb-0.5 text-[8px] font-black uppercase text-slate-400">Geographical Location</label>
+                            <select id="edit-location-${id}" class="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-700">
+                                <option value="">Optional Location Context...</option>
+                                ${locOptions}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block mb-0.5 text-[8px] font-black uppercase text-slate-400">Internal Service Owner</label>
+                            <select id="edit-serviceOwner-${id}" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 text-xs">
+                                <option value="">Select Service Owner...</option>
+                                ${soOptions}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block mb-0.5 text-[8px] font-black uppercase text-slate-400">Primary Cost Center</label>
+                            <select id="edit-costCenter-${id}" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-xs text-slate-700">
+                                <option value="">Optional Cost Center...</option>
+                                ${editCcOptions}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block mb-0.5 text-[8px] font-black uppercase text-slate-400">Expenditure Type</label>
+                            <select id="edit-expenditureType-${id}" onchange="handleExpenditureTypeChange(${id})" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-black text-xs text-slate-800">
+                                <option value="OPEX" ${getVal("Expenditure Type", "expenditureType") === 'OPEX' ? 'selected' : ''}>OPEX</option>
+                                <option value="CAPEX" ${getVal("Expenditure Type", "expenditureType") === 'CAPEX' ? 'selected' : ''}>CAPEX</option>
+                                <option value="ROU" ${getVal("Expenditure Type", "expenditureType") === 'ROU' ? 'selected' : ''}>ROU</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                        <div>
+                            <label class="block mb-0.5 text-[8px] font-black uppercase text-slate-400">Early Mitigated termination Date</label>
+                            <input type="date" id="edit-adjustedEndDate-${id}" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-700 text-xs" value="${getVal("Adjusted End Date", "adjustedEndDate") ? getVal("Adjusted End Date", "adjustedEndDate").toString().split('T')[0] : ''}">
+                        </div>
+                        <div>
+                            <label class="block mb-0.5 text-[8px] font-black uppercase text-slate-400">Notice Period (Days)</label>
+                            <input type="number" id="edit-noticePeriod-${id}" placeholder="e.g. 90" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-xs" value="${getVal("Notice Period (Days)", "noticePeriod")}">
+                        </div>
+                        <div>
+                            <label class="block mb-0.5 text-[8px] font-black uppercase text-slate-400">Auto-Renewal Clause</label>
+                            <select id="edit-autoRenewal-${id}" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-xs">
+                                <option value="No" ${getVal("Auto-Renewal", "autoRenewal") === 'No' ? 'selected' : ''}>No (Strict Expiry Contract)</option>
+                                <option value="Yes" ${getVal("Auto-Renewal", "autoRenewal") === 'Yes' ? 'selected' : ''}>Yes (Rollover Clause Active)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                        <div>
+                            <label class="block mb-0.5 text-[8px] font-black uppercase text-slate-400">Business Line ID Reference (BL ID)</label>
+                            <input type="text" id="edit-blId-${id}" placeholder="e.g. BL-IT-9923..." class="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-xs" value="${getVal("BL ID", "blId")}">
+                        </div>
+                        <div>
+                            <label class="block mb-0.5 text-[8px] font-black uppercase text-slate-400">Procurement Request Code</label>
+                            <input type="text" id="edit-requestCode-${id}" placeholder="e.g. PR-002341..." class="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-xs" value="${getVal("Request Code", "requestCode")}">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block mb-0.5 text-[8px] font-black uppercase text-slate-400">Private Internal Line Annotations</label>
+                        <input type="text" id="edit-comments-${id}" placeholder="Add extra operational comments..." class="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium text-xs italic text-slate-600" value="${getVal("Comments", "comments")}">
+                    </div>
+                </div>
+
+                <div class="border border-slate-200 bg-slate-50 p-2.5 rounded-xl space-y-2.5 mb-2 shadow-inner">
+                    <details class="group bg-white border border-slate-200 rounded-lg shadow-3xs" open>
+                        <summary class="flex justify-between items-center cursor-pointer p-2 flex-wrap text-[9px] text-slate-600 font-black uppercase tracking-widest bg-slate-50 rounded-t-lg">
+                            <span>Granular Cost Allocation Splits</span>
+                        </summary>
+                        <div class="p-3 bg-white rounded-b-lg">
+                            <div class="flex justify-between items-center mb-2">
+                                <p class="text-[9px] text-slate-400 italic">Leave empty to assign 100% to main corporate entity context.</p>
+                                <button type="button" onclick="addSplitRowToUI(${id})" class="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2.5 py-1 border border-indigo-200 rounded-md">+ Add Split Row</button>
+                            </div>
+                            <div id="splits-container-${id}" class="space-y-1.5">${splitsHtml}</div>
+                        </div>
+                    </details>
+
+                    <details id="ledger-section-container-${id}" class="hidden group bg-white border border-slate-200 rounded-lg shadow-3xs">
+                        <summary class="flex justify-between items-center cursor-pointer p-2 flex-wrap text-[9px] text-amber-700 font-black uppercase tracking-widest bg-amber-50 rounded-t-lg">
+                            <span>Cash Out Invoice Ledger Scheduling Matrix</span>
+                        </summary>
+                        <div class="p-3 bg-white rounded-b-lg">
+                            <div class="flex justify-between items-center mb-2">
+                                <p class="text-[9px] text-amber-600 italic">Manage real invoices or predictive cash flows.</p>
+                                <div class="flex gap-1.5">
+                                    <button type="button" id="auto-forecast-btn-${id}" onclick="triggerLedgerAutomationForContract(${id})" class="text-[9px] font-black text-amber-800 bg-white px-2.5 py-1 border border-amber-300 rounded-md">⚡ Auto-Forecast Remaining</button>
+                                    <button type="button" onclick="addLedgerRowToUI(${id})" class="text-[9px] font-black text-amber-700 bg-amber-50 px-2.5 py-1 border border-amber-200 rounded-md">+ Add Manual Row</button>
+                                </div>
+                            </div>
+                            <div id="ledger-container-${id}" class="space-y-1.5">${ledgerHtml}</div>
+                        </div>
+                    </details>
+                </div>
+
+                <div class="border border-dashed border-slate-300 bg-slate-50 p-2.5 rounded-xl">
+                    <label class="block text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Upload Line Level Attachments</label>
+                    <input type="text" id="edit-contractLinks-${id}" value="${getVal("Contract Links", "contractLinks")}" class="hidden">
+                    <input type="file" id="upload-files-${id}" multiple class="w-full text-xs text-slate-500 p-1 rounded-md border border-dashed border-slate-300 bg-white">
+                </div>
+
             </div>
+
+            <div class="flex justify-between items-center pt-3 mt-1 border-t border-slate-100 shrink-0">
+                <button onclick="removeRowFromLocalArchitecture(${id}); ContractsController.closeContractModalWindow()" class="px-3 py-1.5 bg-rose-50 border border-rose-200 text-rose-600 font-black uppercase tracking-wider text-[10px] rounded-xl hover:bg-rose-100 transition-colors">Delete Line</button>
+                <div class="flex gap-2">
+                    <button onclick="ContractsController.closeContractModalWindow()" class="px-4 py-2 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 cursor-pointer">Cancel</button>
+                    <button onclick="saveRowLocalChanges(${id})" class="px-6 py-2 bg-teal-700 hover:bg-teal-800 text-white font-black uppercase tracking-wider rounded-xl shadow-md cursor-pointer transition-colors">Apply Modifications</button>
+                </div>
+            </div>
+        </div>
         `;
         },
 
         getSplitRow: function (detailId, split, defaultStartDate, defaultEndDate, leOptions, ccOptions) {
-            const rule = split["Allocation Rule"] || "Percentage";
-            const validFrom = split["Valid From"] ? split["Valid From"].toString().split('T')[0] : defaultStartDate;
-            const validTo = split["Valid To"] ? split["Valid To"].toString().split('T')[0] : defaultEndDate;
-            const notes = split["Notes"] || "";
+            const rule = split["Allocation Rule"] || split.allocationRule || "Percentage";
+            const validFrom = split["Valid From"] || split.validFrom ? (split["Valid From"] || split.validFrom).toString().split('T')[0] : defaultStartDate;
+            const validTo = split["Valid To"] || split.validTo ? (split["Valid To"] || split.validTo).toString().split('T')[0] : defaultEndDate;
+            const notes = split["Notes"] || split.notes || "";
 
             let rawVal = "";
-            if (rule === "Percentage" && split["Percentage Share"] != null && split["Percentage Share"] !== "") {
-                let pShare = parseFloat(split["Percentage Share"]);
-                rawVal = (pShare > 0 && pShare <= 1) ? Math.round(pShare * 100) : Math.round(pShare);
-            } else if (rule === "Fixed Amount" && split["Fixed Amount"] != null && split["Fixed Amount"] !== "") {
-                rawVal = Math.round(split["Fixed Amount"]);
-            } else if (rule === "Units" && split["Units Assigned"] != null && split["Units Assigned"] !== "") {
-                rawVal = Math.round(split["Units Assigned"]);
+            if (rule === "Percentage") {
+                let pShare = parseFloat(split["Percentage Share"] || split.percentageShare);
+                if (!isNaN(pShare)) rawVal = (pShare > 0 && pShare <= 1) ? Math.round(pShare * 100) : Math.round(pShare);
+            } else if (rule === "Fixed Amount") {
+                rawVal = Math.round(split["Fixed Amount"] || split.fixedAmount || 0);
+            } else if (rule === "Units") {
+                rawVal = Math.round(split["Units Assigned"] || split.unitsAssigned || 0);
             }
 
             let displayVal = rawVal;
-            if (rawVal !== "" && rule === "Fixed Amount") {
-                displayVal = parseInt(rawVal, 10).toLocaleString('it-IT');
-            }
+            if (rawVal !== "" && rule === "Fixed Amount") displayVal = parseInt(rawVal, 10).toLocaleString('it-IT');
+
+            const targetLe = split["Target Legal Entity"] || split.targetLegalEntity;
+            const targetCc = split["Target Cost Center"] || split.targetCostCenter;
 
             return `
         <div class="split-row-item bg-white p-2 border border-slate-200 rounded-md shadow-sm relative animate-fade-in mb-1.5">
             <div class="flex flex-wrap md:flex-nowrap gap-1.5 items-end">
                 <div class="w-full md:w-[20%]">
                     <label class="block text-[7px] font-bold text-slate-400 uppercase mb-0.5">Target Entity</label>
-                    <select class="split-le w-full text-[9px] p-1 bg-slate-50 border border-slate-200 rounded font-bold text-slate-700"><option value="" disabled ${!split["Target Legal Entity"] ? 'selected' : ''}>Select...</option>${leOptions}</select>
+                    <select class="split-le w-full text-[9px] p-1 bg-slate-50 border border-slate-200 rounded font-bold text-slate-700"><option value="" disabled ${!targetLe ? 'selected' : ''}>Select...</option>${leOptions.replace(`value="${targetLe}"`, `value="${targetLe}" selected`)}</select>
                 </div>
                 <div class="w-full md:w-[20%]">
                     <label class="block text-[7px] font-bold text-slate-400 uppercase mb-0.5">Cost Center</label>
-                    <select class="split-cc w-full text-[9px] p-1 bg-slate-50 border border-slate-200 rounded font-bold text-slate-700"><option value="" disabled ${!split["Target Cost Center"] ? 'selected' : ''}>Select...</option>${ccOptions}</select>
+                    <select class="split-cc w-full text-[9px] p-1 bg-slate-50 border border-slate-200 rounded font-bold text-slate-700"><option value="" disabled ${!targetCc ? 'selected' : ''}>Select...</option>${ccOptions.replace(`value="${targetCc}"`, `value="${targetCc}" selected`)}</select>
                 </div>
                 <div class="w-full md:w-[15%]">
                     <label class="block text-[7px] font-bold text-slate-400 uppercase mb-0.5">Rule</label>
@@ -725,13 +586,13 @@
         </div>`;
         },
 
-        // Cerca il metodo getLedgerRow: function (detailId, mov) dentro js_contracts_templates.html
         getLedgerRow: function (detailId, mov) {
-            const type = (mov["Type"] || "ACTUAL").toUpperCase();
-            const sDate = mov["Start Date"] ? mov["Start Date"].toString().split('T')[0] : "";
-            const eDate = mov["End Date"] ? mov["End Date"].toString().split('T')[0] : "";
-            const amount = mov["Amount"] != null ? parseInt(mov["Amount"], 10).toLocaleString('it-IT') : "";
-            const notes = mov["Notes"] || "";
+            const type = (mov["Type"] || mov.type || "ACTUAL").toUpperCase();
+            const sDate = mov["Start Date"] || mov.startDate ? (mov["Start Date"] || mov.startDate).toString().split('T')[0] : "";
+            const eDate = mov["End Date"] || mov.endDate ? (mov["End Date"] || mov.endDate).toString().split('T')[0] : "";
+            const rawAmt = mov["Amount"] !== undefined ? mov["Amount"] : mov.amount;
+            const amount = rawAmt != null ? parseInt(rawAmt, 10).toLocaleString('it-IT') : "";
+            const notes = mov["Notes"] || mov.notes || "";
 
             const isCalculated = type === "CALCULATED";
             const bgClass = isCalculated ? "bg-slate-100 opacity-70" : "bg-white";
@@ -766,14 +627,10 @@
                 ${!isCalculated ? `
                 <div class="flex items-center gap-1 pb-1.5 shrink-0">
                     <button type="button" onclick="duplicateLedgerRowInUI(this, ${detailId})" class="text-slate-300 hover:text-teal-600 px-1 transition-colors" title="Duplicate Movement">
-                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                        </svg>
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                     </button>
                     <button type="button" onclick="this.closest('.ledger-row-item').remove()" class="text-slate-300 hover:text-rose-500 px-1 transition-colors" title="Remove Movement">
-                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
                 ` : `<div class="px-2 pb-1.5 text-slate-400 cursor-not-allowed" title="Auto-generated by Engine">⚙️</div>`}

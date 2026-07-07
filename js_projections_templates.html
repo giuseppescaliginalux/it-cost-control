@@ -113,25 +113,53 @@
             </div>`;
         },
 
-        // 🌟 Helper interno per generare le celle finanziarie con i Badge di sconto
-        _renderCell: function (val, pct, colorClass = "text-slate-700") {
+        // 🌟 Helper interno per generare le celle finanziarie con i Badge di sconto (Ibrido Vettoriale)
+        _renderCell: function (val, pct, colorClass = "text-slate-700", isCompact = false) {
             let badge = '';
-            // Se c'è uno sconto maggiore di zero, genera il badge
-            if (pct > 0) {
-                const isTerminated = pct >= 99.9; // Se lo sconto è totale (100%), è una dismissione
-                const badgeColor = isTerminated ? 'text-rose-500' : 'text-amber-500';
-                const icon = isTerminated ? '🛑' : '⚡';
-                badge = `<span class="ml-1.5 text-[9px] font-black ${badgeColor} tracking-tighter shrink-0 select-none">${icon} -${Math.round(pct)}%</span>`;
+            const roundedPct = Math.round(pct);
+
+            // 🛡️ Scudo protettivo per nascondere decimali o zero spuri (-0%)
+            if (roundedPct > 0) {
+                const isTerminated = roundedPct >= 99.9;
+
+                if (isCompact) {
+                    // 🎯 LIVELLO 3 (Drill-down): Layout ultra-compatto con micro-freccia verticale
+                    const badgeColor = isTerminated ? 'text-emerald-800 bg-emerald-100' : 'text-teal-800 bg-teal-100';
+                    const iconSvg = `<svg class="w-2.5 h-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m0 0l6.75-6.75M12 19.5l-6.75-6.75" /></svg>`;
+
+                    badge = `
+                    <span class="inline-flex items-center gap-[1px] px-1 py-0.5 rounded text-[8px] font-black tracking-tighter shrink-0 select-none mr-1.5 ${badgeColor}" title="Cost reduced by ${roundedPct}%">
+                        ${iconSvg}${roundedPct}%
+                    </span>`;
+                } else {
+                    // ⚡ LIVELLI 1 e 2 (Riepiloghi Macro): Icone SVG pure ad alta fedeltà (Anti-Schiacciamento)
+                    let badgeColor, iconSvg;
+
+                    if (isTerminated) {
+                        // Dismissione completa (100%): Colore Smeraldo, icona di Chiusura/Taglio Netto (X spessa)
+                        badgeColor = 'text-emerald-700 bg-emerald-50 border-emerald-200';
+                        iconSvg = `<svg class="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>`;
+                    } else {
+                        // Ottimizzazione parziale: Colore Teal FinOps, icona del Fulmine Vettoriale asimmetrico
+                        badgeColor = 'text-teal-700 bg-teal-50 border-teal-200';
+                        iconSvg = `<svg class="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M11.5 2L3 13h7v9l8.5-11H11.5V2z"/></svg>`;
+                    }
+
+                    badge = `
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] font-black tracking-tight shrink-0 select-none mr-2 ${badgeColor}" title="Cost reduced by ${roundedPct}%">
+                        ${iconSvg} -${roundedPct}%
+                    </span>`;
+                }
             }
 
             return `
             <div class="flex items-center justify-end whitespace-nowrap w-full">
-                <span class="${colorClass}">€ ${val.formatCurrency()}</span>
                 ${badge}
+                <span class="${colorClass}">€ ${val.formatCurrency()}</span>
             </div>`;
         },
 
-        // LEVEL 1: Top-Level Dimension Header Card (Aggiunti i parametri p26, p27, p28)
+        // LEVEL 1: Top-Level Dimension Header Card (isCompact = false)
         getGroupHeaderRowMarkup: function (groupIdx, label, assetCount, v26, p26, v27, p27, v28, p28) {
             return `
             <tr onclick="ProjectionsController.toggleLevel1Accordion(${groupIdx})" class="bg-slate-100/80 border-b border-slate-200 hover:bg-slate-100 transition-all font-black text-slate-900 select-none cursor-pointer">
@@ -150,9 +178,9 @@
                         </div>
                     </div>
                 </td>
-                <td class="p-3 align-middle font-mono w-1/5">${this._renderCell(v26, p26, 'text-slate-700')}</td>
-                <td class="p-3 align-middle font-mono bg-teal-50/10 w-1/5">${this._renderCell(v27, p27, 'text-teal-800')}</td>
-                <td class="p-3 align-middle font-mono w-1/5">${this._renderCell(v28, p28, 'text-indigo-800')}</td>
+                <td class="p-3 align-middle font-mono w-1/5">${this._renderCell(v26, p26, 'text-slate-700', false)}</td>
+                <td class="p-3 align-middle font-mono bg-teal-50/10 w-1/5">${this._renderCell(v27, p27, 'text-teal-800', false)}</td>
+                <td class="p-3 align-middle font-mono w-1/5">${this._renderCell(v28, p28, 'text-indigo-800', false)}</td>
             </tr>
             <tr id="proj-l1-body-row-${groupIdx}" class="hidden bg-transparent">
                 <td colspan="4" class="p-0">
@@ -163,7 +191,7 @@
             </tr>`;
         },
 
-        // LEVEL 2: Nested Intermediate Asset Row (Aggiunti i parametri p26, p27, p28)
+        // LEVEL 2: Nested Intermediate Asset Row (isCompact = false)
         getAssetRowMarkup: function (groupIdx, assetIdx, assetName, manufacturer, driver, v26, p26, v27, p27, v28, p28, childTableHtml) {
             return `
             <tr onclick="ProjectionsController.toggleLevel2Accordion(${groupIdx}, ${assetIdx})" class="hover:bg-slate-50/70 transition-all border-b border-slate-100 cursor-pointer select-none">
@@ -182,9 +210,9 @@
                         ${manufacturer} <span class="text-slate-300 font-normal mx-1 select-none">•</span> <span class="text-slate-400/60 font-medium normal-case tracking-normal">for: ${driver}</span>
                     </div>
                 </td>
-                <td class="p-3 align-middle font-mono w-1/5">${this._renderCell(v26, p26, 'text-slate-600')}</td>
-                <td class="p-3 align-middle font-mono font-bold bg-teal-50/5 w-1/5">${this._renderCell(v27, p27, 'text-teal-700')}</td>
-                <td class="p-3 align-middle font-mono w-1/5">${this._renderCell(v28, p28, 'text-slate-600')}</td>
+                <td class="p-3 align-middle font-mono w-1/5">${this._renderCell(v26, p26, 'text-slate-600', false)}</td>
+                <td class="p-3 align-middle font-mono font-bold bg-teal-50/5 w-1/5">${this._renderCell(v27, p27, 'text-teal-700', false)}</td>
+                <td class="p-3 align-middle font-mono w-1/5">${this._renderCell(v28, p28, 'text-slate-600', false)}</td>
             </tr>
             <tr id="proj-l2-body-row-${groupIdx}-${assetIdx}" class="hidden bg-slate-50/30 shadow-inner">
                 <td colspan="4" class="p-3 pl-12">
@@ -217,6 +245,7 @@
         },
 
         getContractDrillDownItemRow: function (c) {
+            // 🎯 Qui passiamo "true" per il layout ultra-compatto a Livello 3
             return `
             <tr class="hover:bg-slate-50/50 border-b border-slate-100 last:border-0">
                 <td class="py-2 font-bold text-slate-800 truncate pr-2" title="${c.supplier}">${c.supplier}</td>
@@ -224,9 +253,9 @@
                 <td class="py-2 font-mono text-slate-500 truncate pr-2" title="${c.costCenter || 'N/A'}">${c.costCenter || 'N/A'}</td>
                 <td class="py-2 font-mono font-black text-[9px] text-slate-400"><span class="px-1.5 py-0.5 border rounded bg-slate-50">${c.expType}</span></td>
                 
-                <td class="py-2 align-middle font-mono truncate">${this._renderCell(c.v26, c.p26, 'text-slate-500')}</td>
-                <td class="py-2 align-middle font-mono font-black bg-teal-50/10 px-1 truncate">${this._renderCell(c.v27, c.p27, 'text-teal-700')}</td>
-                <td class="py-2 align-middle font-mono truncate">${this._renderCell(c.v28, c.p28, 'text-slate-500')}</td>
+                <td class="py-2 align-middle font-mono truncate">${this._renderCell(c.v26, c.p26, 'text-slate-500', true)}</td>
+                <td class="py-2 align-middle font-mono font-black bg-teal-50/10 px-1 truncate">${this._renderCell(c.v27, c.p27, 'text-teal-700', true)}</td>
+                <td class="py-2 align-middle font-mono truncate">${this._renderCell(c.v28, c.p28, 'text-slate-500', true)}</td>
             </tr>`;
         }
     };
