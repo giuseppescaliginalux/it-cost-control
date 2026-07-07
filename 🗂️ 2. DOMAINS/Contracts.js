@@ -257,7 +257,8 @@ class Contract {
   }
 
   getDurationMonths() {
-    return parseFloat(this._getExactMonths(this.startDate, this.getEndDate()).toFixed(4));
+    // 🌟 FIX: Arrotonda il termine contrattuale a un numero intero (es. 23 mesi invece di 22.9849)
+    return Math.round(this._getExactMonths(this.startDate, this.getEndDate()));
   }
 
   getEffectiveCommitment() {
@@ -575,8 +576,8 @@ class MasterContract {
     const end = this.getMaxEndDate();
     let termMonths = 0;
     if (start && end && start <= end) {
-      // Calcolo preciso dei mesi complessivi del Master usando la logica condivisa
-      termMonths = parseFloat(this._getExactMonths(start, end).toFixed(4));
+      // 🌟 FIX: Arrotonda anche il termine del Master Contract
+      termMonths = Math.round(this._getExactMonths(start, end));
     }
 
     return {

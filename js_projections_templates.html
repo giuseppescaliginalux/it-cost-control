@@ -4,8 +4,8 @@
      * VIEW: Component UI template factory for multi-dimensional financial structures.
      */
     const ProjectionsTemplates = {
-        
-        getWorkspaceLayout: function() {
+
+        getWorkspaceLayout: function () {
             return `
             <div class="mb-4 shrink-0">
                 <h2 class="text-xl font-black text-slate-800 uppercase tracking-widest">Assets Projections Matrix</h2>
@@ -113,8 +113,26 @@
             </div>`;
         },
 
-        // LEVEL 1: Top-Level Dimension Header Card
-        getGroupHeaderRowMarkup: function(groupIdx, label, assetCount, v26, v27, v28) {
+        // 🌟 Helper interno per generare le celle finanziarie con i Badge di sconto
+        _renderCell: function (val, pct, colorClass = "text-slate-700") {
+            let badge = '';
+            // Se c'è uno sconto maggiore di zero, genera il badge
+            if (pct > 0) {
+                const isTerminated = pct >= 99.9; // Se lo sconto è totale (100%), è una dismissione
+                const badgeColor = isTerminated ? 'text-rose-500' : 'text-amber-500';
+                const icon = isTerminated ? '🛑' : '⚡';
+                badge = `<span class="ml-1.5 text-[9px] font-black ${badgeColor} tracking-tighter shrink-0 select-none">${icon} -${Math.round(pct)}%</span>`;
+            }
+
+            return `
+            <div class="flex items-center justify-end whitespace-nowrap w-full">
+                <span class="${colorClass}">€ ${val.formatCurrency()}</span>
+                ${badge}
+            </div>`;
+        },
+
+        // LEVEL 1: Top-Level Dimension Header Card (Aggiunti i parametri p26, p27, p28)
+        getGroupHeaderRowMarkup: function (groupIdx, label, assetCount, v26, p26, v27, p27, v28, p28) {
             return `
             <tr onclick="ProjectionsController.toggleLevel1Accordion(${groupIdx})" class="bg-slate-100/80 border-b border-slate-200 hover:bg-slate-100 transition-all font-black text-slate-900 select-none cursor-pointer">
                 <td class="p-3 text-left align-middle w-2/5">
@@ -132,9 +150,9 @@
                         </div>
                     </div>
                 </td>
-                <td class="p-3 text-right align-middle font-mono text-slate-700 w-1/5">€ ${v26.formatCurrency()}</td>
-                <td class="p-3 text-right align-middle font-mono text-teal-800 bg-teal-50/10 w-1/5">€ ${v27.formatCurrency()}</td>
-                <td class="p-3 text-right align-middle font-mono text-indigo-800 w-1/5">€ ${v28.formatCurrency()}</td>
+                <td class="p-3 align-middle font-mono w-1/5">${this._renderCell(v26, p26, 'text-slate-700')}</td>
+                <td class="p-3 align-middle font-mono bg-teal-50/10 w-1/5">${this._renderCell(v27, p27, 'text-teal-800')}</td>
+                <td class="p-3 align-middle font-mono w-1/5">${this._renderCell(v28, p28, 'text-indigo-800')}</td>
             </tr>
             <tr id="proj-l1-body-row-${groupIdx}" class="hidden bg-transparent">
                 <td colspan="4" class="p-0">
@@ -145,8 +163,8 @@
             </tr>`;
         },
 
-        // LEVEL 2: Nested Intermediate Asset Row
-        getAssetRowMarkup: function(groupIdx, assetIdx, assetName, manufacturer, driver, v26, v27, v28, childTableHtml) {
+        // LEVEL 2: Nested Intermediate Asset Row (Aggiunti i parametri p26, p27, p28)
+        getAssetRowMarkup: function (groupIdx, assetIdx, assetName, manufacturer, driver, v26, p26, v27, p27, v28, p28, childTableHtml) {
             return `
             <tr onclick="ProjectionsController.toggleLevel2Accordion(${groupIdx}, ${assetIdx})" class="hover:bg-slate-50/70 transition-all border-b border-slate-100 cursor-pointer select-none">
                 <td class="p-3 pl-8 text-left align-middle w-2/5">
@@ -164,9 +182,9 @@
                         ${manufacturer} <span class="text-slate-300 font-normal mx-1 select-none">•</span> <span class="text-slate-400/60 font-medium normal-case tracking-normal">for: ${driver}</span>
                     </div>
                 </td>
-                <td class="p-3 text-right align-middle font-mono text-slate-600 w-1/5">€ ${v26.formatCurrency()}</td>
-                <td class="p-3 text-right align-middle font-mono font-bold text-teal-700 bg-teal-50/5 w-1/5">€ ${v27.formatCurrency()}</td>
-                <td class="p-3 text-right align-middle font-mono text-slate-600 w-1/5">€ ${v28.formatCurrency()}</td>
+                <td class="p-3 align-middle font-mono w-1/5">${this._renderCell(v26, p26, 'text-slate-600')}</td>
+                <td class="p-3 align-middle font-mono font-bold bg-teal-50/5 w-1/5">${this._renderCell(v27, p27, 'text-teal-700')}</td>
+                <td class="p-3 align-middle font-mono w-1/5">${this._renderCell(v28, p28, 'text-slate-600')}</td>
             </tr>
             <tr id="proj-l2-body-row-${groupIdx}-${assetIdx}" class="hidden bg-slate-50/30 shadow-inner">
                 <td colspan="4" class="p-3 pl-12">
@@ -176,7 +194,7 @@
         },
 
         // LEVEL 3: Deep Drill-Down Contract Items Sub-Table
-        getContractDrillDownTableStructure: function(rowsHtml) {
+        getContractDrillDownTableStructure: function (rowsHtml) {
             return `
             <div class="border border-slate-200 rounded-xl bg-white p-3 shadow-3xs max-w-full overflow-hidden">
                 <table class="w-full text-left text-[11px] border-collapse table-fixed whitespace-nowrap">
@@ -198,17 +216,17 @@
             </div>`;
         },
 
-        getContractDrillDownItemRow: function(c) {
-            // 🌟 FIX: Aggiunto 'border-b border-slate-100 last:border-0' esplicito su questa riga
+        getContractDrillDownItemRow: function (c) {
             return `
             <tr class="hover:bg-slate-50/50 border-b border-slate-100 last:border-0">
                 <td class="py-2 font-bold text-slate-800 truncate pr-2" title="${c.supplier}">${c.supplier}</td>
                 <td class="py-2 truncate pr-2" title="${c.legalEntity}">${c.legalEntity}</td>
                 <td class="py-2 font-mono text-slate-500 truncate pr-2" title="${c.costCenter || 'N/A'}">${c.costCenter || 'N/A'}</td>
                 <td class="py-2 font-mono font-black text-[9px] text-slate-400"><span class="px-1.5 py-0.5 border rounded bg-slate-50">${c.expType}</span></td>
-                <td class="py-2 text-right font-mono text-slate-500 truncate">€ ${c.v26.formatCurrency()}</td>
-                <td class="py-2 text-right font-mono font-black text-teal-700 bg-teal-50/10 px-1 truncate">€ ${c.v27.formatCurrency()}</td>
-                <td class="py-2 text-right font-mono text-slate-500 truncate">€ ${c.v28.formatCurrency()}</td>
+                
+                <td class="py-2 align-middle font-mono truncate">${this._renderCell(c.v26, c.p26, 'text-slate-500')}</td>
+                <td class="py-2 align-middle font-mono font-black bg-teal-50/10 px-1 truncate">${this._renderCell(c.v27, c.p27, 'text-teal-700')}</td>
+                <td class="py-2 align-middle font-mono truncate">${this._renderCell(c.v28, c.p28, 'text-slate-500')}</td>
             </tr>`;
         }
     };

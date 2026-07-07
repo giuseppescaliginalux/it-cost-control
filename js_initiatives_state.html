@@ -38,23 +38,33 @@
             });
 
             sortedInits.forEach(init => {
-                const groupID = (init["Contracts Group ID"] || init["Group ID"] || "").toString().trim();
+                const masterId = (init["Master Contract ID"] || init.masterId || "").toString().trim();
+                const contractId = (init["Contract ID"] || init.contractId || "").toString().trim();
                 const targetDate = init["Target Date"] ? new Date(init["Target Date"]) : null;
 
                 let originalBaseline = 0;
-                contracts.forEach(c => {
-                    if ((c["Group ID"] || "").toString().trim() === groupID && groupID !== "") {
-                        originalBaseline += (parseFloat(c["Annual Value"]) || 0);
-                    }
-                });
+                if (contractId !== "") {
+                    // 🌟 TARGET LOCALE: Isoliamo il singolo contratto selezionato
+                    const c = contracts.find(x => String(x["Contract ID"] || x.contractId).trim() === contractId);
+                    originalBaseline = c ? (parseFloat(c["Annual Value"] || c.annualValue) || 0) : 0;
+                } else {
+                    // 🌟 TARGET GLOBALE: Sommiamo l'intero Run Rate dei contratti del Master
+                    contracts.forEach(c => {
+                        if (String(c["Master Contract ID"] || c.masterId).trim() === masterId && masterId !== "") {
+                            originalBaseline += (parseFloat(c["Annual Value"] || c.annualValue) || 0);
+                        }
+                    });
+                }
 
                 let startingCost = originalBaseline;
                 if (originalBaseline !== 0 && targetDate) {
-                    const priorInits = sortedInits.filter(i =>
-                        (i["Contracts Group ID"] || i["Group ID"] || "").toString().trim() === groupID &&
-                        new Date(i["Target Date"]) < targetDate &&
-                        !isNaN(parseFloat(i["Target Cost (Annualized)"]))
-                    );
+                    const priorInits = sortedInits.filter(i => {
+                        const iMaster = String(i["Master Contract ID"] || i.masterId || "").trim();
+                        const iContract = String(i["Contract ID"] || i.contractId || "").trim();
+                        return iMaster === masterId && iContract === contractId &&
+                               new Date(i["Target Date"]) < targetDate &&
+                               !isNaN(parseFloat(i["Target Cost (Annualized)"]));
+                    });
 
                     if (priorInits.length > 0) {
                         priorInits.sort((a, b) => new Date(b["Target Date"]) - new Date(a["Target Date"]));
@@ -76,28 +86,12 @@
                 init["Target Saving %"] = startingCost > 0 ? (targetSaving / startingCost) : 0;
 
                 const status = (init["Initiative Status"] || "").toString().trim().toLowerCase();
-                const sourceContract = contracts.find(c => (c["Group ID"] || "").toString().trim() === groupID);
-                const targetGroupID = sourceContract ? (sourceContract["Target Group ID"] || "").toString().trim() : "";
-
-                let actualCost = 0;
-                if (targetGroupID !== "") {
-                    contracts.forEach(c => {
-                        if ((c["Group ID"] || "").toString().trim() === targetGroupID) {
-                            actualCost += (parseFloat(c["Annual Value"]) || 0);
-                        }
-                    });
-                }
 
                 if (status === "completed") {
-                    init["New Actual"] = actualCost;
-                    if (targetGroupID !== "" && actualCost > 0) {
-                        init["Actual Saving (Annualized)"] = startingCost - actualCost;
-                    } else {
-                        init["Actual Saving (Annualized)"] = targetSaving;
-                    }
+                    init["Actual Saving (Annualized)"] = targetSaving;
                 } else {
-                    init["New Actual"] = "";
                     init["Actual Saving (Annualized)"] = 0;
+                    init["New Actual"] = "";
                 }
             });
 

@@ -76,8 +76,12 @@ class ContractProjection {
     if (this.daysOfCompetence <= 0) return 0;
 
     const bt = String(this.contract.billingTerms || "").toUpperCase().trim();
+    const expType = String(this.contract.expenditureType || "").toUpperCase().trim();
 
-    // 🌟 SE È A CONSUMO O CUSTOM: Il motore ignora la matematica lineare e legge le fatture/forecast dal Ledger!
+    // 🌟 Rilevamento per Lump Sums: One-Shot puri oppure CAPEX pagati interamente in anticipo
+    const isUpfrontCapex = expType === "CAPEX" && (bt.includes("UPFRONT") || bt.includes("PREPAID"));
+
+    // 1. LEDGER-DRIVEN (A consumo / Custom)
     if (bt.includes("PAY-AS-YOU-GO") || bt.includes("CUSTOM") || bt.includes("LEDGER")) {
       let periodTotal = 0;
       const pStart = this.period.startDate;
@@ -85,10 +89,9 @@ class ContractProjection {
 
       this.fullLedger.forEach(mov => {
         const mStart = new Date(mov.startDate || mov.StartDate);
-        if (isNaN(mStart.getTime())) return; // Salta righe corrotte
+        if (isNaN(mStart.getTime())) return;
 
         const mEnd = mov.endDate ? new Date(mov.endDate) : new Date(mStart.getTime() + 86400000);
-
         const overlapStart = mStart < pStart ? pStart : mStart;
         const overlapEnd = mEnd > pEnd ? pEnd : mEnd;
 
@@ -98,20 +101,41 @@ class ContractProjection {
           const amt = parseFloat(mov.amount || mov.Amount) || 0;
 
           if (movDays === overlapDays) periodTotal += amt;
-          else periodTotal += amt * (overlapDays / movDays); // Pro-rata sui giorni per movimenti a cavallo d'anno
+          else periodTotal += amt * (overlapDays / movDays);
         }
       });
       return parseFloat(periodTotal.toFixed(2));
     }
 
-    // 🌟 SE È FISSO (Flat / Fixed Recurring): Continua con la competenza matematica lineare standard
-    if (this.contract.costRecurrence === "One-Shot") {
-      if (this.contractStart >= this.period.startDate && this.contractStart <= this.period.endDate) {
-        return parseFloat(this.contract.totalCommitment) || 0;
+    // 🌟 2. LUMP SUM TARGETING: Il bugfix per il test rosso
+    if (this.contract.costRecurrence === "One-Shot" || isUpfrontCapex) {
+      let totalHit = 0;
+
+      // Impatto iniziale: Cade nel periodo in esame?
+      if (this.contractStart && this.contractStart >= this.period.startDate && this.contractStart <= this.period.endDate) {
+        totalHit += parseFloat(this.contract.totalCommitment) || 0;
       }
-      return 0;
+
+      // Impatti di rinnovo: Se è ricorrente, calcoliamo le scadenze future in cui viene fatto un nuovo pagamento Upfront
+      if (this.contract.costRecurrence === "Recurrent" && this.contractEnd && this.effectiveEndDate > this.contractEnd) {
+        let termMonths = parseFloat(this.contract.contractTerm) || 12;
+        if (termMonths <= 0) termMonths = 12;
+        let nextRenewal = new Date(this.contractEnd);
+        nextRenewal.setDate(nextRenewal.getDate() + 1); // Il giorno dopo la scadenza scatta il rinnovo
+
+        let safeguard = 0;
+        while (nextRenewal <= this.period.endDate && nextRenewal < this.effectiveEndDate && safeguard < 100) {
+          if (nextRenewal >= this.period.startDate) {
+            totalHit += parseFloat(this.contract.totalCommitment) || 0;
+          }
+          nextRenewal.setMonth(nextRenewal.getMonth() + termMonths);
+          safeguard++;
+        }
+      }
+      return parseFloat(totalHit.toFixed(2));
     }
 
+    // 3. AMMORTAMENTO LINEARE (OPEX Flat, o CAPEX spalmati mese per mese)
     const monthlyFlatRate = (parseFloat(this.contract.annualValue) || 0) / 12;
     let totalBaseline = 0;
     const startCursor = new Date(Math.max(this.period.startDate, this.contractStart));
@@ -142,21 +166,69 @@ class ContractProjection {
 
   calculateOptimized() {
     if (this.daysOfCompetence <= 0) return 0;
-    if (this.contract.costRecurrence === "One-Shot") return this.calculateBaseline();
 
     const activeInits = this.linkedInitiatives.filter(init =>
       ["COMPLETED", "IN PROGRESS", "IDEA", "APPROVED", "PLANNED"].includes(String(init.status).toUpperCase())
     );
 
-    // Se non ci sono rinegoziazioni attive ed è un contratto Ledger-Driven, bypassa il ciclo e restituisce la cassa
     const bt = String(this.contract.billingTerms || "").toUpperCase().trim();
+    const expType = String(this.contract.expenditureType || "").toUpperCase().trim();
+    const isUpfrontCapex = expType === "CAPEX" && (bt.includes("UPFRONT") || bt.includes("PREPAID"));
+
     if (activeInits.length === 0 || bt.includes("PAY-AS-YOU-GO") || bt.includes("CUSTOM") || bt.includes("LEDGER")) {
       if (activeInits.length === 0) return this.calculateBaseline();
     }
 
-    // Ordina le iniziative per data di efficacia crescente
     activeInits.sort((a, b) => a.getEffectiveDate() - b.getEffectiveDate());
 
+    // 🌟 OTTIMIZZAZIONE LUMP SUM: Gli sconti o le dismissioni colpiscono puntualmente l'evento di pagamento
+    if (this.contract.costRecurrence === "One-Shot" || isUpfrontCapex) {
+      let totalOptimized = 0;
+
+      const getDiscountedCostAt = (dateToCheck) => {
+        let currentCost = parseFloat(this.contract.totalCommitment) || 0;
+        let isTerminated = false;
+
+        for (let init of activeInits) {
+          const initEffDate = init.getEffectiveDate();
+          if (initEffDate) initEffDate.setHours(0, 0, 0, 0);
+
+          if (dateToCheck >= initEffDate) {
+            if (["TERMINATE", "REPLACE", "TRANSFER"].includes(String(init.decision).toUpperCase())) {
+              isTerminated = true;
+            } else {
+              let globalSavingPct = parseFloat(init.targetSavingPct) || 0;
+              if (globalSavingPct > 1) globalSavingPct = globalSavingPct / 100;
+              currentCost = currentCost * (1.0 - globalSavingPct);
+            }
+          }
+        }
+        return isTerminated ? 0 : currentCost;
+      };
+
+      if (this.contractStart && this.contractStart >= this.period.startDate && this.contractStart <= this.period.endDate) {
+        totalOptimized += getDiscountedCostAt(this.contractStart);
+      }
+
+      if (this.contract.costRecurrence === "Recurrent" && this.contractEnd && this.effectiveEndDate > this.contractEnd) {
+        let termMonths = parseFloat(this.contract.contractTerm) || 12;
+        if (termMonths <= 0) termMonths = 12;
+        let nextRenewal = new Date(this.contractEnd);
+        nextRenewal.setDate(nextRenewal.getDate() + 1);
+
+        let safeguard = 0;
+        while (nextRenewal <= this.period.endDate && nextRenewal < this.effectiveEndDate && safeguard < 100) {
+          if (nextRenewal >= this.period.startDate) {
+            totalOptimized += getDiscountedCostAt(nextRenewal);
+          }
+          nextRenewal.setMonth(nextRenewal.getMonth() + termMonths);
+          safeguard++;
+        }
+      }
+      return parseFloat(totalOptimized.toFixed(2));
+    }
+
+    // 3. OTTIMIZZAZIONE A CASCATA (Ammortamento lineare)
     const originalAnnualValue = parseFloat(this.contract.annualValue) || 0;
     let totalOptimized = 0;
 
@@ -219,6 +291,7 @@ class ContractProjection {
     }
     return parseFloat(totalOptimized.toFixed(2));
   }
+
 }
 
 class ProjectionRepository {
@@ -258,18 +331,18 @@ class ProjectionService {
     activeDomainContracts.forEach(contractInstance => {
       const mId = String(contractInstance.masterId).trim();
       const cId = String(contractInstance.id).trim();
-      
+
       const linkedInits = domainInitiatives.filter(init => {
-          const initMaster = String(init.masterId).trim();
-          const initContract = String(init.contractId || "").trim();
-          
-          // Se non appartiene a questo Master, la scarto a prescindere
-          if (initMaster !== mId) return false;
-          
-          // Se l'iniziativa ha un target locale specifico, deve combaciare con QUESTO contratto
-          if (initContract !== "" && initContract !== cId) return false;
-          
-          return true; // Altrimenti (o se è globale) la applico
+        const initMaster = String(init.masterId).trim();
+        const initContract = String(init.contractId || "").trim();
+
+        // Se non appartiene a questo Master, la scarto a prescindere
+        if (initMaster !== mId) return false;
+
+        // Se l'iniziativa ha un target locale specifico, deve combaciare con QUESTO contratto
+        if (initContract !== "" && initContract !== cId) return false;
+
+        return true; // Altrimenti (o se è globale) la applico
       });
 
       const successorMaster = dtosMasters.find(m => {

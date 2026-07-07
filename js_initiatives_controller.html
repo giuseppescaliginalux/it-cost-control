@@ -241,21 +241,22 @@
             if (target) target.classList.toggle('hidden');
         },
 
-        // COMPONENTE: LISTA DI SMART CARDS CON EXTRACTION IN ALTO E ORDINAMENTO "STICKY"
-        handleAssetCascadeDropdownChange: function (selectedAssetName, preSelectedMasterId = null) {
+        // 1. Estensione Cascading Dropdown per passare il preSelectedContractId
+        handleAssetCascadeDropdownChange: function (selectedAssetName, preSelectedMasterId = null, preSelectedContractId = null) {
             const container = document.getElementById('modal-init-group-list-container');
             const hiddenInput = document.getElementById('modal-init-selected-master-id');
+            const hiddenContractInput = document.getElementById('modal-init-selected-contract-id');
             if (!container) return;
 
             if (!selectedAssetName) {
                 container.innerHTML = `<div class="text-center p-4 text-[10px] text-slate-400 italic border border-dashed border-slate-200 rounded-xl">Select an Asset Context first to view mapped Master Agreements.</div>`;
                 if (hiddenInput) hiddenInput.value = "";
+                if (hiddenContractInput) hiddenContractInput.value = "";
                 return;
             }
 
             const allContracts = windowPayload.contracts || [];
 
-            // Pesca direttamente i MASTER CONTRACTS collegati a questo Asset
             const filteredMasters = (windowPayload.masterContracts || []).filter(m =>
                 String(m["Asset Name"]).trim().toLowerCase() === String(selectedAssetName).trim().toLowerCase()
             );
@@ -263,13 +264,12 @@
             if (filteredMasters.length === 0) {
                 container.innerHTML = `<div class="text-center p-4 text-[10px] text-rose-400 font-bold border border-rose-100 bg-rose-50 rounded-xl">⚠️ No Master Agreements linked to this Asset</div>`;
                 if (hiddenInput) hiddenInput.value = "";
+                if (hiddenContractInput) hiddenContractInput.value = "";
                 return;
             }
 
-            // Associa i singoli contratti di dettaglio al rispettivo Master
             filteredMasters.forEach(m => {
                 m.childContracts = allContracts.filter(c => c["Master Contract ID"] === m["Master Contract ID"]);
-                // Ordina i contratti figli per data di scadenza (decrescente)
                 m.childContracts.sort((a, b) => {
                     const timeA = a["End Date"] ? new Date(a["End Date"]).getTime() : 0;
                     const timeB = b["End Date"] ? new Date(b["End Date"]).getTime() : 0;
@@ -277,7 +277,6 @@
                 });
             });
 
-            // Ordinamento dei Master: Quello selezionato in cima, poi per data scadenza
             filteredMasters.sort((a, b) => {
                 if (preSelectedMasterId) {
                     if (a["Master Contract ID"] === preSelectedMasterId) return -1;
@@ -288,16 +287,21 @@
                 return dateB - dateA;
             });
 
-            // Passa i dati alla vista
-            container.innerHTML = InitiativesTemplates.getMasterSmartCards(filteredMasters, preSelectedMasterId);
+            // 🌟 Iniezione del terzo parametro verso la vista
+            container.innerHTML = InitiativesTemplates.getMasterSmartCards(filteredMasters, preSelectedMasterId, preSelectedContractId);
 
             if (hiddenInput && !preSelectedMasterId) hiddenInput.value = "";
+            if (hiddenContractInput && !preSelectedContractId) hiddenContractInput.value = "";
         },
 
+        // 2. Aggiornamento selezione Master Card (Global Scope)
         selectMasterCard: function (masterId) {
             const hiddenInput = document.getElementById('modal-init-selected-master-id');
+            const hiddenContractInput = document.getElementById('modal-init-selected-contract-id');
             if (!hiddenInput) return;
+
             hiddenInput.value = masterId;
+            if (hiddenContractInput) hiddenContractInput.value = ""; // 🌟 Reset chirugico del target locale
 
             document.querySelectorAll('.master-card').forEach(card => {
                 card.classList.remove('border-teal-500', 'bg-teal-50/20', 'ring-1', 'ring-teal-500', 'shadow-sm');
@@ -308,6 +312,14 @@
             });
             document.querySelectorAll('[id^="master-details-"]').forEach(detailBox => {
                 detailBox.classList.add('hidden');
+            });
+
+            // Ripristina l'aspetto di tutte le righe dei contratti figli
+            document.querySelectorAll('.contract-row-item').forEach(row => {
+                row.classList.remove('bg-amber-50/80', 'font-bold', 'border-l-4', 'border-l-amber-500');
+            });
+            document.querySelectorAll('.contract-target-btn').forEach(btn => {
+                btn.className = "contract-target-btn p-1 rounded text-[9px] font-black leading-none transition-all bg-slate-100 text-slate-400 hover:bg-amber-500 hover:text-white";
             });
 
             const selectedCard = document.getElementById(`master-card-${masterId}`);
@@ -321,22 +333,74 @@
                 if (selectedDetails) selectedDetails.classList.remove('hidden');
             }
 
-            // 🌟 CORREZIONE: Estrae la Run Rate reale dal Master selezionato e valorizza il display della Baseline
             const targetMaster = (windowPayload.masterContracts || []).find(m => String(m["Master Contract ID"]).trim() === String(masterId).trim());
             const baselineSpend = targetMaster ? (parseFloat(targetMaster["Run Rate"] || targetMaster.runRate) || 0) : 0;
 
             const bDisplay = document.getElementById('modal-init-baseline-display');
             const bHidden = document.getElementById('modal-init-baseline-display-val');
-            if (bDisplay) bDisplay.innerHTML = '€ ' + Math.round(baselineSpend).toLocaleString('it-IT');
+            if (bDisplay) bDisplay.innerHTML = '€ ' + Math.round(baselineSpend).toLocaleString('it-IT') + ' <span class="text-[9px] text-teal-600 uppercase tracking-widest font-black ml-1.5">(Global Master Scope)</span>';
             if (bHidden) bHidden.value = baselineSpend;
 
-            // Forza il riallineamento istantaneo dell'impatto economico speculare
             const costInput = document.getElementById('modal-init-target-cost');
             if (costInput && costInput.value.trim() !== "") {
                 this.handleTargetCostInputChange(costInput);
             }
         },
 
+        // 🌟 3. NUOVO METODO: Gestione dell'ancoraggio mirato al singolo Contratto (Local Scope)
+        selectContractCard: function (masterId, contractId) {
+            const hiddenInput = document.getElementById('modal-init-selected-master-id');
+            const hiddenContractInput = document.getElementById('modal-init-selected-contract-id');
+            if (!hiddenInput || !hiddenContractInput) return;
+
+            hiddenInput.value = masterId;
+            hiddenContractInput.value = contractId;
+
+            // Attivazione grafica del Master Agreement padre
+            document.querySelectorAll('.master-card').forEach(card => {
+                card.classList.remove('border-teal-500', 'bg-teal-50/20', 'ring-1', 'ring-teal-500', 'shadow-sm');
+                card.classList.add('border-slate-200', 'bg-white', 'hover:border-teal-300');
+            });
+            document.querySelectorAll('[id^="master-check-"]').forEach(icon => {
+                icon.innerHTML = `<div class="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0"></div>`;
+            });
+
+            const selectedCard = document.getElementById(`master-card-${masterId}`);
+            if (selectedCard) {
+                selectedCard.classList.remove('border-slate-200', 'bg-white', 'hover:border-teal-300');
+                selectedCard.classList.add('border-teal-500', 'bg-teal-50/20', 'ring-1', 'ring-teal-500', 'shadow-sm');
+            }
+
+            // Ripristina l'aspetto visivo di tutte le righe dei contratti dello stesso blocco
+            document.querySelectorAll('.contract-row-item').forEach(row => {
+                row.classList.remove('bg-amber-50/80', 'font-bold', 'border-l-4', 'border-l-amber-500');
+            });
+            document.querySelectorAll('.contract-target-btn').forEach(btn => {
+                btn.className = "contract-target-btn p-1 rounded text-[9px] font-black leading-none transition-all bg-slate-100 text-slate-400 hover:bg-amber-500 hover:text-white";
+            });
+
+            // Evidenzia chirugicamente la riga e l'icona del contratto locale bersaglio
+            const selectedRow = document.getElementById(`contract-row-${contractId}`);
+            const selectedBtn = document.getElementById(`contract-target-btn-${contractId}`);
+            if (selectedRow) selectedRow.className = "contract-row-item border-b border-slate-100 hover:bg-slate-100 transition-colors bg-amber-50/80 font-bold border-l-4 border-l-amber-500";
+            if (selectedBtn) selectedBtn.className = "contract-target-btn p-1 rounded text-[9px] font-black leading-none transition-all bg-amber-500 text-white shadow-3xs scale-105";
+
+            // 🌟 AGGIORNAMENTO DINAMICO DELLA BASELINE CON STRUTTURA LOCALE
+            const targetContract = (windowPayload.contracts || []).find(c => String(c["Contract ID"]).trim() === String(contractId).trim());
+            const baselineSpend = targetContract ? (parseFloat(targetContract["Annual Value"] || targetContract.annualValue) || 0) : 0;
+
+            const bDisplay = document.getElementById('modal-init-baseline-display');
+            const bHidden = document.getElementById('modal-init-baseline-display-val');
+            if (bDisplay) bDisplay.innerHTML = '€ ' + Math.round(baselineSpend).toLocaleString('it-IT') + ' <span class="text-[9px] text-amber-600 uppercase tracking-widest font-black ml-1.5">(Local Contract Scope)</span>';
+            if (bHidden) bHidden.value = baselineSpend;
+
+            const costInput = document.getElementById('modal-init-target-cost');
+            if (costInput && costInput.value.trim() !== "") {
+                this.handleTargetCostInputChange(costInput);
+            }
+        },
+
+        /*
         // PROCEDURA DI SELEZIONE DELLA SMART CARD MASTER
         selectMasterCard: function (masterId) {
             const hiddenInput = document.getElementById('modal-init-selected-master-id');
@@ -359,7 +423,7 @@
                 selectedCard.classList.add('border-teal-500', 'bg-teal-50/20', 'ring-1', 'ring-teal-500', 'shadow-sm');
                 selectedIcon.innerHTML = `<svg class="w-4 h-4 text-teal-600 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>`;
             }
-        },
+        },*/
 
         // PROCEDURA DI SELEZIONE DELLA SMART CARD CON TOGGLE ACCORDION AUTOMATICO
         selectGroup: function (groupId) {
@@ -542,11 +606,12 @@
             this.renderAvailableTagsInModal();
         },
 
+        // 4. Aggiornamento iniezione dati in fase di Form Open
         openInitiativeModalForm: function (id) {
             const isNew = id === null;
             InitiativesState.currentEditingInitiative = id;
 
-            let initData = { "Initiative Name": "", "Initiative Status": "IDEA", "Initial Strategy": "OPTIMIZATION", "Decision": "OPTIMIZATION", "Tags": "", "Optimization Levers": "", "Target Cost (Annualized)": 0, "Target Saving %": 0, "Baseline Spend (Annualized)": 0, "Description": "", "Service Owner": "", "Procurement Point Focal": "", "Contracts Group ID": "" };
+            let initData = { "Initiative Name": "", "Initiative Status": "IDEA", "Initial Strategy": "OPTIMIZATION", "Decision": "OPTIMIZATION", "Tags": "", "Optimization Levers": "", "Target Cost (Annualized)": 0, "Target Saving %": 0, "Baseline Spend (Annualized)": 0, "Description": "", "Service Owner": "", "Procurement Point Focal": "", "Master Contract ID": "", "Contract ID": "" };
 
             if (!isNew) {
                 initData = InitiativesState.getInitiativeById(id);
@@ -566,7 +631,6 @@
             document.getElementById('modal-init-asset-search').value = initData["Asset Name"] || "";
             document.getElementById('modal-init-asset-select').value = initData["Asset Name"] || "";
 
-            // 🌟 SINCRONIZZAZIONE DI MONTE: Carica ed espone la Baseline Spend salvata sul record
             const baselineSpend = parseFloat(initData["Baseline Spend (Annualized)"]) || 0;
             document.getElementById('modal-init-baseline-display').innerHTML = baselineSpend > 0 ? '€ ' + Math.round(baselineSpend).toLocaleString('it-IT') : '€ 0';
             document.getElementById('modal-init-baseline-display-val').value = baselineSpend;
@@ -595,28 +659,28 @@
                 if (costInput) costInput.value = targetCost > 0 ? Math.round(targetCost).toLocaleString('it-IT') : "0";
                 if (pctInput) {
                     pctInput.value = Math.round(targetSavingPct) + '%';
-                    pctInput.dataset.lastClean = Math.round(targetSavingPct).toString(); // Innesca la cache anti-blocco
-                }
-
-                // 🌟 GARANZIA DI ACCESSO: Entrambi i campi rimangono sempre attivi e sbloccati
-                if (costInput) {
-                    costInput.disabled = false;
-                    costInput.classList.remove('bg-slate-100', 'text-slate-400', 'cursor-not-allowed');
-                }
-                if (pctInput) {
-                    pctInput.disabled = false;
-                    pctInput.classList.remove('bg-slate-100', 'text-slate-400', 'cursor-not-allowed');
+                    pctInput.dataset.lastClean = Math.round(targetSavingPct).toString();
                 }
 
                 this.handleDecisionChange(readDecision);
 
                 if (initData["Asset Name"]) {
-                    this.handleAssetCascadeDropdownChange(initData["Asset Name"], initData["Master Contract ID"]);
+                    // Passaggio del terzo parametro locale al rinfresco cascata
+                    this.handleAssetCascadeDropdownChange(initData["Asset Name"], initData["Master Contract ID"], initData["Contract ID"]);
+
                     const hInput = document.getElementById('modal-init-selected-master-id');
                     if (hInput) hInput.value = initData["Master Contract ID"] || "";
+                    const hContractInput = document.getElementById('modal-init-selected-contract-id');
+                    if (hContractInput) hContractInput.value = initData["Contract ID"] || "";
 
                     if (initData["Master Contract ID"]) {
-                        setTimeout(() => { this.selectMasterCard(initData["Master Contract ID"]); }, 50);
+                        setTimeout(() => {
+                            if (initData["Contract ID"]) {
+                                this.selectContractCard(initData["Master Contract ID"], initData["Contract ID"]);
+                            } else {
+                                this.selectMasterCard(initData["Master Contract ID"]);
+                            }
+                        }, 50);
                     }
                 }
             }
@@ -626,16 +690,17 @@
             mountPoint.querySelector('.bg-white').setAttribute('onclick', 'event.stopPropagation()');
         },
 
+        // 5. Aggiornamento raccolta e persistenza in cache locale dei due ID (Master + Contract)
         commitInitiativeFormToLocalState: function () {
             const initName = document.getElementById('modal-init-name').value.trim();
             const assetName = document.getElementById('modal-init-asset-select').value;
             const masterId = document.getElementById('modal-init-selected-master-id').value;
+            const contractId = document.getElementById('modal-init-selected-contract-id').value; // 🌟 Lettura target locale
             const tDate = document.getElementById('modal-init-target-date').value;
 
             const tCostInput = document.getElementById('modal-init-target-cost');
             const baselineSpend = parseFloat(document.getElementById('modal-init-baseline-display-val').value) || 0;
 
-            // Poiché i campi si aggiornano live a vicenda, il target-cost contiene sempre la verità matematica assoluta
             const tCostVal = tCostInput ? parseInt(tCostInput.value.replace(/[^0-9]/g, ''), 10) || 0 : 0;
             const tSavingPctVal = baselineSpend > 0 ? (baselineSpend - tCostVal) / baselineSpend : 0;
 
@@ -650,6 +715,7 @@
             instance["Initiative Name"] = initName;
             instance["Asset Name"] = assetName;
             instance["Master Contract ID"] = masterId;
+            instance["Contract ID"] = contractId; // 🌟 Persistenza nel DTO in memoria cache
 
             const targetMaster = (windowPayload.masterContracts || []).find(m => String(m["Master Contract ID"]).trim() === masterId.trim());
             if (targetMaster) {
@@ -664,7 +730,7 @@
             instance["Initiative Status"] = document.getElementById('modal-init-status').value;
             instance["Target Date"] = FinOpsDate.toIso(tDate);
             instance["Target Cost (Annualized)"] = tCostVal;
-            instance["Target Saving %"] = tSavingPctVal; // Scrive la percentuale corretta sul foglio
+            instance["Target Saving %"] = tSavingPctVal;
 
             instance["Service Owner"] = document.getElementById('modal-init-owner').value.trim();
             instance["Procurement Point Focal"] = document.getElementById('modal-init-procurement').value.trim();
