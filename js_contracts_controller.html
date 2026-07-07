@@ -285,6 +285,7 @@
     }
 
     // --- Details / Lines Flows ---
+    // --- Details / Lines Flows ---
     function renderDetailItemsTable() {
         const container = document.getElementById('mgmt-detailRowsContainer');
         if (!container) return;
@@ -294,26 +295,19 @@
 
         if (ContractsState.currentDetailItems.length === 0) {
             container.innerHTML = `
-            <div class="text-center py-8 border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/20">
+            <div class="col-span-full text-center py-8 border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/20">
                 <p class="text-slate-400 text-xs italic">No allocation or ramping detail records found for this Master Agreement.</p>
-            </div>
-        `;
+            </div>`;
             updateCommitButtonVisibility();
             return;
         }
 
-        container.innerHTML = `<div id="mgmt-flexible-cards-list" class="space-y-2"></div>`;
-        const listWrapper = document.getElementById('mgmt-flexible-cards-list');
+        // 🌟 FIX PUNTO 1 & 1a: Niente più div intermedi, costruiamo una singola stringa HTML pura
+        let cardsHtml = '';
 
         ContractsState.currentDetailItems.forEach((item) => {
-            const cardDiv = document.createElement('div');
             const d = item.data;
             const docLinks = (d["Contract Links"] || d.contractLinks || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
-
-            // 🌟 FIX: Tutte le righe in background vengono disegnate in sola lettura. 
-            // L'editing avviene esclusivamente in sovraimpressione nella modale!
-            cardDiv.className = "p-4 bg-white border border-slate-200/80 rounded-xl hover:border-teal-400 hover:shadow-md transition-all cursor-pointer select-none text-left";
-            cardDiv.setAttribute("onclick", `toggleCompactAccordion(${item.id}, event)`);
 
             const formatFinance = (val) => (val || 0).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
@@ -328,24 +322,24 @@
             let warningBadgeHTML = '';
             const tolerance = 100;
 
-            if (billingTerms === "Ledger-Driven" && rawCommitment > 0 && !item.isEditing) {
+            if (billingTerms === "Ledger-Driven" && rawCommitment > 0) {
                 const diff = ledgerTotalSum - rawCommitment;
 
                 if (diff > tolerance) {
-                    warningBadgeHTML = `<div class="flex flex-col justify-center text-right border-r border-rose-200 pr-3 mr-1 animate-pulse shrink-0" title="Ledger sum exceeds Total Commitment"><span class="text-[8px] text-rose-500 block uppercase font-black tracking-wider whitespace-nowrap">Overage</span><span class="font-mono font-black text-rose-600 text-[12px] whitespace-nowrap">+ €${formatFinance(diff)}</span></div>`;
+                    warningBadgeHTML = `<div class="flex items-center justify-end bg-rose-50 border border-rose-200 px-2 py-0.5 rounded shadow-sm animate-pulse shrink-0" title="Ledger sum exceeds Total Commitment"><span class="text-[8px] text-rose-500 uppercase font-black tracking-wider whitespace-nowrap mr-1">Overage:</span><span class="font-mono font-black text-rose-600 text-[10px] whitespace-nowrap">+€${formatFinance(diff)}</span></div>`;
                 } else if (diff < -tolerance) {
                     const gap = Math.abs(diff);
                     if (["Minimum Consumption", "Capped Consumption"].includes(pricingModel)) {
-                        warningBadgeHTML = `<div class="flex flex-col justify-center text-right border-r border-amber-200 pr-3 mr-1 shrink-0" title="Missing forecasts to fulfill the contractual Commitment"><span class="text-[8px] text-amber-500 block uppercase font-black tracking-wider whitespace-nowrap">Forecast Gap</span><span class="font-mono font-black text-amber-600 text-[12px] whitespace-nowrap">- €${formatFinance(gap)}</span></div>`;
+                        warningBadgeHTML = `<div class="flex items-center justify-end bg-amber-50 border border-amber-200 px-2 py-0.5 rounded shadow-sm shrink-0" title="Missing forecasts to fulfill the contractual Commitment"><span class="text-[8px] text-amber-500 uppercase font-black tracking-wider whitespace-nowrap mr-1">Forecast Gap:</span><span class="font-mono font-black text-amber-600 text-[10px] whitespace-nowrap">-€${formatFinance(gap)}</span></div>`;
                     } else if (pricingModel === "Pure Consumption") {
-                        warningBadgeHTML = `<div class="flex flex-col justify-center text-right border-r border-sky-200 pr-3 mr-1 shrink-0" title="Current consumption is below the target estimate"><span class="text-[8px] text-sky-500 block uppercase font-black tracking-wider whitespace-nowrap">Under Target</span><span class="font-mono font-black text-sky-600 text-[12px] whitespace-nowrap">- €${formatFinance(gap)}</span></div>`;
+                        warningBadgeHTML = `<div class="flex items-center justify-end bg-sky-50 border border-sky-200 px-2 py-0.5 rounded shadow-sm shrink-0" title="Current consumption is below the target estimate"><span class="text-[8px] text-sky-500 uppercase font-black tracking-wider whitespace-nowrap mr-1">Under Target:</span><span class="font-mono font-black text-sky-600 text-[10px] whitespace-nowrap">-€${formatFinance(gap)}</span></div>`;
                     } else {
-                        warningBadgeHTML = `<div class="flex flex-col justify-center text-right border-r border-orange-200 pr-3 mr-1 shrink-0" title="Logged installments do not cover the full fixed amount"><span class="text-[8px] text-orange-500 block uppercase font-black tracking-wider whitespace-nowrap">Ledger Mismatch</span><span class="font-mono font-black text-orange-600 text-[12px] whitespace-nowrap">- €${formatFinance(gap)}</span></div>`;
+                        warningBadgeHTML = `<div class="flex items-center justify-end bg-orange-50 border border-orange-200 px-2 py-0.5 rounded shadow-sm shrink-0" title="Logged installments do not cover the full fixed amount"><span class="text-[8px] text-orange-500 uppercase font-black tracking-wider whitespace-nowrap mr-1">Ledger Mismatch:</span><span class="font-mono font-black text-orange-600 text-[10px] whitespace-nowrap">-€${formatFinance(gap)}</span></div>`;
                     }
                 }
-            } else if (billingTerms !== "Ledger-Driven" && ["Minimum Consumption", "Capped Consumption", "Pure Consumption"].includes(pricingModel) && !item.isEditing) {
+            } else if (billingTerms !== "Ledger-Driven" && ["Minimum Consumption", "Capped Consumption", "Pure Consumption"].includes(pricingModel)) {
                 if (ledgerTotalSum > tolerance) {
-                    warningBadgeHTML = `<div class="flex flex-col justify-center text-right border-r border-rose-200 pr-3 mr-1 animate-pulse shrink-0" title="Extra consumption logged on top of the fixed baseline"><span class="text-[8px] text-rose-500 block uppercase font-black tracking-wider whitespace-nowrap">Overage Alert</span><span class="font-mono font-black text-rose-600 text-[12px] whitespace-nowrap">+ €${formatFinance(ledgerTotalSum)}</span></div>`;
+                    warningBadgeHTML = `<div class="flex items-center justify-end bg-rose-50 border border-rose-200 px-2 py-0.5 rounded shadow-sm animate-pulse shrink-0" title="Extra consumption logged on top of the fixed baseline"><span class="text-[8px] text-rose-500 uppercase font-black tracking-wider whitespace-nowrap mr-1">Overage Alert:</span><span class="font-mono font-black text-rose-600 text-[10px] whitespace-nowrap">+€${formatFinance(ledgerTotalSum)}</span></div>`;
                 }
             }
 
@@ -357,10 +351,12 @@
             const contractEnd = (d["Contract End Date"] || d.contractEndDate) ? ContractsUtils.formatToEnglishCustomDate(d["Contract End Date"] || d.contractEndDate) : '—';
             const adjEnd = (d["Adjusted End Date"] || d.adjustedEndDate) ? ContractsUtils.formatToEnglishCustomDate(d["Adjusted End Date"] || d.adjustedEndDate) : '—';
 
-            cardDiv.innerHTML = ContractsTemplates.getDetailReadOnlyCard(item, warningBadgeHTML, effCommit, annVal, totCommit, cleanStart, cleanEnd, contractEnd, adjEnd, docLinks, ContractsState.globalEditMode);
-
-            listWrapper.appendChild(cardDiv);
+            // Delega pura al Template
+            cardsHtml += ContractsTemplates.getDetailReadOnlyCard(item, warningBadgeHTML, effCommit, annVal, totCommit, cleanStart, cleanEnd, contractEnd, adjEnd, docLinks, ContractsState.globalEditMode);
         });
+
+        // 🌟 Scrittura Dom singola massiva (Altissime performance)
+        container.innerHTML = cardsHtml;
 
         const targetLinks = container.querySelectorAll('.live-doc-link');
         if (targetLinks.length > 0) {
@@ -378,17 +374,22 @@
         }
     }
 
+    // 🌟 FIX PUNTO 3: Assicuriamoci che il toggle ignori i click sui link o bottoni e ruoti la freccia
     function toggleCompactAccordion(id, event) {
-        if (event.target.tagName === 'BUTTON' || event.target.closest('button') || event.target.closest('span.tt-wrapper')) return;
+        // Se si clicca un tasto, un link o un tooltip non aprire la card
+        if (event && (event.target.tagName === 'BUTTON' || event.target.closest('button') || event.target.closest('span.tt-wrapper') || event.target.tagName === 'A')) return;
+        
         const panel = document.getElementById(`compact-accordion-${id}`);
         const chevron = document.getElementById(`compact-chevron-${id}`);
+        
         if (!panel) return;
+        
         if (panel.classList.contains('hidden')) {
             panel.classList.remove('hidden');
-            if (chevron) chevron.classList.add('rotate-90');
+            if (chevron) chevron.style.transform = "rotate(90deg)";
         } else {
             panel.classList.add('hidden');
-            if (chevron) chevron.classList.remove('rotate-90');
+            if (chevron) chevron.style.transform = "rotate(0deg)";
         }
     }
 
@@ -511,6 +512,12 @@
                 item.data = calculatedItem;
                 item.isEditing = false;
                 ContractsState.hasUnsavedChanges = true;
+
+                // 🌟 FIX: Chiudi la modale prima di ri-renderizzare la tabella!
+                if (window.ContractsController && window.ContractsController.closeContractModalWindow) {
+                    window.ContractsController.closeContractModalWindow();
+                }
+
                 renderDetailItemsTable();
             },
             (err) => {
@@ -522,7 +529,10 @@
 
     function addNewDetailRowItem() {
         ContractsState.addNewDetailRow();
-        renderDetailItemsTable();
+
+        // 🌟 FIX: Invece di renderizzare una riga rotta, apri istantaneamente la Modale
+        const latestItem = ContractsState.currentDetailItems[ContractsState.currentDetailItems.length - 1];
+        ContractsController.openContractModalWindow(latestItem.id);
     }
 
     function removeRowFromLocalArchitecture(id) {
@@ -763,20 +773,64 @@
         );
     }
 
+    // 🌟 BLOCCO INTEGRATO FINALE: Sovrascrive l'oggetto globale esponendo tutte le API verso la View
     window.ContractsController = {
+        
         updateSplitPlaceholder: function (selectEl) {
             const row = selectEl.closest('.split-row-item');
             const inputEl = row.querySelector('.split-val');
             const rule = selectEl.value;
-
             if (rule === 'Percentage') inputEl.placeholder = '% (e.g. 50)';
             else if (rule === 'Fixed Amount') inputEl.placeholder = '€ (e.g. 15.000)';
             else inputEl.placeholder = 'Qty (e.g. 150)';
-
             ContractsUtils.formatSplitValue(inputEl);
         },
 
-        // 🌟 NUOVO METODO: Chiusura della modale contratto con reset dello stato
+        // 🌟 PUNTO 5: Metodo per accendere/spegnere i pannelli Ledger e Split dalla card
+        toggleCardSection: function(id, section, event) {
+            event.stopPropagation(); // Evita che si espanda anche l'accordion della card
+            const panel = document.getElementById(`read-${section}-${id}`);
+            if (panel) {
+                panel.classList.toggle('hidden');
+            }
+        },
+
+        openContractModalWindow: function (id) {
+            const mountPoint = document.getElementById('contracts-modal-mount-point');
+            if (!mountPoint) return;
+
+            const item = ContractsState.currentDetailItems.find(i => i.id === id);
+            if (!item) return;
+            item.isEditing = true;
+
+            const d = item.data;
+            const docLinks = (d["Contract Links"] || d.contractLinks || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
+
+            const editLeOptions = ContractsUtils.extractUniqueField(windowPayload.legalEntities, "Legal Entity").map(le => `<option value="${le}" ${le === (d["Legal Entity"] || d.legalEntity) ? 'selected' : ''}>${le}</option>`).join('');
+            const tgOptions = ContractsState.currentAssetGroupIds.map(g => `<option value="${g}" ${g === d["Target Group ID"] ? 'selected' : ''}>${g}</option>`).join('');
+            const locOptions = ContractsUtils.extractUniqueField(windowPayload.locations, "Location").map(loc => `<option value="${loc}" ${loc === (d["Location"] || d.location) ? 'selected' : ''}>${loc}</option>`).join('');
+            const soOptions = ContractsUtils.extractUniqueField(windowPayload.contracts, "Service Owner").map(so => `<option value="${so}" ${so === (d["Service Owner"] || d.serviceOwner) ? 'selected' : ''}>${so}</option>`).join('');
+            const editCcOptions = ContractsUtils.extractUniqueField(windowPayload.costCenters, "Cost Center").map(cc => `<option value="${cc}" ${cc === (d["Cost Center"] || d.costCenter) ? 'selected' : ''}>${cc}</option>`).join('');
+
+            const baseLeOptions = ContractsUtils.extractUniqueField(windowPayload.legalEntities, "Legal Entity").map(le => `<option value="${le}">${le}</option>`).join('');
+            const baseCcOptions = ContractsUtils.extractUniqueField(windowPayload.costCenters, "Cost Center").map(cc => `<option value="${cc}">${cc}</option>`).join('');
+
+            let splitsHtml = item.splits && item.splits.length > 0
+                ? item.splits.map(s => ContractsTemplates.getSplitRow(item.id, s, d["Start Date"]?.split('T')[0] || "", d["Contract End Date"]?.split('T')[0] || "", baseLeOptions, baseCcOptions)).join('')
+                : `<p class="text-[9px] text-emerald-600 font-medium text-center py-2 empty-split-msg bg-emerald-50/50 rounded-md">➔ Standard Allocation Active (100% to main entity).</p>`;
+
+            let ledgerHtml = item.ledger && item.ledger.length > 0
+                ? item.ledger.map(l => ContractsTemplates.getLedgerRow(item.id, l)).join('')
+                : `<p class="text-[9px] text-slate-400 italic text-center py-2 empty-ledger-msg bg-slate-50 rounded-md">No manual ledger movements yet.</p>`;
+
+            mountPoint.innerHTML = ContractsTemplates.getContractModalFormStructure(id, editLeOptions, tgOptions, locOptions, soOptions, editCcOptions, docLinks, splitsHtml, ledgerHtml, d);
+            
+            mountPoint.classList.remove('hidden');
+            mountPoint.classList.add('flex');
+            
+            toggleLedgerVisibility(id);
+        },
+
         closeContractModalWindow: function () {
             const mountPoint = document.getElementById('contracts-modal-mount-point');
             if (mountPoint) {
@@ -785,25 +839,81 @@
                 mountPoint.innerHTML = '';
             }
 
-            // Ripulisce lo stato di isEditing. 
-            // Se la riga era stata appena creata da zero e si fa Cancel, la rimuoviamo per non lasciare card vuote.
             ContractsState.currentDetailItems = ContractsState.currentDetailItems.filter(i => {
                 if (i.isEditing && (!i.data["Contract ID"] && !i.data.contractId && (!i.data["Start Date"] && !i.data.startDate))) {
-                    return false; // Elimina la bozza vuota
+                    return false;
                 }
                 i.isEditing = false;
                 return true;
             });
 
             renderDetailItemsTable();
+        },
+
+        cancelMasterFormEditState: function (isNew) {
+            if (isNew) {
+                document.getElementById('mgmt-master-form-container').classList.add('hidden');
+                ContractsState.currentMasterData = null;
+                ContractsState.currentDetailItems = [];
+            } else {
+                ContractsState.updateMasterEditState(false);
+                renderMasterFormBox();
+            }
+        },
+
+        filterSupplierOptions: function (query) {
+            const listContainer = document.getElementById('ins-supplier-options-list');
+            if (!listContainer) return;
+            const q = query.toLowerCase().trim();
+            const suppliersList = ContractsUtils.extractUniqueField(windowPayload.masterContracts || windowPayload.contracts, "Supplier");
+
+            const matched = suppliersList.filter(s => s.toLowerCase().includes(q));
+            if (matched.length === 0) {
+                listContainer.innerHTML = `<div onclick="ContractsController.selectSupplierOption('${query.replace(/'/g, "\\'")}')" class="p-1.5 text-[11px] font-black text-indigo-600 hover:bg-slate-50 rounded-md cursor-pointer">➕ Create "${query.toUpperCase()}" as new Vendor Context</div>`;
+                return;
+            }
+
+            listContainer.innerHTML = matched.map(s => `
+                <div onclick="ContractsController.selectSupplierOption('${s.replace(/'/g, "\\'")}')" class="p-1.5 text-[11px] font-bold text-slate-700 hover:bg-teal-50 hover:text-teal-900 rounded-md cursor-pointer transition-colors">${s}</div>
+            `).join('');
+        },
+
+        toggleSupplierDropdown: function (show) {
+            const listContainer = document.getElementById('ins-supplier-options-list');
+            if (!listContainer) return;
+            if (show) {
+                listContainer.classList.remove('hidden');
+                const searchInput = document.getElementById('ins-masterSupplier-search');
+                if (searchInput) this.filterSupplierOptions(searchInput.value);
+            } else {
+                setTimeout(() => { listContainer.classList.add('hidden'); }, 200);
+            }
+        },
+
+        // 🌟 PUNTO 2: Auto-assegnazione del Billing Channel
+        selectSupplierOption: function (supplierName) {
+            document.getElementById('ins-masterSupplier-search').value = supplierName;
+            document.getElementById('ins-masterSupplier').value = supplierName;
+            document.getElementById('ins-supplier-options-list').classList.add('hidden');
+            
+            // Cerca il Billing channel nel database fornitori, altrimenti applica il default
+            const suppliers = windowPayload.suppliers || [];
+            const supObj = suppliers.find(s => String(s["Supplier"]).trim().toLowerCase() === supplierName.toLowerCase());
+            const channel = supObj ? (supObj["Billing Channel"] || 'Direct Vendor') : 'Direct Vendor';
+            
+            const channelDisplay = document.getElementById('ins-masterBillingChannel-display');
+            const channelInput = document.getElementById('ins-masterBillingChannel');
+            
+            if (channelDisplay) channelDisplay.textContent = channel;
+            if (channelInput) channelInput.value = channel;
         }
     };
 
+    // Chiudi tendina se clicchi fuori
     document.addEventListener('click', function (e) {
         const assetDrop = document.getElementById('modal-asset-options-list');
         const comboContainer = document.getElementById('modal-asset-combo-container');
-
-        // 🌟 AGGIUNTA CHIRURGICA: Chiude la tendina dei Supplier se clicchi fuori dal box di ricerca
+        
         const supplierDrop = document.getElementById('ins-supplier-options-list');
         const supplierSearchInput = document.getElementById('ins-masterSupplier-search');
         if (supplierDrop && !supplierDrop.classList.contains('hidden') && supplierSearchInput && !supplierSearchInput.contains(e.target)) {
