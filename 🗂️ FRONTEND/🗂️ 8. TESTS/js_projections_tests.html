@@ -1,0 +1,36 @@
+<script>
+    // Inizializziamo la suite per il dominio Proiezioni
+    const projSuite = FinOpsTestRunner.createSuite("ProjectionsEngine");
+
+    projSuite.add("ContractProjection - Rollover virtuale oltre la End Date", (assert) => {
+        // ARRANGE
+        const dto = { 
+            contractId: "CTR-TDD-ROLLOVER", 
+            startDate: "2025-01-01", 
+            endDate: "2026-12-31", 
+            costRecurrence: "Recurrent", 
+            annualValue: 100000 
+        };
+        const fy28 = new TimePeriod("FY28", "2027-07-01", "2028-06-30");
+        
+        // ACT (Usa la classe che vive nel nuovo js_projections_engine.html)
+        const projection = new ContractProjection(dto, fy28, []);
+
+        // ASSERT
+        assert.equal(projection.calculateBaseline(), 100000);
+        assert.equal(projection.calculateOptimized(), 100000);
+    });
+
+    projSuite.add("ContractProjection - Iniziativa TERMINATE azzera il costo", (assert) => {
+        const dto = { contractId: "CTR-TERM", startDate: "2025-07-01", contractEndDate: "2026-06-30", costRecurrence: "Recurrent", annualValue: 365000 };
+        const fy26 = new TimePeriod("FY26", "2025-07-01", "2026-06-30");
+
+        // Mock di un'iniziativa client-side
+        const terminateInit = { "Initiative Status": "COMPLETED", "Decision": "TERMINATE", "Target Date": "2026-04-01" };
+        
+        const projection = new ContractProjection(dto, fy26, [terminateInit]);
+        
+        assert.equal(projection.calculateBaseline(), 365000);
+        assert.closeTo(projection.calculateOptimized(), 273750, 10);
+    });
+</script>

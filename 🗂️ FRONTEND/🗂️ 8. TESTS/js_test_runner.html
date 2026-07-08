@@ -1,0 +1,71 @@
+<script>
+    /**
+     * ============================================================================
+     * CLIENT-SIDE TEST RUNNER (Non-Regression Testing)
+     * ============================================================================
+     */
+    const FinOpsTestRunner = {
+        suites: {},
+        
+        // Crea una nuova suite (es. "Proiezioni", "Iniziative")
+        createSuite: function(suiteName) {
+            this.suites[suiteName] = [];
+            return {
+                add: (description, testFunction) => {
+                    this.suites[suiteName].push({ description, fn: testFunction });
+                }
+            };
+        },
+
+        // Libreria di asserzioni (Replica di quella GAS)
+        assert: {
+            equal: function(actual, expected, message = "L'asserzione è fallita") {
+                if (actual !== expected) {
+                    throw new Error(`${message} -> Atteso: [${expected}], Ottenuto: [${actual}]`);
+                }
+            },
+            closeTo: function(actual, expected, delta, message = "L'asserzione è fallita") {
+                if (Math.abs(actual - expected) > delta) {
+                    throw new Error(`${message} -> Atteso: circa [${expected}] (+/- ${delta}), Ottenuto: [${actual}]`);
+                }
+            },
+            isTrue: function(condition, message = "L'asserzione è fallita") {
+                if (!condition) throw new Error(`${message} -> Condizione non vera.`);
+            }
+        },
+
+        // Esegue tutti i test e stampa i risultati nella Console
+        runAll: function() {
+            console.clear();
+            console.log("%c🧪 AVVIO FINOPS CLIENT-SIDE TEST SUITE", "color: #0ea5e9; font-weight: 900; font-size: 16px;");
+            
+            let totalPass = 0;
+            let totalFail = 0;
+            const startTime = performance.now();
+
+            for (const [suiteName, tests] of Object.entries(this.suites)) {
+                console.groupCollapsed(`%c📦 SUITE: ${suiteName} (${tests.length} test)`, "color: #6366f1; font-weight: bold; font-size: 14px;");
+                
+                tests.forEach(t => {
+                    try {
+                        t.fn(this.assert);
+                        console.log(`%c✅ PASS: ${t.description}`, "color: #16a34a; font-weight: bold;");
+                        totalPass++;
+                    } catch (error) {
+                        console.error(`❌ FAIL: ${t.description}\n   ${error.message}`);
+                        totalFail++;
+                    }
+                });
+                console.groupEnd();
+            }
+
+            const duration = (performance.now() - startTime).toFixed(2);
+            console.log("%c========================================", "color: #94a3b8;");
+            if (totalFail === 0) {
+                console.log(`%c🎉 TUTTI I TEST PASSATI! (${totalPass}/${totalPass}) in ${duration}ms`, "color: #15803d; font-weight: 900; font-size: 14px;");
+            } else {
+                console.log(`%c⚠️ ATTENZIONE: ${totalFail} TEST FALLITI SU ${totalPass + totalFail}`, "color: #dc2626; font-weight: 900; font-size: 14px;");
+            }
+        }
+    };
+</script>
