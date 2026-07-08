@@ -266,56 +266,53 @@
 
         getFinancialBridgeModalMarkup: function (assetName) {
             return `
-            <div class="bg-white rounded-2xl border border-slate-200 p-6 w-full max-w-[90vw] shadow-2xl relative animate-fade-in flex flex-col h-[90vh] min-h-[700px]" onclick="event.stopPropagation()">
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 w-full max-w-[94vw] shadow-2xl relative animate-fade-in text-xs flex flex-col h-[90vh] min-h-[680px]" onclick="event.stopPropagation()">
                 
-                <div class="flex justify-between items-start border-b border-slate-100 pb-3 mb-5 shrink-0">
+                <div class="flex justify-between items-start border-b border-slate-100 pb-3 mb-4 shrink-0">
                     <div>
                         <div class="flex items-center gap-2 mb-1">
-                            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded shadow-3xs">Asset Accrual & Lifecycle Bridge</span>
+                            <span class="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded shadow-3xs uppercase tracking-widest">Ecosystem Financial Bridge</span>
                         </div>
-                        <h3 class="text-xl font-black text-slate-800 tracking-tight">${assetName}</h3>
-                        <p class="text-[11px] text-slate-500 font-medium mt-0.5">Stacked monthly distribution showing specific contracts phasing in and out. Scroll horizontally to view full timeline.</p>
+                        <h3 class="text-lg font-black text-slate-800 tracking-tight">${assetName}</h3>
+                        <p class="text-[11px] text-slate-500 font-medium mt-0.5">Granular monthly accrual map derived from database fiscal allocations. Semi-transparent blocks indicate forecasted virtual renewals.</p>
                     </div>
                     <button onclick="ProjectionsController.closeFinancialBridgeModal()" class="text-slate-400 hover:text-rose-600 text-2xl font-black leading-none ml-4 transition-colors hover:scale-110 cursor-pointer">×</button>
                 </div>
 
                 <div class="flex-1 flex flex-col gap-4 min-h-0 overflow-hidden">
                     
-                    <div class="grid grid-cols-4 gap-4 shrink-0">
+                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 shrink-0 text-left">
                         <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl shadow-inner">
-                            <span class="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">Current Run-Rate (This Month)</span>
-                            <span id="bridge-kpi-current" class="font-mono text-lg font-black text-slate-700">...</span>
+                            <span class="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">Current Run Rate (This Month)</span>
+                            <span id="bridge-kpi-current" class="font-mono text-base font-black text-slate-800">€ 0</span>
                         </div>
                         <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl shadow-inner">
-                            <span class="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">YoY Trend (FY26 ➔ FY27)</span>
-                            <span id="bridge-kpi-yoy1" class="font-mono text-lg font-black text-slate-700">...</span>
+                            <span class="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">YoY Trend (FY26 ➔ FY27)</span>
+                            <span id="bridge-kpi-yoy1" class="font-mono text-base font-black">...</span>
                         </div>
                         <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl shadow-inner">
-                            <span class="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">YoY Trend (FY27 ➔ FY28)</span>
-                            <span id="bridge-kpi-yoy2" class="font-mono text-lg font-black text-slate-700">...</span>
+                            <span class="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">YoY Trend (FY27 ➔ FY28)</span>
+                            <span id="bridge-kpi-yoy2" class="font-mono text-base font-black">...</span>
                         </div>
                         <div class="bg-teal-700 text-white border border-teal-800 p-3 rounded-xl shadow-md flex flex-col justify-center">
-                            <span class="text-[9px] font-black uppercase tracking-widest text-teal-200 block mb-0.5">Total P&L Accrual (Displayed)</span>
-                            <span id="bridge-kpi-total" class="font-mono text-2xl font-black">...</span>
+                            <span class="text-[8px] font-black uppercase tracking-widest text-teal-200 block mb-0.5">Total Displayed Cost (Cumulative)</span>
+                            <span id="bridge-kpi-total" class="font-mono text-xl font-black">€ 0</span>
                         </div>
                     </div>
 
-                    <div class="flex-1 bg-white border border-slate-200 rounded-xl p-3 shadow-sm min-h-[220px] relative">
+                    <div class="flex-1 bg-white border border-slate-200 rounded-xl p-3 shadow-sm relative min-h-[220px]">
                         <canvas id="bridge-modal-chart"></canvas>
                     </div>
 
-                    <div class="shrink-0 bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col h-48 overflow-hidden relative">
-                        <div class="overflow-auto custom-scrollbar h-full w-full">
-                            <table class="w-full text-left border-collapse whitespace-nowrap">
-                                <thead class="sticky top-0 z-20 bg-slate-100 shadow-sm">
-                                    <tr id="bridge-table-header" class="text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                                        </tr>
+                    <div class="shrink-0 bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col h-48">
+                        <div class="flex-1 overflow-auto custom-scrollbar h-full w-full">
+                            <table class="w-full text-left border-collapse whitespace-nowrap min-w-max">
+                                <thead class="sticky top-0 z-20 bg-slate-100 shadow-sm text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                                    <tr id="bridge-table-header"></tr>
                                 </thead>
-                                <tbody id="bridge-table-body" class="text-[10px] text-slate-600 font-medium divide-y divide-slate-100">
-                                    </tbody>
-                                <tfoot class="sticky bottom-0 z-20 bg-slate-50 border-t-2 border-slate-200 shadow-[0_-2px_5px_rgba(0,0,0,0.05)]">
-                                    <tr id="bridge-table-footer" class="text-[11px] font-black text-slate-800 font-mono">
-                                        </tr>
+                                <tbody id="bridge-table-body" class="text-[10px] text-slate-600 font-medium divide-y divide-slate-100"></tbody>
+                                <tfoot class="sticky bottom-0 z-20 bg-slate-50 border-t-2 border-slate-200 shadow-lg text-[11px] font-black text-slate-800 font-mono">
+                                    <tr id="bridge-table-footer"></tr>
                                 </tfoot>
                             </table>
                         </div>

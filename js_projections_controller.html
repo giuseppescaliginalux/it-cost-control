@@ -498,35 +498,30 @@
             });
         },
 
-        // 🌟 GESTIONE MODALE "FINANCIAL BRIDGE" (CON CHIAMATA API ON-DEMAND IN RAM)
+        // 🌟 ORCHESTRATORE FINANCIAL BRIDGE: Legge i dati arricchiti in RAM e disegna (0 Latenza)
+        // 🌟 ORCHESTRATORE FINANCIAL BRIDGE: Legge i dati arricchiti in RAM e disegna (0 Latenza)
         openFinancialBridgeModal: function (assetName) {
             const mountPoint = document.getElementById('proj-modal-mount-point');
-            if (!mountPoint) return;
+            if (!mountPoint) {
+                // Se non esiste il mount point per la modale, creiamolo al volo nel body
+                const div = document.createElement('div');
+                div.id = 'proj-modal-mount-point';
+                div.className = 'hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4 transition-opacity';
+                div.onclick = () => this.closeFinancialBridgeModal();
+                document.body.appendChild(div);
+            }
 
-            mountPoint.innerHTML = `
-            <div class="bg-white rounded-2xl border border-slate-200 p-8 shadow-2xl flex flex-col items-center justify-center animate-fade-in">
-                <div class="w-10 h-10 border-4 border-teal-600/20 border-t-teal-600 rounded-full animate-spin mb-4"></div>
-                <h3 class="text-sm font-black text-slate-800 tracking-tight">Generating Accrual Stack</h3>
-                <p class="text-[10px] text-slate-500 font-medium mt-1">Analyzing specific contract lifecycles for ${assetName}...</p>
-            </div>`;
+            const activeMount = document.getElementById('proj-modal-mount-point');
+            activeMount.innerHTML = ProjectionsTemplates.getFinancialBridgeModalMarkup(assetName);
+            activeMount.classList.remove('hidden');
+            activeMount.classList.add('flex');
 
-            mountPoint.classList.remove('hidden');
-            mountPoint.classList.add('flex');
+            // Peschiamo le proiezioni arricchite dal payload per questo Asset
+            const records = (windowPayload.projections || []).filter(p =>
+                String(p["Asset Name"] || p.assetName || "").trim().toLowerCase() === assetName.toLowerCase().trim()
+            );
 
-            google.script.run
-                .withSuccessHandler((response) => {
-                    mountPoint.innerHTML = ProjectionsTemplates.getFinancialBridgeModalMarkup(assetName);
-                    this.renderBridgeChartAndTable(response.contracts);
-                })
-                .withFailureHandler((err) => {
-                    mountPoint.innerHTML = `
-                    <div class="bg-white rounded-2xl border border-rose-200 p-8 shadow-2xl flex flex-col items-center relative">
-                        <button onclick="ProjectionsController.closeFinancialBridgeModal()" class="absolute top-4 right-4 text-slate-400 font-black">×</button>
-                        <h3 class="text-sm font-black text-rose-700 tracking-tight">Error</h3>
-                        <p class="text-[10px] text-slate-600">${err.message}</p>
-                    </div>`;
-                })
-                .apiGetAssetFinancialBridge(assetName);
+            this.renderBridgeChartAndTable(records);
         },
 
         closeFinancialBridgeModal: function () {
@@ -538,260 +533,175 @@
             }
         },
 
-        // 🌟 MOTORE CLIENT-SIDE: 0 Latenza, calcola Accrual e Rollover Virtuali in RAM nel browser
-        buildClientSideMonthlyData: function(assetName) {
-            const targetContracts = (windowPayload.contracts || []).filter(c =>
-                String(c["Asset Name"] || "").trim().toLowerCase() === String(assetName).trim().toLowerCase()
-            );
-            const allInits = windowPayload.initiatives || [];
+        renderBridgeChartAndTable: function (records) {
+            if (!records || records.length === 0) return;
+
+            // 1. ASSE TEMPORALE DINAMICO (Basato sui mesi effettivamente presenti negli oggetti)
+            let minDate = new Date(2025, 6, 1);  // Base FY26
+            let maxDate = new Date(2028, 5, 30); // Base FY28
+
+            records.forEach(r => {
+                const actualKeys = Object.keys(r.monthlyActual || {});
+                const virtualKeys = Object.keys(r.monthlyVirtual || {});
+                [...actualKeys, ...virtualKeys].forEach(mk => {
+                    let [y, m] = mk.split('-');
+                    let d = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1);
+                    if (d < minDate) minDate = new Date(d.getFullYear(), d.getMonth(), 1);
+                    if (d > maxDate) maxDate = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+                });
+            });
 
             const monthKeys = [];
             const labels = [];
             const fyMap = [];
-            let dCursor = new Date(2025, 6, 1); // Luglio 2025 (Inizio FY26)
-            
-            // Fissato a 36 mesi per coprire esattamente FY26, FY27, FY28
-            for (let i = 0; i < 36; i++) {
-                let y = dCursor.getFullYear();
-                let m = dCursor.getMonth();
-                monthKeys.push({ y, m, key: `${y}-${String(m + 1).padStart(2, '0')}`, date: new Date(y, m, 1) });
-                labels.push(dCursor.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
+
+            let currentD = new Date(minDate);
+            while (currentD <= maxDate) {
+                let y = currentD.getFullYear();
+                let m = currentD.getMonth();
+                monthKeys.push(`${y}-${String(m + 1).padStart(2, '0')}`);
+                labels.push(currentD.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
                 fyMap.push(`FY${String(m >= 6 ? y + 1 : y).slice(-2)}`);
-                dCursor.setMonth(m + 1);
+                currentD.setMonth(m + 1);
             }
 
-            const results = [];
-
-            targetContracts.forEach(c => {
-                const mId = String(c["Master Contract ID"]).trim();
-                // Prendi solo iniziative completate o in progressive
-                const inits = allInits.filter(i => String(i["Master Contract ID"]).trim() === mId && ["COMPLETED", "IN PROGRESS", "IDEA"].includes(String(i["Initiative Status"]).toUpperCase()));
-                inits.sort((a, b) => new Date(a["Target Date"] || "2099-01-01") - new Date(b["Target Date"] || "2099-01-01"));
-
-                const annVal = parseFloat(c["Annual Value"]) || 0;
-                const isRecurrent = String(c["Cost Recurrence"]).toLowerCase() === "recurrent";
-                const isUpfront = String(c["Billing Terms"]).toUpperCase().includes("UPFRONT");
-                
-                const cStart = c["Start Date"] ? new Date(c["Start Date"]) : new Date(2000, 0, 1);
-                let cEnd = c["End Date"] ? new Date(c["End Date"]) : null;
-                if (!cEnd && c["Contract End Date"]) cEnd = new Date(c["Contract End Date"]);
-
-                let nominalData = new Array(36).fill(0);
-                let virtualData = new Array(36).fill(0);
-
-                monthKeys.forEach((mk, idx) => {
-                    const mStart = mk.date;
-                    const mEnd = new Date(mk.y, mk.m + 1, 0);
-
-                    // Controlla se siamo oltre la data di scadenza (Rollover virtuale)
-                    let isVirtual = cEnd && mStart > cEnd;
-                    if (isVirtual && !isRecurrent) return; // Se muore e non è ricorrente, costo = 0
-
-                    let currentRunRate = annVal;
-                    let terminated = false;
-
-                    // Applica le iniziative di saving storicamente valide per questo mese
-                    inits.forEach(init => {
-                        const tDate = new Date(init["Target Date"]);
-                        if (tDate <= mEnd) {
-                            const decision = String(init["Decision"] || "").toUpperCase();
-                            if (["TERMINATE", "REPLACE", "TRANSFER"].includes(decision)) {
-                                terminated = true;
-                            } else {
-                                const pct = parseFloat(init["Target Saving %"]) || 0;
-                                currentRunRate = currentRunRate * (1 - pct);
-                            }
-                        }
-                    });
-
-                    if (terminated) return;
-
-                    let monthlyVal = 0;
-                    if (isUpfront) {
-                        if (cStart >= mStart && cStart <= mEnd) monthlyVal = parseFloat(c["Total Commitment"]) || 0;
-                        if (isRecurrent && isVirtual) monthlyVal = currentRunRate / 12; // Spalmatura semplificata del rinnovo virtuale upfront
-                    } else {
-                        let overlapStart = mStart < cStart ? cStart : mStart;
-                        if (overlapStart <= mEnd) {
-                             let daysActive = Math.round((mEnd - overlapStart) / 86400000) + 1;
-                             let daysInMonth = Math.round((mEnd - mStart) / 86400000) + 1;
-                             monthlyVal = (currentRunRate / 12) * (daysActive / daysInMonth);
-                        }
-                    }
-
-                    if (isVirtual) virtualData[idx] = monthlyVal;
-                    else nominalData[idx] = monthlyVal;
-                });
-
-                results.push({ contract: c, nominal: nominalData, virtual: virtualData });
-            });
-
-            return { labels, monthKeys, fyMap, results };
-        },
-
-        openFinancialBridgeModal: function (assetName) {
-            const mountPoint = document.getElementById('proj-modal-mount-point');
-            if (!mountPoint) return;
-
-            mountPoint.innerHTML = ProjectionsTemplates.getFinancialBridgeModalMarkup(assetName);
-            mountPoint.classList.remove('hidden');
-            mountPoint.classList.add('flex');
-
-            // Zero Latenza: processa tutto istantaneamente nel browser
-            setTimeout(() => {
-                const data = this.buildClientSideMonthlyData(assetName);
-                this.renderBridgeChartAndTable(data);
-            }, 10);
-        },
-
-        closeFinancialBridgeModal: function () {
-            const mountPoint = document.getElementById('proj-modal-mount-point');
-            if (!mountPoint) return;
-            mountPoint.classList.remove('flex');
-            mountPoint.classList.add('hidden');
-            mountPoint.innerHTML = '';
-        },
-
-        renderBridgeChartAndTable: function (dataContext) {
-            const { labels, monthKeys, fyMap, results } = dataContext;
-            const palette = ['#0f766e', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#10b981', '#f43f5e', '#0ea5e9'];
-            
-            // Helper per rgba (Rinnovi Virtuali semitrasparenti)
-            const hexToRgba = (hex, alpha) => {
-                let r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
-                return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-            };
-
+            // 2. PREPARAZIONE DATASET PER CHART.JS E TABELLA
+            const palette = ['#0f766e', '#2563eb', '#d97706', '#7c3aed', '#db2777', '#059669', '#e11d48', '#0284c7'];
             const datasets = [];
             const tableRowsHtml = [];
 
-            let totalDisplayed = 0;
-            const monthlyTotals = new Array(36).fill(0);
-            let fy26Total = 0, fy27Total = 0, fy28Total = 0;
+            let totalAccrualSum = 0;
+            let fy26Sum = 0, fy27Sum = 0, fy28Sum = 0;
+            const monthlyTotalsArray = new Array(monthKeys.length).fill(0);
 
-            results.sort((a, b) => (parseFloat(b.contract["Total Commitment"]) || 0) - (parseFloat(a.contract["Total Commitment"]) || 0));
+            records.sort((a, b) => (b.fy26Optimized || 0) - (a.fy26Optimized || 0));
 
-            results.forEach((res, index) => {
-                const c = res.contract;
-                const color = palette[index % palette.length];
-                
-                let hasNominal = false, hasVirtual = false;
-                
-                // Tracciamento totali
-                for(let i=0; i<36; i++) {
-                    let val = res.nominal[i] + res.virtual[i];
-                    if (res.nominal[i] > 0) hasNominal = true;
-                    if (res.virtual[i] > 0) hasVirtual = true;
-                    
-                    monthlyTotals[i] += val;
-                    totalDisplayed += val;
-                    if (fyMap[i] === 'FY26') fy26Total += val;
-                    if (fyMap[i] === 'FY27') fy27Total += val;
-                    if (fyMap[i] === 'FY28') fy28Total += val;
-                }
+            records.forEach((r, index) => {
+                const baseColor = palette[index % palette.length];
+                const legalEntity = r["Legal Entity"] || r.legalEntity || "Corporate";
 
-                // Costruisci Fetta Nominale (Colore Pieno)
-                if (hasNominal) {
+                // Array per le due fette
+                const actualData = new Array(monthKeys.length).fill(0);
+                const virtualData = new Array(monthKeys.length).fill(0);
+                let hasActual = false, hasVirtual = false;
+
+                monthKeys.forEach((mk, mIdx) => {
+                    const actVal = parseFloat((r.monthlyActual || {})[mk]) || 0;
+                    const virtVal = parseFloat((r.monthlyVirtual || {})[mk]) || 0;
+
+                    if (actVal > 0) { actualData[mIdx] = actVal; hasActual = true; }
+                    if (virtVal > 0) { virtualData[mIdx] = virtVal; hasVirtual = true; }
+
+                    const combined = actVal + virtVal;
+                    monthlyTotalsArray[mIdx] += combined;
+                    totalAccrualSum += combined;
+
+                    if (fyMap[mIdx] === 'FY26') fy26Sum += combined;
+                    if (fyMap[mIdx] === 'FY27') fy27Sum += combined;
+                    if (fyMap[mIdx] === 'FY28') fy28Sum += combined;
+                });
+
+                // Aggiunta Fetta Actual (Solida)
+                if (hasActual) {
                     datasets.push({
-                        label: (c["Legal Entity"] || 'Corporate') + ' (Active Contract)',
-                        data: res.nominal,
-                        backgroundColor: color,
+                        label: `${legalEntity} (Actual)`,
+                        data: actualData,
+                        backgroundColor: baseColor,
                         borderRadius: 2,
                         barPercentage: 0.75,
-                        contractMeta: { scope: c["Scope"], exp: c["Expenditure Type"], commit: c["Total Commitment"], pricing: c["Pricing Model"] }
+                        contractMeta: r
                     });
                 }
 
-                // Costruisci Fetta Virtuale (Rinnovo Semi-trasparente)
+                // Aggiunta Fetta Virtual (Semi-trasparente)
                 if (hasVirtual) {
+                    const rgb = parseInt(baseColor.slice(1, 3), 16) + ',' + parseInt(baseColor.slice(3, 5), 16) + ',' + parseInt(baseColor.slice(5, 7), 16);
                     datasets.push({
-                        label: (c["Legal Entity"] || 'Corporate') + ' (Virtual Renewal)',
-                        data: res.virtual,
-                        backgroundColor: hexToRgba(color, 0.4), // 🌟 Semi-trasparente!
-                        borderColor: color,
+                        label: `${legalEntity} (Virtual Renewal)`,
+                        data: virtualData,
+                        backgroundColor: `rgba(${rgb}, 0.35)`,
+                        borderColor: baseColor,
                         borderWidth: 1,
-                        borderDash: [2, 2],
+                        borderDash: [3, 3],
                         borderRadius: 2,
                         barPercentage: 0.75,
-                        contractMeta: { scope: "Estimated Renewal - " + c["Scope"], exp: c["Expenditure Type"], commit: "Estimated", pricing: "Rollover" }
+                        contractMeta: r
                     });
                 }
 
-                if (hasNominal || hasVirtual) {
-                    let rowHtml = `
-                    <tr class="hover:bg-slate-50 transition-colors">
-                        <td class="sticky left-0 bg-white group-hover:bg-slate-50 p-2 border-r border-slate-200 z-10 w-48 max-w-[12rem]">
-                            <div class="flex items-center gap-1.5 truncate">
-                                <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${color}"></span>
-                                <div class="min-w-0">
-                                    <div class="font-bold text-slate-800 truncate" title="${c["Legal Entity"]}">${c["Legal Entity"] || 'Corporate'}</div>
-                                    <div class="text-[8px] text-slate-400 truncate" title="${c["Scope"]}">${c["Scope"]}</div>
-                                </div>
+                // Aggiunta Riga Tabellare (Fonde Actual e Virtual per la vista matriciale)
+                let rowHtml = `
+                <tr class="hover:bg-slate-50/80 transition-colors">
+                    <td class="sticky left-0 bg-white shadow-sm p-2 border-r border-slate-200 z-10 w-48 min-w-[12rem] max-w-[12rem]">
+                        <div class="flex items-center gap-1.5 truncate">
+                            <span class="w-2 h-2 rounded-full shrink-0" style="background-color: ${baseColor}"></span>
+                            <div class="min-w-0 flex-1">
+                                <div class="font-black text-slate-800 truncate text-[11px] leading-tight" title="${legalEntity}">${legalEntity}</div>
+                                <div class="text-[8px] text-slate-400 font-bold uppercase tracking-wider truncate mt-0.5" title="${r["Contract ID"] || ''}">${r["Contract ID"] || ''}</div>
                             </div>
-                        </td>`;
-                    
-                    for(let i=0; i<36; i++) {
-                        let val = res.nominal[i] + res.virtual[i];
-                        let isVirt = res.virtual[i] > 0;
-                        const cellStyle = val > 0 ? (isVirt ? 'text-indigo-400 italic' : 'text-slate-700') : 'text-slate-300';
-                        const cellText = val > 0 ? `€${Math.round(val).toLocaleString('it-IT')}` : '-';
-                        rowHtml += `<td class="p-2 text-center border-r border-slate-100 font-mono ${cellStyle}">${cellText}</td>`;
-                    }
-                    rowHtml += `</tr>`;
-                    tableRowsHtml.push(rowHtml);
-                }
+                        </div>
+                    </td>`;
+
+                monthKeys.forEach((mk, mIdx) => {
+                    const v = actualData[mIdx] + virtualData[mIdx];
+                    const style = v > 0 ? (virtualData[mIdx] > 0 ? 'text-indigo-500 font-medium italic' : 'text-slate-700 font-bold') : 'text-slate-300 select-none';
+                    const text = v > 0 ? `€${Math.round(v).toLocaleString('it-IT')}` : '—';
+                    rowHtml += `<td class="p-2 text-center border-r border-slate-100 font-mono min-w-[75px] ${style}">${text}</td>`;
+                });
+                rowHtml += `</tr>`;
+                tableRowsHtml.push(rowHtml);
             });
 
-            // 3. TABELLA DINAMICA E MEGA-FOOTER FISCALE
-            const bgColorsUI = ['bg-slate-100/60', 'bg-teal-50/60', 'bg-indigo-50/60'];
-            const textColorsUI = ['text-slate-700', 'text-teal-700', 'text-indigo-700'];
-            
-            const thHtml = `<th class="sticky left-0 bg-slate-100 p-2 border-r border-slate-200 z-10 w-48 text-left">Contract (Legal Entity)</th>` + 
-                           labels.map((l, i) => {
-                               const colorIndex = [...new Set(fyMap)].indexOf(fyMap[i]) % bgColorsUI.length;
-                               return `<th class="p-2 text-center border-r border-slate-200 ${bgColorsUI[colorIndex]}">${l}</th>`;
-                           }).join('');
+            // 3. GENERAZIONE HEADER E MEGA-FOOTER FISCALE
+            const bgColorsUI = ['bg-slate-100/60', 'bg-teal-50/60', 'bg-indigo-50/60', 'bg-sky-50/60', 'bg-amber-50/60'];
+            const textColorsUI = ['text-slate-700', 'text-teal-700', 'text-indigo-700', 'text-sky-700', 'text-amber-700'];
 
-            let tfootHtml = `<td class="sticky left-0 bg-slate-50 p-2 border-r border-slate-200 z-10 w-48 text-right text-slate-500">FISCAL YEAR TOTALS</td>`;
+            const thHtml = `<th class="sticky left-0 bg-slate-100 p-2 border-r border-slate-200 z-10 w-48 text-left text-slate-500 font-black">Contract (Legal Entity)</th>` +
+                labels.map((l, i) => {
+                    const colorIndex = [...new Set(fyMap)].indexOf(fyMap[i]) % bgColorsUI.length;
+                    return `<th class="p-2 text-center border-r border-slate-200 font-mono ${bgColorsUI[colorIndex]}">${l}</th>`;
+                }).join('');
+
+            let tfootHtml = `<td class="sticky left-0 bg-slate-100 p-2 border-r border-slate-200 z-10 w-48 text-right text-slate-500 font-black">FISCAL YEAR TOTALS</td>`;
             let currentFy = fyMap[0];
             let currentSpan = 0; let currentFyTotal = 0; let colorIdx = 0;
 
             monthKeys.forEach((mk, idx) => {
                 if (fyMap[idx] !== currentFy) {
-                    tfootHtml += `<td colspan="${currentSpan}" class="p-2 text-center border-r border-slate-300 ${bgColorsUI[colorIdx]} ${textColorsUI[colorIdx]}"><span class="text-[9px] uppercase tracking-widest mr-2 opacity-60">${currentFy}:</span> €${Math.round(currentFyTotal).toLocaleString('it-IT')}</td>`;
-                    currentFy = fyMap[idx]; currentSpan = 1; currentFyTotal = monthlyTotals[idx]; colorIdx++;
+                    tfootHtml += `<td colspan="${currentSpan}" class="p-2 text-center border-r border-slate-300 font-black ${bgColorsUI[colorIdx % bgColorsUI.length]} ${textColorsUI[colorIdx % textColorsUI.length]}"><span class="text-[8px] uppercase opacity-60 tracking-widest mr-1.5">${currentFy}:</span>€${Math.round(currentFyTotal).toLocaleString('it-IT')}</td>`;
+                    currentFy = fyMap[idx]; currentSpan = 1; currentFyTotal = monthlyTotalsArray[idx]; colorIdx++;
                 } else {
-                    currentSpan++; currentFyTotal += monthlyTotals[idx];
+                    currentSpan++; currentFyTotal += monthlyTotalsArray[idx];
                 }
             });
-            tfootHtml += `<td colspan="${currentSpan}" class="p-2 text-center border-r border-slate-300 ${bgColorsUI[colorIdx]} ${textColorsUI[colorIdx]}"><span class="text-[9px] uppercase tracking-widest mr-2 opacity-60">${currentFy}:</span> €${Math.round(currentFyTotal).toLocaleString('it-IT')}</td>`;
+            tfootHtml += `<td colspan="${currentSpan}" class="p-2 text-center border-r border-slate-300 font-black ${bgColorsUI[colorIdx % bgColorsUI.length]} ${textColorsUI[colorIdx % textColorsUI.length]}"><span class="text-[8px] uppercase opacity-60 tracking-widest mr-1.5">${currentFy}:</span>€${Math.round(currentFyTotal).toLocaleString('it-IT')}</td>`;
 
-            document.getElementById('bridge-table-header').innerHTML = thHtml;
+            document.getElementById('bridge-table-header').innerHTML = `<th class="sticky left-0 bg-slate-100 p-2 border-r border-slate-200 z-10 w-48 min-w-[12rem] text-left text-slate-500 font-black">Contract (Legal Entity)</th>` + labels.map((l, i) => `<th class="p-2 text-center border-r border-slate-200 font-mono min-w-[75px] ${bgColorsUI[[...new Set(fyMap)].indexOf(fyMap[i]) % bgColorsUI.length]}">${l}</th>`).join('');
             document.getElementById('bridge-table-body').innerHTML = tableRowsHtml.join('');
             document.getElementById('bridge-table-footer').innerHTML = tfootHtml;
 
-            // 4. UPDATE KPI
-            const now = new Date();
-            const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-            const currentMonthIdx = monthKeys.map(k=>k.key).indexOf(currentMonthKey);
-            const currentRunRate = currentMonthIdx > -1 ? monthlyTotals[currentMonthIdx] : 0;
+            // 4. AGGIORNAMENTO KPI FINANZIARI
+            const today = new Date();
+            const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+            const currentMonthIdx = monthKeys.indexOf(currentMonthKey);
+            const currentRunRate = currentMonthIdx > -1 ? monthlyTotalsArray[currentMonthIdx] : (monthlyTotalsArray[0] || 0);
 
             const calcYoY = (oldVal, newVal) => {
-                if (oldVal === 0) return { pct: 0, text: '-', color: 'text-slate-400' };
+                if (oldVal === 0) return { text: '—', color: 'text-slate-400' };
                 const pct = ((newVal - oldVal) / oldVal) * 100;
                 const sign = pct > 0 ? '+' : '';
-                return { pct: pct, text: `${sign}${pct.toFixed(1)}%`, color: pct > 0 ? 'text-rose-600' : (pct < 0 ? 'text-emerald-600' : 'text-slate-500') };
+                return { text: `${sign}${pct.toFixed(1)}%`, color: pct > 0 ? 'text-rose-600 font-black' : (pct < 0 ? 'text-emerald-600 font-black' : 'text-slate-500') };
             };
 
-            const yoy1 = calcYoY(fy26Total, fy27Total);
-            const yoy2 = calcYoY(fy27Total, fy28Total);
+            const yoy1 = calcYoY(fy26Sum, fy27Sum);
+            const yoy2 = calcYoY(fy27Sum, fy28Sum);
 
-            document.getElementById('bridge-kpi-current').textContent = `€${Math.round(currentRunRate).toLocaleString('it-IT')}`;
+            document.getElementById('bridge-kpi-current').textContent = `€ ${Math.round(currentRunRate * 12).toLocaleString('it-IT')} / yr`;
             document.getElementById('bridge-kpi-yoy1').innerHTML = `<span class="${yoy1.color}">${yoy1.text}</span>`;
             document.getElementById('bridge-kpi-yoy2').innerHTML = `<span class="${yoy2.color}">${yoy2.text}</span>`;
-            document.getElementById('bridge-kpi-total').textContent = `€${Math.round(totalDisplayed).toLocaleString('it-IT')}`;
+            document.getElementById('bridge-kpi-total').textContent = `€ ${Math.round(totalAccrualSum).toLocaleString('it-IT')}`;
 
-            // 5. DRAW CHART
+            // 5. INIEZIONE GRAFICO CHART.JS CON SFONDI FISCAL YEAR
             const canvas = document.getElementById('bridge-modal-chart');
             if (window.chartInstances && window.chartInstances.bridgeChart) window.chartInstances.bridgeChart.destroy();
             else if (!window.chartInstances) window.chartInstances = {};
@@ -801,53 +711,55 @@
                 data: { labels: labels, datasets: datasets },
                 options: {
                     responsive: true, maintainAspectRatio: false,
-                    layout: { padding: { top: 20 } },
-                    
-                    // 🌟 FIX PUNTO 3: Tooltip esclusivo e pulitissimo
-                    interaction: { mode: 'nearest', intersect: true },
-                    
-                    plugins: { 
+                    layout: { padding: { top: 22, bottom: 5 } },
+                    interaction: { mode: 'nearest', intersect: true }, // Tooltip esclusivo
+                    plugins: {
                         legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10, weight: 'bold' } } },
                         tooltip: {
-                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            backgroundColor: 'rgba(15, 23, 42, 0.98)',
                             titleFont: { size: 12, weight: 'black' },
                             padding: 12,
                             callbacks: {
                                 title: (ctx) => ctx[0].dataset.label,
-                                label: function(ctx) { return `Monthly Cost: €${Math.round(ctx.raw).toLocaleString('it-IT')}`; },
-                                afterLabel: function(ctx) {
+                                label: function (ctx) { return `Monthly Accrual: € ${Math.round(ctx.raw).toLocaleString('it-IT')}`; },
+                                afterLabel: function (ctx) {
                                     const m = ctx.dataset.contractMeta;
-                                    return `\nScope: ${m.scope}\nType: ${m.exp} | Rule: ${m.pricing}`;
+                                    const isVirt = ctx.dataset.label.includes('Virtual');
+                                    if (isVirt) return `\n• Status: Forecasted Renewal\n• Cost Center: ${m["Cost Center"] || 'N/A'}`;
+                                    return `\n• Supplier: ${m["Supplier"] || 'N/A'}\n• Rule: ${m["Pricing Model"] || 'Flat'}\n• Type: ${m["Expenditure Type"] || 'OPEX'}`;
                                 }
                             }
                         }
                     },
                     scales: {
-                        x: { stacked: true, grid: { display: false }, ticks: { font: { size: 9 } } },
-                        y: { stacked: true, beginAtZero: true, grid: { borderDash: [4, 4] }, ticks: { callback: v => '€' + (v / 1000).toFixed(0) + 'k' } }
+                        x: { stacked: true, grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' } } },
+                        y: { stacked: true, beginAtZero: true, grid: { borderDash: [4, 4], color: '#f1f5f9' }, ticks: { callback: v => '€' + (v / 1000).toFixed(0) + 'k', font: { size: 9 } } }
                     }
                 },
                 plugins: [{
-                    id: 'fiscalYearBackgrounds',
+                    id: 'fiscalYearBackgroundsAndHeaders',
                     beforeDraw: (chart) => {
                         const { ctx, chartArea: { top, bottom, left, right }, scales: { x } } = chart;
                         ctx.save();
-                        const bgColors = ['rgba(241, 245, 249, 0.6)', 'rgba(204, 251, 241, 0.4)', 'rgba(224, 231, 255, 0.4)'];
-                        const textColors = ['#94a3b8', '#0d9488', '#4f46e5'];
 
-                        let currentFy = fyMap[0]; let startIdx = 0; let cIdx = 0;
+                        const bgColors = ['rgba(241, 245, 249, 0.65)', 'rgba(204, 251, 241, 0.45)', 'rgba(224, 231, 255, 0.45)', 'rgba(224, 242, 254, 0.45)'];
+                        const textColors = ['#94a3b8', '#0d9488', '#4f46e5', '#0284c7'];
+
+                        let currentFy = fyMap[0];
+                        let startIdx = 0; let cIdx = 0;
+
                         for (let i = 0; i <= fyMap.length; i++) {
                             if (i === fyMap.length || fyMap[i] !== currentFy) {
-                                let startX = startIdx === 0 ? left : x.getPixelForTick(startIdx) - (x.getPixelForTick(1) - x.getPixelForTick(0))/2;
-                                let endX = i === fyMap.length ? right : x.getPixelForTick(i) - (x.getPixelForTick(1) - x.getPixelForTick(0))/2;
+                                let startX = startIdx === 0 ? left : x.getPixelForTick(startIdx) - (x.getPixelForTick(1) - x.getPixelForTick(0)) / 2;
+                                let endX = i === fyMap.length ? right : x.getPixelForTick(i) - (x.getPixelForTick(1) - x.getPixelForTick(0)) / 2;
 
                                 ctx.fillStyle = bgColors[cIdx % bgColors.length];
                                 ctx.fillRect(startX, top, endX - startX, bottom - top);
 
-                                ctx.font = 'bold 11px Inter';
+                                ctx.font = 'black 11px Inter, sans-serif';
                                 ctx.fillStyle = textColors[cIdx % textColors.length];
                                 ctx.textAlign = 'center';
-                                ctx.fillText(currentFy, startX + (endX - startX) / 2, top - 6);
+                                ctx.fillText(currentFy + " ACCRUAL", startX + (endX - startX) / 2, top - 8);
 
                                 if (i < fyMap.length) { currentFy = fyMap[i]; startIdx = i; cIdx++; }
                             }
@@ -857,6 +769,8 @@
                 }]
             });
         }
+
+
     };
 
     const olapOriginalSwitchTab = switchTab;

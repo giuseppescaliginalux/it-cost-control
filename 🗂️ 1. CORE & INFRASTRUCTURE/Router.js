@@ -218,20 +218,31 @@ function uploadFilesToDrive(filesData, year, supplier, assetName) {
  * Ottimizzato in un'unica chiamata bulk per azzerare la latenza di caricamento della UI.
  * @returns {Object} Pacchetto dati aggregato pronto per l'iniezione nel frontend.
  */
-function getFullPayload_Internal() { // Allineato al nome chiamato in js_core.html (apiFetchFullPayload)
+function getFullPayload_Internal() {
   try {
     console.log("ROUTER: Richiesta bulk dati iniziali dal client...");
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
+    const masterContracts = getSheetDataAsObjects(ss, CONFIG.SHEETS.MASTER_CONTRACTS);
+    const contracts = getSheetDataAsObjects(ss, CONFIG.SHEETS.CONTRACTS);
+    const initiatives = getSheetDataAsObjects(ss, CONFIG.SHEETS.INITIATIVES);
+    const ledger = getSheetDataAsObjects(ss, CONFIG.SHEETS.LEDGER);
+    const rawProjections = getSheetDataAsObjects(ss, CONFIG.SHEETS.PROJECTIONS);
+
+    // 🌟 L'ARRICCHIMENTO (DRY & LIGHTWEIGHT)
+    const enrichedProjections = ProjectionDomain.enrichProjectionsWithMonthlySplits(
+      rawProjections, contracts, initiatives
+    );
+
     return {
-      masterContracts: getSheetDataAsObjects(ss, CONFIG.SHEETS.MASTER_CONTRACTS),
-      contracts: getSheetDataAsObjects(ss, CONFIG.SHEETS.CONTRACTS),
-      initiatives: getSheetDataAsObjects(ss, CONFIG.SHEETS.INITIATIVES),
-      ledger: getSheetDataAsObjects(ss, CONFIG.SHEETS.LEDGER),
+      masterContracts: masterContracts,
+      contracts: contracts,
+      initiatives: initiatives,
+      ledger: ledger,
       allocationSplits: getSheetDataAsObjects(ss, CONFIG.SHEETS.ALLOCATION_SPLITS),
       assets: getSheetDataAsObjects(ss, CONFIG.SHEETS.ASSETS),
       varianceReport: getSheetDataAsObjects(ss, CONFIG.SHEETS.VARIANCE),
-      projections: getSheetDataAsObjects(ss, CONFIG.SHEETS.PROJECTIONS),
+      projections: enrichedProjections, // <-- IL DATO ORA È PERFETTO
       suppliers: getSheetDataAsObjects(ss, CONFIG.SHEETS.SUPPLIERS),
       locations: getSheetDataAsObjects(ss, CONFIG.SHEETS.LOCATIONS),
       costCenters: getSheetDataAsObjects(ss, CONFIG.SHEETS.COST_CENTERS),
