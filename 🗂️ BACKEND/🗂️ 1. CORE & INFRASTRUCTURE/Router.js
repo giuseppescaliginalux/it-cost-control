@@ -61,20 +61,29 @@ function processMasterDetailSync(payload) {
 /**
  * API ENDPOINT: Sincronizzazione massiva delle iniziative di ottimizzazione.
  * @param {Array<Object>} payload - Array di oggetti iniziativa inviati dalla UI.
- * @returns {string} Stato dell'operazione.
+ * @returns {Object} Delta Payload (Stato dell'operazione + Array aggiornati).
  */
 function processInitiativesSync(payload) {
   try {
     console.log("ROUTER: Ricevuto payload iniziative. Delegazione a InitiativeDomain...");
 
-    // Raccordo verso il futuro InitiativeService
-    const result = InitiativeDomain.processAndSync(payload);
+    // 1. Salva fisicamente le nuove iniziative
+    InitiativeDomain.processAndSync(payload);
 
-    // Discatena il ricalcolo a cascata delle proiezioni per riflettere i cambiamenti
-    console.log("ROUTER: Innesco aggiornamento proiezioni post-iniziativa...");
-    ProjectionDomain.recalculateAll();
+    // 2. EFFETTO A CASCATA: Aggiorna lo stato dei Contratti e degli Asset (in RAM e poi su foglio in Bulk)
+    console.log("ROUTER: Innesco allineamento a cascata per Master Contracts e Assets...");
+    ContractDomain.forceRecalculateAll();
+    AssetDomain.consolidateBudgets();
 
-    return result;
+    // 3. IL DELTA PAYLOAD: Leggiamo i 3 fogli aggiornati e li restituiamo al Client
+    // NON ricalcoliamo e NON leggiamo più il foglio Projections!
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    return {
+        status: "SUCCESS",
+        initiatives: getSheetDataAsObjects(ss, CONFIG.SHEETS.INITIATIVES),
+        masterContracts: getSheetDataAsObjects(ss, CONFIG.SHEETS.MASTER_CONTRACTS),
+        assets: getSheetDataAsObjects(ss, CONFIG.SHEETS.ASSETS)
+    };
 
   } catch (error) {
     console.error("ROUTER ERROR [processInitiativesSync]:", error.message);
@@ -216,33 +225,26 @@ function uploadFilesToDrive(filesData, year, supplier, assetName) {
 /**
  * API ENDPOINT: Caricamento asincrono iniziale di tutti i dati necessari al client.
  * Ottimizzato in un'unica chiamata bulk per azzerare la latenza di caricamento della UI.
- * @returns {Object} Pacchetto dati aggregato pronto per l'iniezione nel frontend.
  */
 function getFullPayload_Internal() {
   try {
     console.log("ROUTER: Richiesta bulk dati iniziali dal client...");
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    const masterContracts = getSheetDataAsObjects(ss, CONFIG.SHEETS.MASTER_CONTRACTS);
-    const contracts = getSheetDataAsObjects(ss, CONFIG.SHEETS.CONTRACTS);
-    const initiatives = getSheetDataAsObjects(ss, CONFIG.SHEETS.INITIATIVES);
-    const ledger = getSheetDataAsObjects(ss, CONFIG.SHEETS.LEDGER);
-    const rawProjections = getSheetDataAsObjects(ss, CONFIG.SHEETS.PROJECTIONS);
-
-    // 🌟 L'ARRICCHIMENTO (DRY & LIGHTWEIGHT)
-    const enrichedProjections = ProjectionDomain.enrichProjectionsWithMonthlySplits(
-      rawProjections, contracts, initiatives
-    );
-
+    // Leggiamo tutto tranne le proiezioni fisiche (non ci servono più, le calcola il Client al volo)
     return {
-      masterContracts: masterContracts,
-      contracts: contracts,
-      initiatives: initiatives,
-      ledger: ledger,
+      masterContracts: getSheetDataAsObjects(ss, CONFIG.SHEETS.MASTER_CONTRACTS),
+      contracts: getSheetDataAsObjects(ss, CONFIG.SHEETS.CONTRACTS),
+      initiatives: getSheetDataAsObjects(ss, CONFIG.SHEETS.INITIATIVES),
+      ledger: getSheetDataAsObjects(ss, CONFIG.SHEETS.LEDGER),
       allocationSplits: getSheetDataAsObjects(ss, CONFIG.SHEETS.ALLOCATION_SPLITS),
       assets: getSheetDataAsObjects(ss, CONFIG.SHEETS.ASSETS),
       varianceReport: getSheetDataAsObjects(ss, CONFIG.SHEETS.VARIANCE),
-      projections: enrichedProjections, // <-- IL DATO ORA È PERFETTO
+      
+      // 🌟 IL CAMBIO DI PARADIGMA: Passiamo un array vuoto. 
+      // Sarà il js_core.html a generare la matrice finanziaria In-Memory!
+      projections: [], 
+      
       suppliers: getSheetDataAsObjects(ss, CONFIG.SHEETS.SUPPLIERS),
       locations: getSheetDataAsObjects(ss, CONFIG.SHEETS.LOCATIONS),
       costCenters: getSheetDataAsObjects(ss, CONFIG.SHEETS.COST_CENTERS),

@@ -10,7 +10,6 @@
 const GLOBAL_TEST_REGISTRY = {
   contracts: [],
   initiatives: [],
-  projections: [],
   utils: [],
   assets: []
 };
@@ -21,16 +20,15 @@ const GLOBAL_TEST_REGISTRY = {
 function test_LAUNCH_ALL_SUITES() {
   const runner = new MiniTestFramework();
   console.log("=== 🧪 AVVIO CORE SUITE: VALIDAZIONE GLOBALE ECOSYSTEM ===");
-  
+
   // Raggruppa ed esegue l'intera galassia dei test registrati
   const allTests = [
     ...GLOBAL_TEST_REGISTRY.contracts,
     ...GLOBAL_TEST_REGISTRY.initiatives,
-    ...GLOBAL_TEST_REGISTRY.projections,
     ...GLOBAL_TEST_REGISTRY.utils,
     ...GLOBAL_TEST_REGISTRY.assets
   ];
-  
+
   runner.execute(allTests);
 }
 
@@ -50,15 +48,6 @@ function test_SUITE_Initiatives_Only() {
   const runner = new MiniTestFramework();
   console.log("=== 🧪 AVVIO SUITE SELETTIVA: DOMINIO INIZIATIVE ===");
   runner.execute(GLOBAL_TEST_REGISTRY.initiatives);
-}
-
-/**
- * MACRO AUTOMATICA 4: Lancia i test dedicati esclusivamente al Dominio PROIEZIONI.
- */
-function test_SUITE_Projections_Only() {
-  const runner = new MiniTestFramework();
-  console.log("=== 🧪 AVVIO SUITE SELETTIVA: DOMINIO PROIEZIONI ===");
-  runner.execute(GLOBAL_TEST_REGISTRY.projections);
 }
 
 function test_SUITE_Utils_Only() {

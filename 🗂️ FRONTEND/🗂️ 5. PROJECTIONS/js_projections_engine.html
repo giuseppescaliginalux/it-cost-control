@@ -58,7 +58,6 @@
             this.daysOfCompetence = this.period ? this.period.getOverlapDays(this.contractStart, this.effectiveEndDate) : 0;
         }
 
-        // Helper DRY: Mappa mensile dei ratei (Stessa logica esatta del backend)
         _recordMonthlySplit(targetActual, targetVirtual, dateObj, amount) {
             if (!dateObj || isNaN(dateObj.getTime()) || amount === 0) return;
             const mk = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
@@ -67,17 +66,47 @@
             targetDict[mk] = (targetDict[mk] || 0) + amount;
         }
 
+        // 🌟 IL NUOVO METODO COMUNE (DRY)
+        // Centralizza la matematica di applicazione degli sconti e delle dismissioni
+        _applyInitiativesToCost(dateToCheck, baseCost, activeInits) {
+            let currentCost = baseCost;
+            let isTerminated = false;
+
+            for (let init of activeInits) {
+                const initEffDate = new Date(init["Target Date"] || init.targetDate);
+                if (initEffDate) initEffDate.setHours(0, 0, 0, 0);
+
+                if (dateToCheck >= initEffDate) {
+                    if (["TERMINATE", "REPLACE", "TRANSFER"].includes(String(init.Decision || init.decision).toUpperCase())) {
+                        isTerminated = true;
+                    } else {
+                        let globalSavingPct = parseFloat(init["Target Saving %"] || init.targetSavingPct) || 0;
+                        if (globalSavingPct > 1) globalSavingPct = globalSavingPct / 100;
+
+                        if (globalSavingPct > 0) {
+                            currentCost = currentCost * (1.0 - globalSavingPct);
+                        } else {
+                            let targetCost = parseFloat(init["Target Cost (Annualized)"] || init.targetCostAnnualized);
+                            if (!isNaN(targetCost) && targetCost >= 0) currentCost = targetCost;
+                        }
+                    }
+                }
+            }
+            return isTerminated ? 0 : currentCost;
+        }
+
         calculateBaseline() {
+            // 🌟 FIX IDEMPOTENZA: Svuotiamo la memoria prima di ricalcolare!
+            this.monthlyBaselineActual = {};
+            this.monthlyBaselineVirtual = {};
+
             if (this.daysOfCompetence <= 0) return 0;
 
             const bt = String(this.contract.billingTerms || "").toUpperCase().trim();
             const expType = String(this.contract.expenditureType || "").toUpperCase().trim();
             const isUpfrontCapex = expType === "CAPEX" && (bt.includes("UPFRONT") || bt.includes("PREPAID"));
 
-            if (bt.includes("PAY-AS-YOU-GO") || bt.includes("CUSTOM") || bt.includes("LEDGER")) {
-                // Semplificazione: lato client i custom Ledger si appoggiano alla baseline fissa o li mappiamo
-                return 0; // Per brevità del calcolo client, o inserire la logica ledger isomorfica
-            }
+            if (bt.includes("PAY-AS-YOU-GO") || bt.includes("CUSTOM") || bt.includes("LEDGER")) return 0;
 
             if (this.contract.costRecurrence === "One-Shot" || isUpfrontCapex) {
                 let totalHit = 0;
@@ -133,6 +162,9 @@
         }
 
         calculateOptimized() {
+            // 🌟 FIX IDEMPOTENZA: Svuotiamo la memoria prima di ricalcolare!
+            this.monthlyBaselineActual = {};
+            this.monthlyBaselineVirtual = {};
             if (this.daysOfCompetence <= 0) return 0;
 
             const activeInits = this.linkedInitiatives.filter(init =>
@@ -152,34 +184,18 @@
                 return res;
             }
 
-            // Ordiniamo le iniziative per data di target per gestire le "cascate"
             activeInits.sort((a, b) => new Date(a["Target Date"] || a.targetDate) - new Date(b["Target Date"] || b.targetDate));
 
+            // =======================================================
+            // BLOCCO 1: ONE-SHOT & CAPEX (Ora pulito)
+            // =======================================================
             if (this.contract.costRecurrence === "One-Shot" || isUpfrontCapex) {
-                // Stessa logica del backend per calcolare lo sconto on-shot
                 let totalOptimized = 0;
-                const getDiscountedCostAt = (dateToCheck) => {
-                    let currentCost = parseFloat(this.contract.totalCommitment) || 0;
-                    let isTerminated = false;
-                    for (let init of activeInits) {
-                        const initEffDate = new Date(init["Target Date"] || init.targetDate);
-                        if (initEffDate) initEffDate.setHours(0, 0, 0, 0);
-
-                        if (dateToCheck >= initEffDate) {
-                            if (["TERMINATE", "REPLACE", "TRANSFER"].includes(String(init.Decision || init.decision).toUpperCase())) {
-                                isTerminated = true;
-                            } else {
-                                // Parsing flessibile Client Side (Percentuale o Importo fisso)
-                                let targetCost = parseFloat(init["Target Cost (Annualized)"] || init.targetCostAnnualized);
-                                if (!isNaN(targetCost) && targetCost >= 0) currentCost = targetCost;
-                            }
-                        }
-                    }
-                    return isTerminated ? 0 : currentCost;
-                };
+                const baseCommitment = parseFloat(this.contract.totalCommitment) || 0;
 
                 if (this.contractStart && this.contractStart >= this.period.startDate && this.contractStart <= this.period.endDate) {
-                    const hit = getDiscountedCostAt(this.contractStart);
+                    // 🌟 INVOCAZIONE DEL METODO COMUNE
+                    const hit = this._applyInitiativesToCost(this.contractStart, baseCommitment, activeInits);
                     totalOptimized += hit;
                     this._recordMonthlySplit(this.monthlyOptimizedActual, this.monthlyOptimizedVirtual, this.contractStart, hit);
                 }
@@ -193,7 +209,8 @@
                     let safeguard = 0;
                     while (nextRenewal <= this.period.endDate && nextRenewal < this.effectiveEndDate && safeguard < 100) {
                         if (nextRenewal >= this.period.startDate) {
-                            const hit2 = getDiscountedCostAt(nextRenewal);
+                            // 🌟 INVOCAZIONE DEL METODO COMUNE
+                            const hit2 = this._applyInitiativesToCost(nextRenewal, baseCommitment, activeInits);
                             totalOptimized += hit2;
                             this._recordMonthlySplit(this.monthlyOptimizedActual, this.monthlyOptimizedVirtual, nextRenewal, hit2);
                         }
@@ -204,6 +221,9 @@
                 return parseFloat(totalOptimized.toFixed(2));
             }
 
+            // =======================================================
+            // BLOCCO 2: RECURRENT Mensile (Ora pulito)
+            // =======================================================
             const originalAnnualValue = parseFloat(this.contract.annualValue || this.contract["Annual Value"]) || 0;
             let totalOptimized = 0;
 
@@ -231,27 +251,14 @@
                     loopEnd.setHours(23, 59, 59, 999);
 
                     while (dayCursor <= loopEnd) {
-                        let currentRunRate = originalAnnualValue;
-                        let isTerminated = false;
-
                         const testDay = new Date(dayCursor);
                         testDay.setHours(0, 0, 0, 0);
 
-                        for (let init of activeInits) {
-                            const initEffDate = new Date(init["Target Date"] || init.targetDate);
-                            if (initEffDate) initEffDate.setHours(0, 0, 0, 0);
+                        // 🌟 INVOCAZIONE DEL METODO COMUNE (Day-by-Day Resolution)
+                        let currentRunRate = this._applyInitiativesToCost(testDay, originalAnnualValue, activeInits);
 
-                            if (testDay >= initEffDate) {
-                                if (["TERMINATE", "REPLACE", "TRANSFER"].includes(String(init.Decision || init.decision).toUpperCase())) {
-                                    isTerminated = true;
-                                } else {
-                                    let targetCost = parseFloat(init["Target Cost (Annualized)"] || init.targetCostAnnualized);
-                                    if (!isNaN(targetCost) && targetCost >= 0) currentRunRate = targetCost;
-                                }
-                            }
-                        }
-
-                        if (!isTerminated) {
+                        // Se currentRunRate è maggiore di 0 significa che non è terminato
+                        if (currentRunRate > 0) {
                             let dailyRateForMonth = (currentRunRate / 12) / daysInMonth;
                             monthAccumulator += dailyRateForMonth;
                         }
@@ -272,13 +279,13 @@
     // 2. ORCHESTRATORE GLOBALE (L'ENGINE)
     // ============================================================================
     const ProjectionsEngine = {
-        
+
         // Definiamo i periodi di calcolo globali
         fy26: new TimePeriod("FY26", "2025-07-01", "2026-06-30"),
         fy27: new TimePeriod("FY27", "2026-07-01", "2027-06-30"),
         fy28: new TimePeriod("FY28", "2027-07-01", "2028-06-30"),
 
-        calculateAll: function(contractsArray, initiativesArray, masterContractsArray) {
+        calculateAll: function (contractsArray, initiativesArray, masterContractsArray) {
             console.time("ProjectionsEngine Compute"); // Misuriamo le performance
 
             const outputProjections = [];

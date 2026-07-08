@@ -41,17 +41,29 @@ async function fetchLiveData() {
     document.getElementById('dashboard-content').classList.add('hidden');
     
     try {
-        // 1. Scarica e salva tutto in memoria globale
+        // 1. Scarica il payload leggero da GAS (senza le vecchie proiezioni)
         const payload = await apiFetchFullPayload();
+        
+        // 🌟 IL GLOBAL BOOT ENGINE: Calcoliamo le proiezioni UNA SOLA VOLTA per tutta l'app
+        console.log("⚡ BOOT: Generazione Proiezioni In-Memory (Global Engine)...");
+        
+        // Generiamo l'array e sovrascriviamo eventuali residui nel payload
+        payload.projections = ProjectionsEngine.calculateAll(
+            payload.contracts || [], 
+            payload.initiatives || [], 
+            payload.masterContracts || []
+        );
+
+        // Salviamo in memoria globale l'oggetto arricchito
         windowPayload = payload; 
         globalCachedData = (payload.assets || []).filter(r => (r["Asset Name"] || "").toString().trim() !== "");
         
-        // 2. Sveglia il responsabile dell'Inventory
+        // 2. Sveglia il responsabile dell'Inventory (troverà già payload.projections pronto)
         if (typeof initInventoryTab === "function") {
             initInventoryTab();
         }
         
-        // 3. Sveglia il responsabile della Dashboard
+        // 3. Sveglia il responsabile della Dashboard (troverà già payload.projections pronto)
         if (typeof updateExecutiveDashboard === "function") {
             updateExecutiveDashboard(payload);
         }
@@ -61,6 +73,7 @@ async function fetchLiveData() {
             renderOperationsHub(payload);
         }
 
+        // 5. Sveglia il responsabile del tab Proiezioni
         if (typeof renderProjectionsHub === "function") {
             renderProjectionsHub(payload);
         }

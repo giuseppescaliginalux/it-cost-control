@@ -823,16 +823,79 @@
         },
 
         pushKanbanArchitectureToGoogleSheets: function () {
-            showLoading();
+            showLoading(); // Mostra il micro-spinner
+
+            // Chiamata all'API backend passando le iniziative locali
             InitiativesAPI.syncInitiativesToGoogleSheets(
                 InitiativesState.rawInitiatives,
-                (res) => {
+                (deltaPayload) => {
                     hideLoading();
-                    if (res === "SUCCESS") {
-                        FinOpsUI.showNotificationBanner("Kanban architecture written and versioned successfully on DB layer.", "success");
-                        fetchLiveData();
+
+                    // Verifichiamo che il backend abbia risposto con il nuovo Delta Payload
+                    if (deltaPayload && deltaPayload.status === "SUCCESS") {
+
+                        // 1. STATE RECONCILIATION: Aggiorniamo la RAM con i dati freschi dal DB
+                        windowPayload.initiatives = deltaPayload.initiatives || [];
+                        windowPayload.masterContracts = deltaPayload.masterContracts || [];
+                        windowPayload.assets = deltaPayload.assets || [];
+
+                        // Allineiamo anche lo stato locale del modulo Iniziative
+                        InitiativesState.loadPayload(windowPayload);
+                        InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || []);
+
+                        // 2. IL MOTORE IN-MEMORY: Ricalcoliamo le proiezioni istantaneamente
+                        console.log("⚡ REACTIVE UPDATE: Ricalcolo Proiezioni...");
+                        windowPayload.projections = ProjectionsEngine.calculateAll(
+                            windowPayload.contracts || [],
+                            windowPayload.initiatives || [],
+                            windowPayload.masterContracts || []
+                        );
+
+                        // 3. IL MOTORE VARIANZE: Aggiorniamo l'Asset Variance Report
+                        console.log("⚡ REACTIVE UPDATE: Ricalcolo Varianze...");
+                        const varianceMap = new Map();
+                        (windowPayload.assetAllocationBridge || []).forEach(alloc => {
+                            const key = `${String(alloc["Asset Name"] || "").trim()}---${String(alloc["Fiscal Year"] || "").trim().toUpperCase()}`;
+                            if (!varianceMap.has(key)) varianceMap.set(key, { "Asset Name": alloc["Asset Name"], "Fiscal Year": alloc["Fiscal Year"], "Effective Budget": 0, "Fiscal Projection": 0, "Variance": 0 });
+                            varianceMap.get(key)["Effective Budget"] += parseFloat(alloc["Effective Budget"]) || 0;
+                        });
+                        (windowPayload.projections || []).forEach(proj => {
+                            const asset = String(proj["Asset Name"] || "").trim();
+                            ["FY26", "FY27", "FY28"].forEach(fy => {
+                                const key = `${asset}---${fy}`;
+                                if (varianceMap.has(key)) varianceMap.get(key)["Fiscal Projection"] += parseFloat(proj[`${fy} Optimized`]) || 0;
+                            });
+                        });
+                        windowPayload.varianceReport = Array.from(varianceMap.values()).map(row => {
+                            row["Variance"] = row["Effective Budget"] - row["Fiscal Projection"];
+                            return row;
+                        });
+
+                        // 4. SVEGLIAMO I COMPONENTI UI (Aggiornamento silenzioso a cascata)
+                        this.renderKanbanBoard(false); // Ridisegna il Kanban
+
+                        if (typeof DashboardState !== 'undefined') {
+                            DashboardState.loadCachePayload(windowPayload);
+                        }
+                        if (typeof ProjectionsState !== 'undefined') {
+                            ProjectionsState.loadPayload(windowPayload);
+                            if (typeof ProjectionsController !== 'undefined' && document.getElementById('tab-projections') && !document.getElementById('tab-projections').classList.contains('hidden')) {
+                                ProjectionsController.applyEngine(); // Ridisegna la matrice se è il tab attivo
+                            }
+                        }
+                        if (typeof ContractsState !== 'undefined') {
+                            ContractsState.loadPayload(windowPayload);
+                            // Non forziamo il render immediato se non siamo nel tab per risparmiare DOM repaints
+                        }
+                        if (typeof initInventoryTab === 'function') {
+                            // Aggiorna la tabella inventory in background
+                            initInventoryTab();
+                        }
+
+                        FinOpsUI.showNotificationBanner("All interconnected domains updated successfully.", "success");
+
                     } else {
-                        FinOpsUI.showAlert("Sync Error", "The database pipeline returned a mismatch code. Changes might not be saved.");
+                        FinOpsUI.showAlert("Sync Error", "The database pipeline returned a mismatch code.");
                     }
                 },
                 (err) => {
