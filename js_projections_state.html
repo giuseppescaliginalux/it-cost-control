@@ -23,8 +23,9 @@
 
         loadPayload: function(payload) {
             this.rawDataset = payload.projections || [];
+            // Salviamo un link globale per far pescare facilmente i dati alla modale
+            this.currentOlapData = []; 
             
-            // Re-map asset metadata for fast top-level cross-referencing
             this.assetLookupMap.clear();
             (payload.assets || []).forEach(asset => {
                 const name = (asset["Asset Name"] || "").toString().trim().toLowerCase();

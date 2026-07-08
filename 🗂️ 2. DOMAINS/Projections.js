@@ -46,12 +46,15 @@ class TimePeriod {
 }
 
 class ContractProjection {
-  // Il segreto è qui: inseriamo il 5° parametro blindato con un default ad array vuoto []
   constructor(contractDto, period, linkedInitiatives = [], successorStartDate = null, fullLedger = []) {
     this.contract = contractDto;
     this.period = period;
     this.linkedInitiatives = linkedInitiatives;
-    this.fullLedger = fullLedger || []; // Rete di sicurezza anti-null
+    this.fullLedger = fullLedger || [];
+
+    // 🌟 SECCHIELLI MENSILI PER IL FINANCIAL BRIDGE
+    this.monthlyBaseline = {};
+    this.monthlyOptimized = {};
 
     this.contractStart = contractDto.startDate ? new Date(contractDto.startDate) : null;
     this.contractEnd = contractDto.contractEndDate || contractDto.endDate ? new Date(contractDto.contractEndDate || contractDto.endDate) : null;
@@ -72,16 +75,20 @@ class ContractProjection {
     this.daysOfCompetence = this.period ? this.period.getOverlapDays(this.contractStart, this.effectiveEndDate) : 0;
   }
 
+  // 🌟 HELPER MATEMATICO: Accumula i decimali sul mese corretto (YYYY-MM)
+  _addMonthly(targetObj, dateObj, amount) {
+    if (!dateObj || isNaN(dateObj.getTime()) || amount === 0) return;
+    const mk = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+    targetObj[mk] = (targetObj[mk] || 0) + amount;
+  }
+
   calculateBaseline() {
     if (this.daysOfCompetence <= 0) return 0;
 
     const bt = String(this.contract.billingTerms || "").toUpperCase().trim();
     const expType = String(this.contract.expenditureType || "").toUpperCase().trim();
-
-    // 🌟 Rilevamento per Lump Sums: One-Shot puri oppure CAPEX pagati interamente in anticipo
     const isUpfrontCapex = expType === "CAPEX" && (bt.includes("UPFRONT") || bt.includes("PREPAID"));
 
-    // 1. LEDGER-DRIVEN (A consumo / Custom)
     if (bt.includes("PAY-AS-YOU-GO") || bt.includes("CUSTOM") || bt.includes("LEDGER")) {
       let periodTotal = 0;
       const pStart = this.period.startDate;
@@ -100,33 +107,40 @@ class ContractProjection {
           const overlapDays = Math.max(1, Math.round((overlapEnd - overlapStart) / 86400000) + 1);
           const amt = parseFloat(mov.amount || mov.Amount) || 0;
 
-          if (movDays === overlapDays) periodTotal += amt;
-          else periodTotal += amt * (overlapDays / movDays);
+          let cursor = new Date(overlapStart); cursor.setHours(0, 0, 0, 0);
+          const endC = new Date(overlapEnd); endC.setHours(23, 59, 59, 999);
+          const dailyAmt = amt / movDays;
+
+          while (cursor <= endC) {
+            periodTotal += dailyAmt;
+            this._addMonthly(this.monthlyBaseline, cursor, dailyAmt);
+            cursor.setDate(cursor.getDate() + 1);
+          }
         }
       });
       return parseFloat(periodTotal.toFixed(2));
     }
 
-    // 🌟 2. LUMP SUM TARGETING: Il bugfix per il test rosso
     if (this.contract.costRecurrence === "One-Shot" || isUpfrontCapex) {
       let totalHit = 0;
-
-      // Impatto iniziale: Cade nel periodo in esame?
       if (this.contractStart && this.contractStart >= this.period.startDate && this.contractStart <= this.period.endDate) {
-        totalHit += parseFloat(this.contract.totalCommitment) || 0;
+        const hit = parseFloat(this.contract.totalCommitment) || 0;
+        totalHit += hit;
+        this._addMonthly(this.monthlyBaseline, this.contractStart, hit);
       }
 
-      // Impatti di rinnovo: Se è ricorrente, calcoliamo le scadenze future in cui viene fatto un nuovo pagamento Upfront
       if (this.contract.costRecurrence === "Recurrent" && this.contractEnd && this.effectiveEndDate > this.contractEnd) {
         let termMonths = parseFloat(this.contract.contractTerm) || 12;
         if (termMonths <= 0) termMonths = 12;
         let nextRenewal = new Date(this.contractEnd);
-        nextRenewal.setDate(nextRenewal.getDate() + 1); // Il giorno dopo la scadenza scatta il rinnovo
+        nextRenewal.setDate(nextRenewal.getDate() + 1);
 
         let safeguard = 0;
         while (nextRenewal <= this.period.endDate && nextRenewal < this.effectiveEndDate && safeguard < 100) {
           if (nextRenewal >= this.period.startDate) {
-            totalHit += parseFloat(this.contract.totalCommitment) || 0;
+            const hit = parseFloat(this.contract.totalCommitment) || 0;
+            totalHit += hit;
+            this._addMonthly(this.monthlyBaseline, nextRenewal, hit);
           }
           nextRenewal.setMonth(nextRenewal.getMonth() + termMonths);
           safeguard++;
@@ -135,7 +149,6 @@ class ContractProjection {
       return parseFloat(totalHit.toFixed(2));
     }
 
-    // 3. AMMORTAMENTO LINEARE (OPEX Flat, o CAPEX spalmati mese per mese)
     const monthlyFlatRate = (parseFloat(this.contract.annualValue) || 0) / 12;
     let totalBaseline = 0;
     const startCursor = new Date(Math.max(this.period.startDate, this.contractStart));
@@ -153,11 +166,16 @@ class ContractProjection {
       let overlapEnd = monthEnd > endCursor ? endCursor : monthEnd;
 
       if (overlapStart <= overlapEnd) {
-        let activeDays = Math.round((overlapEnd - overlapStart) / (1000 * 60 * 60 * 24)) + 1;
-        let daysInMonth = Math.round((monthEnd - monthStart) / (1000 * 60 * 60 * 24)) + 1;
+        let dayCursor = new Date(overlapStart); dayCursor.setHours(0, 0, 0, 0);
+        const loopEnd = new Date(overlapEnd); loopEnd.setHours(23, 59, 59, 999);
+        const daysInMonth = Math.round((monthEnd - monthStart) / (1000 * 60 * 60 * 24)) + 1;
+        const dailyRate = monthlyFlatRate / daysInMonth;
 
-        if (activeDays === daysInMonth) totalBaseline += monthlyFlatRate;
-        else totalBaseline += monthlyFlatRate * (activeDays / daysInMonth);
+        while (dayCursor <= loopEnd) {
+          totalBaseline += dailyRate;
+          this._addMonthly(this.monthlyBaseline, dayCursor, dailyRate);
+          dayCursor.setDate(dayCursor.getDate() + 1);
+        }
       }
       current.setMonth(current.getMonth() + 1);
     }
@@ -176,12 +194,16 @@ class ContractProjection {
     const isUpfrontCapex = expType === "CAPEX" && (bt.includes("UPFRONT") || bt.includes("PREPAID"));
 
     if (activeInits.length === 0 || bt.includes("PAY-AS-YOU-GO") || bt.includes("CUSTOM") || bt.includes("LEDGER")) {
-      if (activeInits.length === 0) return this.calculateBaseline();
+      const res = this.calculateBaseline();
+      if (activeInits.length === 0) {
+        // Se non ci sono iniziative, il mensile ottimizzato è identico alla baseline calcolata sopra
+        this.monthlyOptimized = JSON.parse(JSON.stringify(this.monthlyBaseline));
+      }
+      return res;
     }
 
     activeInits.sort((a, b) => a.getEffectiveDate() - b.getEffectiveDate());
 
-    // 🌟 OTTIMIZZAZIONE LUMP SUM: Gli sconti o le dismissioni colpiscono puntualmente l'evento di pagamento
     if (this.contract.costRecurrence === "One-Shot" || isUpfrontCapex) {
       let totalOptimized = 0;
 
@@ -207,7 +229,9 @@ class ContractProjection {
       };
 
       if (this.contractStart && this.contractStart >= this.period.startDate && this.contractStart <= this.period.endDate) {
-        totalOptimized += getDiscountedCostAt(this.contractStart);
+        const hit = getDiscountedCostAt(this.contractStart);
+        totalOptimized += hit;
+        this._addMonthly(this.monthlyOptimized, this.contractStart, hit);
       }
 
       if (this.contract.costRecurrence === "Recurrent" && this.contractEnd && this.effectiveEndDate > this.contractEnd) {
@@ -219,7 +243,9 @@ class ContractProjection {
         let safeguard = 0;
         while (nextRenewal <= this.period.endDate && nextRenewal < this.effectiveEndDate && safeguard < 100) {
           if (nextRenewal >= this.period.startDate) {
-            totalOptimized += getDiscountedCostAt(nextRenewal);
+            const hit = getDiscountedCostAt(nextRenewal);
+            totalOptimized += hit;
+            this._addMonthly(this.monthlyOptimized, nextRenewal, hit);
           }
           nextRenewal.setMonth(nextRenewal.getMonth() + termMonths);
           safeguard++;
@@ -228,7 +254,6 @@ class ContractProjection {
       return parseFloat(totalOptimized.toFixed(2));
     }
 
-    // 3. OTTIMIZZAZIONE A CASCATA (Ammortamento lineare)
     const originalAnnualValue = parseFloat(this.contract.annualValue) || 0;
     let totalOptimized = 0;
 
@@ -248,7 +273,6 @@ class ContractProjection {
 
       if (overlapStart <= overlapEnd) {
         let daysInMonth = Math.round((monthEnd - monthStart) / (1000 * 60 * 60 * 24)) + 1;
-        let monthAccumulator = 0;
 
         let dayCursor = new Date(overlapStart);
         dayCursor.setHours(0, 0, 0, 0);
@@ -258,9 +282,7 @@ class ContractProjection {
         while (dayCursor <= loopEnd) {
           let currentRunRate = originalAnnualValue;
           let isTerminated = false;
-
-          const testDay = new Date(dayCursor);
-          testDay.setHours(0, 0, 0, 0);
+          const testDay = new Date(dayCursor); testDay.setHours(0, 0, 0, 0);
 
           for (let init of activeInits) {
             const initEffDate = init.getEffectiveDate();
@@ -279,19 +301,17 @@ class ContractProjection {
 
           if (!isTerminated) {
             let dailyRateForMonth = (currentRunRate / 12) / daysInMonth;
-            monthAccumulator += dailyRateForMonth;
+            totalOptimized += dailyRateForMonth;
+            this._addMonthly(this.monthlyOptimized, dayCursor, dailyRateForMonth);
           }
 
           dayCursor.setDate(dayCursor.getDate() + 1);
         }
-
-        totalOptimized += monthAccumulator;
       }
       current.setMonth(current.getMonth() + 1);
     }
     return parseFloat(totalOptimized.toFixed(2));
   }
-
 }
 
 class ProjectionRepository {
@@ -322,7 +342,6 @@ class ProjectionService {
     const domainInitiatives = rawInits.map(i => new Initiative(InitiativeMapper.toDto(i)));
 
     const activeDomainContracts = ContractDomain.getHydratedContracts();
-
     const rawMasters = getSheetDataAsObjects(ss, CONFIG.SHEETS.MASTER_CONTRACTS) || [];
     const dtosMasters = rawMasters.map(m => ContractMapper.toDto(m, MASTER_FIELD_MAP));
 
@@ -335,14 +354,9 @@ class ProjectionService {
       const linkedInits = domainInitiatives.filter(init => {
         const initMaster = String(init.masterId).trim();
         const initContract = String(init.contractId || "").trim();
-
-        // Se non appartiene a questo Master, la scarto a prescindere
         if (initMaster !== mId) return false;
-
-        // Se l'iniziativa ha un target locale specifico, deve combaciare con QUESTO contratto
         if (initContract !== "" && initContract !== cId) return false;
-
-        return true; // Altrimenti (o se è globale) la applico
+        return true;
       });
 
       const successorMaster = dtosMasters.find(m => {
@@ -351,16 +365,11 @@ class ProjectionService {
       });
 
       let successorStart = null;
-      if (successorMaster && successorMaster.masterStartDate) {
-        successorStart = new Date(successorMaster.masterStartDate);
-      }
+      if (successorMaster && successorMaster.masterStartDate) successorStart = new Date(successorMaster.masterStartDate);
 
       const contractDtoFlat = contractInstance.exportToData();
-
-      // ✨ ESTRAIAMO IL LEDGER PIENO (Actuals + Forecast calcolati dal motore anti-duplicazione)
       const fullLedger = contractInstance.exportFullLedger();
 
-      // ✨ PASSIAMO IL LEDGER ALLE PROIEZIONI
       const proj26 = new ContractProjection(contractDtoFlat, this.fy26, linkedInits, successorStart, fullLedger);
       const proj27 = new ContractProjection(contractDtoFlat, this.fy27, linkedInits, successorStart, fullLedger);
       const proj28 = new ContractProjection(contractDtoFlat, this.fy28, linkedInits, successorStart, fullLedger);
@@ -387,14 +396,11 @@ class ProjectionService {
         if (!rowDto.hasOwnProperty(key)) rowDto[key] = rawRowBacking[key];
       }
 
-      if (rowDto.fy26Baseline > 0 || rowDto.fy27Baseline > 0 || rowDto.fy28Baseline > 0) {
-        outputRows.push(rowDto);
-      }
+      if (rowDto.fy26Baseline > 0 || rowDto.fy27Baseline > 0 || rowDto.fy28Baseline > 0) outputRows.push(rowDto);
     });
 
     this.repository.rewriteTable(outputRows);
     console.log(`PROJECTION DOMAIN: Scrittura completata per ${outputRows.length} linee di proiezione fiscali.`);
   }
 }
-
 const ProjectionDomain = new ProjectionService();

@@ -110,6 +110,7 @@
                         </div>
                     </div>
                 </div>
+                <div id="proj-modal-mount-point" onclick="ProjectionsController.closeFinancialBridgeModal()" class="hidden fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[9999] items-center justify-center p-4 transition-opacity"></div>
             </div>`;
         },
 
@@ -205,6 +206,10 @@
                         <div style="flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px;" class="font-extrabold text-slate-900 text-xs tracking-tight" title="${assetName}">
                             ${assetName}
                         </div>
+                        <button onclick="event.stopPropagation(); ProjectionsController.openFinancialBridgeModal('${assetName.replace(/'/g, "\\'")}')" class="ml-2 px-1.5 py-0.5 bg-teal-50 hover:bg-teal-600 text-teal-600 hover:text-white rounded border border-teal-200 shadow-sm flex items-center gap-1.5 transition-all group/btn shrink-0" title="View Accrual vs Run-Rate Bridge">
+                            <svg class="w-3.5 h-3.5 group-hover/btn:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18h18M7 15l4-4 4 4 6-6" /></svg>
+                            <span class="text-[8px] font-black uppercase tracking-widest">P&L Bridge</span>
+                        </button>
                     </div>
                     <div class="text-[9px] font-bold text-slate-400 uppercase tracking-tight mt-0.5 pl-[20px] truncate w-full">
                         ${manufacturer} <span class="text-slate-300 font-normal mx-1 select-none">•</span> <span class="text-slate-400/60 font-medium normal-case tracking-normal">for: ${driver}</span>
@@ -257,6 +262,68 @@
                 <td class="py-2 align-middle font-mono font-black bg-teal-50/10 px-1 truncate">${this._renderCell(c.v27, c.p27, 'text-teal-700', true)}</td>
                 <td class="py-2 align-middle font-mono truncate">${this._renderCell(c.v28, c.p28, 'text-slate-500', true)}</td>
             </tr>`;
+        },
+
+        getFinancialBridgeModalMarkup: function (assetName) {
+            return `
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 w-full max-w-[90vw] shadow-2xl relative animate-fade-in flex flex-col h-[90vh] min-h-[700px]" onclick="event.stopPropagation()">
+                
+                <div class="flex justify-between items-start border-b border-slate-100 pb-3 mb-5 shrink-0">
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded shadow-3xs">Asset Accrual & Lifecycle Bridge</span>
+                        </div>
+                        <h3 class="text-xl font-black text-slate-800 tracking-tight">${assetName}</h3>
+                        <p class="text-[11px] text-slate-500 font-medium mt-0.5">Stacked monthly distribution showing specific contracts phasing in and out. Scroll horizontally to view full timeline.</p>
+                    </div>
+                    <button onclick="ProjectionsController.closeFinancialBridgeModal()" class="text-slate-400 hover:text-rose-600 text-2xl font-black leading-none ml-4 transition-colors hover:scale-110 cursor-pointer">×</button>
+                </div>
+
+                <div class="flex-1 flex flex-col gap-4 min-h-0 overflow-hidden">
+                    
+                    <div class="grid grid-cols-4 gap-4 shrink-0">
+                        <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl shadow-inner">
+                            <span class="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">Current Run-Rate (This Month)</span>
+                            <span id="bridge-kpi-current" class="font-mono text-lg font-black text-slate-700">...</span>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl shadow-inner">
+                            <span class="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">YoY Trend (FY26 ➔ FY27)</span>
+                            <span id="bridge-kpi-yoy1" class="font-mono text-lg font-black text-slate-700">...</span>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl shadow-inner">
+                            <span class="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">YoY Trend (FY27 ➔ FY28)</span>
+                            <span id="bridge-kpi-yoy2" class="font-mono text-lg font-black text-slate-700">...</span>
+                        </div>
+                        <div class="bg-teal-700 text-white border border-teal-800 p-3 rounded-xl shadow-md flex flex-col justify-center">
+                            <span class="text-[9px] font-black uppercase tracking-widest text-teal-200 block mb-0.5">Total P&L Accrual (Displayed)</span>
+                            <span id="bridge-kpi-total" class="font-mono text-2xl font-black">...</span>
+                        </div>
+                    </div>
+
+                    <div class="flex-1 bg-white border border-slate-200 rounded-xl p-3 shadow-sm min-h-[220px] relative">
+                        <canvas id="bridge-modal-chart"></canvas>
+                    </div>
+
+                    <div class="shrink-0 bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col h-48 overflow-hidden relative">
+                        <div class="overflow-auto custom-scrollbar h-full w-full">
+                            <table class="w-full text-left border-collapse whitespace-nowrap">
+                                <thead class="sticky top-0 z-20 bg-slate-100 shadow-sm">
+                                    <tr id="bridge-table-header" class="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                                        </tr>
+                                </thead>
+                                <tbody id="bridge-table-body" class="text-[10px] text-slate-600 font-medium divide-y divide-slate-100">
+                                    </tbody>
+                                <tfoot class="sticky bottom-0 z-20 bg-slate-50 border-t-2 border-slate-200 shadow-[0_-2px_5px_rgba(0,0,0,0.05)]">
+                                    <tr id="bridge-table-footer" class="text-[11px] font-black text-slate-800 font-mono">
+                                        </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>`;
         }
+
     };
 </script>
