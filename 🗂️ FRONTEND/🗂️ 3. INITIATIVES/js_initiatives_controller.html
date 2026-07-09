@@ -18,8 +18,18 @@
         globalCustomTags: [],
 
         toggleOperationsEditMode: function () {
+            if (window.hasPendingChanges && InitiativesState.globalEditMode) {
+                FinOpsUI.showConfirm(
+                    "Modifiche in sospeso",
+                    "Hai delle modifiche non salvate. Se esci dalla modalità modifica, le perderai. Vuoi scartare le modifiche e uscire?",
+                    () => {
+                        revertLocalChanges();
+                    }
+                );
+                return;
+            }
             InitiativesState.globalEditMode = !InitiativesState.globalEditMode;
-            if (typeof setEditModeActive !== 'undefined') setEditModeActive(InitiativesState.globalEditMode);
+            if(typeof setEditModeActive !== 'undefined') setEditModeActive(InitiativesState.globalEditMode);
             this.renderKanbanBoard(true);
         },
 

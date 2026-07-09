@@ -24,6 +24,17 @@
     };
 
     function toggleGlobalEditMode() {
+        if (window.hasPendingChanges && ContractsState.globalEditMode) {
+            FinOpsUI.showConfirm(
+                "Modifiche in sospeso",
+                "Hai delle modifiche non salvate. Se esci dalla modalità modifica, le perderai. Vuoi scartare le modifiche e uscire?",
+                () => {
+                    revertLocalChanges(); 
+                }
+            );
+            return;
+        }
+
         ContractsState.globalEditMode = !ContractsState.globalEditMode;
         if(typeof setEditModeActive !== 'undefined') setEditModeActive(ContractsState.globalEditMode);
 
@@ -501,26 +512,38 @@
     function finalizeRowSave(item, id) {
         hideLoading();
         
-        // 🌟 1. CALCOLO LOCALE A LATENZA ZERO!
+        // 1. CALCOLO LOCALE A LATENZA ZERO!
         item.data = ContractsUtils.calculateContractFinancials(item.data);
         item.isEditing = false;
         ContractsState.hasUnsavedChanges = true;
 
-        // 🌟 2. ACCENDIAMO IL SEMAFORO GLOBALE NELLA NAVBAR!
+        // 2. ACCENDIAMO IL SEMAFORO GLOBALE NELLA NAVBAR!
         if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
 
-        // 🌟 3. AGGIORNIAMO ISTANTANEAMENTE IL MASTER CONTRACT IN RAM!
+        // 3. AGGIORNIAMO ISTANTANEAMENTE IL MASTER CONTRACT IN RAM!
         if (ContractsState.currentMasterData) {
             let newCommitment = 0;
             let newRunRate = 0;
+            let minStart = null;
+            let maxEnd = null;
+            
             ContractsState.currentDetailItems.forEach(child => {
                 newCommitment += parseFloat(child.data["Total Commitment"]) || 0;
                 if (child.data["Cost Recurrence"] !== "One-Shot") {
                     newRunRate += parseFloat(child.data["Annual Value"]) || 0;
                 }
+                
+                const s = child.data["Start Date"] ? new Date(child.data["Start Date"]) : null;
+                const e = child.data["Adjusted End Date"] ? new Date(child.data["Adjusted End Date"]) : (child.data["Contract End Date"] ? new Date(child.data["Contract End Date"]) : null);
+                
+                if (s && !isNaN(s.getTime()) && (!minStart || s < minStart)) minStart = s;
+                if (e && !isNaN(e.getTime()) && (!maxEnd || e > maxEnd)) maxEnd = e;
             });
+            
             ContractsState.currentMasterData["Total Commitment"] = newCommitment;
             ContractsState.currentMasterData["Run Rate"] = newRunRate;
+            ContractsState.currentMasterData["Master Start Date"] = minStart ? FinOpsDate.toIso(minStart) : "";
+            ContractsState.currentMasterData["Master End Date"] = maxEnd ? FinOpsDate.toIso(maxEnd) : "";
         }
 
         // 4. Chiudiamo la modale e ridisegniamo tutto

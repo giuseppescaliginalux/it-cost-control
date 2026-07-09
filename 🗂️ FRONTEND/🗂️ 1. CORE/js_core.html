@@ -154,28 +154,45 @@
         }
     };
 
-    window.revertLocalChanges = function () {
+    window.revertLocalChanges = function() {
         if (!window.originalPayloadSnapshot) return;
         console.log("⏪ MEMENTO: Ripristino snapshot in memoria...");
+        
+        // Salva il contesto dei Contratti prima del ripristino
+        const activeAsset = typeof ContractsState !== 'undefined' ? ContractsState.currentSelectedAsset : null;
+        const activeMaster = typeof ContractsState !== 'undefined' && ContractsState.currentMasterData ? ContractsState.currentMasterData["Master Contract ID"] : null;
+
         // Restituisce la RAM allo stato di Snapshot a latenza zero
         windowPayload = JSON.parse(JSON.stringify(window.originalPayloadSnapshot));
-
+        
         // Pulisce stati locali dei Controller
-        if (typeof ContractsState !== 'undefined') ContractsState.resetMaster();
-        if (typeof InitiativesState !== 'undefined') InitiativesState.loadPayload(windowPayload);
-
+        if(typeof ContractsState !== 'undefined') ContractsState.resetMaster();
+        if(typeof InitiativesState !== 'undefined') InitiativesState.loadPayload(windowPayload);
+        
         // Rispegne la spia e triggera il ricalcolo visuale
         setPendingChanges(false);
-
-        // Ricarica la vista basandosi sul tab attivo
+        if(typeof setEditModeActive !== 'undefined') setEditModeActive(false);
+        
+        // Ricarica la vista basandosi sul tab attivo (SENZA chiamare il server!)
         if (window.currentActiveTabId === 'tab-contracts' && typeof toggleGlobalEditMode !== 'undefined') {
             ContractsState.globalEditMode = false;
-            toggleGlobalEditMode();
-            toggleGlobalEditMode(); // Trigger doppio per forzare il refresh pulito
-        } else if (window.currentActiveTabId === 'tab-operations') {
-            renderOperationsHub(windowPayload);
+            // Ricarica l'asset e il master selezionati per non mostrare schermata vuota
+            if (activeAsset) {
+                selectAssetForManagement(activeAsset.name, activeAsset.id);
+                if (activeMaster) loadFullMasterDetailArchitecture(activeMaster);
+            } else {
+                document.getElementById('tab-contracts').innerHTML = ContractsTemplates.getBaseLayout();
+                renderAssetSearchList();
+            }
+        } else if (window.currentActiveTabId === 'tab-operations' && typeof InitiativesController !== 'undefined') {
+            InitiativesState.globalEditMode = false;
+            InitiativesController.renderKanbanBoard(true);
+        } else if (window.currentActiveTabId === 'tab-timeline' && typeof TimelineController !== 'undefined') {
+            TimelineState.isTimelineEditable = false;
+            TimelineController.initTimelineWorkspace(windowPayload);
         } else {
-            fetchLiveData(); // Fallback se si spacca qualcosa
+            // Selezioni che non hanno un proprio render engine locale
+            fetchLiveData(); 
         }
         FinOpsUI.showNotificationBanner("Modifiche scartate. Dati ripristinati.", "success");
     };
