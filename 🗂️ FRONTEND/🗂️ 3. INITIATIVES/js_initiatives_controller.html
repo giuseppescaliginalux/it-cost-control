@@ -638,6 +638,11 @@
             if (!isNew) {
                 document.getElementById('modal-init-name').value = initData["Initiative Name"] || "";
 
+                // 🌟 FIX: Popolamento campi anagrafici mancanti
+                document.getElementById('modal-init-description').value = initData["Description"] || "";
+                document.getElementById('modal-init-owner').value = initData["Service Owner"] || initData.serviceOwner || "";
+                document.getElementById('modal-init-procurement').value = initData["Procurement Point Focal"] || initData["Procurement Point"] || initData.procurementPoint || "";
+
                 const readStrategy = (initData["Initial Strategy"] || initData["Strategy"] || "OPTIMIZATION").toUpperCase().trim();
                 const readDecision = (initData["Decision"] || readStrategy).toUpperCase().trim();
                 document.getElementById('modal-init-strategy').value = readStrategy;
