@@ -202,11 +202,7 @@ class Initiative {
 class InitiativeRepository {
   constructor() { this.sheetName = CONFIG.SHEETS.INITIATIVES; }
   saveAllBulk(initiativesDtoArray) {
-    const ctx = getSheetContext(this.sheetName);
-    if (!ctx.sheet || initiativesDtoArray.length === 0) return;
-    const rows = initiativesDtoArray.map(dto => ctx.headers.map(h => INITIATIVE_FIELD_MAP[h] ? dto[INITIATIVE_FIELD_MAP[h]] : (dto[h] !== undefined ? dto[h] : "")));
-    if (ctx.sheet.getLastRow() > 1) ctx.sheet.getRange(2, 1, ctx.sheet.getLastRow() - 1, ctx.headers.length).clearContent();
-    ctx.sheet.getRange(2, 1, rows.length, ctx.headers.length).setValues(rows);
+    FinOpsDatabase.setObjects(this.sheetName, initiativesDtoArray, INITIATIVE_FIELD_MAP, false);
   }
 }
 

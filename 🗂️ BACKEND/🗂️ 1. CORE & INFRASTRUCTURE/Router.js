@@ -35,58 +35,63 @@ function include(filename) {
 
 /**
  * ============================================================================
- * API ROUTER / GATEWAY (FUNZIONI DI RETE ESISTENTI)
+ * API ROUTER / GATEWAY 
  * ============================================================================
  */
-// ... Il resto del tuo Router.js (processMasterDetailSync, getFullPayload_Internal, ecc.) rimane invariato ...
 
 /**
  * API ENDPOINT: Sincronizzazione ed elaborazione dei contratti da Timeline/Dashboard.
- * @param {Object} payload - DTO contenente Master Contract, Details, Splits e Ledger.
- * @returns {string} Stato dell'operazione ("SUCCESS" o messaggio di errore).
  */
 function processMasterDetailSync(payload) {
   try {
-    console.log("ROUTER: Ricevuto payload contratti. Delegazione a ContractDomain...");
+    // 1. Modifica la RAM con i dati in arrivo
+    ContractDomain.processAndSync(payload);
+    
+    // 2. Ricalcoli a Cascata in RAM
+    InitiativeDomain.forceRecalculateAll();
+    // Se hai mantenuto ProjectionDomain sul backend, lo chiami qui: ProjectionDomain.recalculateAll();
+    AssetDomain.consolidateBudgets();
 
-    // Raccordo verso il futuro ContractService
-    return ContractDomain.processAndSync(payload);
+    // 3. 🌟 SCRITTURA SINGOLA DI TUTTO IL DB
+    FinOpsDatabase.commit();
 
+    // 4. Ritorna il Delta aggiornato al browser
+    return {
+        status: "SUCCESS",
+        masterContracts: FinOpsDatabase.getObjects(CONFIG.SHEETS.MASTER_CONTRACTS),
+        contracts: FinOpsDatabase.getObjects(CONFIG.SHEETS.CONTRACTS),
+        allocationSplits: FinOpsDatabase.getObjects(CONFIG.SHEETS.ALLOCATION_SPLITS),
+        ledger: FinOpsDatabase.getObjects(CONFIG.SHEETS.LEDGER),
+        initiatives: FinOpsDatabase.getObjects(CONFIG.SHEETS.INITIATIVES),
+        assets: FinOpsDatabase.getObjects(CONFIG.SHEETS.ASSETS)
+    };
   } catch (error) {
-    console.error("ROUTER ERROR [processMasterDetailSync]:", error.message);
     throw new Error("Sync Failure: " + error.message);
   }
 }
 
 /**
  * API ENDPOINT: Sincronizzazione massiva delle iniziative di ottimizzazione.
- * @param {Array<Object>} payload - Array di oggetti iniziativa inviati dalla UI.
- * @returns {Object} Delta Payload (Stato dell'operazione + Array aggiornati).
  */
 function processInitiativesSync(payload) {
   try {
-    console.log("ROUTER: Ricevuto payload iniziative. Delegazione a InitiativeDomain...");
-
-    // 1. Salva fisicamente le nuove iniziative
     InitiativeDomain.processAndSync(payload);
-
-    // 2. EFFETTO A CASCATA: Aggiorna lo stato dei Contratti e degli Asset (in RAM e poi su foglio in Bulk)
-    console.log("ROUTER: Innesco allineamento a cascata per Master Contracts e Assets...");
+    
+    // Ricalcoli a Cascata in RAM
     ContractDomain.forceRecalculateAll();
     AssetDomain.consolidateBudgets();
+    
+    // 🌟 SCRITTURA SINGOLA DI TUTTO IL DB
+    FinOpsDatabase.commit();
 
-    // 3. IL DELTA PAYLOAD: Leggiamo i 3 fogli aggiornati e li restituiamo al Client
-    // NON ricalcoliamo e NON leggiamo più il foglio Projections!
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
     return {
-      status: "SUCCESS",
-      initiatives: getSheetDataAsObjects(ss, CONFIG.SHEETS.INITIATIVES),
-      masterContracts: getSheetDataAsObjects(ss, CONFIG.SHEETS.MASTER_CONTRACTS),
-      assets: getSheetDataAsObjects(ss, CONFIG.SHEETS.ASSETS)
+        status: "SUCCESS",
+        initiatives: FinOpsDatabase.getObjects(CONFIG.SHEETS.INITIATIVES),
+        masterContracts: FinOpsDatabase.getObjects(CONFIG.SHEETS.MASTER_CONTRACTS),
+        contracts: FinOpsDatabase.getObjects(CONFIG.SHEETS.CONTRACTS),
+        assets: FinOpsDatabase.getObjects(CONFIG.SHEETS.ASSETS)
     };
-
   } catch (error) {
-    console.error("ROUTER ERROR [processInitiativesSync]:", error.message);
     throw new Error("Initiatives Sync Failure: " + error.message);
   }
 }

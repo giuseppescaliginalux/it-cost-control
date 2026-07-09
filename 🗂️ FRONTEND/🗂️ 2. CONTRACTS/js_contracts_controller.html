@@ -378,12 +378,12 @@
     function toggleCompactAccordion(id, event) {
         // Se si clicca un tasto, un link o un tooltip non aprire la card
         if (event && (event.target.tagName === 'BUTTON' || event.target.closest('button') || event.target.closest('span.tt-wrapper') || event.target.tagName === 'A')) return;
-        
+
         const panel = document.getElementById(`compact-accordion-${id}`);
         const chevron = document.getElementById(`compact-chevron-${id}`);
-        
+
         if (!panel) return;
-        
+
         if (panel.classList.contains('hidden')) {
             panel.classList.remove('hidden');
             if (chevron) chevron.style.transform = "rotate(90deg)";
@@ -410,6 +410,7 @@
         item.data["Cost Recurrence"] = safeVal(`edit-costRecurrence-${id}`);
         item.data["Pricing Model"] = safeVal(`edit-pricingModel-${id}`);
         item.data["Billing Terms"] = safeVal(`edit-billingTerms-${id}`);
+        item.data["Billing Frequency"] = safeVal(`edit-billingFrequency-${id}`);
         const cleanCommitmentStr = safeVal(`edit-totalCommitment-${id}`).replace(/\./g, '').trim();
         item.data["Total Commitment"] = parseInt(cleanCommitmentStr, 10) || 0;
         item.data["Expenditure Type"] = safeVal(`edit-expenditureType-${id}`);
@@ -586,6 +587,7 @@
                     costRecurrence: item.data["Cost Recurrence"] || "",
                     pricingModel: item.data["Pricing Model"] || "",
                     billingTerms: item.data["Billing Terms"] || "",
+                    billingFrequency: item.data["Billing Frequency"] || "",
                     totalCommitment: item.data["Total Commitment"] || 0,
                     expenditureType: item.data["Expenditure Type"] || "",
                     costCenter: item.data["Cost Center"] || "",
@@ -614,11 +616,29 @@
         ContractsAPI.syncArchitectureToBackend(payload,
             (res) => {
                 hideLoading();
-                if (res === "SUCCESS") {
+                if (res && res.status === "SUCCESS") {
                     FinOpsUI.showNotificationBanner("Architecture synchronized successfully.", "success");
-                    fetchLiveData().then(() => {
-                        selectAssetForManagement(ContractsState.currentSelectedAsset.name, ContractsState.currentSelectedAsset.id);
-                    });
+
+                    // 1. Aggiorna la memoria globale con il Delta Payload
+                    windowPayload.masterContracts = res.masterContracts || windowPayload.masterContracts;
+                    windowPayload.contracts = res.contracts || windowPayload.contracts;
+                    windowPayload.allocationSplits = res.allocationSplits || windowPayload.allocationSplits;
+                    windowPayload.ledger = res.ledger || windowPayload.ledger;
+
+                    // 2. Ricalcola le proiezioni In-Memory a latenza zero!
+                    windowPayload.projections = ProjectionsEngine.calculateAll(
+                        windowPayload.contracts,
+                        windowPayload.initiatives,
+                        windowPayload.masterContracts
+                    );
+
+                    // 3. Ricarica silenziosamente le altre dashboard senza F5
+                    if (typeof DashboardState !== 'undefined') DashboardState.loadCachePayload(windowPayload);
+                    if (typeof ProjectionsState !== 'undefined') ProjectionsState.loadPayload(windowPayload);
+                    if (typeof initInventoryTab === 'function') initInventoryTab();
+
+                    // Ricarica la vista contratti pulita
+                    selectAssetForManagement(ContractsState.currentSelectedAsset.name, ContractsState.currentSelectedAsset.id);
                 } else {
                     FinOpsUI.showNotificationBanner("Sync failed: unexpected execution outcome from server.", "error");
                 }
@@ -677,18 +697,36 @@
     function toggleLedgerVisibility(detailId) {
         const billingTermsSelect = document.getElementById(`edit-billingTerms-${detailId}`);
         const pricingModelSelect = document.getElementById(`edit-pricingModel-${detailId}`);
+        const freqContainer = document.getElementById(`container-billingFreq-${detailId}`);
+        const freqSelect = document.getElementById(`edit-billingFrequency-${detailId}`);
+
         const ledgerSection = document.getElementById(`ledger-section-container-${detailId}`);
         const autoForecastBtn = document.getElementById(`auto-forecast-btn-${detailId}`);
 
-        if (ledgerSection && billingTermsSelect && pricingModelSelect) {
-            const isLedgerDriven = billingTermsSelect.value === "Ledger-Driven";
-            const isConsumption = ["Pure Consumption", "Minimum Consumption", "Capped Consumption"].includes(pricingModelSelect.value);
+        if (billingTermsSelect && pricingModelSelect) {
+            const terms = billingTermsSelect.value;
+            const model = pricingModelSelect.value;
+            const isLedgerDriven = terms === "Custom / Ledger Driven" || terms === "Ledger-Driven";
+            const isConsumption = ["Pure Consumption", "Minimum Consumption", "Capped Consumption"].includes(model);
 
-            if (isLedgerDriven || isConsumption) ledgerSection.classList.remove('hidden');
-            else ledgerSection.classList.add('hidden');
+            // Mostra/Nascondi la Frequenza
+            if (freqContainer && freqSelect) {
+                if (terms === "Fixed Recurring" || terms === "Linear" || terms === "Quarterly") {
+                    freqContainer.classList.remove('hidden');
+                    if (!freqSelect.value) freqSelect.value = "Monthly"; // Default
+                } else {
+                    freqContainer.classList.add('hidden');
+                    freqSelect.value = "";
+                }
+            }
+
+            if (ledgerSection) {
+                if (isLedgerDriven || isConsumption) ledgerSection.classList.remove('hidden');
+                else ledgerSection.classList.add('hidden');
+            }
 
             if (autoForecastBtn) {
-                const canAutoForecast = isLedgerDriven && ["Minimum Consumption", "Capped Consumption"].includes(pricingModelSelect.value);
+                const canAutoForecast = (terms === "Pay-As-You-Go" || isLedgerDriven) && ["Minimum Consumption", "Capped Consumption"].includes(model);
                 if (canAutoForecast) autoForecastBtn.classList.remove('hidden');
                 else autoForecastBtn.classList.add('hidden');
             }
@@ -703,10 +741,10 @@
         const isCapex = expTypeSelect.value === "CAPEX";
 
         Array.from(billingTermsSelect.options).forEach(opt => {
-            if (isCapex && (opt.value === "Linear" || opt.value === "Quarterly")) {
+            if (isCapex && (opt.value === "Fixed Recurring" || opt.value === "Linear" || opt.value === "Quarterly")) {
                 opt.disabled = true;
                 if (opt.selected) {
-                    billingTermsSelect.value = "Full Upfront";
+                    billingTermsSelect.value = "Full Upfront / Prepaid";
                 }
             } else {
                 opt.disabled = false;
@@ -775,7 +813,7 @@
 
     // 🌟 BLOCCO INTEGRATO FINALE: Sovrascrive l'oggetto globale esponendo tutte le API verso la View
     window.ContractsController = {
-        
+
         updateSplitPlaceholder: function (selectEl) {
             const row = selectEl.closest('.split-row-item');
             const inputEl = row.querySelector('.split-val');
@@ -787,7 +825,7 @@
         },
 
         // 🌟 PUNTO 5: Metodo per accendere/spegnere i pannelli Ledger e Split dalla card
-        toggleCardSection: function(id, section, event) {
+        toggleCardSection: function (id, section, event) {
             event.stopPropagation(); // Evita che si espanda anche l'accordion della card
             const panel = document.getElementById(`read-${section}-${id}`);
             if (panel) {
@@ -824,10 +862,10 @@
                 : `<p class="text-[9px] text-slate-400 italic text-center py-2 empty-ledger-msg bg-slate-50 rounded-md">No manual ledger movements yet.</p>`;
 
             mountPoint.innerHTML = ContractsTemplates.getContractModalFormStructure(id, editLeOptions, tgOptions, locOptions, soOptions, editCcOptions, docLinks, splitsHtml, ledgerHtml, d);
-            
+
             mountPoint.classList.remove('hidden');
             mountPoint.classList.add('flex');
-            
+
             toggleLedgerVisibility(id);
         },
 
@@ -895,15 +933,15 @@
             document.getElementById('ins-masterSupplier-search').value = supplierName;
             document.getElementById('ins-masterSupplier').value = supplierName;
             document.getElementById('ins-supplier-options-list').classList.add('hidden');
-            
+
             // Cerca il Billing channel nel database fornitori, altrimenti applica il default
             const suppliers = windowPayload.suppliers || [];
             const supObj = suppliers.find(s => String(s["Supplier"]).trim().toLowerCase() === supplierName.toLowerCase());
             const channel = supObj ? (supObj["Billing Channel"] || 'Direct Vendor') : 'Direct Vendor';
-            
+
             const channelDisplay = document.getElementById('ins-masterBillingChannel-display');
             const channelInput = document.getElementById('ins-masterBillingChannel');
-            
+
             if (channelDisplay) channelDisplay.textContent = channel;
             if (channelInput) channelInput.value = channel;
         }
@@ -913,7 +951,7 @@
     document.addEventListener('click', function (e) {
         const assetDrop = document.getElementById('modal-asset-options-list');
         const comboContainer = document.getElementById('modal-asset-combo-container');
-        
+
         const supplierDrop = document.getElementById('ins-supplier-options-list');
         const supplierSearchInput = document.getElementById('ins-masterSupplier-search');
         if (supplierDrop && !supplierDrop.classList.contains('hidden') && supplierSearchInput && !supplierSearchInput.contains(e.target)) {

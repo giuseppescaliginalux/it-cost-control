@@ -227,39 +227,14 @@ class Asset {
 // ============================================================================
 
 class AssetRepository {
-  constructor() {
-    this.sheetName = CONFIG.SHEETS.ASSETS;
-  }
-
-  /**
-   * Estrae e idrata l'intero parco asset traducendolo preventivamente in oggetti di dominio purificati.
-   */
+  constructor() { this.sheetName = CONFIG.SHEETS.ASSETS; }
   findAll() {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const rawData = getSheetDataAsObjects(ss, this.sheetName) || [];
+    const rawData = getSheetDataAsObjects(null, this.sheetName) || [];
     return rawData.map(r => new Asset(AssetMapper.toDto(r)));
   }
-
-  /**
-   * Rimappa la collezione di oggetti ed esegue il Bulk-Write atomico proiettando sui reali header del database.
-   */
   saveAll(assetsDomainCollection) {
-    const ctx = getSheetContext(this.sheetName);
-    if (!ctx.sheet || assetsDomainCollection.length === 0) return;
-
-    const rows = assetsDomainCollection.map(assetInstance => {
-      const dto = assetInstance.exportToData();
-      return ctx.headers.map(h => {
-        const prop = ASSET_FIELD_MAP[h];
-        return prop && dto[prop] !== undefined ? dto[prop] : (dto[h] !== undefined ? dto[h] : "");
-      });
-    });
-
-    if (ctx.sheet.getLastRow() > 1) {
-      ctx.sheet.getRange(2, 1, ctx.sheet.getLastRow() - 1, ctx.headers.length).clearContent();
-    }
-    ctx.sheet.getRange(2, 1, rows.length, ctx.headers.length).setValues(rows);
-    console.log(`ASSET REPOSITORY: Sincronizzazione ed allineamento completato per ${rows.length} record.`);
+    const dtos = assetsDomainCollection.map(a => a.exportToData());
+    FinOpsDatabase.setObjects(this.sheetName, dtos, ASSET_FIELD_MAP, false);
   }
 }
 

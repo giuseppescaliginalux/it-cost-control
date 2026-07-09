@@ -624,114 +624,35 @@ class MasterContract {
 // ============================================================================
 
 class ContractRepository {
-
-  // Helper nativo: mappa il DTO esattamente sulle colonne fisiche del foglio
-  _mapDtoToRow(dto, headers, fieldMap) {
-    return headers.map(header => {
-      if (fieldMap && fieldMap[header]) {
-        const prop = fieldMap[header];
-        return dto[prop] !== undefined ? dto[prop] : (dto[header] !== undefined ? dto[header] : "");
-      }
-      return dto[header] !== undefined ? dto[header] : "";
-    });
-  }
-
   saveMasterRow(masterDto) {
-    const ctx = getSheetContext(CONFIG.SHEETS.MASTER_CONTRACTS);
-    const idCol = ctx.headers.indexOf("Master Contract ID");
-    let rowIdx = -1;
-
-    for (let i = 1; i < ctx.data.length; i++) {
-      if (String(ctx.data[i][idCol]).trim() === String(masterDto.masterId).trim()) { rowIdx = i + 1; break; }
-    }
-
-    const mappedRow = this._mapDtoToRow(masterDto, ctx.headers, MASTER_FIELD_MAP);
-
-    // Scrittura nativa diretta: l'intero DTO (inclusi i campi extra e non mappati) viene consolidato
-    if (rowIdx > 0) {
-      ctx.sheet.getRange(rowIdx, 1, 1, ctx.headers.length).setValues([mappedRow]);
-    } else {
-      ctx.sheet.appendRow(mappedRow);
-    }
+    FinOpsDatabase.updateOrAppendRowByColumnValue(CONFIG.SHEETS.MASTER_CONTRACTS, "Master Contract ID", masterDto.masterId, masterDto, MASTER_FIELD_MAP);
   }
 
   saveDetailsCollection(masterId, detailsDtoArray) {
-    const ctx = getSheetContext(CONFIG.SHEETS.CONTRACTS);
-    const mIdCol = ctx.headers.indexOf("Master Contract ID");
-    const cIdCol = ctx.headers.indexOf("Contract ID");
-
-    const dbRowsMap = new Map();
-    for (let i = 1; i < ctx.data.length; i++) {
-      if (String(ctx.data[i][mIdCol]).trim() === String(masterId).trim()) {
-        dbRowsMap.set(String(ctx.data[i][cIdCol]).trim(), i + 1);
-      }
+    const ctx = FinOpsDatabase.getContext(CONFIG.SHEETS.CONTRACTS);
+    const colIdx = ctx.headers.indexOf("Master Contract ID");
+    const filteredData = [ctx.headers];
+    for(let i=1; i<ctx.data.length; i++) {
+       if (String(ctx.data[i][colIdx]).trim() !== String(masterId).trim()) filteredData.push(ctx.data[i]);
     }
-
-    detailsDtoArray.forEach(detail => {
-      const cid = String(detail.contractId).trim();
-      const mappedRow = this._mapDtoToRow(detail, ctx.headers, CONTRACT_FIELD_MAP);
-
-      if (dbRowsMap.has(cid)) {
-        ctx.sheet.getRange(dbRowsMap.get(cid), 1, 1, ctx.headers.length).setValues([mappedRow]);
-        dbRowsMap.delete(cid);
-      } else {
-        ctx.sheet.appendRow(mappedRow);
-      }
-    });
-
-    const toDelete = Array.from(dbRowsMap.values()).sort((a, b) => b - a);
-    toDelete.forEach(idx => ctx.sheet.deleteRow(idx));
+    ctx.data = filteredData;
+    FinOpsDatabase.setObjects(CONFIG.SHEETS.CONTRACTS, detailsDtoArray, CONTRACT_FIELD_MAP, true);
   }
 
   wipeAndWriteSplits(contractIds, splitsDtoArray) {
-    if (contractIds.length === 0) return;
-    const ctx = getSheetContext(CONFIG.SHEETS.ALLOCATION_SPLITS);
-    if (!ctx.sheet) return;
-    const cIdCol = ctx.headers.indexOf("Contract ID");
-    for (let i = ctx.data.length - 1; i >= 1; i--) {
-      if (contractIds.includes(String(ctx.data[i][cIdCol]).trim())) ctx.sheet.deleteRow(i + 1);
-    }
-    this._bulkOverwrite(CONFIG.SHEETS.ALLOCATION_SPLITS, splitsDtoArray, SPLIT_FIELD_MAP, true);
+    FinOpsDatabase.deleteRowsByColumnValue(CONFIG.SHEETS.ALLOCATION_SPLITS, "Contract ID", contractIds);
+    FinOpsDatabase.setObjects(CONFIG.SHEETS.ALLOCATION_SPLITS, splitsDtoArray, SPLIT_FIELD_MAP, true);
   }
 
   wipeAndWriteLedger(contractIds, ledgerDtoArray) {
-    if (contractIds.length === 0) return;
-    const ctx = getSheetContext(CONFIG.SHEETS.LEDGER);
-    if (!ctx.sheet) return;
-    const cIdCol = ctx.headers.indexOf("Contract ID");
-    for (let i = ctx.data.length - 1; i >= 1; i--) {
-      if (contractIds.includes(String(ctx.data[i][cIdCol]).trim())) ctx.sheet.deleteRow(i + 1);
-    }
-    this._bulkOverwrite(CONFIG.SHEETS.LEDGER, ledgerDtoArray, LEDGER_FIELD_MAP, true);
+    FinOpsDatabase.deleteRowsByColumnValue(CONFIG.SHEETS.LEDGER, "Contract ID", contractIds);
+    FinOpsDatabase.setObjects(CONFIG.SHEETS.LEDGER, ledgerDtoArray, LEDGER_FIELD_MAP, true);
   }
 
-  overwriteAllMasters(mastersArray) { this._bulkOverwrite(CONFIG.SHEETS.MASTER_CONTRACTS, mastersArray, MASTER_FIELD_MAP); }
-  overwriteAllContracts(contractsArray) { this._bulkOverwrite(CONFIG.SHEETS.CONTRACTS, contractsArray, CONTRACT_FIELD_MAP); }
-  overwriteAllSplits(splitsArray) { this._bulkOverwrite(CONFIG.SHEETS.ALLOCATION_SPLITS, splitsArray, SPLIT_FIELD_MAP); }
-  overwriteAllLedger(ledgerArray) { this._bulkOverwrite(CONFIG.SHEETS.LEDGER, ledgerArray, LEDGER_FIELD_MAP); }
-
-  _bulkOverwrite(sheetName, dataObjectsArray, fieldMap, appendMode = false) {
-    const ctx = getSheetContext(sheetName);
-    if (!ctx.sheet) return;
-
-    if (!appendMode && ctx.sheet.getLastRow() > 1) {
-      ctx.sheet.getRange(2, 1, ctx.sheet.getLastRow() - 1, ctx.headers.length).clearContent();
-    }
-    if (dataObjectsArray.length === 0) return;
-
-    const rows = dataObjectsArray.map(obj => {
-      return ctx.headers.map(header => {
-        if (fieldMap && fieldMap[header]) {
-          const prop = fieldMap[header];
-          return obj[prop] !== undefined ? obj[prop] : (obj[header] !== undefined ? obj[header] : "");
-        }
-        return obj[header] !== undefined ? obj[header] : "";
-      });
-    });
-
-    const startRow = appendMode ? ctx.sheet.getLastRow() + 1 : 2;
-    ctx.sheet.getRange(startRow, 1, rows.length, ctx.headers.length).setValues(rows);
-  }
+  overwriteAllMasters(mastersArray) { FinOpsDatabase.setObjects(CONFIG.SHEETS.MASTER_CONTRACTS, mastersArray, MASTER_FIELD_MAP, false); }
+  overwriteAllContracts(contractsArray) { FinOpsDatabase.setObjects(CONFIG.SHEETS.CONTRACTS, contractsArray, CONTRACT_FIELD_MAP, false); }
+  overwriteAllSplits(splitsArray) { FinOpsDatabase.setObjects(CONFIG.SHEETS.ALLOCATION_SPLITS, splitsArray, SPLIT_FIELD_MAP, false); }
+  overwriteAllLedger(ledgerArray) { FinOpsDatabase.setObjects(CONFIG.SHEETS.LEDGER, ledgerArray, LEDGER_FIELD_MAP, false); }
 }
 
 // ============================================================================

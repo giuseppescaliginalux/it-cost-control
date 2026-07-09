@@ -13,16 +13,18 @@
  */
 function batchRecalculateContractsEcosystem() {
   console.log("=== BATCH: AVVIO RICALCOLO COMPLETO CONTRATTI ===");
-  
+
   // Chiama il servizio contratti per rileggere, ricalcolare e sovrascrivere in modo coerente
   ContractDomain.forceRecalculateAll();
-  
+
   // Sincronizza a cascata le iniziative (le cui baseline dipendono dai contratti modificati)
   InitiativeDomain.forceRecalculateAll();
-  
+
   // Aggiorna le proiezioni temporali finali
   ProjectionDomain.recalculateAll();
-  
+
+  FinOpsDatabase.commit();
+
   console.log("=== BATCH: RICALCOLO CONTRATTI COMPLETATO CON SUCCESSO ===");
 }
 
@@ -32,25 +34,16 @@ function batchRecalculateContractsEcosystem() {
  */
 function batchRecalculateInitiativesOnly() {
   console.log("=== BATCH: AVVIO RICALCOLO SELETTIVO INIZIATIVE ===");
-  
+
   // Delega interamente al dominio proprietario
   InitiativeDomain.forceRecalculateAll();
-  
+
   // Rinfresca lo scenario finanziario ottimizzato
   ProjectionDomain.recalculateAll();
-  
-  console.log("=== BATCH: ALLINEAMENTO INIZIATIVE COMPLETATO ===");
-}
 
-/**
- * MACRO MANUALE 3: Forza il rinfresco totale del motore predittivo delle proiezioni fiscali.
- */
-function batchRefreshProjectionsOnly() {
-  console.log("=== BATCH: RIGENERAZIONE STREAM DI CASSA FISCALI ===");
-  
-  ProjectionDomain.recalculateAll();
-  
-  console.log("=== BATCH: PROIEZIONI FISCALI AGGIORNATE ===");
+  FinOpsDatabase.commit();
+
+  console.log("=== BATCH: ALLINEAMENTO INIZIATIVE COMPLETATO ===");
 }
 
 /**
@@ -60,18 +53,17 @@ function batchRefreshProjectionsOnly() {
  */
 function batchRunFullSystemAlignment() {
   console.log("=== 🚀 AVVIO ALLINEAMENTO STRUTTURALE GLOBALE ===");
-  
+
   console.log("[1/4] Calcolo metriche finanziarie su Contratti e Master...");
   ContractDomain.forceRecalculateAll();
-  
+
   console.log("[2/4] Elaborazione del Cascading Baseline sulle Iniziative...");
   InitiativeDomain.forceRecalculateAll();
-  
-  console.log("[3/4] Generazione scenari Baseline vs Optimized sulle Proiezioni...");
-  ProjectionDomain.recalculateAll();
-  
+
   console.log("[4/4] Consolidamento Budget Status sul portafoglio degli Asset...");
   AssetDomain.consolidateBudgets();
-  
+
+  FinOpsDatabase.commit();
+
   console.log("=== 🟢 ARCHITETTURA COMPLETAMENTE ALLINEATA IN MODO COERENTE ===");
 }

@@ -1,91 +1,141 @@
 /**
  * ============================================================================
- * FINOPS ENTERPRISE ARCHITECTURE: DATABASE UTILITIES
+ * FINOPS ENTERPRISE ARCHITECTURE: IN-MEMORY DATABASE UTILITIES
  * ============================================================================
- * Fornisce motori di I/O ottimizzati (Bulk Operations) e normalizzatori dati.
+ * Implementa il pattern "Unit of Work". Tutte le letture/scritture avvengono
+ * in RAM. Solo il comando commit() scarica i dati fisicamente sui fogli Google.
  * ============================================================================
  */
 
-/**
- * CORE TIME ENGINE: Centralizza la normalizzazione delle date a livello di Server.
- * Trasforma qualsiasi porcheria (Date, ISO, stringhe estese) in stringhe pure 'YYYY-MM-DD'
- * blindate sul fuso orario locale, azzerando slittamenti o ore spurie.
- * * @param {any} val - Il valore grezzo della data.
- * @returns {string} Stringa formattata 'YYYY-MM-DD' o stringa vuota.
- */
-function formatServerDate(val) {
-  if (val === undefined || val === null) return "";
+const FinOpsDatabase = {
+  cache: {},
+  dirtySheets: new Set(),
 
-  // Caso 1: È già un oggetto Date nativo di Apps Script
-  if (val instanceof Date) {
-    return !isNaN(val.getTime()) ? Utilities.formatDate(val, CONFIG.TIMEZONE, "yyyy-MM-dd") : "";
-  }
+  getContext: function(sheetName) {
+    if (!this.cache[sheetName]) {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const sheet = ss.getSheetByName(sheetName);
+      if (!sheet) return { sheet: null, data: [], headers: [] };
+      const data = sheet.getDataRange().getValues();
+      const headers = data.length > 0 ? data[0].map(h => String(h).trim()) : [];
+      this.cache[sheetName] = { sheet, data, headers };
+    }
+    return this.cache[sheetName];
+  },
 
-  let s = String(val).trim();
-  if (s === "" || s === "—" || s === "-") return "";
+  getObjects: function(sheetName) {
+    const ctx = this.getContext(sheetName);
+    if (!ctx.sheet || ctx.data.length <= 1) return [];
+    const objects = [];
+    for (let i = 1; i < ctx.data.length; i++) {
+      const row = ctx.data[i];
+      const obj = {};
+      ctx.headers.forEach((header, index) => {
+        let val = row[index];
+        if (val instanceof Date) obj[header] = formatServerDate(val);
+        else obj[header] = val !== undefined && val !== null ? val : "";
+      });
+      objects.push(obj);
+    }
+    return objects;
+  },
 
-  // Caso 2: È una stringa ISO o YYYY-MM-DD (es. 2026-07-04T18:30:00.000Z)
-  // Isoliamo i componenti via Regex per impedire ai fusi orari del server di scalare i giorni
-  let isoMatch = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})/);
-  if (isoMatch) {
-    return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
-  }
+  setObjects: function(sheetName, dataObjectsArray, fieldMap, appendMode = false) {
+    const ctx = this.getContext(sheetName);
+    if (!ctx.sheet) return;
 
-  // Caso 3: Stringhe grezze estese (es. "Sat Jul 04 2026 18:30:00 GMT...")
-  let d = new Date(s);
-  if (!isNaN(d.getTime())) {
-    return Utilities.formatDate(d, CONFIG.TIMEZONE, "yyyy-MM-dd");
-  }
+    const newRows = dataObjectsArray.map(obj => {
+      return ctx.headers.map(header => {
+        if (fieldMap && fieldMap[header]) {
+          const prop = fieldMap[header];
+          return obj[prop] !== undefined ? obj[prop] : (obj[header] !== undefined ? obj[header] : "");
+        }
+        return obj[header] !== undefined ? obj[header] : "";
+      });
+    });
 
-  return s; // Fallback di sicurezza estremo
-}
+    if (appendMode) {
+      ctx.data = ctx.data.concat(newRows);
+    } else {
+      ctx.data = [ctx.headers, ...newRows];
+    }
+    this.dirtySheets.add(sheetName);
+  },
 
-/**
- * Ottimizzazione delle letture (Bulk Reading): Estrae l'intero contesto di un foglio in un colpo solo.
- * O(1) Network overhead.
- * * @param {string} sheetName - Nome del foglio target.
- * @returns {Object} Oggetto contenente istanza foglio, matrice dati grezzi e array intestazioni.
- */
-function getSheetContext(sheetName) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(sheetName);
-  if (!sheet) return { sheet: null, data: [], headers: [] };
+  deleteRowsByColumnValue: function(sheetName, columnName, valuesToDelete) {
+    const ctx = this.getContext(sheetName);
+    if (!ctx.sheet || ctx.data.length <= 1 || valuesToDelete.length === 0) return;
+    const colIdx = ctx.headers.indexOf(columnName);
+    if (colIdx === -1) return;
 
-  const data = sheet.getDataRange().getValues();
-  const headers = data.length > 0 ? data[0].map(h => String(h).trim()) : [];
-  return { sheet: sheet, data: data, headers: headers };
-}
+    const filteredData = [ctx.headers];
+    for (let i = 1; i < ctx.data.length; i++) {
+        const val = String(ctx.data[i][colIdx]).trim();
+        if (!valuesToDelete.includes(val)) {
+            filteredData.push(ctx.data[i]);
+        }
+    }
+    ctx.data = filteredData;
+    this.dirtySheets.add(sheetName);
+  },
+  
+  updateOrAppendRowByColumnValue: function(sheetName, columnName, matchValue, dataObject, fieldMap) {
+    const ctx = this.getContext(sheetName);
+    if (!ctx.sheet) return;
+    const colIdx = ctx.headers.indexOf(columnName);
+    if (colIdx === -1) return;
 
-/**
- * Trasforma una matrice piatta di Google Sheets in un array di oggetti JSON JavaScript.
- * Associa dinamicamente le intestazioni del foglio come chiavi dell'oggetto.
- * * @param {Spreadsheet} ss - Istanza del foglio elettronico attivo.
- * @param {string} sheetName - Nome del foglio da convertire.
- * @returns {Array<Object>} Array di record ad oggetti.
- */
-function getSheetDataAsObjects(ss, sheetName) {
-  const sheet = ss.getSheetByName(sheetName);
-  if (!sheet) return [];
+    const newRow = ctx.headers.map(header => {
+        if (fieldMap && fieldMap[header]) {
+          const prop = fieldMap[header];
+          return dataObject[prop] !== undefined ? dataObject[prop] : (dataObject[header] !== undefined ? dataObject[header] : "");
+        }
+        return dataObject[header] !== undefined ? dataObject[header] : "";
+    });
 
-  const values = sheet.getDataRange().getValues();
-  if (values.length <= 1) return [];
+    let found = false;
+    for (let i = 1; i < ctx.data.length; i++) {
+        if (String(ctx.data[i][colIdx]).trim() === String(matchValue).trim()) {
+            ctx.data[i] = newRow;
+            found = true;
+            break;
+        }
+    }
+    if (!found) ctx.data.push(newRow);
+    this.dirtySheets.add(sheetName);
+  },
 
-  const headers = values[0].map(h => String(h).trim());
-  const objects = [];
-
-  for (let i = 1; i < values.length; i++) {
-    const row = values[i];
-    const obj = {};
-    headers.forEach((header, index) => {
-      let val = row[index];
-      // Normalizzazione preventiva delle date in lettura
-      if (val instanceof Date) {
-        obj[header] = formatServerDate(val);
-      } else {
-        obj[header] = val !== undefined && val !== null ? val : "";
+  commit: function() {
+    this.dirtySheets.forEach(sheetName => {
+      const ctx = this.cache[sheetName];
+      if (ctx && ctx.sheet) {
+        const lastRow = ctx.sheet.getLastRow();
+        if (lastRow > 1) {
+          ctx.sheet.getRange(2, 1, lastRow - 1, ctx.headers.length).clearContent();
+        }
+        if (ctx.data.length > 1) {
+          const rowsToWrite = ctx.data.slice(1);
+          ctx.sheet.getRange(2, 1, rowsToWrite.length, ctx.headers.length).setValues(rowsToWrite);
+        }
       }
     });
-    objects.push(obj);
+    this.dirtySheets.clear();
+    console.log("DATABASE: Commit massivo completato con successo in O(1).");
   }
-  return objects;
+};
+
+function formatServerDate(val) {
+  if (val === undefined || val === null) return "";
+  if (val instanceof Date) return !isNaN(val.getTime()) ? Utilities.formatDate(val, CONFIG.TIMEZONE || "Europe/Rome", "yyyy-MM-dd") : "";
+  let s = String(val).trim();
+  if (s === "" || s === "—" || s === "-") return "";
+  let isoMatch = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+  let d = new Date(s);
+  if (!isNaN(d.getTime())) return Utilities.formatDate(d, CONFIG.TIMEZONE || "Europe/Rome", "yyyy-MM-dd");
+  return s;
 }
+
+// Override functions to transparently use the RAM Database
+function getSheetContext(sheetName) { return FinOpsDatabase.getContext(sheetName); }
+function getSheetDataAsObjects(ss, sheetName) { return FinOpsDatabase.getObjects(sheetName); }
