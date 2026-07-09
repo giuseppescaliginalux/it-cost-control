@@ -3,6 +3,23 @@
      * MODULO RACCORDO UI GENERICA E BADGE CONDIVISI
      */
     function switchTab(tabId) {
+        // 🛡️ NAVIGATION GUARD
+        if (window.hasPendingChanges && window.currentActiveTabId !== tabId) {
+            FinOpsUI.showConfirm(
+                "Modifiche in sospeso",
+                "Hai effettuato delle modifiche che non sono ancora state salvate sul database. Se cambi schermata adesso perderai il tuo lavoro. Vuoi scartare le modifiche e procedere?",
+                () => {
+                    revertLocalChanges(); // Torna indietro nel tempo
+                    executeTabSwitch(tabId);
+                }
+            );
+            return;
+        }
+        executeTabSwitch(tabId);
+    }
+
+    function executeTabSwitch(tabId) {
+        window.currentActiveTabId = tabId;
         const tabs = ['tab-dashboard', 'tab-inventory', 'tab-operations', 'tab-contracts', 'tab-projections', 'tab-timeline'];
         const activeClass = "bg-teal-700 text-white shadow-sm pointer-events-none font-black".split(" ");
         const inactiveClass = "text-teal-300 hover:text-white hover:bg-teal-800/50 cursor-pointer font-bold".split(" ");
@@ -18,7 +35,6 @@
                     btnEl.classList.add(...activeClass);
                 }
 
-                // --- INVOCA IL CONTROLLER SE SI SCEGLIE IL TAB TIMELINE ---
                 if (t === 'tab-timeline' && typeof TimelineController !== 'undefined') {
                     TimelineController.initTimelineWorkspace(window.windowPayload);
                 }

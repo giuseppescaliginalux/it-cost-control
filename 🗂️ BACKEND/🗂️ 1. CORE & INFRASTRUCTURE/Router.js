@@ -43,16 +43,18 @@ function include(filename) {
  * API ENDPOINT: Sincronizzazione ed elaborazione dei contratti da Timeline/Dashboard.
  */
 function processMasterDetailSync(payload) {
+  const lock = LockService.getScriptLock();
   try {
+    lock.waitLock(20000); // 20 secondi di tolleranza concorrenza
+    
     // 1. Modifica la RAM con i dati in arrivo
     ContractDomain.processAndSync(payload);
     
     // 2. Ricalcoli a Cascata in RAM
     InitiativeDomain.forceRecalculateAll();
-    // Se hai mantenuto ProjectionDomain sul backend, lo chiami qui: ProjectionDomain.recalculateAll();
     AssetDomain.consolidateBudgets();
 
-    // 3. 🌟 SCRITTURA SINGOLA DI TUTTO IL DB
+    // 3. SCRITTURA SINGOLA DI TUTTO IL DB
     FinOpsDatabase.commit();
 
     // 4. Ritorna il Delta aggiornato al browser
@@ -67,6 +69,8 @@ function processMasterDetailSync(payload) {
     };
   } catch (error) {
     throw new Error("Sync Failure: " + error.message);
+  } finally {
+    lock.releaseLock(); // Rilascia SEMPRE il blocco
   }
 }
 
@@ -74,14 +78,15 @@ function processMasterDetailSync(payload) {
  * API ENDPOINT: Sincronizzazione massiva delle iniziative di ottimizzazione.
  */
 function processInitiativesSync(payload) {
+  const lock = LockService.getScriptLock();
   try {
+    lock.waitLock(20000);
+    
     InitiativeDomain.processAndSync(payload);
     
-    // Ricalcoli a Cascata in RAM
     ContractDomain.forceRecalculateAll();
     AssetDomain.consolidateBudgets();
     
-    // 🌟 SCRITTURA SINGOLA DI TUTTO IL DB
     FinOpsDatabase.commit();
 
     return {
@@ -93,6 +98,30 @@ function processInitiativesSync(payload) {
     };
   } catch (error) {
     throw new Error("Initiatives Sync Failure: " + error.message);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function processTimelineSync(payload) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(20000);
+    
+    // Applica le modifiche ai soli Master e righe orfane spostate
+    FinOpsDatabase.setObjects(CONFIG.SHEETS.MASTER_CONTRACTS, payload.masterContracts, MASTER_FIELD_MAP, false);
+    FinOpsDatabase.setObjects(CONFIG.SHEETS.CONTRACTS, payload.contracts, CONTRACT_FIELD_MAP, false);
+    
+    ContractDomain.forceRecalculateAll();
+    InitiativeDomain.forceRecalculateAll();
+    AssetDomain.consolidateBudgets();
+    FinOpsDatabase.commit();
+
+    return "SUCCESS";
+  } catch (error) {
+    throw new Error("Timeline Sync Failure: " + error.message);
+  } finally {
+    lock.releaseLock();
   }
 }
 

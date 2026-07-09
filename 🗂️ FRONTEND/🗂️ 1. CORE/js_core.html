@@ -4,6 +4,9 @@
      */
     let globalCachedData = [];
     let windowPayload = { assets: [], contracts: [], initiatives: [], bridge: [], projections: [] };
+    window.hasPendingChanges = false;
+    window.originalPayloadSnapshot = null;
+    window.currentActiveTabId = 'tab-inventory';
     let selectedStatuses = [];
 
     // Formattazioni
@@ -44,7 +47,6 @@
             const payload = await apiFetchFullPayload();
             console.log("⚡ BOOT: Generazione Proiezioni In-Memory (Global Engine)...");
 
-            // 1. Il Browser Calcola le Proiezioni
             payload.projections = ProjectionsEngine.calculateAll(
                 payload.contracts || [],
                 payload.initiatives || [],
@@ -52,18 +54,20 @@
             );
 
             windowPayload = payload;
+            
+            // 🌟 MEMENTO PATTERN: Creazione Snapshot disconnesso!
+            window.originalPayloadSnapshot = JSON.parse(JSON.stringify(payload));
+            setPendingChanges(false); // Resetta la UI
+
             globalCachedData = (payload.assets || []).filter(r => (r["Asset Name"] || "").toString().trim() !== "");
 
-            // 🌟 FIX RUN RATE E BUDGET: Calcoli indipendenti e corretti
             globalCachedData.forEach(asset => {
                 const assetName = (asset["Asset Name"] || "").toString().toLowerCase().trim();
                 const projForAsset = windowPayload.projections.filter(p => (p["Asset Name"] || "").toLowerCase().trim() === assetName);
 
-                // 1. Outlook FY27 (Proiezione Finanziaria)
                 const sumFY27 = projForAsset.reduce((acc, p) => acc + (parseFloat(p["FY27 Optimized"]) || 0), 0);
                 asset["Fiscal Projection (FY27)"] = sumFY27;
 
-                // 2. Vero Run Rate Nominale (Somma dell'Annual Value dei contratti vivi)
                 const activeContracts = (windowPayload.contracts || []).filter(c =>
                     String(c["Asset Name"] || "").toLowerCase().trim() === assetName &&
                     ["ACTIVE", "UPCOMING", "INCOMING"].includes(String(c["Status"] || "").toUpperCase().trim())
@@ -71,7 +75,6 @@
                 const nominalRunRate = activeContracts.reduce((sum, c) => sum + (parseFloat(c["Annual Value"] || c.annualValue) || 0), 0);
                 asset["Run Rate"] = nominalRunRate;
 
-                // 3. Calcolo Budget Status al volo per l'Inventory
                 let effBudget = 0;
                 let variance = 0;
                 (windowPayload.varianceReport || []).forEach(v => {
@@ -115,6 +118,73 @@
     function hideLoading() {
         document.getElementById('loading-overlay').style.display = 'none';
     }
+
+    // 🌟 GESTIONE STATO GLOBALE E MEMENTO PATTERN
+    window.setPendingChanges = function(isDirty) {
+        window.hasPendingChanges = isDirty;
+        const btnSync = document.getElementById('btn-global-sync');
+        const btnSyncDis = document.getElementById('btn-global-sync-disabled');
+        const btnCancel = document.getElementById('btn-global-cancel');
+        const btnCommit = document.getElementById('btn-global-commit');
+
+        if (isDirty) {
+            if(btnSync) btnSync.classList.replace('flex', 'hidden');
+            if(btnSyncDis) btnSyncDis.classList.replace('flex', 'hidden');
+            if(btnCancel) btnCancel.classList.replace('hidden', 'flex');
+            if(btnCommit) btnCommit.classList.replace('hidden', 'flex');
+        } else {
+            if(btnSync) btnSync.classList.replace('hidden', 'flex');
+            if(btnSyncDis) btnSyncDis.classList.replace('flex', 'hidden');
+            if(btnCancel) btnCancel.classList.replace('flex', 'hidden');
+            if(btnCommit) btnCommit.classList.replace('flex', 'hidden');
+        }
+    };
+
+    window.setEditModeActive = function(isActive) {
+        if (window.hasPendingChanges) return; // Non toccare se è già dirty
+        const btnSync = document.getElementById('btn-global-sync');
+        const btnSyncDis = document.getElementById('btn-global-sync-disabled');
+        
+        if (isActive) {
+            if(btnSync) btnSync.classList.replace('flex', 'hidden');
+            if(btnSyncDis) btnSyncDis.classList.replace('hidden', 'flex');
+        } else {
+            if(btnSync) btnSync.classList.replace('hidden', 'flex');
+            if(btnSyncDis) btnSyncDis.classList.replace('flex', 'hidden');
+        }
+    };
+
+    window.revertLocalChanges = function() {
+        if (!window.originalPayloadSnapshot) return;
+        console.log("⏪ MEMENTO: Ripristino snapshot in memoria...");
+        // Restituisce la RAM allo stato di Snapshot a latenza zero
+        windowPayload = JSON.parse(JSON.stringify(window.originalPayloadSnapshot));
+        
+        // Pulisce stati locali dei Controller
+        if(typeof ContractsState !== 'undefined') ContractsState.resetMaster();
+        if(typeof InitiativesState !== 'undefined') InitiativesState.loadPayload(windowPayload);
+        
+        // Rispegne la spia e triggera il ricalcolo visuale
+        setPendingChanges(false);
+        
+        // Ricarica la vista basandosi sul tab attivo
+        if (window.currentActiveTabId === 'tab-contracts' && typeof toggleGlobalEditMode !== 'undefined') {
+            ContractsState.globalEditMode = false;
+            toggleGlobalEditMode();
+            toggleGlobalEditMode(); // Trigger doppio per forzare il refresh pulito
+        } else if (window.currentActiveTabId === 'tab-operations') {
+            renderOperationsHub(windowPayload);
+        } else {
+            fetchLiveData(); // Fallback se si spacca qualcosa
+        }
+        FinOpsUI.showNotificationBanner("Modifiche scartate. Dati ripristinati.", "success");
+    };
+
+    window.triggerGlobalCommit = function() {
+        // Questa funzione valuterà da quale tab proviene la richiesta e chiamerà l'API corrispondente.
+        // Lo faremo nella Fase 3 e 4! Per ora fa solo un alert
+        FinOpsUI.showNotificationBanner("Motore di Commit Globale in attesa del cablaggio delle Fasi 3 e 4.", "warning");
+    };
 
     window.onload = fetchLiveData;
 </script>
