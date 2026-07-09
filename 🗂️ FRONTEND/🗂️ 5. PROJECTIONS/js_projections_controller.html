@@ -25,8 +25,14 @@
         formatKM: function (num) {
             if (!num || isNaN(num) || num === 0) return "-";
             const absNum = Math.abs(num);
-            if (absNum >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-            if (absNum >= 1000) return (num / 1000).toFixed(1) + 'K';
+            if (absNum >= 1000000) {
+                const m = num / 1000000;
+                return (Math.abs(m) >= 100 ? m.toFixed(0) : m.toFixed(1)) + 'M';
+            }
+            if (absNum >= 1000) {
+                const k = num / 1000;
+                return (Math.abs(k) >= 100 ? k.toFixed(0) : k.toFixed(1)) + 'K';
+            }
             return num.toFixed(0);
         },
 
@@ -43,8 +49,6 @@
 
         buildFilterDropdownMenus: function () {
             const raw = ProjectionsState.rawDataset;
-
-            // 🌟 CORREZIONE REQ 1: Estrazione difensiva delle chiavi uniche dai record
             const getUniqueValues = (key) => [...new Set(raw.map(r => (r[key] || r[key.replace(" ", "")] || "").toString().trim()).filter(v => v !== ""))].sort();
 
             const buildCheckboxItems = (valuesArray, containerId, stateFilterCategory) => {
@@ -163,7 +167,6 @@
             this.applyEngine();
         },
 
-        // 🌟 CORREZIONE REQ 3: Toggle riproporzionato partendo dallo stato collassato
         toggleLevel1Accordion: function (idx) {
             const bodyRow = document.getElementById(`proj-l1-body-row-${idx}`);
             const chevron = document.getElementById(`proj-l1-chevron-${idx}`);
@@ -200,7 +203,6 @@
                 return true;
             });
 
-            // Salviamo il dataset filtrato per la Modale P&L Bridge
             ProjectionsState.currentFilteredRecords = filteredRows;
 
             const pivotMap = {};
@@ -221,7 +223,6 @@
                 const costCenter = (row["Cost Center"] || row.costCenter || "N/A").toString().trim();
                 const expType = (row["Expenditure Type"] || "OPEX").toString().toUpperCase().trim();
 
-                // 🌟 ESTRAZIONE E VERIFICA SCADENZA CONTRATTO (Questo risolve l'errore cId)
                 const cId = (row["Contract ID"] || "").toString().trim();
                 const origContract = (windowPayload.contracts || []).find(c => c["Contract ID"] === cId) || {};
                 const isExpired = origContract["Contract End Date"] && new Date(origContract["Contract End Date"]) < new Date();
@@ -274,7 +275,6 @@
                 pivotMap[dimensionLabel].assetsMap[assetName].b27 += b27;
                 pivotMap[dimensionLabel].assetsMap[assetName].b28 += b28;
 
-                // 🌟 Inserimento dei contratti disaggregati per la Tabella Livello 3
                 const contractKey = `${cId}|||${supplier}|||${legal}|||${costCenter}|||${expType}`;
                 if (!pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey]) {
                     pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey] = {
@@ -316,27 +316,23 @@
             const sk = ProjectionsState.sortKey;
             const order = ProjectionsState.sortOrder;
 
-            // Ordina i Gruppi (Livello 1)
             dataArray.sort((a, b) => {
                 let res = 0;
                 if (sk === 'name') {
                     res = a.label.localeCompare(b.label, 'en');
                 } else {
-                    // Traduce '2026' in 'v26' per leggere il dato corretto
                     const valKey = 'v' + sk.slice(-2);
                     res = (a[valKey] || 0) - (b[valKey] || 0);
                 }
                 return order === 'asc' ? res : -res;
             });
 
-            // Ordina gli Asset dentro i gruppi (Livello 2)
             dataArray.forEach(group => {
                 group.assets.sort((a, b) => {
                     let res = 0;
                     if (sk === 'name') {
                         res = a.name.localeCompare(b.name, 'en');
                     } else {
-                        // Traduce '2026' in 'v26' per leggere il dato corretto
                         const valKey = 'v' + sk.slice(-2);
                         res = (a[valKey] || 0) - (b[valKey] || 0);
                     }
@@ -412,7 +408,7 @@
                         asset.v27, p27_l2,
                         asset.v28, p28_l2,
                         drillDownTable,
-                        group.label // 🌟 Passaggio del contesto alla Modale
+                        group.label
                     );
                 });
                 subLane.innerHTML = subHtml;
@@ -522,14 +518,12 @@
             });
         },
 
-        // 🌟 ORCHESTRATORE FINANCIAL BRIDGE: Modale con Context Passing e Lookup in RAM
         openFinancialBridgeModal: function (assetName, ctxField, ctxValue) {
             const mountPoint = document.getElementById('proj-modal-mount-point');
             if (!mountPoint) {
                 const div = document.createElement('div');
                 div.id = 'proj-modal-mount-point';
                 div.className = 'hidden fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 transition-opacity';
-                // FIX PUNTO 1: Impedisce la chiusura se si clicca DENTRO la modale
                 div.onclick = (e) => { if (e.target === div) this.closeFinancialBridgeModal(); };
                 document.body.appendChild(div);
             }
@@ -539,25 +533,75 @@
             activeMount.classList.remove('hidden');
             activeMount.classList.add('flex');
 
-            // Usa i dati filtrati, o in alternativa tutti i dati
             const sourceDataset = ProjectionsState.currentFilteredRecords && ProjectionsState.currentFilteredRecords.length > 0
                 ? ProjectionsState.currentFilteredRecords
                 : (windowPayload.projections || []);
 
-            // Filtra i record esatti per l'asset richiesto, rispettando i filtri di matrice
             let records = sourceDataset.filter(p =>
                 String(p["Asset Name"] || p.assetName || "").trim().toLowerCase() === assetName.toLowerCase().trim()
             );
 
-            // Applica il filtro aggiuntivo se siamo atterrati da un raggruppamento specifico (Context Passing)
             if (ctxField && ctxValue) {
+                const keyMap = {
+                    'expenditureType': 'Expenditure Type',
+                    'costCenter': 'Cost Center',
+                    'legalEntity': 'Legal Entity'
+                };
+                const realKey = keyMap[ctxField] || ctxField;
+
                 records = records.filter(r => {
-                    const rVal = String(r[ctxField] || "").trim().toLowerCase();
+                    const rVal = String(r[realKey] || "").trim().toLowerCase();
                     return rVal === ctxValue.toLowerCase().trim();
                 });
             }
 
-            this.renderBridgeChartAndTable(records);
+            const populateSelect = (id, field) => {
+                const sel = document.getElementById(id);
+                if (!sel) return;
+                const uniqueVals = [...new Set(records.map(r => String(r[field] || "").trim()).filter(Boolean))].sort();
+                uniqueVals.forEach(v => sel.add(new Option(v, v)));
+            };
+
+            populateSelect('modal-sel-exp', 'Expenditure Type');
+            populateSelect('modal-sel-cc', 'Cost Center');
+            populateSelect('modal-sel-le', 'Legal Entity');
+
+            if (ctxField && ctxValue) {
+                if (ctxField === "expenditureType" || ctxField === "Expenditure Type") document.getElementById('modal-sel-exp').value = ctxValue;
+                if (ctxField === "costCenter" || ctxField === "Cost Center") document.getElementById('modal-sel-cc').value = ctxValue;
+                if (ctxField === "legalEntity" || ctxField === "Legal Entity") document.getElementById('modal-sel-le').value = ctxValue;
+            }
+
+            const triggerRender = () => {
+                const vExp = document.getElementById('modal-sel-exp').value.toLowerCase();
+                const vCc = document.getElementById('modal-sel-cc').value.toLowerCase();
+                const vLe = document.getElementById('modal-sel-le').value.toLowerCase();
+
+                // Show clear buttons
+                ['modal-sel-exp', 'modal-sel-cc', 'modal-sel-le'].forEach(id => {
+                    const el = document.getElementById(id);
+                    const btn = document.getElementById(`clear-${id}`);
+                    if (el && btn) {
+                        if (el.value !== "") btn.classList.remove('hidden');
+                        else btn.classList.add('hidden');
+                    }
+                });
+
+                const finalRecords = records.filter(r => {
+                    const matchExp = !vExp || String(r["Expenditure Type"] || "").toLowerCase() === vExp;
+                    const matchCc = !vCc || String(r["Cost Center"] || "").toLowerCase() === vCc;
+                    const matchLe = !vLe || String(r["Legal Entity"] || "").toLowerCase() === vLe;
+                    return matchExp && matchCc && matchLe;
+                });
+                this.renderBridgeChartAndTable(finalRecords);
+            };
+
+            ['modal-sel-exp', 'modal-sel-cc', 'modal-sel-le'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('change', triggerRender);
+            });
+
+            triggerRender();
         },
 
         closeFinancialBridgeModal: function () {
@@ -570,17 +614,14 @@
         },
 
         renderBridgeChartAndTable: function (records) {
-            if (!records || records.length === 0) return;
+            const tableContainer = document.getElementById('modal-table-container');
+            if (!tableContainer) return;
 
-            // Formattatore K/M al volo per i tooltip e le colonne
-            const formatKM = (num) => {
-                const absNum = Math.abs(num);
-                if (absNum >= 1000000) return (num / 1000000).toFixed(2) + 'M';
-                if (absNum >= 1000) return (num / 1000).toFixed(0) + 'K';
-                return num.toFixed(0);
-            };
+            if (!records || records.length === 0) {
+                tableContainer.innerHTML = '<div class="p-8 text-center text-slate-500">No data matches the selected filters.</div>';
+                return;
+            }
 
-            // 1. ASSE TEMPORALE DINAMICO
             let minDate = new Date(2025, 6, 1);
             let maxDate = new Date(2028, 5, 30);
 
@@ -609,30 +650,35 @@
                 currentD.setMonth(m + 1);
             }
 
+            const minCanvasWidth = monthKeys.length * 40;
+            const chartDiv = document.querySelector('#modal-chart-container div');
+            if (chartDiv) chartDiv.style.minWidth = `${Math.max(800, minCanvasWidth)}px`;
+
             const palette = ['#0f766e', '#2563eb', '#d97706', '#7c3aed', '#db2777', '#059669', '#e11d48', '#0284c7'];
             const datasets = [];
-            const tableRowsHtml = [];
+            let tableRowsHtml = '';
 
             let totalAccrualSum = 0;
             let fy26Sum = 0, fy27Sum = 0, fy28Sum = 0;
             const monthlyTotalsArray = new Array(monthKeys.length).fill(0);
 
-            records.sort((a, b) => (parseFloat(b["FY26 Optimized"]) || 0) - (parseFloat(a["FY26 Optimized"]) || 0));
+            // REQUISITO 1: Ordina per Data di Scadenza Decrescente (End Date)
+            records.sort((a, b) => {
+                const cA = (windowPayload.contracts || []).find(c => c["Contract ID"] === (a["Contract ID"] || a.contractId)) || {};
+                const cB = (windowPayload.contracts || []).find(c => c["Contract ID"] === (b["Contract ID"] || b.contractId)) || {};
+                const dateA = cA["Contract End Date"] ? new Date(cA["Contract End Date"]).getTime() : 0;
+                const dateB = cB["Contract End Date"] ? new Date(cB["Contract End Date"]).getTime() : 0;
+                return dateB - dateA;
+            });
 
             records.forEach((r, index) => {
                 const baseColor = palette[index % palette.length];
-
-                // 🌟 FIX PUNTO 2 e 3: Lookup in RAM per recuperare i metadati persi dal motore finanziario
                 const cId = r["Contract ID"] || r.contractId || "";
                 const origContract = (windowPayload.contracts || []).find(c => c["Contract ID"] === cId) || {};
 
                 const supplier = origContract["Supplier"] || r["Supplier"] || "Generic Supplier";
                 const legalEntity = r["Legal Entity"] || origContract["Legal Entity"] || "Corporate";
                 const costCenter = r["Cost Center"] || origContract["Cost Center"] || "N/A";
-                const expType = r["Expenditure Type"] || origContract["Expenditure Type"] || "OPEX";
-                const scope = origContract["Scope"] || "No specific scope defined";
-                const pricingModel = origContract["Pricing Model"] || "Flat";
-                const billingTerms = origContract["Billing Terms"] || "Linear";
                 const isExpired = origContract["Contract End Date"] && new Date(origContract["Contract End Date"]) < new Date();
 
                 const totCommitment = parseFloat(origContract["Total Commitment"]) || 0;
@@ -640,124 +686,80 @@
                 const sDate = origContract["Start Date"] ? new Date(origContract["Start Date"]).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : '-';
                 const eDate = origContract["Contract End Date"] ? new Date(origContract["Contract End Date"]).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : '-';
 
-                // Array per le due fette
                 const actualData = new Array(monthKeys.length).fill(0);
                 const virtualData = new Array(monthKeys.length).fill(0);
                 let hasActual = false, hasVirtual = false;
+                let tableCells = '';
 
                 monthKeys.forEach((mk, mIdx) => {
                     const actVal = parseFloat((r.monthlyActual || {})[mk]) || 0;
                     const virtVal = parseFloat((r.monthlyVirtual || {})[mk]) || 0;
+                    const tot = actVal + virtVal;
 
                     if (actVal > 0) { actualData[mIdx] = actVal; hasActual = true; }
                     if (virtVal > 0) { virtualData[mIdx] = virtVal; hasVirtual = true; }
 
-                    const combined = actVal + virtVal;
-                    monthlyTotalsArray[mIdx] += combined;
-                    totalAccrualSum += combined;
+                    monthlyTotalsArray[mIdx] += tot;
+                    totalAccrualSum += tot;
+                    if (fyMap[mIdx] === 'FY26') fy26Sum += tot;
+                    if (fyMap[mIdx] === 'FY27') fy27Sum += tot;
+                    if (fyMap[mIdx] === 'FY28') fy28Sum += tot;
 
-                    if (fyMap[mIdx] === 'FY26') fy26Sum += combined;
-                    if (fyMap[mIdx] === 'FY27') fy27Sum += combined;
-                    if (fyMap[mIdx] === 'FY28') fy28Sum += combined;
+                    const cellClass = virtVal > 0 ? 'text-slate-400 italic' : 'text-slate-700 font-bold';
+                    tableCells += `<td class="px-2 py-1 text-center text-xs whitespace-nowrap border-r border-slate-100 ${cellClass}">${this.formatKM(tot)}</td>`;
                 });
 
+                // REQUISITO 4 & 5: Tooltip ricco con Supplier e Validity
+                const tooltipContent = `Supplier: ${supplier}&#10;Entity: ${legalEntity}&#10;Cost Center: ${costCenter}&#10;Validity: ${sDate} ➔ ${eDate} (${termMonths}M)`;
+                const rowOpacity = isExpired ? 'opacity-50 grayscale hover:grayscale-0' : 'opacity-100';
+
+                tableRowsHtml += ProjectionsTemplates.getFinancialBridgeTableRowMarkup({
+                    baseColor, supplier, isExpired, legalEntity, cId, tableCells,
+                    fmtTotCommitment: this.formatKM(totCommitment), sDate, eDate, termMonths,
+                    tooltipContent, rowOpacity
+                });
+
+                let bgColor = baseColor;
+                let bdColor = baseColor;
+                let bdWidth = 0;
+
+                if (isExpired) {
+                    bgColor = this.hexToRgbA(baseColor, 0.05);
+                    bdWidth = 2;
+                }
+
+                // REQUISITO 2: Legenda mostra solo Legal Entity
                 if (hasActual) {
                     datasets.push({
-                        label: `${supplier} (Act)`,
+                        label: `${legalEntity} (Act)`,
                         data: actualData,
-                        backgroundColor: isExpired ? 'rgba(148, 163, 184, 0.2)' : baseColor,
-                        borderColor: isExpired ? baseColor : 'transparent',
-                        borderWidth: isExpired ? 1.5 : 0,
-                        borderRadius: 2,
-                        barPercentage: 0.75,
-                        contractMeta: origContract
+                        backgroundColor: bgColor,
+                        borderColor: bdColor,
+                        borderWidth: bdWidth,
+                        legalEntity: legalEntity,
+                        cId: cId
                     });
                 }
-
                 if (hasVirtual) {
-                    const rgb = parseInt(baseColor.slice(1, 3), 16) + ',' + parseInt(baseColor.slice(3, 5), 16) + ',' + parseInt(baseColor.slice(5, 7), 16);
                     datasets.push({
-                        label: `${supplier} (Virt)`,
+                        label: `${legalEntity} (Virt)`,
                         data: virtualData,
-                        backgroundColor: `rgba(${rgb}, 0.25)`,
+                        backgroundColor: this.hexToRgbA(baseColor, 0.25),
                         borderColor: 'transparent',
                         borderWidth: 0,
-                        borderRadius: 2,
-                        barPercentage: 0.75,
-                        contractMeta: origContract
+                        legalEntity: legalEntity,
+                        cId: cId
                     });
                 }
-
-                // Tooltip Dati Integrali (Richiesta Punto 3)
-                const tooltipContent = `Supplier: ${supplier}&#10;Entity: ${legalEntity}&#10;Cost Center: ${costCenter}&#10;Exp. Type: ${expType}&#10;Scope: ${scope}&#10;Billing: ${billingTerms}&#10;Pricing: ${pricingModel}`;
-                const expBadge = isExpired ? '<span class="ml-1 text-[8px] text-slate-400 font-normal border border-slate-200 bg-slate-50 rounded px-1 shadow-3xs">(Exp)</span>' : '';
-                const rowOpacity = isExpired ? 'opacity-60' : 'opacity-100';
-
-                // Nuova Riga Tabellare (Redesign UI Richiesta Punto 2)
-                let rowHtml = `
-                <tr class="hover:bg-slate-50/80 transition-colors cursor-help ${rowOpacity}">
-                    <td class="sticky left-0 bg-white shadow-sm p-3 border-r border-slate-200 z-10 w-56 min-w-[14rem]" title="${tooltipContent}">
-                        <div class="flex items-start gap-2 truncate">
-                            <span class="w-2.5 h-2.5 rounded-full shrink-0 mt-1 shadow-sm" style="background-color: ${baseColor}"></span>
-                            <div class="min-w-0 flex-1">
-                                <div class="font-black text-slate-800 truncate text-[12px] leading-tight flex items-center gap-1">${supplier} ${expBadge}</div>
-                                <div class="text-[9px] font-bold text-slate-500 truncate mt-0.5">${legalEntity} | CC: <span class="font-mono">${costCenter}</span></div>
-                                <div class="text-[8px] font-mono text-slate-400 uppercase tracking-wider truncate mt-1">ID: ${cId}</div>
-                            </div>
-                        </div>
-                    </td>`;
-
-                monthKeys.forEach((mk, mIdx) => {
-                    const v = actualData[mIdx] + virtualData[mIdx];
-                    const style = v > 0 ? (virtualData[mIdx] > 0 ? 'text-indigo-500 font-medium italic' : 'text-slate-700 font-bold') : 'text-slate-300 select-none';
-                    const text = v > 0 ? formatKM(v) : '—';
-                    rowHtml += `<td class="p-2 text-center border-r border-slate-100 font-mono min-w-[65px] ${style}">${text}</td>`;
-                });
-
-                // Colonna Lifecycle Condensata (Redesign Punto 2)
-                rowHtml += `
-                    <td class="sticky right-0 bg-slate-50 shadow-sm p-3 border-l border-slate-200 z-10 w-36 min-w-[9rem] text-right">
-                        <div class="font-black font-mono text-slate-700 text-[12px] leading-tight mb-1">€${formatKM(totCommitment)}</div>
-                        <div class="inline-flex items-center gap-1 bg-white border border-slate-200 px-1.5 py-0.5 rounded text-[8px] font-bold text-slate-500 shadow-3xs uppercase tracking-tighter">
-                            <span>${sDate}</span><span class="text-slate-300">➔</span><span>${eDate}</span>
-                        </div>
-                        <div class="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">${termMonths} Months</div>
-                    </td>
-                </tr>`;
-                tableRowsHtml.push(rowHtml);
             });
 
-            // 3. GENERAZIONE HEADER E MEGA-FOOTER FISCALE
-            const bgColorsUI = ['bg-slate-100/60', 'bg-teal-50/60', 'bg-indigo-50/60', 'bg-sky-50/60', 'bg-amber-50/60'];
-            const textColorsUI = ['text-slate-700', 'text-teal-700', 'text-indigo-700', 'text-sky-700', 'text-amber-700'];
-
-            const thHtml = `<th class="sticky left-0 bg-slate-100 p-3 border-r border-slate-200 z-10 w-56 min-w-[14rem] text-left text-slate-500 font-black">Contract Identity</th>` +
-                labels.map((l, i) => {
-                    const colorIndex = [...new Set(fyMap)].indexOf(fyMap[i]) % bgColorsUI.length;
-                    return `<th class="p-2 text-center border-r border-slate-200 font-mono min-w-[65px] ${bgColorsUI[colorIndex]}">${l}</th>`;
-                }).join('') +
-                `<th class="sticky right-0 bg-slate-100 p-3 border-l border-slate-200 z-10 w-36 min-w-[9rem] text-right text-slate-500 font-black">Lifecycle & Value</th>`;
-
-            let tfootHtml = `<td class="sticky left-0 bg-slate-100 p-3 border-r border-slate-200 z-10 w-56 text-right text-slate-500 font-black">FISCAL YEAR TOTALS</td>`;
-            let currentFy = fyMap[0];
-            let currentSpan = 0; let currentFyTotal = 0; let colorIdx = 0;
-
-            monthKeys.forEach((mk, idx) => {
-                if (fyMap[idx] !== currentFy) {
-                    tfootHtml += `<td colspan="${currentSpan}" class="p-2 text-center border-r border-slate-300 font-black ${bgColorsUI[colorIdx % bgColorsUI.length]} ${textColorsUI[colorIdx % textColorsUI.length]}"><span class="text-[8px] uppercase opacity-60 tracking-widest mr-1.5">${currentFy}:</span>€${formatKM(currentFyTotal)}</td>`;
-                    currentFy = fyMap[idx]; currentSpan = 1; currentFyTotal = monthlyTotalsArray[idx]; colorIdx++;
-                } else {
-                    currentSpan++; currentFyTotal += monthlyTotalsArray[idx];
-                }
+            let totalsCells = '';
+            monthlyTotalsArray.forEach(t => {
+                totalsCells += `<td class="px-2 py-2 text-center border-r border-slate-300 text-xs font-bold text-slate-800">${this.formatKM(t)}</td>`;
             });
-            tfootHtml += `<td colspan="${currentSpan}" class="p-2 text-center border-r border-slate-300 font-black ${bgColorsUI[colorIdx % bgColorsUI.length]} ${textColorsUI[colorIdx % textColorsUI.length]}"><span class="text-[8px] uppercase opacity-60 tracking-widest mr-1.5">${currentFy}:</span>€${formatKM(currentFyTotal)}</td>`;
-            tfootHtml += `<td class="sticky right-0 bg-slate-100 p-3 border-l border-slate-200 z-10 w-36"></td>`;
 
-            document.getElementById('bridge-table-header').innerHTML = thHtml;
-            document.getElementById('bridge-table-body').innerHTML = tableRowsHtml.join('');
-            document.getElementById('bridge-table-footer').innerHTML = tfootHtml;
+            tableContainer.innerHTML = ProjectionsTemplates.getFinancialBridgeTableMarkup(labels, tableRowsHtml, totalsCells, fyMap, monthlyTotalsArray, (v) => this.formatKM(v));
 
-            // 4. AGGIORNAMENTO KPI FINANZIARI
             const today = new Date();
             const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
             const currentMonthIdx = monthKeys.indexOf(currentMonthKey);
@@ -770,19 +772,16 @@
                 return { text: `${sign}${pct.toFixed(1)}%`, color: pct > 0 ? 'text-rose-600 font-black' : (pct < 0 ? 'text-emerald-600 font-black' : 'text-slate-500') };
             };
 
-            document.getElementById('bridge-kpi-current').textContent = `€ ${formatKM(currentRunRate * 12)} / yr`;
+            document.getElementById('bridge-kpi-current').textContent = `€ ${this.formatKM(currentRunRate * 12)} / yr`;
             const yoy1 = calcYoY(fy26Sum, fy27Sum);
             document.getElementById('bridge-kpi-yoy1').innerHTML = `<span class="${yoy1.color}">${yoy1.text}</span>`;
             const yoy2 = calcYoY(fy27Sum, fy28Sum);
             document.getElementById('bridge-kpi-yoy2').innerHTML = `<span class="${yoy2.color}">${yoy2.text}</span>`;
-            document.getElementById('bridge-kpi-total').textContent = `€ ${Math.round(totalAccrualSum).toLocaleString('it-IT')}`;
+            document.getElementById('bridge-kpi-total').textContent = `€ ${this.formatKM(totalAccrualSum)}`;
 
-            // 5. INIEZIONE GRAFICO CHART.JS
-            const canvas = document.getElementById('bridge-modal-chart');
-            if (window.chartInstances && window.chartInstances.bridgeChart) window.chartInstances.bridgeChart.destroy();
-            else if (!window.chartInstances) window.chartInstances = {};
-
-            window.chartInstances.bridgeChart = new Chart(canvas.getContext('2d'), {
+            if (window.financialBridgeChartObj) window.financialBridgeChartObj.destroy();
+            const ctx = document.getElementById('financialBridgeChart').getContext('2d');
+            window.financialBridgeChartObj = new Chart(ctx, {
                 type: 'bar',
                 data: { labels: labels, datasets: datasets },
                 options: {
@@ -793,14 +792,21 @@
                         legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10, weight: 'bold' } } },
                         tooltip: {
                             backgroundColor: 'rgba(15, 23, 42, 0.98)', titleFont: { size: 12, weight: 'black' }, padding: 12,
+                            // REQUISITO 2: Tooltip su 3 righe (Importo, Entity, ID)
                             callbacks: {
-                                title: (ctx) => ctx[0].dataset.label,
-                                label: function (ctx) { return `Accrual: € ${Math.round(ctx.raw).toLocaleString('it-IT')}`; },
+                                title: () => null,
+                                label: function (context) {
+                                    const val = context.raw;
+                                    if (val === 0) return null;
+                                    const formatted = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(val);
+                                    return ` ${formatted}`;
+                                },
                                 afterLabel: function (ctx) {
-                                    const m = ctx.dataset.contractMeta || {};
-                                    const isVirt = ctx.dataset.label.includes('Virt');
-                                    if (isVirt) return `\n• Status: Forecasted Renewal\n• Legal Entity: ${m["Legal Entity"] || 'N/A'}`;
-                                    return `\n• Cost Ctr: ${m["Cost Center"] || 'N/A'}\n• Rule: ${m["Pricing Model"] || 'Flat'}\n• Type: ${m["Expenditure Type"] || 'OPEX'}`;
+                                    const ds = ctx.dataset;
+                                    const isVirt = ds.label.includes('Virt');
+                                    let lines = `Entity: ${ds.legalEntity}\nID: ${ds.cId}`;
+                                    if (isVirt) lines += `\n(Forecasted Renewal)`;
+                                    return lines;
                                 }
                             }
                         }
@@ -837,7 +843,6 @@
                 }]
             });
         }
-
 
     };
 

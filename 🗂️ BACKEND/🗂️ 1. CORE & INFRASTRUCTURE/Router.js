@@ -79,10 +79,10 @@ function processInitiativesSync(payload) {
     // NON ricalcoliamo e NON leggiamo più il foglio Projections!
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     return {
-        status: "SUCCESS",
-        initiatives: getSheetDataAsObjects(ss, CONFIG.SHEETS.INITIATIVES),
-        masterContracts: getSheetDataAsObjects(ss, CONFIG.SHEETS.MASTER_CONTRACTS),
-        assets: getSheetDataAsObjects(ss, CONFIG.SHEETS.ASSETS)
+      status: "SUCCESS",
+      initiatives: getSheetDataAsObjects(ss, CONFIG.SHEETS.INITIATIVES),
+      masterContracts: getSheetDataAsObjects(ss, CONFIG.SHEETS.MASTER_CONTRACTS),
+      assets: getSheetDataAsObjects(ss, CONFIG.SHEETS.ASSETS)
     };
 
   } catch (error) {
@@ -240,11 +240,12 @@ function getFullPayload_Internal() {
       allocationSplits: getSheetDataAsObjects(ss, CONFIG.SHEETS.ALLOCATION_SPLITS),
       assets: getSheetDataAsObjects(ss, CONFIG.SHEETS.ASSETS),
       varianceReport: getSheetDataAsObjects(ss, CONFIG.SHEETS.VARIANCE),
-      
+      bridge: getSheetDataAsObjects(ss, CONFIG.SHEETS.ASSET_ALLOCATION_BRIDGE),
+
       // 🌟 IL CAMBIO DI PARADIGMA: Passiamo un array vuoto. 
       // Sarà il js_core.html a generare la matrice finanziaria In-Memory!
-      projections: [], 
-      
+      projections: [],
+
       suppliers: getSheetDataAsObjects(ss, CONFIG.SHEETS.SUPPLIERS),
       locations: getSheetDataAsObjects(ss, CONFIG.SHEETS.LOCATIONS),
       costCenters: getSheetDataAsObjects(ss, CONFIG.SHEETS.COST_CENTERS),

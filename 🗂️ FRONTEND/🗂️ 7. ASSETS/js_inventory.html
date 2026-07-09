@@ -113,6 +113,7 @@
         container.classList.remove('hidden'); arrow.style.transform = "rotate(90deg)"; arrow.classList.add('text-teal-600');
 
         const targetName = (name || "").toString().trim().toLowerCase();
+
         const bridge = windowPayload.bridge || [];
         const aliasMap = new Map();
         bridge.forEach(r => {

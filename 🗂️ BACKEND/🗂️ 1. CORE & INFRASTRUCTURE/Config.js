@@ -16,13 +16,14 @@ const CONFIG = {
     ALLOCATION_SPLITS: "AllocationSplits",
     ASSETS: "Assets",
     VARIANCE: "AssetVarianceReport",
+    ASSET_ALLOCATION_BRIDGE: "AssetAllocationBridge",
     PROJECTIONS: "FiscalProjections",
     SUPPLIERS: "Suppliers",
     LOCATIONS: "Locations",
     COST_CENTERS: "CostCenters",
     LEGAL_ENTITIES: "LegalEntities"
   },
-  
+
   // Impostazioni regionali e temporali
   TIMEZONE: Session.getScriptTimeZone() || "Europe/Rome"
 };

@@ -268,118 +268,126 @@
 
         getFinancialBridgeModalMarkup: function (assetName) {
             return `
-            <div class="bg-white rounded-2xl border border-slate-200 p-6 w-full max-w-[94vw] shadow-2xl relative animate-fade-in text-xs flex flex-col h-[90vh] min-h-[680px]" onclick="event.stopPropagation()">
-                
-                <div class="flex justify-between items-start border-b border-slate-100 pb-3 mb-4 shrink-0">
-                    <div>
-                        <div class="flex items-center gap-2 mb-1">
-                            <span class="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded shadow-3xs uppercase tracking-widest">Ecosystem Financial Bridge</span>
-                        </div>
-                        <h3 class="text-lg font-black text-slate-800 tracking-tight">${assetName}</h3>
-                        <p class="text-[11px] text-slate-500 font-medium mt-0.5">Granular monthly accrual map derived from database fiscal allocations. Semi-transparent blocks indicate forecasted virtual renewals.</p>
-                    </div>
-                    <button onclick="ProjectionsController.closeFinancialBridgeModal()" class="text-slate-400 hover:text-rose-600 text-2xl font-black leading-none ml-4 transition-colors hover:scale-110 cursor-pointer">×</button>
-                </div>
-
-                <div class="flex-1 flex flex-col gap-4 min-h-0 overflow-hidden">
-                    
-                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 shrink-0 text-left">
-                        <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl shadow-inner">
-                            <span class="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">Current Run Rate (This Month)</span>
-                            <span id="bridge-kpi-current" class="font-mono text-base font-black text-slate-800">€ 0</span>
-                        </div>
-                        <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl shadow-inner">
-                            <span class="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">YoY Trend (FY26 ➔ FY27)</span>
-                            <span id="bridge-kpi-yoy1" class="font-mono text-base font-black">...</span>
-                        </div>
-                        <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl shadow-inner">
-                            <span class="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">YoY Trend (FY27 ➔ FY28)</span>
-                            <span id="bridge-kpi-yoy2" class="font-mono text-base font-black">...</span>
-                        </div>
-                        <div class="bg-teal-700 text-white border border-teal-800 p-3 rounded-xl shadow-md flex flex-col justify-center">
-                            <span class="text-[8px] font-black uppercase tracking-widest text-teal-200 block mb-0.5">Total Displayed Cost (Cumulative)</span>
-                            <span id="bridge-kpi-total" class="font-mono text-xl font-black">€ 0</span>
-                        </div>
-                    </div>
-
-                    <div class="flex-1 bg-white border border-slate-200 rounded-xl p-3 shadow-sm relative min-h-[220px]">
-                        <canvas id="bridge-modal-chart"></canvas>
-                    </div>
-
-                    <div class="shrink-0 bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col h-48">
-                        <div class="flex-1 overflow-auto custom-scrollbar h-full w-full">
-                            <table class="w-full text-left border-collapse whitespace-nowrap min-w-max">
-                                <thead class="sticky top-0 z-20 bg-slate-100 shadow-sm text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                                    <tr id="bridge-table-header"></tr>
-                                </thead>
-                                <tbody id="bridge-table-body" class="text-[10px] text-slate-600 font-medium divide-y divide-slate-100"></tbody>
-                                <tfoot class="sticky bottom-0 z-20 bg-slate-50 border-t-2 border-slate-200 shadow-lg text-[11px] font-black text-slate-800 font-mono">
-                                    <tr id="bridge-table-footer"></tr>
-                                </tfoot>
-                            </table>
-                        </div>
-                    </div>
-
-                </div>
-            </div>`;
-        },
-
-        // Struttura fissa della Modale (Latenza Zero)
-        getFinancialBridgeModalMarkup: function (assetName) {
-            return `
-            <div class="bg-white rounded-xl shadow-2xl w-11/12 max-w-7xl h-[90vh] flex flex-col overflow-hidden relative">
+            <div class="bg-white rounded-xl shadow-2xl w-11/12 max-w-7xl h-[90vh] flex flex-col overflow-hidden relative" onclick="event.stopPropagation()">
                 <div class="flex justify-between items-center p-4 border-b border-slate-200 bg-slate-50 flex-wrap gap-4 shrink-0">
                     <h3 class="text-xl font-semibold text-slate-800">Asset Financial Outlook <span class="text-slate-400 font-medium ml-2">| ${assetName}</span></h3>
                     <div class="flex items-center gap-2">
-                        <select id="modal-sel-exp" class="text-xs border-slate-300 rounded shadow-sm py-1"><option value="">All Exp. Types</option></select>
-                        <select id="modal-sel-cc" class="text-xs border-slate-300 rounded shadow-sm py-1"><option value="">All Cost Centers</option></select>
-                        <select id="modal-sel-le" class="text-xs border-slate-300 rounded shadow-sm py-1"><option value="">All Legal Entities</option></select>
-                        <button onclick="ProjectionsController.closeFinancialBridgeModal()" class="ml-2 text-slate-400 hover:text-slate-600 transition-colors">
+                        <div class="relative flex items-center">
+                            <select id="modal-sel-exp" class="text-xs border-slate-300 rounded shadow-sm py-1 pl-2 pr-6 font-bold text-slate-700 cursor-pointer appearance-none bg-white"><option value="">All Exp. Types</option></select>
+                            <button type="button" onclick="document.getElementById('modal-sel-exp').value=''; document.getElementById('modal-sel-exp').dispatchEvent(new Event('change'));" class="hidden absolute right-1.5 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full w-4 h-4 flex items-center justify-center font-bold text-[10px] leading-none" id="clear-modal-sel-exp">×</button>
+                        </div>
+                        <div class="relative flex items-center">
+                            <select id="modal-sel-cc" class="text-xs border-slate-300 rounded shadow-sm py-1 pl-2 pr-6 font-bold text-slate-700 cursor-pointer appearance-none bg-white"><option value="">All Cost Centers</option></select>
+                            <button type="button" onclick="document.getElementById('modal-sel-cc').value=''; document.getElementById('modal-sel-cc').dispatchEvent(new Event('change'));" class="hidden absolute right-1.5 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full w-4 h-4 flex items-center justify-center font-bold text-[10px] leading-none" id="clear-modal-sel-cc">×</button>
+                        </div>
+                        <div class="relative flex items-center">
+                            <select id="modal-sel-le" class="text-xs border-slate-300 rounded shadow-sm py-1 pl-2 pr-6 font-bold text-slate-700 cursor-pointer appearance-none bg-white"><option value="">All Legal Entities</option></select>
+                            <button type="button" onclick="document.getElementById('modal-sel-le').value=''; document.getElementById('modal-sel-le').dispatchEvent(new Event('change'));" class="hidden absolute right-1.5 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full w-4 h-4 flex items-center justify-center font-bold text-[10px] leading-none" id="clear-modal-sel-le">×</button>
+                        </div>
+                        <button onclick="ProjectionsController.closeFinancialBridgeModal()" class="ml-2 text-slate-400 hover:text-rose-600 transition-colors">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                         </button>
                     </div>
                 </div>
-                <div class="flex-1 flex flex-col p-4 gap-4 overflow-hidden bg-white">
-                    <div class="h-[35%] shrink-0 w-full overflow-x-auto border border-slate-200 rounded-lg p-2" id="modal-chart-container">
+                
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 p-4 shrink-0 bg-white border-b border-slate-100 z-10 shadow-sm relative">
+                    <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl shadow-inner">
+                        <span class="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">Current Run Rate (This Month)</span>
+                        <span id="bridge-kpi-current" class="font-mono text-base font-black text-slate-800">€ 0</span>
+                    </div>
+                    <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl shadow-inner">
+                        <span class="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">YoY Trend (FY26 ➔ FY27)</span>
+                        <span id="bridge-kpi-yoy1" class="font-mono text-base font-black">...</span>
+                    </div>
+                    <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl shadow-inner">
+                        <span class="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">YoY Trend (FY27 ➔ FY28)</span>
+                        <span id="bridge-kpi-yoy2" class="font-mono text-base font-black">...</span>
+                    </div>
+                    <div class="bg-teal-700 text-white border border-teal-800 p-3 rounded-xl shadow-md flex flex-col justify-center">
+                        <span class="text-[8px] font-black uppercase tracking-widest text-teal-200 block mb-0.5">Total Displayed Cost (Cumulative)</span>
+                        <span id="bridge-kpi-total" class="font-mono text-xl font-black">€ 0</span>
+                    </div>
+                </div>
+
+                <div class="flex-1 flex flex-col p-4 gap-4 overflow-hidden bg-slate-50/50">
+                    <div class="flex-1 min-h-[200px] w-full overflow-x-auto border border-slate-200 rounded-lg p-2 bg-white shadow-sm" id="modal-chart-container">
                         <div class="min-w-[800px] h-full relative"><canvas id="financialBridgeChart"></canvas></div>
                     </div>
-                    <div class="h-[65%] w-full overflow-auto border border-slate-200 rounded-lg" id="modal-table-container">
-                        </div>
+                    <div class="max-h-[50%] w-full overflow-auto border border-slate-200 rounded-lg bg-white shadow-sm shrink-0" id="modal-table-container">
+                    </div>
                 </div>
             </div>
-        `;
+            `;
         },
 
-        // Generatore della Tabella Dati Dinamica
-        getFinancialBridgeTableMarkup: function (labels, tableRowsHtml, totalsCells) {
-            let theadCells = labels.map(lbl =>
-                `<th class="px-2 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">${lbl}</th>`
-            ).join('');
+        getFinancialBridgeTableRowMarkup: function (opts) {
+            // REQUISITO 3 & 5: Solo Entity (e ID sotto) in colonna 1. 
+            // REQUISITO 4: Eliminazione Date e Termini, teniamo solo il Total Commitment a destra.
+            return `
+            <tr class="hover:bg-slate-50/80 transition-colors cursor-help ${opts.rowOpacity}" title="${opts.tooltipContent}">
+                <td class="px-3 py-2 text-xs font-medium text-slate-800 sticky left-0 bg-white z-10 border-r border-slate-200 w-40 min-w-[10rem]">
+                    <div class="flex items-start gap-2 truncate">
+                        <span class="w-2.5 h-2.5 rounded-full shrink-0 mt-1 shadow-sm" style="background-color: ${opts.baseColor}"></span>
+                        <div class="min-w-0 flex-1">
+                            <div class="font-black text-slate-800 truncate text-[12px] leading-tight flex items-center gap-1">
+                                ${opts.legalEntity}
+                                ${opts.isExpired ? '<span class="ml-1 text-[8px] text-slate-400 font-normal border border-slate-200 bg-slate-50 rounded px-1 shadow-3xs">(Exp)</span>' : ''}
+                            </div>
+                            <div class="text-[9px] font-mono text-slate-500 truncate mt-0.5">ID: ${opts.cId}</div>
+                        </div>
+                    </div>
+                </td>
+                ${opts.tableCells}
+                <td class="sticky right-0 bg-slate-50 shadow-sm p-3 border-l border-slate-200 z-10 w-24 min-w-[6rem] text-right align-middle">
+                    <div class="font-black font-mono text-slate-700 text-[12px] leading-tight">€${opts.fmtTotCommitment}</div>
+                </td>
+            </tr>
+            `;
+        },
+
+        getFinancialBridgeTableMarkup: function (labels, tableRowsHtml, totalsCells, fyMap, monthlyTotalsArray, formatKM) {
+            const bgColorsUI = ['bg-slate-100/60', 'bg-teal-50/60', 'bg-indigo-50/60', 'bg-sky-50/60', 'bg-amber-50/60'];
+            const textColorsUI = ['text-slate-700', 'text-teal-700', 'text-indigo-700', 'text-sky-700', 'text-amber-700'];
+
+            let theadCells = labels.map((lbl, i) => {
+                const colorIndex = [...new Set(fyMap)].indexOf(fyMap[i]) % bgColorsUI.length;
+                return `<th class="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider border-r border-slate-200 ${bgColorsUI[colorIndex]}">${lbl}</th>`;
+            }).join('');
+
+            let tfootHtml = `<td class="sticky left-0 bg-slate-100 p-3 border-r border-slate-200 z-30 w-40 min-w-[10rem] text-right text-slate-500 font-black">FISCAL TOTALS</td>`;
+            let currentFy = fyMap[0];
+            let currentSpan = 0; let currentFyTotal = 0; let colorIdx = 0;
+
+            labels.forEach((_, idx) => {
+                if (fyMap[idx] !== currentFy) {
+                    tfootHtml += `<td colspan="${currentSpan}" class="p-2 text-center border-r border-slate-300 font-black ${bgColorsUI[colorIdx % bgColorsUI.length]} ${textColorsUI[colorIdx % textColorsUI.length]}"><span class="text-[8px] uppercase opacity-60 tracking-widest mr-1.5">${currentFy}:</span>€${formatKM(currentFyTotal)}</td>`;
+                    currentFy = fyMap[idx]; currentSpan = 1; currentFyTotal = monthlyTotalsArray[idx]; colorIdx++;
+                } else {
+                    currentSpan++; currentFyTotal += monthlyTotalsArray[idx];
+                }
+            });
+            tfootHtml += `<td colspan="${currentSpan}" class="p-2 text-center border-r border-slate-300 font-black ${bgColorsUI[colorIdx % bgColorsUI.length]} ${textColorsUI[colorIdx % textColorsUI.length]}"><span class="text-[8px] uppercase opacity-60 tracking-widest mr-1.5">${currentFy}:</span>€${formatKM(currentFyTotal)}</td>`;
 
             return `
             <table class="min-w-full divide-y divide-slate-200 table-fixed">
                 <thead class="bg-slate-50 sticky top-0 z-20 shadow-sm">
                     <tr>
-                        <th class="px-3 py-2 text-left text-xs font-semibold text-slate-600 sticky left-0 bg-slate-50 z-30 border-r border-slate-200 w-48">Contract / Source</th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold text-slate-600 sticky left-0 bg-slate-50 z-30 border-r border-slate-200 w-40 min-w-[10rem]">Contract Identity</th>
                         ${theadCells}
-                        <th class="px-3 py-2 text-right text-xs font-semibold text-slate-600 bg-slate-100 border-l border-slate-200 w-24">Tot. Cmmt</th>
-                        <th class="px-3 py-2 text-center text-xs font-semibold text-slate-600 w-24">Start</th>
-                        <th class="px-3 py-2 text-center text-xs font-semibold text-slate-600 w-24">End</th>
-                        <th class="px-3 py-2 text-center text-xs font-semibold text-slate-600 w-20">Term</th>
+                        <th class="sticky right-0 bg-slate-50 p-3 border-l border-slate-200 z-30 w-24 min-w-[6rem] text-right text-[10px] font-black uppercase tracking-widest text-slate-500">Tot. Cmmt</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-slate-100">
-                    ${tableRowsHtml.join('')}
+                    ${tableRowsHtml}
                 </tbody>
-                <tfoot class="bg-slate-100 sticky bottom-0 z-20 border-t-2 border-slate-300">
+                <tfoot class="bg-slate-100 sticky bottom-0 z-20 border-t-2 border-slate-300 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
                     <tr>
-                        <td class="px-3 py-2 text-left text-xs font-bold text-slate-800 sticky left-0 bg-slate-100 z-30 border-r border-slate-300">NET TOTAL</td>
-                        ${totalsCells}
-                        <td colspan="4" class="bg-slate-100 border-l border-slate-300"></td>
+                        ${tfootHtml}
+                        <td class="sticky right-0 bg-slate-100 border-l border-slate-300 z-30 w-24 min-w-[6rem]"></td>
                     </tr>
                 </tfoot>
             </table>
-        `;
+            `;
         }
 
     };

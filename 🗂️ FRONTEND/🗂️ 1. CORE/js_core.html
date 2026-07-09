@@ -41,44 +41,31 @@ async function fetchLiveData() {
     document.getElementById('dashboard-content').classList.add('hidden');
     
     try {
-        // 1. Scarica il payload leggero da GAS (senza le vecchie proiezioni)
         const payload = await apiFetchFullPayload();
-        
-        // 🌟 IL GLOBAL BOOT ENGINE: Calcoliamo le proiezioni UNA SOLA VOLTA per tutta l'app
         console.log("⚡ BOOT: Generazione Proiezioni In-Memory (Global Engine)...");
         
-        // Generiamo l'array e sovrascriviamo eventuali residui nel payload
         payload.projections = ProjectionsEngine.calculateAll(
             payload.contracts || [], 
             payload.initiatives || [], 
             payload.masterContracts || []
         );
 
-        // Salviamo in memoria globale l'oggetto arricchito
         windowPayload = payload; 
         globalCachedData = (payload.assets || []).filter(r => (r["Asset Name"] || "").toString().trim() !== "");
         
-        // 2. Sveglia il responsabile dell'Inventory (troverà già payload.projections pronto)
-        if (typeof initInventoryTab === "function") {
-            initInventoryTab();
-        }
+        // 🌟 FIX INVENTORY: Arricchiamo in memoria gli Asset con la proiezione appena calcolata!
+        globalCachedData.forEach(asset => {
+            const assetName = (asset["Asset Name"] || "").toString().toLowerCase().trim();
+            const projForAsset = windowPayload.projections.filter(p => (p["Asset Name"]||"").toLowerCase().trim() === assetName);
+            const sumFY27 = projForAsset.reduce((acc, p) => acc + (parseFloat(p["FY26 Optimized"]) || 0), 0); // Modificato in base alle tue chiavi
+            asset["Fiscal Projection (FY27)"] = sumFY27;
+        });
         
-        // 3. Sveglia il responsabile della Dashboard (troverà già payload.projections pronto)
-        if (typeof updateExecutiveDashboard === "function") {
-            updateExecutiveDashboard(payload);
-        }
+        if (typeof initInventoryTab === "function") initInventoryTab();
+        if (typeof updateExecutiveDashboard === "function") updateExecutiveDashboard(payload);
+        if (typeof renderOperationsHub === "function") renderOperationsHub(payload);
+        if (typeof renderProjectionsHub === "function") renderProjectionsHub(payload);
 
-        // 4. Sveglia il responsabile delle Operations
-        if (typeof renderOperationsHub === "function") {
-            renderOperationsHub(payload);
-        }
-
-        // 5. Sveglia il responsabile del tab Proiezioni
-        if (typeof renderProjectionsHub === "function") {
-            renderProjectionsHub(payload);
-        }
-
-        // Tutto pronto, accendiamo lo schermo!
         document.getElementById('loading-state').classList.add('hidden');
         document.getElementById('dashboard-content').classList.remove('hidden');
         window.dispatchEvent(new Event('resize'));
