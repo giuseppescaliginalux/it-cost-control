@@ -854,7 +854,8 @@
                         // 3. IL MOTORE VARIANZE: Aggiorniamo l'Asset Variance Report
                         console.log("⚡ REACTIVE UPDATE: Ricalcolo Varianze...");
                         const varianceMap = new Map();
-                        (windowPayload.assetAllocationBridge || []).forEach(alloc => {
+                        // 🌟 FIX: Legge correttamente la variabile 'bridge' passata dal Server
+                        (windowPayload.bridge || []).forEach(alloc => {
                             const key = `${String(alloc["Asset Name"] || "").trim()}---${String(alloc["Fiscal Year"] || "").trim().toUpperCase()}`;
                             if (!varianceMap.has(key)) varianceMap.set(key, { "Asset Name": alloc["Asset Name"], "Fiscal Year": alloc["Fiscal Year"], "Effective Budget": 0, "Fiscal Projection": 0, "Variance": 0 });
                             varianceMap.get(key)["Effective Budget"] += parseFloat(alloc["Effective Budget"]) || 0;

@@ -2,8 +2,7 @@
  * ============================================================================
  * FINOPS ENTERPRISE ARCHITECTURE: IN-MEMORY DATABASE UTILITIES
  * ============================================================================
- * Implementa il pattern "Unit of Work". Tutte le letture/scritture avvengono
- * in RAM. Solo il comando commit() scarica i dati fisicamente sui fogli Google.
+ * Implementa il pattern "Unit of Work" in RAM e lo Scudo Anti-Crash.
  * ============================================================================
  */
 
@@ -11,7 +10,7 @@ const FinOpsDatabase = {
   cache: {},
   dirtySheets: new Set(),
 
-  getContext: function (sheetName) {
+  getContext: function(sheetName) {
     if (!this.cache[sheetName]) {
       const ss = SpreadsheetApp.getActiveSpreadsheet();
       const sheet = ss.getSheetByName(sheetName);
@@ -23,7 +22,7 @@ const FinOpsDatabase = {
     return this.cache[sheetName];
   },
 
-  getObjects: function (sheetName) {
+  getObjects: function(sheetName) {
     const ctx = this.getContext(sheetName);
     if (!ctx.sheet || ctx.data.length <= 1) return [];
     const objects = [];
@@ -32,15 +31,21 @@ const FinOpsDatabase = {
       const obj = {};
       ctx.headers.forEach((header, index) => {
         let val = row[index];
-        if (val instanceof Date) obj[header] = formatServerDate(val);
-        else obj[header] = val !== undefined && val !== null ? val : "";
+        if (val instanceof Date) {
+            obj[header] = formatServerDate(val);
+        } else if (val !== null && typeof val === 'object') {
+            // 🛡️ SCUDO ANTI-CRASH JSON: Intercetta gli errori nativi di calcolo cella (#N/A, #REF!)
+            obj[header] = String(val);
+        } else {
+            obj[header] = val !== undefined && val !== null ? val : "";
+        }
       });
       objects.push(obj);
     }
     return objects;
   },
 
-  setObjects: function (sheetName, dataObjectsArray, fieldMap, appendMode = false) {
+  setObjects: function(sheetName, dataObjectsArray, fieldMap, appendMode = false) {
     const ctx = this.getContext(sheetName);
     if (!ctx.sheet) return;
 
@@ -62,7 +67,7 @@ const FinOpsDatabase = {
     this.dirtySheets.add(sheetName);
   },
 
-  deleteRowsByColumnValue: function (sheetName, columnName, valuesToDelete) {
+  deleteRowsByColumnValue: function(sheetName, columnName, valuesToDelete) {
     const ctx = this.getContext(sheetName);
     if (!ctx.sheet || ctx.data.length <= 1 || valuesToDelete.length === 0) return;
     const colIdx = ctx.headers.indexOf(columnName);
@@ -70,42 +75,42 @@ const FinOpsDatabase = {
 
     const filteredData = [ctx.headers];
     for (let i = 1; i < ctx.data.length; i++) {
-      const val = String(ctx.data[i][colIdx]).trim();
-      if (!valuesToDelete.includes(val)) {
-        filteredData.push(ctx.data[i]);
-      }
+        const val = String(ctx.data[i][colIdx]).trim();
+        if (!valuesToDelete.includes(val)) {
+            filteredData.push(ctx.data[i]);
+        }
     }
     ctx.data = filteredData;
     this.dirtySheets.add(sheetName);
   },
-
-  updateOrAppendRowByColumnValue: function (sheetName, columnName, matchValue, dataObject, fieldMap) {
+  
+  updateOrAppendRowByColumnValue: function(sheetName, columnName, matchValue, dataObject, fieldMap) {
     const ctx = this.getContext(sheetName);
     if (!ctx.sheet) return;
     const colIdx = ctx.headers.indexOf(columnName);
     if (colIdx === -1) return;
 
     const newRow = ctx.headers.map(header => {
-      if (fieldMap && fieldMap[header]) {
-        const prop = fieldMap[header];
-        return dataObject[prop] !== undefined ? dataObject[prop] : (dataObject[header] !== undefined ? dataObject[header] : "");
-      }
-      return dataObject[header] !== undefined ? dataObject[header] : "";
+        if (fieldMap && fieldMap[header]) {
+          const prop = fieldMap[header];
+          return dataObject[prop] !== undefined ? dataObject[prop] : (dataObject[header] !== undefined ? dataObject[header] : "");
+        }
+        return dataObject[header] !== undefined ? dataObject[header] : "";
     });
 
     let found = false;
     for (let i = 1; i < ctx.data.length; i++) {
-      if (String(ctx.data[i][colIdx]).trim() === String(matchValue).trim()) {
-        ctx.data[i] = newRow;
-        found = true;
-        break;
-      }
+        if (String(ctx.data[i][colIdx]).trim() === String(matchValue).trim()) {
+            ctx.data[i] = newRow;
+            found = true;
+            break;
+        }
     }
     if (!found) ctx.data.push(newRow);
     this.dirtySheets.add(sheetName);
   },
 
-  commit: function () {
+  commit: function() {
     this.dirtySheets.forEach(sheetName => {
       const ctx = this.cache[sheetName];
       if (ctx && ctx.sheet) {
@@ -120,28 +125,28 @@ const FinOpsDatabase = {
       }
     });
     this.dirtySheets.clear();
-    console.log("DATABASE: Commit massivo completato con successo in O(1).");
+    console.log("DATABASE: Commit massivo in RAM completato con successo.");
   }
 };
 
 function formatServerDate(val) {
   if (val === undefined || val === null) return "";
-
+  
   if (val instanceof Date) {
     if (isNaN(val.getTime())) return "";
-    // 🌟 FIX LATENZA: Matematica pura JS, zero chiamate API a Google
+    // ⚡ FORMATTAZIONE PURA IN RAM (Zero lag)
     const y = val.getFullYear();
     const m = String(val.getMonth() + 1).padStart(2, '0');
     const d = String(val.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }
-
+  
   let s = String(val).trim();
   if (s === "" || s === "—" || s === "-") return "";
-
+  
   let isoMatch = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})/);
   if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
-
+  
   let dObj = new Date(s);
   if (!isNaN(dObj.getTime())) {
     const y = dObj.getFullYear();
@@ -149,10 +154,10 @@ function formatServerDate(val) {
     const d = String(dObj.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }
-
+  
   return s;
 }
 
-// Override functions to transparently use the RAM Database
+// Interfacce compatibili
 function getSheetContext(sheetName) { return FinOpsDatabase.getContext(sheetName); }
 function getSheetDataAsObjects(ss, sheetName) { return FinOpsDatabase.getObjects(sheetName); }
