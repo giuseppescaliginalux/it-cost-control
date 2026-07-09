@@ -102,6 +102,60 @@
             }
         },
 
+        // --- Local In-Memory Calculation Engine (Latenza Zero) ---
+        calculateContractFinancials: function(d) {
+            const parseFinance = (rawVal) => {
+                if (typeof rawVal === 'number') return rawVal;
+                if (!rawVal || String(rawVal).trim() === "") return 0;
+                return parseFloat(String(rawVal).replace(/[^0-9,.-]/g, '').replace(/,/g, '.')) || 0;
+            };
+
+            const getExactMonths = (s, e) => {
+                if (!s || !e || s > e) return 0;
+                const startDays = new Date(s.getFullYear(), s.getMonth() + 1, 0).getDate();
+                const endDays = new Date(e.getFullYear(), e.getMonth() + 1, 0).getDate();
+                if (s.getFullYear() === e.getFullYear() && s.getMonth() === e.getMonth()) return (e.getDate() - s.getDate() + 1) / startDays;
+                const fullMonths = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth()) - 1;
+                return fullMonths + ((startDays - s.getDate() + 1) / startDays) + (e.getDate() / endDays);
+            };
+
+            const sDate = d["Start Date"] ? new Date(d["Start Date"]) : null;
+            const cEndDate = d["Contract End Date"] ? new Date(d["Contract End Date"]) : null;
+            const aEndDate = d["Adjusted End Date"] ? new Date(d["Adjusted End Date"]) : null;
+            const eDate = (aEndDate && !isNaN(aEndDate.getTime())) ? aEndDate : cEndDate;
+            
+            const totCommit = parseFinance(d["Total Commitment"]);
+            const isOneShot = d["Cost Recurrence"] === "One-Shot";
+
+            let term = 0, effCommit = 0, annVal = 0;
+            
+            if (sDate && eDate) {
+                term = Math.round(getExactMonths(sDate, eDate));
+                const origMonths = getExactMonths(sDate, cEndDate);
+                const actMonths = getExactMonths(sDate, eDate);
+                
+                if (isOneShot) {
+                    effCommit = totCommit;
+                    annVal = totCommit;
+                } else {
+                    effCommit = origMonths > 0 ? totCommit * (actMonths / origMonths) : 0;
+                    annVal = origMonths > 0 ? (totCommit / origMonths) * 12 : 0;
+                }
+            }
+            
+            d["Contract Term (Months)"] = term;
+            d["Effective Commitment"] = parseFloat(effCommit.toFixed(2));
+            d["Annual Value"] = parseFloat(annVal.toFixed(2));
+
+            const today = new Date(); today.setHours(0,0,0,0);
+            if (!sDate) d["Status"] = "";
+            else if (eDate && eDate < today) d["Status"] = "EXPIRED";
+            else if (sDate > today) d["Status"] = "UPCOMING";
+            else d["Status"] = "ACTIVE";
+
+            return d;
+        },
+
         // --- DOM Manipulators ---
         removeDocumentLink: function (event, urlToRemove, isMaster, detailId = null) {
             const clickedButton = event.currentTarget;

@@ -25,6 +25,7 @@
 
     function toggleGlobalEditMode() {
         ContractsState.globalEditMode = !ContractsState.globalEditMode;
+        if(typeof setEditModeActive !== 'undefined') setEditModeActive(ContractsState.globalEditMode);
 
         const editBtn = document.getElementById('contracts-edit-mode-btn');
         if (ContractsState.globalEditMode) {
@@ -52,16 +53,7 @@
     }
 
     function updateCommitButtonVisibility() {
-        const commitBtn = document.getElementById('contracts-commit-btn');
-        if (!commitBtn) return;
-
-        if (ContractsState.hasUnsavedChanges) {
-            commitBtn.classList.remove('hidden');
-            commitBtn.classList.add('flex');
-        } else {
-            commitBtn.classList.add('hidden');
-            commitBtn.classList.remove('flex');
-        }
+        // Disattivato: Il bottone locale è nascosto. Ora governa il semaforo globale della Navbar!
     }
 
     // --- Search & Selection ---
@@ -507,25 +499,37 @@
     }
 
     function finalizeRowSave(item, id) {
-        ContractsAPI.calculateRowLogic(item.data,
-            (calculatedItem) => {
-                hideLoading();
-                item.data = calculatedItem;
-                item.isEditing = false;
-                ContractsState.hasUnsavedChanges = true;
+        hideLoading();
+        
+        // 🌟 1. CALCOLO LOCALE A LATENZA ZERO!
+        item.data = ContractsUtils.calculateContractFinancials(item.data);
+        item.isEditing = false;
+        ContractsState.hasUnsavedChanges = true;
 
-                // 🌟 FIX: Chiudi la modale prima di ri-renderizzare la tabella!
-                if (window.ContractsController && window.ContractsController.closeContractModalWindow) {
-                    window.ContractsController.closeContractModalWindow();
+        // 🌟 2. ACCENDIAMO IL SEMAFORO GLOBALE NELLA NAVBAR!
+        if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
+
+        // 🌟 3. AGGIORNIAMO ISTANTANEAMENTE IL MASTER CONTRACT IN RAM!
+        if (ContractsState.currentMasterData) {
+            let newCommitment = 0;
+            let newRunRate = 0;
+            ContractsState.currentDetailItems.forEach(child => {
+                newCommitment += parseFloat(child.data["Total Commitment"]) || 0;
+                if (child.data["Cost Recurrence"] !== "One-Shot") {
+                    newRunRate += parseFloat(child.data["Annual Value"]) || 0;
                 }
+            });
+            ContractsState.currentMasterData["Total Commitment"] = newCommitment;
+            ContractsState.currentMasterData["Run Rate"] = newRunRate;
+        }
 
-                renderDetailItemsTable();
-            },
-            (err) => {
-                hideLoading();
-                FinOpsUI.showAlert("Server Error", err.message);
-            }
-        );
+        // 4. Chiudiamo la modale e ridisegniamo tutto
+        if (window.ContractsController && window.ContractsController.closeContractModalWindow) {
+            window.ContractsController.closeContractModalWindow();
+        }
+
+        renderMasterFormBox(); 
+        renderDetailItemsTable();
     }
 
     function addNewDetailRowItem() {

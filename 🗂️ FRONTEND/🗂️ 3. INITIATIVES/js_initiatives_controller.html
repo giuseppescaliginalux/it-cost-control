@@ -17,6 +17,12 @@
         currentLocalTagsArray: [],
         globalCustomTags: [],
 
+        toggleOperationsEditMode: function () {
+            InitiativesState.globalEditMode = !InitiativesState.globalEditMode;
+            if (typeof setEditModeActive !== 'undefined') setEditModeActive(InitiativesState.globalEditMode);
+            this.renderKanbanBoard(true);
+        },
+
         handleSearchInput: function (val) {
             InitiativesState.searchKeyword = val;
             this.renderKanbanBoard(false);
@@ -700,7 +706,7 @@
             const initName = document.getElementById('modal-init-name').value.trim();
             const assetName = document.getElementById('modal-init-asset-select').value;
             const masterId = document.getElementById('modal-init-selected-master-id').value;
-            const contractId = document.getElementById('modal-init-selected-contract-id').value; // 🌟 Lettura target locale
+            const contractId = document.getElementById('modal-init-selected-contract-id').value;
             const tDate = document.getElementById('modal-init-target-date').value;
 
             const tCostInput = document.getElementById('modal-init-target-cost');
@@ -720,7 +726,7 @@
             instance["Initiative Name"] = initName;
             instance["Asset Name"] = assetName;
             instance["Master Contract ID"] = masterId;
-            instance["Contract ID"] = contractId; // 🌟 Persistenza nel DTO in memoria cache
+            instance["Contract ID"] = contractId;
 
             const targetMaster = (windowPayload.masterContracts || []).find(m => String(m["Master Contract ID"]).trim() === masterId.trim());
             if (targetMaster) {
@@ -756,7 +762,9 @@
 
             this.closeInitiativeModalWindow();
             this.renderKanbanBoard(false);
-            FinOpsUI.showNotificationBanner("Initiative changes applied locally in memory cache. Commit to persist changes.", "warning");
+
+            // 🌟 ACCENSIONE SEMAFORO GLOBALE
+            if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
         },
 
         filterModalAssetOptions: function (query) {
@@ -1119,7 +1127,9 @@
 
                 InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || []);
                 this.renderKanbanBoard(false);
-                ContractsUtils.showMgmtBannerStatus(`Status shifted to ${newStatus}. Push changes to commit.`, "success");
+
+                // 🌟 ACCENSIONE SEMAFORO AL DRAG & DROP
+                if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
             }
         },
 

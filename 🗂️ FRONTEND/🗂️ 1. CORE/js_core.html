@@ -54,7 +54,7 @@
             );
 
             windowPayload = payload;
-            
+
             // 🌟 MEMENTO PATTERN: Creazione Snapshot disconnesso!
             window.originalPayloadSnapshot = JSON.parse(JSON.stringify(payload));
             setPendingChanges(false); // Resetta la UI
@@ -120,7 +120,7 @@
     }
 
     // 🌟 GESTIONE STATO GLOBALE E MEMENTO PATTERN
-    window.setPendingChanges = function(isDirty) {
+    window.setPendingChanges = function (isDirty) {
         window.hasPendingChanges = isDirty;
         const btnSync = document.getElementById('btn-global-sync');
         const btnSyncDis = document.getElementById('btn-global-sync-disabled');
@@ -128,45 +128,45 @@
         const btnCommit = document.getElementById('btn-global-commit');
 
         if (isDirty) {
-            if(btnSync) btnSync.classList.replace('flex', 'hidden');
-            if(btnSyncDis) btnSyncDis.classList.replace('flex', 'hidden');
-            if(btnCancel) btnCancel.classList.replace('hidden', 'flex');
-            if(btnCommit) btnCommit.classList.replace('hidden', 'flex');
+            if (btnSync) btnSync.classList.replace('flex', 'hidden');
+            if (btnSyncDis) btnSyncDis.classList.replace('flex', 'hidden');
+            if (btnCancel) btnCancel.classList.replace('hidden', 'flex');
+            if (btnCommit) btnCommit.classList.replace('hidden', 'flex');
         } else {
-            if(btnSync) btnSync.classList.replace('hidden', 'flex');
-            if(btnSyncDis) btnSyncDis.classList.replace('flex', 'hidden');
-            if(btnCancel) btnCancel.classList.replace('flex', 'hidden');
-            if(btnCommit) btnCommit.classList.replace('flex', 'hidden');
+            if (btnSync) btnSync.classList.replace('hidden', 'flex');
+            if (btnSyncDis) btnSyncDis.classList.replace('flex', 'hidden');
+            if (btnCancel) btnCancel.classList.replace('flex', 'hidden');
+            if (btnCommit) btnCommit.classList.replace('flex', 'hidden');
         }
     };
 
-    window.setEditModeActive = function(isActive) {
+    window.setEditModeActive = function (isActive) {
         if (window.hasPendingChanges) return; // Non toccare se è già dirty
         const btnSync = document.getElementById('btn-global-sync');
         const btnSyncDis = document.getElementById('btn-global-sync-disabled');
-        
+
         if (isActive) {
-            if(btnSync) btnSync.classList.replace('flex', 'hidden');
-            if(btnSyncDis) btnSyncDis.classList.replace('hidden', 'flex');
+            if (btnSync) btnSync.classList.replace('flex', 'hidden');
+            if (btnSyncDis) btnSyncDis.classList.replace('hidden', 'flex');
         } else {
-            if(btnSync) btnSync.classList.replace('hidden', 'flex');
-            if(btnSyncDis) btnSyncDis.classList.replace('flex', 'hidden');
+            if (btnSync) btnSync.classList.replace('hidden', 'flex');
+            if (btnSyncDis) btnSyncDis.classList.replace('flex', 'hidden');
         }
     };
 
-    window.revertLocalChanges = function() {
+    window.revertLocalChanges = function () {
         if (!window.originalPayloadSnapshot) return;
         console.log("⏪ MEMENTO: Ripristino snapshot in memoria...");
         // Restituisce la RAM allo stato di Snapshot a latenza zero
         windowPayload = JSON.parse(JSON.stringify(window.originalPayloadSnapshot));
-        
+
         // Pulisce stati locali dei Controller
-        if(typeof ContractsState !== 'undefined') ContractsState.resetMaster();
-        if(typeof InitiativesState !== 'undefined') InitiativesState.loadPayload(windowPayload);
-        
+        if (typeof ContractsState !== 'undefined') ContractsState.resetMaster();
+        if (typeof InitiativesState !== 'undefined') InitiativesState.loadPayload(windowPayload);
+
         // Rispegne la spia e triggera il ricalcolo visuale
         setPendingChanges(false);
-        
+
         // Ricarica la vista basandosi sul tab attivo
         if (window.currentActiveTabId === 'tab-contracts' && typeof toggleGlobalEditMode !== 'undefined') {
             ContractsState.globalEditMode = false;
@@ -180,10 +180,16 @@
         FinOpsUI.showNotificationBanner("Modifiche scartate. Dati ripristinati.", "success");
     };
 
-    window.triggerGlobalCommit = function() {
-        // Questa funzione valuterà da quale tab proviene la richiesta e chiamerà l'API corrispondente.
-        // Lo faremo nella Fase 3 e 4! Per ora fa solo un alert
-        FinOpsUI.showNotificationBanner("Motore di Commit Globale in attesa del cablaggio delle Fasi 3 e 4.", "warning");
+    window.triggerGlobalCommit = function () {
+        if (window.currentActiveTabId === 'tab-contracts') {
+            if (typeof saveCurrentContract === 'function') saveCurrentContract();
+        } else if (window.currentActiveTabId === 'tab-operations') {
+            if (typeof InitiativesController !== 'undefined') InitiativesController.pushKanbanArchitectureToGoogleSheets();
+        } else if (window.currentActiveTabId === 'tab-timeline') {
+            if (typeof TimelineController !== 'undefined') TimelineController.commitTimelineChanges();
+        } else {
+            FinOpsUI.showNotificationBanner("Nessuna azione di commit mappata per questa sezione.", "warning");
+        }
     };
 
     window.onload = fetchLiveData;

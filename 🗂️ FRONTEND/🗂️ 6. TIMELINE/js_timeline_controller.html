@@ -359,6 +359,7 @@
             // Sincronizza lo stato con la variabile booleana
             if (typeof TimelineState.isTimelineEditable === 'undefined') TimelineState.isTimelineEditable = false;
             TimelineState.isTimelineEditable = !TimelineState.isTimelineEditable;
+            if (typeof setEditModeActive !== 'undefined') setEditModeActive(TimelineState.isTimelineEditable);
 
             const editBtn = document.getElementById('timeline-edit-mode-btn');
             const pullTab = document.getElementById('timeline-orphans-pull-tab');
@@ -607,8 +608,8 @@
         },
 
         showCommitButton: function () {
-            const btn = document.getElementById('timeline-commit-btn');
-            if (btn) btn.classList.replace('hidden', 'flex');
+            // 🌟 ACCENSIONE SEMAFORO IN TIMELINE
+            if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
         },
 
         showFloatingArrows: function () { },
