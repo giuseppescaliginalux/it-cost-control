@@ -11,7 +11,7 @@ const FinOpsDatabase = {
   cache: {},
   dirtySheets: new Set(),
 
-  getContext: function(sheetName) {
+  getContext: function (sheetName) {
     if (!this.cache[sheetName]) {
       const ss = SpreadsheetApp.getActiveSpreadsheet();
       const sheet = ss.getSheetByName(sheetName);
@@ -23,7 +23,7 @@ const FinOpsDatabase = {
     return this.cache[sheetName];
   },
 
-  getObjects: function(sheetName) {
+  getObjects: function (sheetName) {
     const ctx = this.getContext(sheetName);
     if (!ctx.sheet || ctx.data.length <= 1) return [];
     const objects = [];
@@ -40,7 +40,7 @@ const FinOpsDatabase = {
     return objects;
   },
 
-  setObjects: function(sheetName, dataObjectsArray, fieldMap, appendMode = false) {
+  setObjects: function (sheetName, dataObjectsArray, fieldMap, appendMode = false) {
     const ctx = this.getContext(sheetName);
     if (!ctx.sheet) return;
 
@@ -62,7 +62,7 @@ const FinOpsDatabase = {
     this.dirtySheets.add(sheetName);
   },
 
-  deleteRowsByColumnValue: function(sheetName, columnName, valuesToDelete) {
+  deleteRowsByColumnValue: function (sheetName, columnName, valuesToDelete) {
     const ctx = this.getContext(sheetName);
     if (!ctx.sheet || ctx.data.length <= 1 || valuesToDelete.length === 0) return;
     const colIdx = ctx.headers.indexOf(columnName);
@@ -70,42 +70,42 @@ const FinOpsDatabase = {
 
     const filteredData = [ctx.headers];
     for (let i = 1; i < ctx.data.length; i++) {
-        const val = String(ctx.data[i][colIdx]).trim();
-        if (!valuesToDelete.includes(val)) {
-            filteredData.push(ctx.data[i]);
-        }
+      const val = String(ctx.data[i][colIdx]).trim();
+      if (!valuesToDelete.includes(val)) {
+        filteredData.push(ctx.data[i]);
+      }
     }
     ctx.data = filteredData;
     this.dirtySheets.add(sheetName);
   },
-  
-  updateOrAppendRowByColumnValue: function(sheetName, columnName, matchValue, dataObject, fieldMap) {
+
+  updateOrAppendRowByColumnValue: function (sheetName, columnName, matchValue, dataObject, fieldMap) {
     const ctx = this.getContext(sheetName);
     if (!ctx.sheet) return;
     const colIdx = ctx.headers.indexOf(columnName);
     if (colIdx === -1) return;
 
     const newRow = ctx.headers.map(header => {
-        if (fieldMap && fieldMap[header]) {
-          const prop = fieldMap[header];
-          return dataObject[prop] !== undefined ? dataObject[prop] : (dataObject[header] !== undefined ? dataObject[header] : "");
-        }
-        return dataObject[header] !== undefined ? dataObject[header] : "";
+      if (fieldMap && fieldMap[header]) {
+        const prop = fieldMap[header];
+        return dataObject[prop] !== undefined ? dataObject[prop] : (dataObject[header] !== undefined ? dataObject[header] : "");
+      }
+      return dataObject[header] !== undefined ? dataObject[header] : "";
     });
 
     let found = false;
     for (let i = 1; i < ctx.data.length; i++) {
-        if (String(ctx.data[i][colIdx]).trim() === String(matchValue).trim()) {
-            ctx.data[i] = newRow;
-            found = true;
-            break;
-        }
+      if (String(ctx.data[i][colIdx]).trim() === String(matchValue).trim()) {
+        ctx.data[i] = newRow;
+        found = true;
+        break;
+      }
     }
     if (!found) ctx.data.push(newRow);
     this.dirtySheets.add(sheetName);
   },
 
-  commit: function() {
+  commit: function () {
     this.dirtySheets.forEach(sheetName => {
       const ctx = this.cache[sheetName];
       if (ctx && ctx.sheet) {
@@ -126,13 +126,30 @@ const FinOpsDatabase = {
 
 function formatServerDate(val) {
   if (val === undefined || val === null) return "";
-  if (val instanceof Date) return !isNaN(val.getTime()) ? Utilities.formatDate(val, CONFIG.TIMEZONE || "Europe/Rome", "yyyy-MM-dd") : "";
+
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return "";
+    // 🌟 FIX LATENZA: Matematica pura JS, zero chiamate API a Google
+    const y = val.getFullYear();
+    const m = String(val.getMonth() + 1).padStart(2, '0');
+    const d = String(val.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
   let s = String(val).trim();
   if (s === "" || s === "—" || s === "-") return "";
+
   let isoMatch = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})/);
   if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
-  let d = new Date(s);
-  if (!isNaN(d.getTime())) return Utilities.formatDate(d, CONFIG.TIMEZONE || "Europe/Rome", "yyyy-MM-dd");
+
+  let dObj = new Date(s);
+  if (!isNaN(dObj.getTime())) {
+    const y = dObj.getFullYear();
+    const m = String(dObj.getMonth() + 1).padStart(2, '0');
+    const d = String(dObj.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
   return s;
 }
 

@@ -301,10 +301,11 @@
                 }
             });
 
-            // 2. Cicliamo su tutti i contratti in stato ACTIVE o EXPIRED
+            // 2. Cicliamo su tutti i contratti in stato valido
             (contractsArray || []).forEach(contract => {
                 const status = String(contract.Status || contract.status || "").toUpperCase();
-                if (!["ACTIVE", "EXPIRED"].includes(status)) return; // Skippiamo i TERMINATED
+                // 🌟 FIX ZERO RUN RATE: Includiamo i contratti che partiranno nel futuro!
+                if (!["ACTIVE", "EXPIRED", "UPCOMING", "INCOMING"].includes(status)) return;
 
                 const mId = String(contract["Master Contract ID"] || contract.masterId).trim();
                 const cId = String(contract["Contract ID"] || contract.contractId).trim();

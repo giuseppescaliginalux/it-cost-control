@@ -1,88 +1,120 @@
 <script>
-/**
- * MODULO 1: CORE & DATA FETCHING
- */
-let globalCachedData = [];
-let windowPayload = { assets: [], contracts: [], initiatives: [], bridge: [], projections: [] };
-let selectedStatuses = [];
+    /**
+     * MODULO 1: CORE & DATA FETCHING
+     */
+    let globalCachedData = [];
+    let windowPayload = { assets: [], contracts: [], initiatives: [], bridge: [], projections: [] };
+    let selectedStatuses = [];
 
-// Formattazioni
-Number.prototype.formatCurrency = function () {
-    return this.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-}
-Date.prototype.formatDashboardDate = function () {
-    if (isNaN(this.getTime())) return "-";
-    return this.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
-};
-String.prototype.formatDashboardDate = function () {
-    if (!this.trim() || this === "-") return "-";
-    const parsedDate = new Date(this);
-    if (isNaN(parsedDate.getTime())) return this;
-    return parsedDate.formatDashboardDate();
-};
-function safeFormatStringDate(rawDate) {
-    return FinOpsDate.toVisualShort(rawDate);
-}
-
-// Chiamata Server (Singola)
-function apiFetchFullPayload() {
-    return new Promise((resolve, reject) => {
-        google.script.run
-            .withSuccessHandler(resolve)
-            .withFailureHandler(reject)
-            .getFullPayload_Internal(); 
-    });
-}
-
-// Avvio Iniziale (Solo Orchestrazione)
-async function fetchLiveData() {
-    document.getElementById('loading-state').classList.remove('hidden');
-    document.getElementById('error-state').classList.add('hidden');
-    document.getElementById('dashboard-content').classList.add('hidden');
-    
-    try {
-        const payload = await apiFetchFullPayload();
-        console.log("⚡ BOOT: Generazione Proiezioni In-Memory (Global Engine)...");
-        
-        payload.projections = ProjectionsEngine.calculateAll(
-            payload.contracts || [], 
-            payload.initiatives || [], 
-            payload.masterContracts || []
-        );
-
-        windowPayload = payload; 
-        globalCachedData = (payload.assets || []).filter(r => (r["Asset Name"] || "").toString().trim() !== "");
-        
-        // 🌟 FIX INVENTORY: Arricchiamo in memoria gli Asset con la proiezione appena calcolata!
-        globalCachedData.forEach(asset => {
-            const assetName = (asset["Asset Name"] || "").toString().toLowerCase().trim();
-            const projForAsset = windowPayload.projections.filter(p => (p["Asset Name"]||"").toLowerCase().trim() === assetName);
-            const sumFY27 = projForAsset.reduce((acc, p) => acc + (parseFloat(p["FY26 Optimized"]) || 0), 0); // Modificato in base alle tue chiavi
-            asset["Fiscal Projection (FY27)"] = sumFY27;
-        });
-        
-        if (typeof initInventoryTab === "function") initInventoryTab();
-        if (typeof updateExecutiveDashboard === "function") updateExecutiveDashboard(payload);
-        if (typeof renderOperationsHub === "function") renderOperationsHub(payload);
-        if (typeof renderProjectionsHub === "function") renderProjectionsHub(payload);
-
-        document.getElementById('loading-state').classList.add('hidden');
-        document.getElementById('dashboard-content').classList.remove('hidden');
-        window.dispatchEvent(new Event('resize'));
-        
-    } catch (e) {
-        document.getElementById('error-message').textContent = e.toString();
-        document.getElementById('error-state').classList.remove('hidden');
+    // Formattazioni
+    Number.prototype.formatCurrency = function () {
+        return this.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
     }
-}
+    Date.prototype.formatDashboardDate = function () {
+        if (isNaN(this.getTime())) return "-";
+        return this.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+    };
+    String.prototype.formatDashboardDate = function () {
+        if (!this.trim() || this === "-") return "-";
+        const parsedDate = new Date(this);
+        if (isNaN(parsedDate.getTime())) return this;
+        return parsedDate.formatDashboardDate();
+    };
+    function safeFormatStringDate(rawDate) {
+        return FinOpsDate.toVisualShort(rawDate);
+    }
 
-function showLoading() {
-    document.getElementById('loading-overlay').style.display = 'flex';
-}
+    // Chiamata Server (Singola)
+    function apiFetchFullPayload() {
+        return new Promise((resolve, reject) => {
+            google.script.run
+                .withSuccessHandler(resolve)
+                .withFailureHandler(reject)
+                .getFullPayload_Internal();
+        });
+    }
 
-function hideLoading() {
-    document.getElementById('loading-overlay').style.display = 'none';
-}
+    // Avvio Iniziale (Solo Orchestrazione)
+    async function fetchLiveData() {
+        document.getElementById('loading-state').classList.remove('hidden');
+        document.getElementById('error-state').classList.add('hidden');
+        document.getElementById('dashboard-content').classList.add('hidden');
 
-window.onload = fetchLiveData;
+        try {
+            const payload = await apiFetchFullPayload();
+            console.log("⚡ BOOT: Generazione Proiezioni In-Memory (Global Engine)...");
+
+            // 1. Il Browser Calcola le Proiezioni
+            payload.projections = ProjectionsEngine.calculateAll(
+                payload.contracts || [],
+                payload.initiatives || [],
+                payload.masterContracts || []
+            );
+
+            windowPayload = payload;
+            globalCachedData = (payload.assets || []).filter(r => (r["Asset Name"] || "").toString().trim() !== "");
+
+            // 🌟 FIX RUN RATE E BUDGET: Calcoli indipendenti e corretti
+            globalCachedData.forEach(asset => {
+                const assetName = (asset["Asset Name"] || "").toString().toLowerCase().trim();
+                const projForAsset = windowPayload.projections.filter(p => (p["Asset Name"] || "").toLowerCase().trim() === assetName);
+
+                // 1. Outlook FY27 (Proiezione Finanziaria)
+                const sumFY27 = projForAsset.reduce((acc, p) => acc + (parseFloat(p["FY27 Optimized"]) || 0), 0);
+                asset["Fiscal Projection (FY27)"] = sumFY27;
+
+                // 2. Vero Run Rate Nominale (Somma dell'Annual Value dei contratti vivi)
+                const activeContracts = (windowPayload.contracts || []).filter(c =>
+                    String(c["Asset Name"] || "").toLowerCase().trim() === assetName &&
+                    ["ACTIVE", "UPCOMING", "INCOMING"].includes(String(c["Status"] || "").toUpperCase().trim())
+                );
+                const nominalRunRate = activeContracts.reduce((sum, c) => sum + (parseFloat(c["Annual Value"] || c.annualValue) || 0), 0);
+                asset["Run Rate"] = nominalRunRate;
+
+                // 3. Calcolo Budget Status al volo per l'Inventory
+                let effBudget = 0;
+                let variance = 0;
+                (windowPayload.varianceReport || []).forEach(v => {
+                    if (String(v["Asset Name"] || "").toLowerCase().trim() === assetName && String(v["Fiscal Year"] || "").toUpperCase().trim() === "FY27") {
+                        effBudget += parseFloat(v["Effective Budget"]) || 0;
+                        variance += parseFloat(v["Variance"]) || 0;
+                    }
+                });
+
+                if (effBudget === 0) {
+                    asset["Budget Status (FY27)"] = "Not Budgeted";
+                    asset["Budget Status"] = "Not Budgeted";
+                } else if (variance < 0) {
+                    asset["Budget Status (FY27)"] = "At Risk";
+                    asset["Budget Status"] = "At Risk";
+                } else {
+                    asset["Budget Status (FY27)"] = "Secured";
+                    asset["Budget Status"] = "Secured";
+                }
+            });
+
+            if (typeof initInventoryTab === "function") initInventoryTab();
+            if (typeof updateExecutiveDashboard === "function") updateExecutiveDashboard(payload);
+            if (typeof renderOperationsHub === "function") renderOperationsHub(payload);
+            if (typeof renderProjectionsHub === "function") renderProjectionsHub(payload);
+
+            document.getElementById('loading-state').classList.add('hidden');
+            document.getElementById('dashboard-content').classList.remove('hidden');
+            window.dispatchEvent(new Event('resize'));
+
+        } catch (e) {
+            document.getElementById('error-message').textContent = e.toString();
+            document.getElementById('error-state').classList.remove('hidden');
+        }
+    }
+
+    function showLoading() {
+        document.getElementById('loading-overlay').style.display = 'flex';
+    }
+
+    function hideLoading() {
+        document.getElementById('loading-overlay').style.display = 'none';
+    }
+
+    window.onload = fetchLiveData;
 </script>

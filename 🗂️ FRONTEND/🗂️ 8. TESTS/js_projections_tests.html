@@ -176,5 +176,30 @@
             // Se il bug esiste, questo valore sarà ~131.833. Noi pretendiamo ~65.916!
             assert.closeTo(julyActual, 65916.66, 1);
         });
+
+        projSuite.add("14. Engine Orchestrator - Contratti UPCOMING devono generare proiezioni future", (assert) => {
+            // ARRANGE: Un contratto non ancora partito (Status: UPCOMING) 
+            // Inizia a Gennaio 2026 (metà esatta del FY26) per 120.000€ annui
+            const dtoUpcoming = {
+                "Contract ID": "CTR-FUTURO",
+                "Status": "UPCOMING",
+                "Start Date": "2026-01-01",
+                "Contract End Date": "2026-12-31",
+                "Cost Recurrence": "Recurrent",
+                "Annual Value": 120000,
+                "Billing Terms": "Fixed Recurring"
+            };
+
+            // ACT: Diamo in pasto il contratto all'Engine
+            const output = ProjectionsEngine.calculateAll([dtoUpcoming], [], []);
+
+            // ASSERT
+            assert.equal(output.length, 1, "Il contratto UPCOMING non deve essere filtrato via dall'Engine");
+            assert.equal(output[0]["FY26 Baseline"], 60000, "FY26 deve assorbire i primi 6 mesi del contratto (60k)");
+
+            // 🌟 FIX DEL TEST: Essendo "Recurrent", al 31/12/2026 scatta il rinnovo virtuale. 
+            // Quindi il FY27 prenderà i restanti 6 mesi del contratto + 6 mesi di rinnovo = 120.000€
+            assert.equal(output[0]["FY27 Baseline"], 120000, "FY27 deve assorbire 12 mesi interi grazie al Rollover Virtuale (120k)");
+        });
     });
 </script>

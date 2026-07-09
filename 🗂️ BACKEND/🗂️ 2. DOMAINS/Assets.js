@@ -106,11 +106,9 @@ class Asset {
    * basandosi esclusivamente su DTO digeriti e normalizzati provenienti dagli altri domini.
    */
   injectContext(assetProjections, assetContracts, assetInits, assetVariances) {
-    // A: RUN RATE (Somma orizzontale dell'Outlook FY27 Ottimizzato)
-    const calculatedRunRate = assetProjections.reduce((sum, p) => sum + (parseFloat(p.fy27Optimized) || 0), 0);
-    this.runRate = parseFloat(calculatedRunRate.toFixed(2));
-
-    // B: LAST END DATE (Estrazione della massima scadenza contrattuale attiva o modificata)
+    // RUN RATE e BUDGET STATUS non sono più calcolati qui, ma dal Frontend a Latenza Zero.
+    
+    // B: LAST END DATE (Estrazione della massima scadenza contrattuale)
     let maxEndDate = null;
     assetContracts.forEach(c => {
       const dEnd = c.adjustedEndDate ? new Date(c.adjustedEndDate) : (c.contractEndDate ? new Date(c.contractEndDate) : null);
@@ -120,7 +118,7 @@ class Asset {
     });
     this.lastEndDate = maxEndDate ? formatServerDate(maxEndDate) : "";
 
-    // C: FINANCIAL INITIATIVES (Analisi del ciclo di vita delle rinegoziazioni/dismissioni)
+    // C: FINANCIAL INITIATIVES (Ciclo di vita dismissioni/ottimizzazioni)
     let costImprovementSum = 0;
     let strategy = "RETAIN";
     let exitDateStr = ""; let transferDateStr = ""; let initTargetDateStr = "";
@@ -164,7 +162,7 @@ class Asset {
     this.transferDate = transferDateStr;
     this.initiativeTargetDate = initTargetDateStr;
 
-    // D: MACCHINA A STATI FINITI (Calcolo deterministico del semaforo di ciclo di vita)
+    // D: MACCHINA A STATI FINITI
     let computedStatus = "RUNNING";
     const today = new Date(); today.setHours(0, 0, 0, 0);
 
@@ -174,26 +172,6 @@ class Asset {
     else if (maxEndDate && maxEndDate < today) computedStatus = "EXPIRED";
 
     this.currentStatus = computedStatus;
-
-    // E: BUDGET VARIANCE RECONCILIATION (Trasposizione algoritmica nativa della formula LET di Sheets)
-    let effectiveBudget = 0;
-    let varianceVal = 0;
-
-    assetVariances.forEach(v => {
-      const fYear = String(v["Fiscal Year"] || v.fiscalYear || "").toUpperCase().trim();
-      if (fYear === "FY27") {
-        effectiveBudget += parseFloat(v["Effective Budget"] || v.effectiveBudget || 0);
-        varianceVal += parseFloat(v["Variance"] || v.variance || 0);
-      }
-    });
-
-    if (effectiveBudget === 0) {
-      this.budgetStatusFY27 = "Not Budgeted";
-    } else if (varianceVal < 0) {
-      this.budgetStatusFY27 = "At Risk";
-    } else {
-      this.budgetStatusFY27 = "Secured";
-    }
   }
 
   /**
@@ -251,37 +229,28 @@ class AssetService {
    * Innesca la transazione di ricalcolo incrociando i flussi asincroni di cassa e scadenze.
    */
   consolidateBudgets() {
-    console.log("ASSET SERVICE: Avvio della pipeline di consolidamento cross-domain...");
+    console.log("ASSET SERVICE: Avvio della pipeline di consolidamento Lifecycle...");
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     
     const assets = this.repository.findAll();
     if (assets.length === 0) return;
 
-    // Pescaggio idratato dei confini di dominio in formato camelCase
-    const dtosProjections = (getSheetDataAsObjects(ss, CONFIG.SHEETS.PROJECTIONS) || []).map(p => ContractMapper.toDto(p, PROJECTION_FIELD_MAP));
+    // 🌟 RISOLTO IL TIMEOUT: Rimosse le pesantissime letture di PROJECTIONS e VARIANCE!
     const dtosContracts = (getSheetDataAsObjects(ss, CONFIG.SHEETS.CONTRACTS) || []).map(c => ContractMapper.toDto(c, CONTRACT_FIELD_MAP));
     const dtosInitiatives = (getSheetDataAsObjects(ss, CONFIG.SHEETS.INITIATIVES) || []).map(i => ContractMapper.toDto(i, INITIATIVE_FIELD_MAP));
     
-    // Il Variance Report viene estratto grezzo (le chiavi "Fiscal Year", "Variance", ecc. vengono valutate direttamente)
-    const rawVariances = getSheetDataAsObjects(ss, CONFIG.SHEETS.VARIANCE) || [];
-
     const updatedAssetsPayload = assets.map(asset => {
       const assetNameLower = asset.name.trim().toLowerCase();
-      
-      // Filtraggio O(1) in memoria per stringere il perimetro sul singolo asset
-      const assetProjections = dtosProjections.filter(p => String(p.assetName).trim().toLowerCase() === assetNameLower);
       const assetContracts = dtosContracts.filter(c => String(c.assetName).trim().toLowerCase() === assetNameLower);
       const assetInits = dtosInitiatives.filter(i => String(i.assetName).trim().toLowerCase() === assetNameLower);
-      const assetVariances = rawVariances.filter(v => String(v["Asset Name"] || v.assetName || "").trim().toLowerCase() === assetNameLower);
       
-      // Delegazione algoritmica all'Entità pura di dominio
-      asset.injectContext(assetProjections, assetContracts, assetInits, assetVariances);
+      // I rami Projections e Variances vengono passati vuoti, ci penserà il Frontend
+      asset.injectContext([], assetContracts, assetInits, []);
       return asset;
     });
 
-    // Scrittura finale demandata al braccio operativo infrastrutturale
     this.repository.saveAll(updatedAssetsPayload);
-    console.log("ASSET SERVICE: Allineamento e riconciliazione portafoglio concluso.");
+    console.log("ASSET SERVICE: Allineamento e riconciliazione portafoglio concluso (O(1) in RAM).");
   }
 }
 
