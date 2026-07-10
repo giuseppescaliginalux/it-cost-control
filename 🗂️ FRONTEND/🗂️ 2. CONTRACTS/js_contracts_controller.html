@@ -98,33 +98,55 @@
         ).join('');
     }
 
+    // 🌟 IL WRAPPER SENIOR (DRY): Gestisce l'intercettazione asincrona per tutti i cambi di contesto
+    function executeWithGuard(actionCallback) {
+        if (ContractsState.globalEditMode || ContractsState.hasUnsavedChanges) {
+            FinOpsUI.showConfirm(
+                "Unsaved Changes",
+                "You have active modifications. Switching context will discard them. Do you want to discard and proceed?",
+                () => {
+                    revertLocalChanges();
+                    setTimeout(actionCallback, 100);
+                }
+            );
+        } else {
+            // Se la strada è libera, esegue subito l'azione richiesta
+            actionCallback();
+        }
+    }
+
     function selectAssetForManagement(assetName, assetId) {
-        ContractsState.currentSelectedAsset = { name: assetName, id: assetId };
-        ContractsState.updateMasterEditState(false);
+        // Ignora il click se l'utente clicca sull'asset già aperto
+        if (ContractsState.currentSelectedAsset && ContractsState.currentSelectedAsset.id === assetId) return;
 
-        document.getElementById('mgmt-selected-asset-header').innerHTML = `
-        <div class="bg-teal-50 border border-teal-200 rounded-xl p-3 flex justify-between items-center">
-            <div>
-                <span class="text-[8px] font-black text-teal-600 uppercase tracking-widest block">Active Target Asset</span>
-                <span class="font-black text-slate-800 text-sm">${assetName}</span>
+        executeWithGuard(() => {
+            ContractsState.currentSelectedAsset = { name: assetName, id: assetId };
+            ContractsState.updateMasterEditState(false);
+
+            document.getElementById('mgmt-selected-asset-header').innerHTML = `
+            <div class="bg-teal-50 border border-teal-200 rounded-xl p-3 flex justify-between items-center">
+                <div>
+                    <span class="text-[8px] font-black text-teal-600 uppercase tracking-widest block">Active Target Asset</span>
+                    <span class="font-black text-slate-800 text-sm">${assetName}</span>
+                </div>
+                <span class="font-mono text-[10px] bg-white border border-teal-100 px-2 py-1 rounded-lg text-slate-600">ID: ${assetId}</span>
             </div>
-            <span class="font-mono text-[10px] bg-white border border-teal-100 px-2 py-1 rounded-lg text-slate-600">ID: ${assetId}</span>
-        </div>
-        `;
+            `;
 
-        const allContracts = windowPayload.contracts || [];
-        const filteredGroupIds = allContracts.filter(c => (c["Asset Name"] || "").toString().toLowerCase() === assetName.toLowerCase())
-            .map(c => (c["Group ID"] || "").toString().trim())
-            .filter(g => g !== "");
-        ContractsState.currentAssetGroupIds = [...new Set(filteredGroupIds)].sort();
+            const allContracts = windowPayload.contracts || [];
+            const filteredGroupIds = allContracts.filter(c => (c["Asset Name"] || "").toString().toLowerCase() === assetName.toLowerCase())
+                .map(c => (c["Group ID"] || "").toString().trim())
+                .filter(g => g !== "");
+            ContractsState.currentAssetGroupIds = [...new Set(filteredGroupIds)].sort();
 
-        document.getElementById('mgmt-master-form-container').classList.add('hidden');
-        document.getElementById('mgmt-detailRowsContainer').innerHTML = '';
+            document.getElementById('mgmt-master-form-container').classList.add('hidden');
+            document.getElementById('mgmt-detailRowsContainer').innerHTML = '';
 
-        const allMasterContracts = windowPayload.masterContracts || [];
-        const assetMasters = allMasterContracts.filter(m => (m["Asset Name"] || "").toString().toLowerCase().trim() === assetName.toLowerCase().trim());
+            const allMasterContracts = windowPayload.masterContracts || [];
+            const assetMasters = allMasterContracts.filter(m => (m["Asset Name"] || "").toString().toLowerCase().trim() === assetName.toLowerCase().trim());
 
-        renderMasterContractsList(assetMasters);
+            renderMasterContractsList(assetMasters);
+        });
     }
 
     // --- Master Contract Flows ---
@@ -173,21 +195,28 @@
     }
 
     function loadFullMasterDetailArchitecture(masterId) {
-        ContractsState.loadMasterDetails(
-            masterId,
-            windowPayload.masterContracts || [],
-            windowPayload.contracts || [],
-            windowPayload.allocationSplits || [],
-            windowPayload.ledger || []
-        );
-        renderMasterFormBox();
-        renderDetailItemsTable();
+        // Ignora il click se l'utente clicca sul master già aperto
+        if (ContractsState.currentMasterData && ContractsState.currentMasterData["Master Contract ID"] === masterId) return;
+
+        executeWithGuard(() => {
+            ContractsState.loadMasterDetails(
+                masterId,
+                windowPayload.masterContracts || [],
+                windowPayload.contracts || [],
+                windowPayload.allocationSplits || [],
+                windowPayload.ledger || []
+            );
+            renderMasterFormBox();
+            renderDetailItemsTable();
+        });
     }
 
     function setupNewMasterAgreement() {
-        ContractsState.resetMaster();
-        renderMasterFormBox();
-        renderDetailItemsTable();
+        executeWithGuard(() => {
+            ContractsState.resetMaster();
+            renderMasterFormBox();
+            renderDetailItemsTable();
+        });
     }
 
     function renderMasterFormBox() {
@@ -204,8 +233,12 @@
 
         if (!isEditable) {
             const status = (data["Status"] || "ACTIVE").toUpperCase().trim();
-            const cleanStart = data["Master Start Date"] ? ContractsUtils.formatToEnglishCustomDate(data["Master Start Date"]) : '—';
-            const cleanEnd = data["Master End Date"] ? ContractsUtils.formatToEnglishCustomDate(data["Master End Date"]) : '—';
+
+            // 🌟 FIX DATE MASTER: Gestione isomorfica (legge sia la chiave vecchia che la nuova in camelCase)
+            const rawStart = data["Master Start Date"] || data.masterStartDate;
+            const rawEnd = data["Master End Date"] || data.masterEndDate;
+            const cleanStart = rawStart ? ContractsUtils.formatToEnglishCustomDate(rawStart) : '—';
+            const cleanEnd = rawEnd ? ContractsUtils.formatToEnglishCustomDate(rawEnd) : '—';
 
             let rawTerm = data["contractTerm"] !== undefined ? data["contractTerm"] : (data["Contract Term (Months)"] !== undefined ? data["Contract Term (Months)"] : '—');
             let termMonths = (typeof rawTerm === 'number' || !isNaN(parseFloat(rawTerm))) ? Math.round(parseFloat(rawTerm)) : rawTerm;
@@ -220,7 +253,7 @@
             const suppliersList = ContractsUtils.extractUniqueField(windowPayload.masterContracts || windowPayload.contracts, "Supplier");
             const isNew = data["Master Contract ID"] === "";
 
-            container.innerHTML = ContractsTemplates.getMasterEditCard(data, isNew, suppliersList, masterLinks, ContractsState.globalEditMode);
+            container.innerHTML = ContractsTemplates.getMasterEditCard(data, isNew, suppliersList, masterLinks);
         }
 
         const targetLinks = container.querySelectorAll('.live-doc-link');
@@ -287,7 +320,6 @@
         }
     }
 
-    // --- Details / Lines Flows ---
     // --- Details / Lines Flows ---
     function renderDetailItemsTable() {
         const container = document.getElementById('mgmt-detailRowsContainer');
@@ -526,17 +558,17 @@
         if (ContractsState.currentMasterData) {
             const masterDto = ContractMapper.toDto(ContractsState.currentMasterData, MASTER_FIELD_MAP);
             const master = new MasterContract(masterDto);
-            
+
             ContractsState.currentDetailItems.forEach(childItem => {
                 const childDto = ContractMapper.toDto(childItem.data, CONTRACT_FIELD_MAP);
                 // Assicuriamoci che le date siano oggetti Date per far funzionare i calcoli Min/Max
                 if (childDto.startDate) childDto.startDate = new Date(childDto.startDate);
                 if (childDto.contractEndDate) childDto.contractEndDate = new Date(childDto.contractEndDate);
                 if (childDto.adjustedEndDate) childDto.adjustedEndDate = new Date(childDto.adjustedEndDate);
-                
+
                 master.addChild(new Contract(childDto));
             });
-            
+
             const linkedInits = (windowPayload.initiatives || []).filter(i => String(i["Master Contract ID"]).trim() === String(master.id).trim());
             ContractsState.currentMasterData = master.exportToData(linkedInits);
         }
