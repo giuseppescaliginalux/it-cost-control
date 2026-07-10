@@ -29,14 +29,14 @@
                 "Modifiche in sospeso",
                 "Hai delle modifiche non salvate. Se esci dalla modalità modifica, le perderai. Vuoi scartare le modifiche e uscire?",
                 () => {
-                    revertLocalChanges(); 
+                    revertLocalChanges();
                 }
             );
             return;
         }
 
         ContractsState.globalEditMode = !ContractsState.globalEditMode;
-        if(typeof setEditModeActive !== 'undefined') setEditModeActive(ContractsState.globalEditMode);
+        if (typeof setEditModeActive !== 'undefined') setEditModeActive(ContractsState.globalEditMode);
 
         const editBtn = document.getElementById('contracts-edit-mode-btn');
         if (ContractsState.globalEditMode) {
@@ -410,7 +410,8 @@
         item.data["Location"] = safeVal(`edit-location-${id}`);
         item.data["Service Owner"] = safeVal(`edit-serviceOwner-${id}`).trim();
         item.data["Scope"] = safeVal(`edit-scope-${id}`).trim();
-        item.data["Cost Recurrence"] = safeVal(`edit-costRecurrence-${id}`);
+        const isOneShotCheckbox = document.getElementById(`edit-isOneShot-${id}`);
+        item.data["Cost Recurrence"] = isOneShotCheckbox && isOneShotCheckbox.checked ? "One-Shot" : "Recurrent";
         item.data["Pricing Model"] = safeVal(`edit-pricingModel-${id}`);
         item.data["Billing Terms"] = safeVal(`edit-billingTerms-${id}`);
         item.data["Billing Frequency"] = safeVal(`edit-billingFrequency-${id}`);
@@ -511,47 +512,40 @@
 
     function finalizeRowSave(item, id) {
         hideLoading();
-        
-        // 1. CALCOLO LOCALE A LATENZA ZERO!
-        item.data = ContractsUtils.calculateContractFinancials(item.data);
+
+        // 🌟 1. ISOMORFISMO TOTALE: Il Client usa il Mapper e l'entità Contract pura!
+        const dto = ContractMapper.toDto(item.data, CONTRACT_FIELD_MAP);
+        const contract = new Contract(dto);
+        item.data = contract.exportToData(); // BOOM! Logica identica al server a latenza zero
+
         item.isEditing = false;
         ContractsState.hasUnsavedChanges = true;
-
-        // 2. ACCENDIAMO IL SEMAFORO GLOBALE NELLA NAVBAR!
         if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
 
-        // 3. AGGIORNIAMO ISTANTANEAMENTE IL MASTER CONTRACT IN RAM!
+        // 🌟 2. ISOMORFISMO SUL MASTER: Aggiorniamo MasterContract in RAM con Date sicure
         if (ContractsState.currentMasterData) {
-            let newCommitment = 0;
-            let newRunRate = 0;
-            let minStart = null;
-            let maxEnd = null;
+            const masterDto = ContractMapper.toDto(ContractsState.currentMasterData, MASTER_FIELD_MAP);
+            const master = new MasterContract(masterDto);
             
-            ContractsState.currentDetailItems.forEach(child => {
-                newCommitment += parseFloat(child.data["Total Commitment"]) || 0;
-                if (child.data["Cost Recurrence"] !== "One-Shot") {
-                    newRunRate += parseFloat(child.data["Annual Value"]) || 0;
-                }
+            ContractsState.currentDetailItems.forEach(childItem => {
+                const childDto = ContractMapper.toDto(childItem.data, CONTRACT_FIELD_MAP);
+                // Assicuriamoci che le date siano oggetti Date per far funzionare i calcoli Min/Max
+                if (childDto.startDate) childDto.startDate = new Date(childDto.startDate);
+                if (childDto.contractEndDate) childDto.contractEndDate = new Date(childDto.contractEndDate);
+                if (childDto.adjustedEndDate) childDto.adjustedEndDate = new Date(childDto.adjustedEndDate);
                 
-                const s = child.data["Start Date"] ? new Date(child.data["Start Date"]) : null;
-                const e = child.data["Adjusted End Date"] ? new Date(child.data["Adjusted End Date"]) : (child.data["Contract End Date"] ? new Date(child.data["Contract End Date"]) : null);
-                
-                if (s && !isNaN(s.getTime()) && (!minStart || s < minStart)) minStart = s;
-                if (e && !isNaN(e.getTime()) && (!maxEnd || e > maxEnd)) maxEnd = e;
+                master.addChild(new Contract(childDto));
             });
             
-            ContractsState.currentMasterData["Total Commitment"] = newCommitment;
-            ContractsState.currentMasterData["Run Rate"] = newRunRate;
-            ContractsState.currentMasterData["Master Start Date"] = minStart ? FinOpsDate.toIso(minStart) : "";
-            ContractsState.currentMasterData["Master End Date"] = maxEnd ? FinOpsDate.toIso(maxEnd) : "";
+            const linkedInits = (windowPayload.initiatives || []).filter(i => String(i["Master Contract ID"]).trim() === String(master.id).trim());
+            ContractsState.currentMasterData = master.exportToData(linkedInits);
         }
 
-        // 4. Chiudiamo la modale e ridisegniamo tutto
         if (window.ContractsController && window.ContractsController.closeContractModalWindow) {
             window.ContractsController.closeContractModalWindow();
         }
 
-        renderMasterFormBox(); 
+        renderMasterFormBox();
         renderDetailItemsTable();
     }
 
@@ -603,33 +597,19 @@
             billingChannel: ContractsState.currentMasterData["Billing Channel"] || "",
             suppliers: (windowPayload.suppliers || []).filter(s => String(s["Supplier"]).trim().toLowerCase() === String(spl).trim().toLowerCase()),
             initiatives: mId && mId.trim() !== "" ? (windowPayload.initiatives || []).filter(i => String(i["Master Contract ID"]).trim().toLowerCase() === mId.trim().toLowerCase()) : [],
+
+            // 🌟 VERO ISOMORFISMO: Diciamo addio alla mappatura manuale di 30 righe!
+            // Diamo in pasto i dati grezzi della UI alla Classe Pura. Lei li formatta, 
+            // li traduce in camelCase e li rende perfetti per il Backend.
             details: ContractsState.currentDetailItems.map(item => {
-                return {
-                    contractId: item.data["Contract ID"] || "",
-                    billingChannel: item.data["Billing Channel"] || "",
-                    legalEntity: item.data["Legal Entity"] || "",
-                    location: item.data["Location"] || "",
-                    serviceOwner: item.data["Service Owner"] || "",
-                    scope: item.data["Scope"] || "",
-                    costRecurrence: item.data["Cost Recurrence"] || "",
-                    pricingModel: item.data["Pricing Model"] || "",
-                    billingTerms: item.data["Billing Terms"] || "",
-                    billingFrequency: item.data["Billing Frequency"] || "",
-                    totalCommitment: item.data["Total Commitment"] || 0,
-                    expenditureType: item.data["Expenditure Type"] || "",
-                    costCenter: item.data["Cost Center"] || "",
-                    startDate: item.data["Start Date"] || "",
-                    contractEndDate: item.data["Contract End Date"] || "",
-                    adjustedEndDate: item.data["Adjusted End Date"] || "",
-                    noticePeriod: item.data["Notice Period (Days)"] || "",
-                    autoRenewal: item.data["Auto-Renewal"] || "",
-                    blId: item.data["BL ID"] || "",
-                    requestCode: item.data["Request Code"] || "",
-                    comments: item.data["Comments"] || "",
-                    contractLinks: item.data["Contract Links"] || "",
-                    splits: item.splits || [],
-                    ledger: item.ledger || []
-                };
+                const dto = ContractMapper.toDto(item.data, CONTRACT_FIELD_MAP);
+                const contract = new Contract(dto);
+                const cleanExport = contract.exportToData();
+
+                // Riagganciamo i rami Ledger e Splits così com'erano
+                cleanExport.splits = item.splits || [];
+                cleanExport.ledger = item.ledger || [];
+                return cleanExport;
             })
         };
 
@@ -695,14 +675,39 @@
         container.insertAdjacentHTML('beforeend', ContractsTemplates.getSplitRow(detailId, {}, defStart, defEnd, leOptions, ccOptions));
     }
 
-    function addLedgerRowToUI(detailId, mov = {}) {
+    function addLedgerRowToUI(detailId, mov = null) {
         const container = document.getElementById(`ledger-container-${detailId}`);
         if (!container) return;
 
         const emptyMsg = container.querySelector('.empty-ledger-msg');
         if (emptyMsg) emptyMsg.remove();
 
-        container.insertAdjacentHTML('beforeend', ContractsTemplates.getLedgerRow(detailId, mov));
+        // 🌟 REQ-4: Pre-compilazione Date Default
+        let movData = mov;
+        if (!movData || Object.keys(movData).length === 0) {
+            const now = new Date();
+            const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+            const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+            movData = {
+                "Start Date": FinOpsDate.toIso(firstDay),
+                "End Date": FinOpsDate.toIso(lastDay),
+                "Type": "ACTUAL",
+                "Amount": "",
+                "Notes": ""
+            };
+        }
+
+        container.insertAdjacentHTML('beforeend', ContractsTemplates.getLedgerRow(detailId, movData));
+
+        // Focus Automatico sull'Importo dopo aver renderizzato la riga
+        setTimeout(() => {
+            const newRows = container.querySelectorAll('.ledger-row-item');
+            if (newRows.length > 0) {
+                const amtInput = newRows[newRows.length - 1].querySelector('.ledger-amount');
+                if (amtInput) amtInput.focus();
+            }
+        }, 50);
     }
 
     function duplicateLedgerRowInUI(btnElement, detailId) {
@@ -722,125 +727,280 @@
         addLedgerRowToUI(detailId, currentMovementData);
     }
 
-    function toggleLedgerVisibility(detailId) {
-        const billingTermsSelect = document.getElementById(`edit-billingTerms-${detailId}`);
-        const pricingModelSelect = document.getElementById(`edit-pricingModel-${detailId}`);
-        const freqContainer = document.getElementById(`container-billingFreq-${detailId}`);
-        const freqSelect = document.getElementById(`edit-billingFrequency-${detailId}`);
-
-        const ledgerSection = document.getElementById(`ledger-section-container-${detailId}`);
-        const autoForecastBtn = document.getElementById(`auto-forecast-btn-${detailId}`);
-
-        if (billingTermsSelect && pricingModelSelect) {
-            const terms = billingTermsSelect.value;
-            const model = pricingModelSelect.value;
-            const isLedgerDriven = terms === "Custom / Ledger Driven" || terms === "Ledger-Driven";
-            const isConsumption = ["Pure Consumption", "Minimum Consumption", "Capped Consumption"].includes(model);
-
-            // Mostra/Nascondi la Frequenza
-            if (freqContainer && freqSelect) {
-                if (terms === "Fixed Recurring" || terms === "Linear" || terms === "Quarterly") {
-                    freqContainer.classList.remove('hidden');
-                    if (!freqSelect.value) freqSelect.value = "Monthly"; // Default
-                } else {
-                    freqContainer.classList.add('hidden');
-                    freqSelect.value = "";
-                }
-            }
-
-            if (ledgerSection) {
-                if (isLedgerDriven || isConsumption) ledgerSection.classList.remove('hidden');
-                else ledgerSection.classList.add('hidden');
-            }
-
-            if (autoForecastBtn) {
-                const canAutoForecast = (terms === "Pay-As-You-Go" || isLedgerDriven) && ["Minimum Consumption", "Capped Consumption"].includes(model);
-                if (canAutoForecast) autoForecastBtn.classList.remove('hidden');
-                else autoForecastBtn.classList.add('hidden');
-            }
-        }
-    }
-
-    function handleExpenditureTypeChange(detailId) {
-        const expTypeSelect = document.getElementById(`edit-expenditureType-${detailId}`);
-        const billingTermsSelect = document.getElementById(`edit-billingTerms-${detailId}`);
-        if (!expTypeSelect || !billingTermsSelect) return;
-
-        const isCapex = expTypeSelect.value === "CAPEX";
-
-        Array.from(billingTermsSelect.options).forEach(opt => {
-            if (isCapex && (opt.value === "Fixed Recurring" || opt.value === "Linear" || opt.value === "Quarterly")) {
-                opt.disabled = true;
-                if (opt.selected) {
-                    billingTermsSelect.value = "Full Upfront / Prepaid";
-                }
-            } else {
-                opt.disabled = false;
-            }
-        });
-        toggleLedgerVisibility(detailId);
-    }
-
-    function triggerLedgerAutomationForContract(detailId) {
-        const model = document.getElementById(`edit-pricingModel-${detailId}`).value;
-        const terms = document.getElementById(`edit-billingTerms-${detailId}`).value;
-        const startDate = document.getElementById(`edit-startDate-${detailId}`).value;
-        const endDate = document.getElementById(`edit-contractEndDate-${detailId}`).value;
-        const totCommit = document.getElementById(`edit-totalCommitment-${detailId}`).value.replace(/[^0-9]/g, '');
-
-        if (!["Minimum Consumption", "Capped Consumption"].includes(model) || terms !== "Ledger-Driven") {
-            FinOpsUI.showAlert("Governance Restriction", "Automation calculations apply exclusively to 'Minimum Consumption' or 'Capped Consumption' pricing models with 'Ledger-Driven' allocation terms.");
-            return;
-        }
-
-        if (!startDate || !endDate || !totCommit) {
-            FinOpsUI.showAlert("Missing Data", "Start Date, End Date, and Total Commitment must be compiled to generate the forecast.");
-            return;
-        }
-
-        const contractData = {
-            "Pricing Model": model,
-            "Billing Terms": terms,
-            "Start Date": startDate,
-            "Contract End Date": endDate,
-            "Total Commitment": parseInt(totCommit, 10) || 0
-        };
-
-        const ledgerRows = document.querySelectorAll(`#ledger-container-${detailId} .ledger-row-item`);
-        const currentLedger = [];
-        Array.from(ledgerRows).forEach(row => {
-            const type = row.querySelector('.ledger-type').value;
-            if (type === "ACTUAL" || type === "FORECAST") {
-                const rawAmt = row.querySelector('.ledger-amount').value.replace(/[^0-9]/g, '');
-                currentLedger.push({
-                    "Type": type,
-                    "Start Date": row.querySelector('.ledger-start').value,
-                    "End Date": row.querySelector('.ledger-end').value,
-                    "Amount": parseInt(rawAmt, 10) || 0,
-                    "Notes": row.querySelector('.ledger-notes').value
-                });
-            }
-        });
-
-        showLoading();
-        ContractsAPI.previewAutoForecast(contractData, currentLedger,
-            (generatedRows) => {
-                hideLoading();
-                const item = ContractsState.currentDetailItems.find(i => i.id === detailId);
-                item.ledger = currentLedger.concat(generatedRows);
-                renderDetailItemsTable();
-                toggleRowEditMode(detailId, true);
-                FinOpsUI.showNotificationBanner("Auto-forecast preview generated! Remember to click 'Apply' and then 'Commit'.", "success");
-            },
-            (err) => {
-                hideLoading();
-                FinOpsUI.showAlert("Calculation Error", err.message);
-            }
-        );
-    }
-
     // 🌟 BLOCCO INTEGRATO FINALE: Sovrascrive l'oggetto globale esponendo tutte le API verso la View
     window.ContractsController = {
+
+        switchContractModalTab: function (tabId, detailId) {
+            const tabs = ['general', 'ledger', 'splits', 'metadata'];
+            tabs.forEach(t => {
+                const btn = document.getElementById(`modal-tab-btn-${t}-${detailId}`);
+                const content = document.getElementById(`modal-tab-content-${t}-${detailId}`);
+                if (!btn || !content) return;
+
+                if (t === tabId) {
+                    btn.classList.remove('border-transparent', 'text-slate-400');
+                    btn.classList.add('border-teal-600', 'text-teal-700');
+                    content.classList.remove('hidden');
+                    content.classList.add('block');
+                } else {
+                    btn.classList.remove('border-teal-600', 'text-teal-700');
+                    btn.classList.add('border-transparent', 'text-slate-400');
+                    content.classList.remove('block');
+                    content.classList.add('hidden');
+                }
+            });
+        },
+
+        handleEarlyTerminationChange: function (id) {
+            const earlyInput = document.getElementById(`edit-adjustedEndDate-${id}`);
+            const endInput = document.getElementById(`edit-contractEndDate-${id}`);
+            if (earlyInput && endInput) {
+                if (earlyInput.value) {
+                    endInput.classList.add('opacity-40', 'cursor-not-allowed');
+                    endInput.disabled = true;
+                } else {
+                    endInput.classList.remove('opacity-40', 'cursor-not-allowed');
+                    endInput.disabled = false;
+                }
+            }
+        },
+
+        handleAutoRenewalChange: function (id) {
+            const autoRenew = document.getElementById(`edit-autoRenewal-${id}`);
+            const noticePeriod = document.getElementById(`edit-noticePeriod-${id}`);
+            if (autoRenew && noticePeriod) {
+                if (autoRenew.value === "No") {
+                    noticePeriod.disabled = true;
+                    noticePeriod.classList.add('opacity-40', 'cursor-not-allowed');
+                    noticePeriod.value = "";
+                } else {
+                    noticePeriod.disabled = false;
+                    noticePeriod.classList.remove('opacity-40', 'cursor-not-allowed');
+                }
+            }
+        },
+
+        toggleLedgerVisibility: function (detailId) {
+            const billingTermsSelect = document.getElementById(`edit-billingTerms-${detailId}`);
+            const pricingModelSelect = document.getElementById(`edit-pricingModel-${detailId}`);
+            const freqContainer = document.getElementById(`container-billingFreq-${detailId}`);
+            const freqSelect = document.getElementById(`edit-billingFrequency-${detailId}`);
+            const autoForecastBtn = document.getElementById(`auto-forecast-btn-${detailId}`);
+
+            // Il bottone del Tab Ledger
+            const ledgerTabBtn = document.getElementById(`modal-tab-btn-ledger-${detailId}`);
+
+            if (billingTermsSelect && pricingModelSelect) {
+                const terms = billingTermsSelect.value;
+                const model = pricingModelSelect.value;
+                const isLedgerDriven = terms === "Custom / Ledger Driven" || terms === "Ledger-Driven";
+                const isPayg = terms === "Pay-As-You-Go";
+                const isConsumption = ["Pure Consumption", "Minimum Consumption", "Capped Consumption"].includes(model);
+
+                // 🌟 REQ-3.1: Blocco Frequenza per Full Upfront o Ledger/Payg
+                if (freqContainer && freqSelect) {
+                    if (terms === "Full Upfront / Prepaid" || terms === "Full Upfront" || isLedgerDriven || isPayg) {
+                        freqContainer.classList.add('hidden');
+                        freqSelect.value = "";
+                    } else {
+                        freqContainer.classList.remove('hidden');
+                        if (!freqSelect.value) freqSelect.value = "Monthly"; // Default
+                    }
+                }
+
+                // 🌟 REQ-3.2: Sblocco Ledger Tab per PAYG o Ledger Driven o Consumption
+                if (ledgerTabBtn) {
+                    if (isLedgerDriven || isPayg || isConsumption) {
+                        ledgerTabBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+                        ledgerTabBtn.title = "";
+                    } else {
+                        ledgerTabBtn.classList.add('opacity-40', 'cursor-not-allowed');
+                        ledgerTabBtn.title = "Ledger disabled for Flat/Linear billing terms.";
+                        // Se siamo attualmente sul tab ledger disabilitato, torna al tab generale
+                        const ledgerContent = document.getElementById(`modal-tab-content-ledger-${detailId}`);
+                        if (ledgerContent && !ledgerContent.classList.contains('hidden')) {
+                            this.switchContractModalTab('general', detailId);
+                        }
+                    }
+                }
+
+                if (autoForecastBtn) {
+                    const canAutoForecast = (isPayg || isLedgerDriven) && ["Minimum Consumption", "Capped Consumption"].includes(model);
+                    if (canAutoForecast) autoForecastBtn.classList.remove('hidden');
+                    else autoForecastBtn.classList.add('hidden');
+                }
+            }
+        },
+
+        handleExpenditureTypeChange: function (detailId) {
+            const expTypeVal = document.getElementById(`edit-expenditureType-${detailId}`).value;
+
+            const displayPricing = document.getElementById(`finops-select-display-edit-pricingModel-${detailId}`);
+            const inputPricing = document.getElementById(`edit-pricingModel-${detailId}`);
+
+            const displayBilling = document.getElementById(`finops-select-display-edit-billingTerms-${detailId}`);
+            const inputBilling = document.getElementById(`edit-billingTerms-${detailId}`);
+
+            if (!displayPricing || !displayBilling) return;
+
+            if (expTypeVal === "CAPEX") {
+                // Forza Flat e Full Upfront
+                displayPricing.value = "Flat";
+                inputPricing.value = "Flat";
+                displayPricing.disabled = true;
+                displayPricing.classList.add('opacity-50', 'cursor-not-allowed', 'bg-slate-100');
+
+                displayBilling.value = "Full Upfront / Prepaid";
+                inputBilling.value = "Full Upfront / Prepaid";
+                displayBilling.disabled = true;
+                displayBilling.classList.add('opacity-50', 'cursor-not-allowed', 'bg-slate-100');
+            } else {
+                // Sblocca i campi
+                displayPricing.disabled = false;
+                displayPricing.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-slate-100');
+
+                displayBilling.disabled = false;
+                displayBilling.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-slate-100');
+            }
+
+            this.toggleLedgerVisibility(detailId);
+        },
+
+        triggerLedgerAutomationForContract: function (detailId) {
+            const displayPricing = document.getElementById(`finops-select-display-edit-pricingModel-${detailId}`);
+            const displayTerms = document.getElementById(`finops-select-display-edit-billingTerms-${detailId}`);
+            const model = displayPricing ? displayPricing.value : document.getElementById(`edit-pricingModel-${detailId}`).value;
+            const terms = displayTerms ? displayTerms.value : document.getElementById(`edit-billingTerms-${detailId}`).value;
+
+            const startDate = document.getElementById(`edit-startDate-${detailId}`).value;
+            const endDate = document.getElementById(`edit-contractEndDate-${detailId}`).value;
+            const totCommit = document.getElementById(`edit-totalCommitment-${detailId}`).value.replace(/[^0-9]/g, '');
+
+            if (!["Minimum Consumption", "Capped Consumption"].includes(model) || (terms !== "Custom / Ledger Driven" && terms !== "Pay-As-You-Go" && terms !== "Ledger Driven")) {
+                FinOpsUI.showAlert("Governance Restriction", "Automation calculations apply exclusively to 'Minimum/Capped Consumption' pricing models with 'Ledger-Driven' or 'Pay-As-You-Go' allocation terms.");
+                return;
+            }
+
+            if (!startDate || !endDate || !totCommit) {
+                FinOpsUI.showAlert("Missing Data", "Start Date, End Date, and Total Commitment must be compiled to generate the forecast.");
+                return;
+            }
+
+            const contractData = {
+                pricingModel: model,
+                billingTerms: terms,
+                startDate: startDate,
+                contractEndDate: endDate,
+                totalCommitment: parseInt(totCommit, 10) || 0
+            };
+
+            const ledgerRows = document.querySelectorAll(`#ledger-container-${detailId} .ledger-row-item`);
+            const currentLedger = [];
+            Array.from(ledgerRows).forEach(row => {
+                const type = row.querySelector('.ledger-type').value;
+                if (type === "ACTUAL" || type === "FORECAST") {
+                    const rawAmt = row.querySelector('.ledger-amount').value.replace(/[^0-9]/g, '');
+                    currentLedger.push({
+                        type: type,
+                        startDate: row.querySelector('.ledger-start').value,
+                        endDate: row.querySelector('.ledger-end').value,
+                        amount: parseInt(rawAmt, 10) || 0,
+                        notes: row.querySelector('.ledger-notes').value
+                    });
+                }
+            });
+
+            try {
+                // Istanziamo il Dominio Isomorfico per calcolare i ratei
+                const contract = new Contract(contractData);
+                const ledgerMocks = currentLedger.map(l => new LedgerMovement(l));
+
+                const forecast = contract.generateForecastLedger(ledgerMocks);
+                const generatedRows = forecast.map(f => f.exportToData());
+
+                if (generatedRows.length === 0) {
+                    FinOpsUI.showNotificationBanner("No accruals calculated: Commitment is fully covered or dates prevent it.", "warning");
+                    return;
+                }
+
+                const item = ContractsState.currentDetailItems.find(i => i.id === detailId);
+                item.ledger = currentLedger.concat(generatedRows);
+
+                window.ContractsController.openContractModalWindow(detailId);
+                setTimeout(() => { window.ContractsController.switchContractModalTab('ledger', detailId); }, 50);
+
+                FinOpsUI.showNotificationBanner("Auto-forecast preview generated successfully!", "success");
+            } catch (err) {
+                FinOpsUI.showAlert("Calculation Error", err.message);
+            }
+        },
+
+        addLedgerRowToUI: function (detailId, mov = null) {
+            const container = document.getElementById(`ledger-container-${detailId}`);
+            if (!container) return;
+
+            const emptyMsg = container.querySelector('.empty-ledger-msg');
+            if (emptyMsg) emptyMsg.remove();
+
+            let movData = mov;
+            if (!movData || Object.keys(movData).length === 0) {
+                const now = new Date();
+                const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+                movData = {
+                    "Start Date": FinOpsDate.toIso(firstDay),
+                    "End Date": FinOpsDate.toIso(lastDay),
+                    "Type": "ACTUAL",
+                    "Amount": "",
+                    "Notes": ""
+                };
+            }
+
+            container.insertAdjacentHTML('beforeend', ContractsTemplates.getLedgerRow(detailId, movData));
+
+            setTimeout(() => {
+                const newRows = container.querySelectorAll('.ledger-row-item');
+                if (newRows.length > 0) {
+                    const amtInput = newRows[newRows.length - 1].querySelector('.ledger-amount');
+                    if (amtInput) amtInput.focus();
+                }
+            }, 50);
+        },
+
+        addSplitRowToUI: function (detailId) {
+            const container = document.getElementById(`splits-container-${detailId}`);
+            if (!container) return;
+            const emptyMsg = container.querySelector('.empty-split-msg');
+            if (emptyMsg) emptyMsg.remove();
+
+            const startDateInput = document.getElementById(`edit-startDate-${detailId}`);
+            const endDateInput = document.getElementById(`edit-contractEndDate-${detailId}`);
+            const defStart = startDateInput ? startDateInput.value : "";
+            const defEnd = endDateInput ? endDateInput.value : "";
+
+            const leOptions = ContractsUtils.extractUniqueField(windowPayload.legalEntities, "Legal Entity").map(le => '<option value="' + le + '">' + le + '</option>').join('');
+            const ccOptions = ContractsUtils.extractUniqueField(windowPayload.costCenters, "Cost Center").map(cc => '<option value="' + cc + '">' + cc + '</option>').join('');
+
+            container.insertAdjacentHTML('beforeend', ContractsTemplates.getSplitRow(detailId, {}, defStart, defEnd, leOptions, ccOptions));
+        },
+
+        duplicateLedgerRowInUI: function (btnElement, detailId) {
+            const row = btnElement.closest('.ledger-row-item');
+            if (!row) return;
+
+            const rawAmtStr = row.querySelector('.ledger-amount').value.replace(/[^0-9]/g, '');
+
+            const currentMovementData = {
+                "Start Date": row.querySelector('.ledger-start').value || "",
+                "End Date": row.querySelector('.ledger-end').value || "",
+                "Type": row.querySelector('.ledger-type').value || "ACTUAL",
+                "Amount": parseInt(rawAmtStr, 10) || 0,
+                "Notes": row.querySelector('.ledger-notes').value || ""
+            };
+
+            this.addLedgerRowToUI(detailId, currentMovementData);
+        },
 
         updateSplitPlaceholder: function (selectEl) {
             const row = selectEl.closest('.split-row-item');
@@ -852,13 +1012,10 @@
             ContractsUtils.formatSplitValue(inputEl);
         },
 
-        // 🌟 PUNTO 5: Metodo per accendere/spegnere i pannelli Ledger e Split dalla card
         toggleCardSection: function (id, section, event) {
-            event.stopPropagation(); // Evita che si espanda anche l'accordion della card
+            event.stopPropagation();
             const panel = document.getElementById(`read-${section}-${id}`);
-            if (panel) {
-                panel.classList.toggle('hidden');
-            }
+            if (panel) panel.classList.toggle('hidden');
         },
 
         openContractModalWindow: function (id) {
@@ -872,14 +1029,14 @@
             const d = item.data;
             const docLinks = (d["Contract Links"] || d.contractLinks || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
 
-            const editLeOptions = ContractsUtils.extractUniqueField(windowPayload.legalEntities, "Legal Entity").map(le => `<option value="${le}" ${le === (d["Legal Entity"] || d.legalEntity) ? 'selected' : ''}>${le}</option>`).join('');
+            const leList = ContractsUtils.extractUniqueField(windowPayload.legalEntities, "Legal Entity");
+            const locList = ContractsUtils.extractUniqueField(windowPayload.locations, "Location");
+            const ccList = ContractsUtils.extractUniqueField(windowPayload.costCenters, "Cost Center");
+            const soList = ContractsUtils.extractUniqueField(windowPayload.contracts, "Service Owner");
             const tgOptions = ContractsState.currentAssetGroupIds.map(g => `<option value="${g}" ${g === d["Target Group ID"] ? 'selected' : ''}>${g}</option>`).join('');
-            const locOptions = ContractsUtils.extractUniqueField(windowPayload.locations, "Location").map(loc => `<option value="${loc}" ${loc === (d["Location"] || d.location) ? 'selected' : ''}>${loc}</option>`).join('');
-            const soOptions = ContractsUtils.extractUniqueField(windowPayload.contracts, "Service Owner").map(so => `<option value="${so}" ${so === (d["Service Owner"] || d.serviceOwner) ? 'selected' : ''}>${so}</option>`).join('');
-            const editCcOptions = ContractsUtils.extractUniqueField(windowPayload.costCenters, "Cost Center").map(cc => `<option value="${cc}" ${cc === (d["Cost Center"] || d.costCenter) ? 'selected' : ''}>${cc}</option>`).join('');
 
-            const baseLeOptions = ContractsUtils.extractUniqueField(windowPayload.legalEntities, "Legal Entity").map(le => `<option value="${le}">${le}</option>`).join('');
-            const baseCcOptions = ContractsUtils.extractUniqueField(windowPayload.costCenters, "Cost Center").map(cc => `<option value="${cc}">${cc}</option>`).join('');
+            const baseLeOptions = leList.map(le => `<option value="${le}">${le}</option>`).join('');
+            const baseCcOptions = ccList.map(cc => `<option value="${cc}">${cc}</option>`).join('');
 
             let splitsHtml = item.splits && item.splits.length > 0
                 ? item.splits.map(s => ContractsTemplates.getSplitRow(item.id, s, d["Start Date"]?.split('T')[0] || "", d["Contract End Date"]?.split('T')[0] || "", baseLeOptions, baseCcOptions)).join('')
@@ -889,12 +1046,12 @@
                 ? item.ledger.map(l => ContractsTemplates.getLedgerRow(item.id, l)).join('')
                 : `<p class="text-[9px] text-slate-400 italic text-center py-2 empty-ledger-msg bg-slate-50 rounded-md">No manual ledger movements yet.</p>`;
 
-            mountPoint.innerHTML = ContractsTemplates.getContractModalFormStructure(id, editLeOptions, tgOptions, locOptions, soOptions, editCcOptions, docLinks, splitsHtml, ledgerHtml, d);
+            mountPoint.innerHTML = ContractsTemplates.getContractModalFormStructure(id, leList, tgOptions, locList, soList, ccList, docLinks, splitsHtml, ledgerHtml, d);
 
             mountPoint.classList.remove('hidden');
             mountPoint.classList.add('flex');
 
-            toggleLedgerVisibility(id);
+            this.toggleLedgerVisibility(id);
         },
 
         closeContractModalWindow: function () {
@@ -956,13 +1113,11 @@
             }
         },
 
-        // 🌟 PUNTO 2: Auto-assegnazione del Billing Channel
         selectSupplierOption: function (supplierName) {
             document.getElementById('ins-masterSupplier-search').value = supplierName;
             document.getElementById('ins-masterSupplier').value = supplierName;
             document.getElementById('ins-supplier-options-list').classList.add('hidden');
 
-            // Cerca il Billing channel nel database fornitori, altrimenti applica il default
             const suppliers = windowPayload.suppliers || [];
             const supObj = suppliers.find(s => String(s["Supplier"]).trim().toLowerCase() === supplierName.toLowerCase());
             const channel = supObj ? (supObj["Billing Channel"] || 'Direct Vendor') : 'Direct Vendor';
@@ -972,7 +1127,22 @@
 
             if (channelDisplay) channelDisplay.textContent = channel;
             if (channelInput) channelInput.value = channel;
-        }
+        },
+
+        handleSupplierAutoChannel: function (supplierName) {
+            const suppliers = windowPayload.suppliers || [];
+            const supObj = suppliers.find(s => String(s["Supplier"]).trim().toLowerCase() === String(supplierName).toLowerCase());
+            const channel = supObj ? (supObj["Billing Channel"] || 'Direct Vendor') : 'Direct Vendor';
+
+            const channelDisplay = document.getElementById('ins-masterBillingChannel-display');
+            const channelInput = document.getElementById('ins-masterBillingChannel');
+
+            if (channelDisplay) channelDisplay.textContent = channel;
+            if (channelInput) channelInput.value = channel;
+        },
+
+        removeRowFromLocalArchitecture: function (id) { removeRowFromLocalArchitecture(id); },
+        saveRowLocalChanges: function (id) { saveRowLocalChanges(id); }
     };
 
     // Chiudi tendina se clicchi fuori
