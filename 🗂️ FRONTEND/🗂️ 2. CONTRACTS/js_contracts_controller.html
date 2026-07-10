@@ -656,7 +656,8 @@
                     windowPayload.projections = ProjectionsEngine.calculateAll(
                         windowPayload.contracts,
                         windowPayload.initiatives,
-                        windowPayload.masterContracts
+                        windowPayload.masterContracts,
+                        windowPayload.ledger
                     );
 
                     // 3. Ricarica silenziosamente le altre dashboard senza F5

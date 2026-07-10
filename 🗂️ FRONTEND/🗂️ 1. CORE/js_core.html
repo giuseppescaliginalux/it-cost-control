@@ -50,7 +50,8 @@
             payload.projections = ProjectionsEngine.calculateAll(
                 payload.contracts || [],
                 payload.initiatives || [],
-                payload.masterContracts || []
+                payload.masterContracts || [],
+                payload.ledger || []
             );
 
             windowPayload = payload;

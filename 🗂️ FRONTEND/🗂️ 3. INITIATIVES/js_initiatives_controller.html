@@ -29,7 +29,7 @@
                 return;
             }
             InitiativesState.globalEditMode = !InitiativesState.globalEditMode;
-            if(typeof setEditModeActive !== 'undefined') setEditModeActive(InitiativesState.globalEditMode);
+            if (typeof setEditModeActive !== 'undefined') setEditModeActive(InitiativesState.globalEditMode);
             this.renderKanbanBoard(true);
         },
 
@@ -871,7 +871,8 @@
                         windowPayload.projections = ProjectionsEngine.calculateAll(
                             windowPayload.contracts || [],
                             windowPayload.initiatives || [],
-                            windowPayload.masterContracts || []
+                            windowPayload.masterContracts || [],
+                            windowPayload.ledger || []
                         );
 
                         // 3. IL MOTORE VARIANZE: Aggiorniamo l'Asset Variance Report
