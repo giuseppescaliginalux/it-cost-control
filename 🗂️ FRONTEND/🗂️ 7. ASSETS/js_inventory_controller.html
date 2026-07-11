@@ -236,9 +236,9 @@
 
             let newMasterBtnHtml = '';
 
-            const isEditActive = window.ContractsState && window.ContractsState.globalEditMode;
+            const isEditActive = typeof ContractsState !== 'undefined' && ContractsState.globalEditMode;
 
-            if (window.ContractsState && isEditActive) {
+            if (isEditActive) {
                 newMasterBtnHtml = `
                 <div class="flex justify-end mb-2.5 animate-fade-in">
                     <button onclick="InventoryController.triggerCreateNewMaster()" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[9px] uppercase tracking-wider rounded-lg shadow-md transition-colors">+ Link New Master Agreement</button>

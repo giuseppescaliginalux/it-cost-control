@@ -50,4 +50,76 @@
         });
     }
 
+    /**
+    * REATTORE DI STATO NAVBAR: Gestisce l'Edit Mode globale e notifica i singoli tab
+    */
+    function toggleGlobalEditMode() {
+        if (window.hasPendingChanges && ContractsState.globalEditMode) {
+            FinOpsUI.showConfirm(
+                "Modifiche in sospeso",
+                "Hai effettuato delle modifiche che non sono ancora state salvate. Se esci dalla modalità modifica, le perderai. Vuoi scartare le modifiche e uscire?",
+                () => { window.revertLocalChanges(); }
+            );
+            return;
+        }
+
+        if (typeof ContractsState !== 'undefined') {
+            ContractsState.globalEditMode = !ContractsState.globalEditMode;
+            if (typeof setEditModeActive !== 'undefined') setEditModeActive(ContractsState.globalEditMode);
+        }
+
+        const editBtn = document.getElementById('contracts-edit-mode-btn');
+        if (editBtn) {
+            if (ContractsState.globalEditMode) {
+                // Sblocco elegante: Verde Petrolio Smeraldo scuro (NO ARANCIONE)
+                editBtn.className = "h-9 w-32 bg-teal-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 border border-teal-500 animate-scale-up";
+                editBtn.innerHTML = `
+                <svg class="w-3.5 h-3.5 text-teal-200 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span>EDITING MODE</span>`;
+            } else {
+                editBtn.className = "h-9 w-28 bg-teal-950/45 hover:bg-teal-800/60 text-teal-100 border border-teal-800/80 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 shadow-3xs";
+                editBtn.innerHTML = `
+                <svg class="w-3.5 h-3.5 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
+                </svg>
+                <span>EDIT MODE</span>`;
+            }
+        }
+
+        // Forza il rinfresco grafico dei singoli tab attivi
+        if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined') {
+            InventoryController.applyFiltersAndSort();
+        } else if (window.currentActiveTabId === 'tab-operations' && typeof InitiativesController !== 'undefined') {
+            InitiativesState.globalEditMode = ContractsState.globalEditMode;
+            InitiativesController.renderKanbanBoard(true);
+        } else if (window.currentActiveTabId === 'tab-timeline' && typeof TimelineController !== 'undefined') {
+            TimelineState.isTimelineEditable = ContractsState.globalEditMode;
+            TimelineController.renderActiveTimelineCanvas();
+        } else if (window.currentActiveTabId === 'tab-contracts' && typeof renderMasterFormBox === 'function') {
+            renderMasterFormBox();
+            renderDetailItemsTable();
+        }
+    }
+
+    /**
+     * GUARDIA GLOBALE DI PROTEZIONE CONTESTO: Intercetta cambi di selezione interni se la RAM è sporca
+     */
+    window.executeWithGlobalGuard = function (actionCallback) {
+        if (window.hasPendingChanges) {
+            FinOpsUI.showConfirm(
+                "Modifiche non salvate",
+                "Hai delle modifiche pendenti sul modulo corrente. Se cambi selezione adesso le perderai. Vuoi scartare le modifiche e procedere?",
+                () => {
+                    window.revertLocalChanges();
+                    setTimeout(actionCallback, 60);
+                }
+            );
+        } else {
+            actionCallback();
+        }
+    };
+
 </script>

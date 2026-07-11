@@ -97,7 +97,8 @@
                 }
             });
 
-            if (typeof initInventoryTab === "function") initInventoryTab();
+            // Rinfresca e popola l'Inventory tab all'avvio leggendo la RAM
+            if (typeof InventoryController !== "undefined") InventoryController.initWorkspace();
             if (typeof updateExecutiveDashboard === "function") updateExecutiveDashboard(payload);
             if (typeof renderOperationsHub === "function") renderOperationsHub(payload);
             if (typeof renderProjectionsHub === "function") renderProjectionsHub(payload);
@@ -123,35 +124,43 @@
     // 🌟 GESTIONE STATO GLOBALE E MEMENTO PATTERN
     window.setPendingChanges = function (isDirty) {
         window.hasPendingChanges = isDirty;
+        const pendingTabs = document.getElementById('global-pending-tabs');
         const btnSync = document.getElementById('btn-global-sync');
-        const btnSyncDis = document.getElementById('btn-global-sync-disabled');
-        const btnCancel = document.getElementById('btn-global-cancel');
-        const btnCommit = document.getElementById('btn-global-commit');
 
-        if (isDirty) {
-            if (btnSync) btnSync.classList.replace('flex', 'hidden');
-            if (btnSyncDis) btnSyncDis.classList.replace('flex', 'hidden');
-            if (btnCancel) btnCancel.classList.replace('hidden', 'flex');
-            if (btnCommit) btnCommit.classList.replace('hidden', 'flex');
-        } else {
-            if (btnSync) btnSync.classList.replace('hidden', 'flex');
-            if (btnSyncDis) btnSyncDis.classList.replace('flex', 'hidden');
-            if (btnCancel) btnCancel.classList.replace('flex', 'hidden');
-            if (btnCommit) btnCommit.classList.replace('flex', 'hidden');
+        if (pendingTabs) {
+            if (isDirty) {
+                pendingTabs.classList.remove('hidden');
+                pendingTabs.classList.add('flex');
+                if (btnSync) btnSync.classList.add('opacity-20', 'pointer-events-none');
+            } else {
+                pendingTabs.classList.add('hidden');
+                pendingTabs.classList.remove('flex');
+
+                const isEditActive = typeof ContractsState !== 'undefined' && ContractsState.globalEditMode;
+                if (btnSync) {
+                    if (isEditActive) {
+                        btnSync.classList.add('opacity-20', 'pointer-events-none');
+                        btnSync.querySelector('span').textContent = 'EDITING...';
+                    } else {
+                        btnSync.classList.remove('opacity-20', 'pointer-events-none');
+                        btnSync.querySelector('span').textContent = 'SYNC';
+                    }
+                }
+            }
         }
     };
 
     window.setEditModeActive = function (isActive) {
-        if (window.hasPendingChanges) return; // Non toccare se è già dirty
+        if (window.hasPendingChanges) return;
         const btnSync = document.getElementById('btn-global-sync');
-        const btnSyncDis = document.getElementById('btn-global-sync-disabled');
-
-        if (isActive) {
-            if (btnSync) btnSync.classList.replace('flex', 'hidden');
-            if (btnSyncDis) btnSyncDis.classList.replace('hidden', 'flex');
-        } else {
-            if (btnSync) btnSync.classList.replace('hidden', 'flex');
-            if (btnSyncDis) btnSyncDis.classList.replace('flex', 'hidden');
+        if (btnSync) {
+            if (isActive) {
+                btnSync.classList.add('opacity-20', 'pointer-events-none');
+                btnSync.querySelector('span').textContent = 'EDITING...';
+            } else {
+                btnSync.classList.remove('opacity-20', 'pointer-events-none');
+                btnSync.querySelector('span').textContent = 'SYNC';
+            }
         }
     };
 
