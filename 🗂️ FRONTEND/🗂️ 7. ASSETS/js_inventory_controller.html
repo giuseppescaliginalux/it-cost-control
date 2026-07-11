@@ -236,6 +236,7 @@
 
             let newMasterBtnHtml = '';
 
+            // ⚡ FISSO: Rilevamento corretto dello stato senza window per sbloccare i pulsanti
             const isEditActive = typeof ContractsState !== 'undefined' && ContractsState.globalEditMode;
 
             if (isEditActive) {

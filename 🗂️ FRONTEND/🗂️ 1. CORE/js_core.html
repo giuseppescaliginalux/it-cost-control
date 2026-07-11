@@ -131,7 +131,7 @@
             if (isDirty) {
                 pendingTabs.classList.remove('hidden');
                 pendingTabs.classList.add('flex');
-                if (btnSync) btnSync.classList.add('opacity-20', 'pointer-events-none');
+                if (btnSync) btnSync.className = "h-9 w-24 bg-teal-950/10 text-teal-800/40 border border-teal-950/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 pointer-events-none shrink-0";
             } else {
                 pendingTabs.classList.add('hidden');
                 pendingTabs.classList.remove('flex');
@@ -139,10 +139,10 @@
                 const isEditActive = typeof ContractsState !== 'undefined' && ContractsState.globalEditMode;
                 if (btnSync) {
                     if (isEditActive) {
-                        btnSync.classList.add('opacity-20', 'pointer-events-none');
+                        btnSync.className = "h-9 w-24 bg-teal-950/10 text-teal-800/40 border border-teal-950/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 pointer-events-none shrink-0";
                         btnSync.querySelector('span').textContent = 'EDITING...';
                     } else {
-                        btnSync.classList.remove('opacity-20', 'pointer-events-none');
+                        btnSync.className = "h-9 w-24 bg-teal-950/45 hover:bg-teal-800/60 text-teal-100 border border-teal-800/80 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 shadow-3xs";
                         btnSync.querySelector('span').textContent = 'SYNC';
                     }
                 }
@@ -155,10 +155,10 @@
         const btnSync = document.getElementById('btn-global-sync');
         if (btnSync) {
             if (isActive) {
-                btnSync.classList.add('opacity-20', 'pointer-events-none');
+                btnSync.className = "h-9 w-24 bg-teal-950/10 text-teal-800/40 border border-teal-950/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 pointer-events-none shrink-0";
                 btnSync.querySelector('span').textContent = 'EDITING...';
             } else {
-                btnSync.classList.remove('opacity-20', 'pointer-events-none');
+                btnSync.className = "h-9 w-24 bg-teal-950/45 hover:bg-teal-800/60 text-teal-100 border border-teal-800/80 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 shadow-3xs";
                 btnSync.querySelector('span').textContent = 'SYNC';
             }
         }

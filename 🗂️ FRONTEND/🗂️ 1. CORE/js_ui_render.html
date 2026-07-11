@@ -1,15 +1,15 @@
 <script>
     /**
-     * MODULO RACCORDO UI GENERICA E BADGE CONDIVISI
+     * js_ui_render.html
+     * CORE VIEW UTILITIES & NAVBAR STATE REACTOR
      */
     function switchTab(tabId) {
-        // 🛡️ NAVIGATION GUARD
         if (window.hasPendingChanges && window.currentActiveTabId !== tabId) {
             FinOpsUI.showConfirm(
                 "Modifiche in sospeso",
                 "Hai effettuato delle modifiche che non sono ancora state salvate sul database. Se cambi schermata adesso perderai il tuo lavoro. Vuoi scartare le modifiche e procedere?",
                 () => {
-                    revertLocalChanges(); // Torna indietro nel tempo
+                    revertLocalChanges();
                     executeTabSwitch(tabId);
                 }
             );
@@ -38,7 +38,6 @@
                 if (t === 'tab-timeline' && typeof TimelineController !== 'undefined') {
                     TimelineController.initTimelineWorkspace(window.windowPayload);
                 }
-
                 if (t === 'tab-dashboard' || t === 'tab-projections') window.dispatchEvent(new Event('resize'));
             } else {
                 if (tabEl) tabEl.classList.replace('block', 'hidden');
@@ -51,8 +50,8 @@
     }
 
     /**
-    * REATTORE DI STATO NAVBAR: Gestisce l'Edit Mode globale e notifica i singoli tab
-    */
+     * REATTORE DI STATO NAVBAR: Forza la transizione grafica coordinata su tutti i tab
+     */
     function toggleGlobalEditMode() {
         if (window.hasPendingChanges && ContractsState.globalEditMode) {
             FinOpsUI.showConfirm(
@@ -71,8 +70,8 @@
         const editBtn = document.getElementById('contracts-edit-mode-btn');
         if (editBtn) {
             if (ContractsState.globalEditMode) {
-                // Sblocco elegante: Verde Petrolio Smeraldo scuro (NO ARANCIONE)
-                editBtn.className = "h-9 w-32 bg-teal-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 border border-teal-500 animate-scale-up";
+                // Accensione Smeraldo integrata alla palette (NO ARANCIONE)
+                editBtn.className = "h-9 w-32 bg-teal-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 border border-teal-500 animate-fade-in";
                 editBtn.innerHTML = `
                 <svg class="w-3.5 h-3.5 text-teal-200 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -89,7 +88,7 @@
             }
         }
 
-        // Forza il rinfresco grafico dei singoli tab attivi
+        // PROPAGA LO STATO AI CONTROLLER ATTIVI
         if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined') {
             InventoryController.applyFiltersAndSort();
         } else if (window.currentActiveTabId === 'tab-operations' && typeof InitiativesController !== 'undefined') {

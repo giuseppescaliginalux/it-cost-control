@@ -5,16 +5,18 @@
      * and re-renders the View by invoking Templates.
      */
 
-    let isContractsLayoutRendered = false;
+    if (typeof window.isContractsLayoutRendered === 'undefined') {
+        window.isContractsLayoutRendered = false;
+    }
 
     // --- Tab Router Override ---
     const originalSwitchTab = switchTab;
     switchTab = function (tabId) {
         originalSwitchTab(tabId);
         if (tabId === 'tab-contracts') {
-            if (!isContractsLayoutRendered) {
+            if (!window.isContractsLayoutRendered) {
                 document.getElementById('tab-contracts').innerHTML = ContractsTemplates.getBaseLayout();
-                isContractsLayoutRendered = true;
+                window.isContractsLayoutRendered = true;
             }
 
             document.getElementById('mgmt-asset-search-input').value = '';
@@ -59,7 +61,6 @@
     }
 
     function selectAssetForManagement(assetName, assetId) {
-        // Ignora il click se l'utente clicca sull'asset già aperto
         if (ContractsState.currentSelectedAsset && ContractsState.currentSelectedAsset.id === assetId) return;
 
         window.executeWithGlobalGuard(() => {
@@ -138,7 +139,6 @@
     }
 
     function loadFullMasterDetailArchitecture(masterId) {
-        // Ignora il click se l'utente clicca sul master già aperto
         if (ContractsState.currentMasterData && ContractsState.currentMasterData["Master Contract ID"] === masterId) return;
 
         window.executeWithGlobalGuard(() => {
@@ -155,7 +155,7 @@
     }
 
     function setupNewMasterAgreement() {
-        executeWithGuard(() => {
+        window.executeWithGlobalGuard(() => {
             ContractsState.resetMaster();
             renderMasterFormBox();
             renderDetailItemsTable();
