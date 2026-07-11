@@ -155,25 +155,25 @@
         }
     };
 
-    window.revertLocalChanges = function() {
+    window.revertLocalChanges = function () {
         if (!window.originalPayloadSnapshot) return;
         console.log("⏪ MEMENTO: Ripristino snapshot in memoria...");
-        
+
         // Salva il contesto dei Contratti prima del ripristino
         const activeAsset = typeof ContractsState !== 'undefined' ? ContractsState.currentSelectedAsset : null;
         const activeMaster = typeof ContractsState !== 'undefined' && ContractsState.currentMasterData ? ContractsState.currentMasterData["Master Contract ID"] : null;
 
         // Restituisce la RAM allo stato di Snapshot a latenza zero
         windowPayload = JSON.parse(JSON.stringify(window.originalPayloadSnapshot));
-        
+
         // Pulisce stati locali dei Controller
-        if(typeof ContractsState !== 'undefined') ContractsState.resetMaster();
-        if(typeof InitiativesState !== 'undefined') InitiativesState.loadPayload(windowPayload);
-        
+        if (typeof ContractsState !== 'undefined') ContractsState.resetMaster();
+        if (typeof InitiativesState !== 'undefined') InitiativesState.loadPayload(windowPayload);
+
         // Rispegne la spia e triggera il ricalcolo visuale
         setPendingChanges(false);
-        if(typeof setEditModeActive !== 'undefined') setEditModeActive(false);
-        
+        if (typeof setEditModeActive !== 'undefined') setEditModeActive(false);
+
         // Ricarica la vista basandosi sul tab attivo (SENZA chiamare il server!)
         if (window.currentActiveTabId === 'tab-contracts' && typeof toggleGlobalEditMode !== 'undefined') {
             ContractsState.globalEditMode = false;
@@ -193,13 +193,14 @@
             TimelineController.initTimelineWorkspace(windowPayload);
         } else {
             // Selezioni che non hanno un proprio render engine locale
-            fetchLiveData(); 
+            fetchLiveData();
         }
         FinOpsUI.showNotificationBanner("Modifiche scartate. Dati ripristinati.", "success");
     };
 
     window.triggerGlobalCommit = function () {
-        if (window.currentActiveTabId === 'tab-contracts') {
+        // ⚡ MODIFICATO: Se salvi mentre sei negli Assets, esegui il push dell'architettura contratti modificata
+        if (window.currentActiveTabId === 'tab-contracts' || window.currentActiveTabId === 'tab-inventory') {
             if (typeof saveCurrentContract === 'function') saveCurrentContract();
         } else if (window.currentActiveTabId === 'tab-operations') {
             if (typeof InitiativesController !== 'undefined') InitiativesController.pushKanbanArchitectureToGoogleSheets();

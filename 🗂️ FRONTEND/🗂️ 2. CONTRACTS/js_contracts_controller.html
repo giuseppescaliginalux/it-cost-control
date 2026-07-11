@@ -24,6 +24,19 @@
     };
 
     function toggleGlobalEditMode() {
+        // ⚡ INNESTO REATTIVO: Se siamo nel tab Assets, devia il comando sull'InventoryController
+        if (typeof InventoryController !== 'undefined' && window.currentActiveTabId === 'tab-inventory') {
+            if (typeof ContractsState !== 'undefined') {
+                ContractsState.globalEditMode = !ContractsState.globalEditMode;
+                if (typeof setEditModeActive !== 'undefined') setEditModeActive(ContractsState.globalEditMode);
+            }
+            // Forza il rinfresco dell'albero dell'asset aperto per far apparire matitine e "+ Add Line"
+            if (typeof InventoryController.applyFiltersAndSort === 'function') {
+                InventoryController.applyFiltersAndSort();
+            }
+            return;
+        }
+
         if (window.hasPendingChanges && ContractsState.globalEditMode) {
             FinOpsUI.showConfirm(
                 "Modifiche in sospeso",
