@@ -3,29 +3,27 @@
      * ============================================================================
      * MODULO ASSET INVENTORY: CONTROLLER
      * ============================================================================
-     * Sostituisce la vecchia logica sparsa. Coordina i flussi tra l'interfaccia,
-     * lo stato in RAM (InventoryState) e le funzioni grafiche (InventoryTemplates).
      */
     const InventoryController = {
 
-        // 1. INIZIALIZZAZIONE COMPLETA DEL TAB (Chiamata al cambio schermata)
-        initWorkspace: function() {
+        // INIZIALIZZAZIONE COMPLETA (Risolto il problema delle tendine vuote e dei totali a zero)
+        initWorkspace: function () {
             const container = document.getElementById('tab-inventory');
             if (!container) return;
 
-            // Inietta lo scheletro estratto dinamicamente dal Template
             container.innerHTML = InventoryTemplates.getWorkspaceLayout();
 
-            // Sincronizza i componenti del DOM con lo stato dei filtri attuali
+            // Sincronizza i filtri usando i metodi interni aggiornati
+            this.setupDynamicSlider(globalCachedData);
+            this.populateAssetFilters();
+            this.populateContractFilters();
+
             this.syncFiltersUIFromState();
-            
-            // Esegue il primo calcolo e disegno dei dati
             this.applyFiltersAndSort();
         },
 
-        // 2. APPLICAZIONE DEI FILTRI E RENDERING DELLA TABELLA PRINCIPALE
-        applyFiltersAndSort: function() {
-            // Legge i due input vivi dal DOM e li spinge nello State
+        // APPLICAZIONE DEI FILTRI E RENDERING DELLA TABELLA PRINCIPALE
+        applyFiltersAndSort: function () {
             const searchInput = document.getElementById('search-input');
             const sortSelect = document.getElementById('sort-select');
             const sliderInput = document.getElementById('budget-slider');
@@ -38,10 +36,9 @@
                 if (budgetValDisplay) budgetValDisplay.textContent = InventoryState.filters.minRunRate.toLocaleString('it-IT');
             }
 
-            // Recupera la collezione dei dati elaborati in RAM dallo State
+            // Recupera gli Asset filtrati e ordinati dallo State
             const filteredAssets = InventoryState.getFilteredAndSortedAssets();
 
-            // Prepara il corpo della tabella
             const tableBody = document.getElementById('live-table-body');
             if (!tableBody) return;
 
@@ -55,7 +52,6 @@
             const alertThreshold = new Date();
             alertThreshold.setDate(today.getDate() + 30);
 
-            // Ciclo di rendering massivo speculare al vecchio modulo ma agganciato al Template MVC
             filteredAssets.forEach(row => {
                 const name = row["Asset Name"] || row.asset_name || "Unknown Asset";
                 const manufacturer = row["Manufacturer"] || "";
@@ -73,7 +69,7 @@
                 const isActiveGroup = ["RUNNING", "EXPIRED", "OPTIMIZNG", "ACTIVE"].includes(status);
                 const isInactiveGroup = ["DISMISSED", "TRANSFERRED", "EXTNG", "EXITING"].includes(status);
                 const safeDOMId = btoa(encodeURIComponent(name)).replace(/=/g, "");
-                
+
                 const showBudgetBadge = budgetStatus && budgetStatus.toUpperCase().trim() !== "NOT BUDGETED" && budgetStatus.trim() !== "-";
 
                 let alertClass = ""; let alertLabel = "";
@@ -87,14 +83,13 @@
                     }
                 }
 
-                // Normalizzazione stringhe date interne per il blocco info
                 let datesHtml = "";
                 if (isActiveGroup && lastEndDate) datesHtml = `<span>End: <span class="text-slate-600">${lastEndDate.formatDashboardDate()}</span></span>`;
                 if (isInactiveGroup && exitDate) datesHtml = `<span>Exit: <span class="text-slate-600">${exitDate.formatDashboardDate()}</span></span>`;
 
-                const statusBadge = getCurrentStatusBadge(status);
-                const targetBadge = getTargetStatusText(target);
-                const budgetBadge = showBudgetBadge ? getBudgetStatusBadge(budgetStatus) : '<span class="text-slate-300 font-mono select-none">—</span>';
+                const statusBadge = InventoryTemplates.getCurrentStatusBadge(status);
+                const targetBadge = InventoryTemplates.getTargetStatusText(target);
+                const budgetBadge = showBudgetBadge ? InventoryTemplates.getBudgetStatusBadge(budgetStatus) : '<span class="text-slate-300 font-mono select-none">—</span>';
 
                 const financials = {
                     outlook: fiscalProjection.formatCurrency(),
@@ -104,7 +99,6 @@
                     labelColorClass: isInactiveGroup ? "text-emerald-500" : "text-slate-400"
                 };
 
-                // Richiesta di rendering atomico delegata alla View
                 htmlBuffer += InventoryTemplates.getAssetRow(
                     { name, manufacturer, driver: businessDriver, datesHtml },
                     safeDOMId, alertClass, alertLabel, statusBadge, targetBadge, budgetBadge, financials
@@ -113,19 +107,28 @@
 
             tableBody.innerHTML = htmlBuffer;
 
-            // Ripristina l'aspetto visivo (freccia ruotata e cassetto aperto) se l'utente si trovava su un asset aperto prima del rinfresco
+            // Ricalcolo e compilazione immediata dei riepiloghi numerici in alto a sinistra
+            let sumRunRate = 0; let sumOutlook = 0;
+            filteredAssets.forEach(row => {
+                sumRunRate += parseFloat(row["Run Rate"]) || 0;
+                sumOutlook += parseFloat(row["Fiscal Projection (FY27)"] || row["Fiscal FY27"] || row["Fiscal Projection"]) || 0;
+            });
+
+            if (document.getElementById('asset-count-badge')) document.getElementById('asset-count-badge').textContent = filteredAssets.length + " Assets";
+            if (document.getElementById('filter-runrate-val')) document.getElementById('filter-runrate-val').textContent = this.formatFilterValue(sumRunRate);
+            if (document.getElementById('filter-outlook-val')) document.getElementById('filter-outlook-val').textContent = this.formatFilterValue(sumOutlook);
+
             if (InventoryState.expandedAssetId) {
                 this.reopenAssetDrawerUIVisually(InventoryState.expandedAssetId);
             }
         },
 
-        // 3. APERTURA/CHIUSURA DEL CASSETTO DELL'ASSET (ACCORDION LIVELLO 1)
-        toggleAssetDrawer: function(assetName, safeDOMId) {
+        // APERTURA/CHIUSURA DEL CASSETTO DELL'ASSET (ACCORDION LIVELLO 1)
+        toggleAssetDrawer: function (assetName, safeDOMId) {
             const container = document.getElementById(`details-${safeDOMId}`);
             const arrow = document.getElementById(`arrow-${safeDOMId}`);
             if (!container || !arrow) return;
 
-            // Se è già aperto, lo chiude
             if (!container.classList.contains('hidden')) {
                 container.classList.add('hidden');
                 arrow.style.transform = "rotate(0deg)";
@@ -134,7 +137,6 @@
                 return;
             }
 
-            // Chiude eventuali altri cassetti aperti per mantenere pulizia
             if (InventoryState.expandedAssetId) {
                 const oldContainer = document.getElementById(`details-${InventoryState.expandedAssetId}`);
                 const oldArrow = document.getElementById(`arrow-${InventoryState.expandedAssetId}`);
@@ -142,23 +144,18 @@
                 if (oldArrow) { oldArrow.style.transform = "rotate(0deg)"; oldArrow.classList.remove('text-teal-600'); }
             }
 
-            // Apre quello corrente
             container.classList.remove('hidden');
             arrow.style.transform = "rotate(90deg)";
             arrow.classList.add('text-teal-600');
-            
-            // Memorizza lo stato in RAM
+
             InventoryState.expandedAssetId = safeDOMId;
-            InventoryState.expandedMasterId = null; // Reset livello 2
+            InventoryState.expandedMasterId = null;
 
-            // Carica i dati relazionali isolati nello state
             InventoryState.loadAssetDrillDownData(assetName);
-
-            // Forza l'apertura sul primo sotto-tab: i Contratti
             this.switchDetailTab(safeDOMId, 'contracts');
         },
 
-        reopenAssetDrawerUIVisually: function(safeDOMId) {
+        reopenAssetDrawerUIVisually: function (safeDOMId) {
             const container = document.getElementById(`details-${safeDOMId}`);
             const arrow = document.getElementById(`arrow-${safeDOMId}`);
             if (container && arrow) {
@@ -169,28 +166,25 @@
             }
         },
 
-        // 4. NAVIGAZIONE TRA I SOTTO-TAB DEL CASSETTO (Contracts, Budget, Initiatives)
-        switchDetailTab: function(safeDOMId, tabType) {
+        // NAVIGAZIONE INTERNA AI SOTTO-TAB DEL CASSETTO
+        switchDetailTab: function (safeDOMId, tabType) {
             const contentDiv = document.getElementById(`tab-content-${safeDOMId}`);
             if (!contentDiv || !InventoryState.currentDrillDownData) return;
 
-            // Aggiorna lo stile dei bottoni tab
             ['contracts', 'alloc', 'initiatives'].forEach(t => {
                 const btn = document.getElementById(`tab-btn-${t}-${safeDOMId}`);
                 if (btn) {
-                    btn.className = (t === tabType) 
-                        ? "pb-2 font-bold text-[10px] uppercase border-b-2 border-teal-700 text-teal-700 transition-all" 
+                    btn.className = (t === tabType)
+                        ? "pb-2 font-bold text-[10px] uppercase border-b-2 border-teal-700 text-teal-700 transition-all"
                         : "pb-2 font-bold text-[10px] uppercase border-b-2 border-transparent text-slate-400 hover:text-slate-600 transition-all";
                 }
             });
 
             contentDiv.innerHTML = '';
 
-            // Ramo Sotto-Tab 1: I CONTRATTI (IL NOSTRO NUOVO HUB A FISARMONICA DI MASTER)
             if (tabType === 'contracts') {
                 this.renderContractsTabContent(safeDOMId);
             }
-            // Ramo Sotto-Tab 2: ALLOCAZIONI DI BUDGET (Riciclo codice nativo del vecchio modulo)
             else if (tabType === 'alloc') {
                 const dataList = InventoryState.currentDrillDownData.allocations || [];
                 if (dataList.length === 0) { contentDiv.innerHTML = '<p class="text-slate-400 italic py-4 text-center text-xs">No allocations.</p>'; return; }
@@ -210,7 +204,6 @@
                 html += `</tbody><tfoot><tr class="bg-slate-100/50 font-bold border-t-2 border-slate-200"><td class="p-3 text-slate-500 uppercase tracking-widest font-black text-[9px]">Total Portfolio Allocation</td><td class="p-3 text-right font-mono text-slate-400 italic"></td><td class="p-3 text-right bg-teal-100/10"><div class="text-teal-900 font-black text-sm font-mono">€ ${sumEffective.formatCurrency()}</div><div class="text-[9px] text-teal-600 uppercase tracking-tighter mt-0.5">${totalRatio.toFixed(1)}% of total budget</div></td></tr></tfoot></table></div>`;
                 contentDiv.innerHTML = html;
             }
-            // Ramo Sotto-Tab 3: INIZIATIVE (Riciclo codice nativo del vecchio modulo)
             else if (tabType === 'initiatives') {
                 const dataList = InventoryState.currentDrillDownData.initiatives || [];
                 dataList.sort((a, b) => {
@@ -230,28 +223,22 @@
             }
         },
 
-        // 5. RENDERING DEL SOTTO-TAB CONTRATTI CON LA STRUTTURA AD ACCORDION (LIVELLO 2)
-        renderContractsTabContent: function(safeDOMId) {
+        // RENDERING DEL SOTTO-TAB CONTRATTI
+        renderContractsTabContent: function (safeDOMId) {
             const contentDiv = document.getElementById(`tab-content-${safeDOMId}`);
             if (!contentDiv) return;
 
-            // Estrae i contratti associati all'Asset corrente
             const assetContracts = InventoryState.currentDrillDownData.contracts || [];
-            
-            // Trova tutti i Master Agreements unici legati a questi contratti figli
             const linkedMasterIds = [...new Set(assetContracts.map(c => String(c["Master Contract ID"]).trim()).filter(Boolean))];
 
-            // Recupera le anagrafiche complete dei Master dal payload globale
             const allMasters = windowPayload.masterContracts || [];
             const filteredMasters = allMasters.filter(m => linkedMasterIds.includes(String(m["Master Contract ID"]).trim()));
 
-            // Se l'Edit Mode globale è attiva, inietta in cima il bottone "+ New Master Agreement"
-            // mappato chirurgicamente sul contesto dell'Asset selezionato
             let newMasterBtnHtml = '';
             if (window.ContractsState && window.ContractsState.globalEditMode) {
                 newMasterBtnHtml = `
-                <div class="flex justify-end mb-3 animate-fade-in">
-                    <button onclick="InventoryController.triggerCreateNewMaster()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl shadow-md transition-colors">+ Link New Master Agreement</button>
+                <div class="flex justify-end mb-2.5 animate-fade-in">
+                    <button onclick="InventoryController.triggerCreateNewMaster()" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[9px] uppercase tracking-wider rounded-lg shadow-md transition-colors">+ Link New Master Agreement</button>
                 </div>`;
             }
 
@@ -260,14 +247,12 @@
                 return;
             }
 
-            let htmlBuffer = newMasterBtnHtml + `<div class="flex flex-col gap-1">`;
+            let htmlBuffer = newMasterBtnHtml + `<div class="flex flex-col gap-0">`;
 
             filteredMasters.forEach(master => {
                 const mId = master["Master Contract ID"];
-                
-                // Isola i contratti figli di QUESTO specifico Master
                 const childContracts = assetContracts.filter(c => String(c["Master Contract ID"]).trim() === String(mId).trim());
-                
+
                 let childRowsHtml = '';
                 childContracts.forEach(c => {
                     childRowsHtml += InventoryTemplates.getContractChildRowMarkup(c, window.ContractsState?.globalEditMode);
@@ -279,7 +264,6 @@
 
                 const isMasterExpanded = InventoryState.expandedMasterId === mId;
 
-                // Chiama il template della View passandogli le righe dei figli già compilate
                 htmlBuffer += InventoryTemplates.getTemplateOfMasterAccordion(
                     master, childRowsHtml, isMasterExpanded, window.ContractsState?.globalEditMode
                 );
@@ -289,8 +273,8 @@
             contentDiv.innerHTML = htmlBuffer;
         },
 
-        // 6. APERTURA/CHIUSURA FISARMONICA DEL MASTER (ACCORDION LIVELLO 2)
-        toggleMasterAccordion: function(masterId) {
+        // APERTURA/CHIUSURA FISARMONICA DEL MASTER (ACCORDION LIVELLO 2)
+        toggleMasterAccordion: function (masterId) {
             const body = document.getElementById(`master-body-${masterId}`);
             const chevron = document.getElementById(`master-chevron-${masterId}`);
             if (!body) return;
@@ -308,82 +292,182 @@
             }
         },
 
-        // ============================================================================
-        // INTERRELAZIONE DRY: INNESTATORI DI AZIONE VERSO LE MODALI DEI CONTRATTI
-        // ============================================================================
-
-        triggerEditContract: function(contractId) {
-            // Riuso nativo immediato della Mega-Modale pre-compilata. Zero duplicazioni.
+        // INNESTATORI DI AZIONE VERSO LE MEGA-MODALI
+        triggerEditContract: function (contractId) {
             if (typeof ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
-                // Prepariamo lo stato dei contratti caricando il Master padre prima di lanciare la modale
                 const masterId = (windowPayload.contracts.find(c => c["Contract ID"] === contractId) || {})["Master Contract ID"];
                 if (masterId) {
-                    ContractsState.loadMasterDetails(
-                        masterId, windowPayload.masterContracts, windowPayload.contracts,
-                        windowPayload.allocationSplits, windowPayload.ledger
-                    );
-                    // Forza la valorizzazione dell'asset di contesto nella modale
+                    ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
                     const assetMatch = windowPayload.assets.find(a => a["Asset Name"] === windowPayload.masterContracts.find(m => m["Master Contract ID"] === masterId)["Asset Name"]);
                     if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"], id: assetMatch["Asset ID"] };
-                    
                     ContractsController.openContractModalWindow(ContractsState.currentDetailItems.find(item => item.data["Contract ID"] === contractId).id);
                 }
             }
         },
 
-        triggerAddContractLine: function(masterId) {
+        triggerAddContractLine: function (masterId) {
             if (typeof ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
-                ContractsState.loadMasterDetails(
-                    masterId, windowPayload.masterContracts, windowPayload.contracts,
-                    windowPayload.allocationSplits, windowPayload.ledger
-                );
+                ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
                 const assetMatch = windowPayload.assets.find(a => a["Asset Name"] === windowPayload.masterContracts.find(m => m["Master Contract ID"] === masterId)["Asset Name"]);
                 if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"], id: assetMatch["Asset ID"] };
-                
-                addNewDetailRowItem(); // Questo apre in automatico la modale pre-compilata per la nuova riga
+                addNewDetailRowItem();
             }
         },
 
-        triggerEditMaster: function(masterId) {
-            // Sfrutta la modale del Master se esistente o lancia un pop-up guidato
+        triggerEditMaster: function (masterId) {
             if (typeof loadFullMasterDetailArchitecture === 'function') {
                 loadFullMasterDetailArchitecture(masterId);
-                toggleMasterEditState(true); // Apre la modifica delle info del Master
-                // Sposta l'utente sulla vecchia modale montata (temporaneamente) o apre un focus
+                toggleMasterEditState(true);
                 window.location.hash = "#mgmt-master-form-container";
             }
         },
 
-        triggerCreateNewMaster: function() {
+        triggerCreateNewMaster: function () {
             if (typeof setupNewMasterAgreement === 'function' && InventoryState.expandedAssetId) {
-                // Recupera il vero nome dell'Asset corrente decodificando il safeDOMId
                 const decodedAssetName = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"])).replace(/=/g, "") === InventoryState.expandedAssetId)["Asset Name"];
                 const decodedAssetId = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"])).replace(/=/g, "") === InventoryState.expandedAssetId)["Asset ID"];
-                
                 ContractsState.currentSelectedAsset = { name: decodedAssetName, id: decodedAssetId };
                 setupNewMasterAgreement();
                 window.location.hash = "#mgmt-master-form-container";
             }
         },
 
-        // --- FILTRI CONTROLLER (Ex logica DOM sparsa in js_filters.html) ---
-        resetAllFilters: function() {
+        resetAllFilters: function () {
             InventoryState.resetAllFilters();
-            this.initWorkspace(); // Rinfresca e ridisegna tutto lo scheletro pulito
+            this.initWorkspace();
         },
 
-        // Gestione checkbox filtri e riallineamento istantaneo
-        syncFiltersUIFromState: function() {
-            // Sincronizza lo slider, barra di ricerca, ecc.
+        syncFiltersUIFromState: function () {
             const searchInput = document.getElementById('search-input');
             const slider = document.getElementById('budget-slider');
             if (searchInput) searchInput.value = InventoryState.filters.search;
             if (slider) slider.value = InventoryState.filters.minRunRate;
+        },
+
+        // --- NUOVO: METODI DI POPOLAMENTO FILTRI INTEGRATI NEL CONTROLLER ---
+        populateContractFilters: function () {
+            const contracts = windowPayload.contracts || [];
+            const getUnique = (key) => [...new Set(contracts.map(c => (c[key] || "").toString().trim()).filter(v => v !== ""))].sort();
+
+            const buildCheckboxes = (values, containerId) => {
+                const container = document.getElementById(containerId);
+                if (!container) return;
+                container.innerHTML = values.map(val => `
+                    <label class="flex items-center gap-2 cursor-pointer group/cb">
+                        <input type="checkbox" value="${val}" onchange="InventoryController.applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
+                        <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val}</span>
+                    </label>
+                `).join('');
+            };
+
+            buildCheckboxes(getUnique("Billing Channel"), "filter-container-channel");
+            buildCheckboxes(getUnique("Expenditure Type"), "filter-container-exp");
+            buildCheckboxes(getUnique("Legal Entity"), "filter-container-legal");
+            buildCheckboxes(getUnique("Supplier"), "filter-container-supplier");
+            buildCheckboxes(getUnique("Cost Center"), "filter-container-costcenter");
+            buildCheckboxes(getUnique("Location"), "filter-container-location");
+
+            // Generazione Quick-Select Nazioni [XYZ]
+            const uniqueLocations = getUnique("Location");
+            const countrySet = new Set();
+            uniqueLocations.forEach(loc => {
+                const match = loc.match(/^\[([A-Z]{3})\]/);
+                if (match) countrySet.add(match[1].trim().toUpperCase());
+            });
+            const uniqueCountries = Array.from(countrySet).sort();
+
+            const quickSelectContainer = document.getElementById("location-country-quick-select");
+            if (quickSelectContainer) {
+                quickSelectContainer.innerHTML = uniqueCountries.map(c => `
+                    <button type="button" onclick="InventoryController.toggleCountryLocations(event, '${c}')" class="text-[9px] font-black px-2 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-teal-600 hover:text-white border border-slate-200 transition-all uppercase tracking-wider">
+                        ${c}
+                    </button>
+                `).join('');
+            }
+        },
+
+        toggleCountryLocations: function (event, country) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            const checkBoxes = document.querySelectorAll('#filter-container-location input');
+            let targetBoxes = Array.from(checkBoxes).filter(cb => {
+                const match = cb.value.match(/^\[([A-Z]{3})\]/);
+                return match && match[1].trim().toUpperCase() === country.toUpperCase();
+            });
+            if (targetBoxes.length === 0) return;
+
+            const allChecked = targetBoxes.every(cb => cb.checked);
+            targetBoxes.forEach(cb => cb.checked = !allChecked);
+
+            this.applyFiltersAndSort();
+        },
+
+        populateAssetFilters: function () {
+            const assets = globalCachedData || [];
+
+            const uniqueStatuses = [...new Set(assets.map(a => (a["Current Status"] || "").toString().trim().toUpperCase()).filter(v => v !== ""))].sort();
+            const container = document.getElementById("status-filter-container");
+            if (container) {
+                container.innerHTML = uniqueStatuses.map(val => `
+                    <label class="flex items-center gap-2 cursor-pointer group/cb">
+                        <input type="checkbox" value="${val}" onchange="InventoryController.applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
+                        <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val}</span>
+                    </label>
+                `).join('');
+            }
+
+            const uniqueBudgetStatuses = [...new Set(assets.map(a => (a["Budget Status (FY27)"] || a["Budget Status"] || "").toString().trim()).filter(v => v !== "" && v !== "-"))].sort();
+            const budgetContainer = document.getElementById("budget-status-filter-container");
+            if (budgetContainer) {
+                budgetContainer.innerHTML = uniqueBudgetStatuses.map(val => `
+                    <label class="flex items-center gap-2 cursor-pointer group/cb">
+                        <input type="checkbox" value="${val}" onchange="InventoryController.applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
+                        <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val}</span>
+                    </label>
+                `).join('');
+            }
+
+            const uniqueDrivers = [...new Set(assets.map(a => (a["Business Driver"] || "").toString().trim()).filter(v => v !== ""))].sort();
+            const driverContainer = document.getElementById("driver-filter-container");
+            if (driverContainer) {
+                driverContainer.innerHTML = uniqueDrivers.map(val => `
+                    <label class="flex items-center gap-2 cursor-pointer group/cb">
+                        <input type="checkbox" value="${val}" onchange="InventoryController.applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
+                        <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val}</span>
+                    </label>
+                `).join('');
+            }
+        },
+
+        setupDynamicSlider: function (allRows) {
+            let maxRunRate = 0;
+            allRows.forEach(row => {
+                const rate = parseFloat(row["Run Rate"]) || 0;
+                if (rate > maxRunRate) maxRunRate = rate;
+            });
+            if (maxRunRate === 0) maxRunRate = 1000000;
+
+            const slider = document.getElementById('budget-slider');
+            const maxLabel = document.getElementById('slider-max-label');
+            if (slider) slider.max = maxRunRate;
+
+            if (maxLabel) {
+                if (maxRunRate >= 1000000) maxLabel.textContent = `€ ${(maxRunRate / 1000000).toFixed(1)}M`;
+                else maxLabel.textContent = `€ ${(maxRunRate / 1000).toFixed(0)}K`;
+            }
+        },
+
+        // Formattatore monetario interno al modulo (Risolve il problema dei totali a zero)
+        formatFilterValue: function (val) {
+            if (val >= 1000000) return '€ ' + (val / 1000000).toFixed(2) + 'M';
+            if (val >= 1000) return '€ ' + (val / 1000).toFixed(0) + 'k';
+            return '€ ' + val.toFixed(0);
         }
     };
 
-    // 🌟 RE-ROUTING COMPLETO DEL ROUTER GENERICO DI INDEX.HTML: 
-    // Intercettiamo il click sul pulsante "Assets" per lanciare la nostra inizializzazione dinamica MVC
+    // Routing ad aggancio atomico
     const mvcOriginalExecuteTabSwitch = executeTabSwitch;
     executeTabSwitch = function (tabId) {
         mvcOriginalExecuteTabSwitch(tabId);
@@ -391,7 +475,4 @@
             InventoryController.initWorkspace();
         }
     };
-    
-    // Polyfill interno per agganciare il vecchio template al nuovo nome normalizzato
-    InventoryTemplates.getTemplateOfMasterAccordion = InventoryTemplates.getMasterAccordionCard;
 </script>

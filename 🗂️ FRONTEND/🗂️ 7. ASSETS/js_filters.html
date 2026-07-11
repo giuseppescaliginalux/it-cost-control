@@ -170,9 +170,11 @@
     }
 
     function applyFiltersAndSort() {
-        const searchTerm = document.getElementById('search-input').value.toLowerCase().trim();
+        const searchInput = document.getElementById('search-input');
+        // 🛡️ Scudo protettivo: se l'elemento non è ancora nel DOM, esce senza crashare
+        if (!searchInput) return;
 
-        if (!searchTerm) return;
+        const searchTerm = searchInput.value.toLowerCase().trim();
 
         const sortBy = document.getElementById('sort-select').value;
         const minVal = parseFloat(document.getElementById('budget-slider').value) || 0;
