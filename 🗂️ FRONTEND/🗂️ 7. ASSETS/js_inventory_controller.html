@@ -242,10 +242,7 @@
             if (isEditActive) {
                 newMasterBtnHtml = `
                 <div class="flex justify-end mb-2.5 animate-fade-in">
-                    <button onclick="InventoryController.triggerCreateNewMaster()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-black text-[9px] uppercase tracking-wider rounded-xl shadow-md transition-colors flex items-center gap-1.5">
-                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                        New Master Agreement
-                    </button>
+                    <button onclick="InventoryController.triggerCreateNewMaster()" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[9px] uppercase tracking-wider rounded-lg shadow-md transition-colors">+ Link New Master Agreement</button>
                 </div>`;
             }
 
@@ -301,66 +298,41 @@
 
         // INNESTATORI DI AZIONE VERSO LE MEGA-MODALI
         triggerEditContract: function (contractId) {
-            // ⚡ FIX: Uso esplicito di window per prevenire i ReferenceError silenziosi
-            if (typeof window.ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
+            if (typeof ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
                 const masterId = (windowPayload.contracts.find(c => c["Contract ID"] === contractId) || {})["Master Contract ID"];
                 if (masterId) {
                     ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
                     const assetMatch = windowPayload.assets.find(a => a["Asset Name"] === windowPayload.masterContracts.find(m => m["Master Contract ID"] === masterId)["Asset Name"]);
                     if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"], id: assetMatch["Asset ID"] };
-
-                    const detailItem = ContractsState.currentDetailItems.find(item => item.data["Contract ID"] === contractId);
-                    if (detailItem) {
-                        window.ContractsController.openContractModalWindow(detailItem.id);
-                    }
+                    ContractsController.openContractModalWindow(ContractsState.currentDetailItems.find(item => item.data["Contract ID"] === contractId).id);
                 }
             }
         },
 
         triggerAddContractLine: function (masterId) {
-            // ⚡ FIX: Uso esplicito di window e chiamata alla funzione globale di add row
-            if (typeof window.ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
+            if (typeof ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
                 ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
                 const assetMatch = windowPayload.assets.find(a => a["Asset Name"] === windowPayload.masterContracts.find(m => m["Master Contract ID"] === masterId)["Asset Name"]);
                 if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"], id: assetMatch["Asset ID"] };
-
-                if (typeof addNewDetailRowItem === 'function') addNewDetailRowItem();
+                addNewDetailRowItem();
             }
         },
 
         triggerEditMaster: function (masterId) {
-            if (typeof window.ContractsController !== 'undefined') {
-                window.ContractsController.openMasterModalWindow(masterId);
+            if (typeof loadFullMasterDetailArchitecture === 'function') {
+                loadFullMasterDetailArchitecture(masterId);
+                toggleMasterEditState(true);
+                window.location.hash = "#mgmt-master-form-container";
             }
         },
 
         triggerCreateNewMaster: function () {
-            if (typeof window.ContractsController !== 'undefined' && InventoryState.expandedAssetId) {
+            if (typeof setupNewMasterAgreement === 'function' && InventoryState.expandedAssetId) {
                 const decodedAssetName = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"])).replace(/=/g, "") === InventoryState.expandedAssetId)["Asset Name"];
                 const decodedAssetId = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"])).replace(/=/g, "") === InventoryState.expandedAssetId)["Asset ID"];
                 ContractsState.currentSelectedAsset = { name: decodedAssetName, id: decodedAssetId };
-                
-                ContractsState.resetMaster();
-                window.ContractsController.openMasterModalWindow("");
-            }
-        },
-
-        triggerCloneContract: function (contractId) {
-            if (typeof window.ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
-                const masterId = (windowPayload.contracts.find(c => c["Contract ID"] === contractId) || {})["Master Contract ID"];
-                if (masterId) {
-                    ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
-                    const assetMatch = windowPayload.assets.find(a => a["Asset Name"] === windowPayload.masterContracts.find(m => m["Master Contract ID"] === masterId)["Asset Name"]);
-                    if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"], id: assetMatch["Asset ID"] };
-                    
-                    const detailItem = ContractsState.currentDetailItems.find(item => item.data["Contract ID"] === contractId);
-                    if (detailItem) {
-                        if (ContractsState.cloneDetailRow(detailItem.id)) {
-                            const latestItem = ContractsState.currentDetailItems[ContractsState.currentDetailItems.length - 1];
-                            window.ContractsController.openContractModalWindow(latestItem.id);
-                        }
-                    }
-                }
+                setupNewMasterAgreement();
+                window.location.hash = "#mgmt-master-form-container";
             }
         },
 

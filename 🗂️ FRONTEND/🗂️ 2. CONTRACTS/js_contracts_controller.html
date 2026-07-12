@@ -1,15 +1,12 @@
 <script>
     /**
      * js_contracts_controller.html
-     * CONTROLLER: The orchestrator. Responds to user actions, updates the Model,
-     * and re-renders the View by invoking Templates.
      */
 
     if (typeof window.isContractsLayoutRendered === 'undefined') {
         window.isContractsLayoutRendered = false;
     }
 
-    // --- Tab Router Override ---
     const originalSwitchTabContracts = switchTab;
     switchTab = function (tabId) {
         originalSwitchTabContracts(tabId);
@@ -20,18 +17,14 @@
                     window.isContractsLayoutRendered = true;
                 }
             }
-
             document.getElementById('mgmt-asset-search-input').value = '';
             ContractsState.currentSelectedAsset = null;
             renderAssetSearchList();
         }
     };
 
-    function updateCommitButtonVisibility() {
-        // Disattivato: Il bottone locale è nascosto. Ora governa il semaforo globale della Navbar!
-    }
+    function updateCommitButtonVisibility() { } // Deprecata, gestita globalmente da js_core
 
-    // --- Search & Selection ---
     function renderAssetSearchList() {
         const query = document.getElementById('mgmt-asset-search-input').value.toLowerCase().trim();
         const container = document.getElementById('mgmt-asset-results-list');
@@ -95,20 +88,13 @@
         });
     }
 
-    // --- Master Contract Flows ---
     function renderMasterContractsList(list) {
         const container = document.getElementById('mgmt-master-list-container');
-
         const newMasterBtn = ContractsState.globalEditMode
             ? `<button onclick="setupNewMasterAgreement()" class="text-[9px] font-black bg-teal-50 border border-teal-200 text-teal-700 px-2 py-1 rounded-md hover:bg-teal-100 shadow-sm transition-colors">+ New Master</button>`
             : ``;
 
-        let html = `
-        <div class="flex justify-between items-center mb-2">
-            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Linked Master Agreements</span>
-            ${newMasterBtn}
-        </div>
-        `;
+        let html = `<div class="flex justify-between items-center mb-2"><span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Linked Master Agreements</span>${newMasterBtn}</div>`;
 
         if (list.length === 0) {
             container.innerHTML = html + `<p class="text-slate-400 italic text-[11px] text-center py-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl">No Master Agreements linked.</p>`;
@@ -144,13 +130,7 @@
         if (ContractsState.currentMasterData && ContractsState.currentMasterData["Master Contract ID"] === masterId) return;
 
         window.executeWithGlobalGuard(() => {
-            ContractsState.loadMasterDetails(
-                masterId,
-                windowPayload.masterContracts || [],
-                windowPayload.contracts || [],
-                windowPayload.allocationSplits || [],
-                windowPayload.ledger || []
-            );
+            ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts || [], windowPayload.contracts || [], windowPayload.allocationSplits || [], windowPayload.ledger || []);
             renderMasterFormBox();
             renderDetailItemsTable();
         });
@@ -178,13 +158,10 @@
 
         if (!isEditable) {
             const status = (data["Status"] || "ACTIVE").toUpperCase().trim();
-
-            // 🌟 FIX DATE MASTER: Gestione isomorfica (legge sia la chiave vecchia che la nuova in camelCase)
             const rawStart = data["Master Start Date"] || data.masterStartDate;
             const rawEnd = data["Master End Date"] || data.masterEndDate;
             const cleanStart = rawStart ? ContractsUtils.formatToEnglishCustomDate(rawStart) : '—';
             const cleanEnd = rawEnd ? ContractsUtils.formatToEnglishCustomDate(rawEnd) : '—';
-
             let rawTerm = data["contractTerm"] !== undefined ? data["contractTerm"] : (data["Contract Term (Months)"] !== undefined ? data["Contract Term (Months)"] : '—');
             let termMonths = (typeof rawTerm === 'number' || !isNaN(parseFloat(rawTerm))) ? Math.round(parseFloat(rawTerm)) : rawTerm;
 
@@ -197,7 +174,6 @@
         } else {
             const suppliersList = ContractsUtils.extractUniqueField(windowPayload.masterContracts || windowPayload.contracts, "Supplier");
             const isNew = data["Master Contract ID"] === "";
-
             container.innerHTML = ContractsTemplates.getMasterEditCard(data, isNew, suppliersList, masterLinks);
         }
 
@@ -207,8 +183,6 @@
             const uniqueUrlsString = [...new Set(rawUrls)].join(',');
             ContractsAPI.resolveLiveDocumentNames(uniqueUrlsString, targetLinks);
         }
-
-        updateCommitButtonVisibility();
     }
 
     function toggleMasterEditState(editable) {
@@ -222,7 +196,6 @@
         data["Scope"] = document.getElementById('ins-masterScope').value.trim();
         data["Comments"] = document.getElementById('ins-masterComments').value.trim();
         const baseLinks = document.getElementById('ins-masterDocumentLink').value.trim();
-
         const fileInput = document.getElementById('upload-files');
         const hasFiles = fileInput && fileInput.files.length > 0;
 
@@ -231,7 +204,6 @@
             ContractsState.hasUnsavedChanges = true;
             if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
 
-            // ⚡ AGGIORNAMENTO RAM GLOBALE PER RENDER IMMEDIATO NEGLI ASSET
             const mIndex = windowPayload.masterContracts.findIndex(m => m["Master Contract ID"] === ContractsState.currentMasterData["Master Contract ID"]);
             if (mIndex > -1) windowPayload.masterContracts[mIndex] = ContractsState.currentMasterData;
             else windowPayload.masterContracts.push(ContractsState.currentMasterData);
@@ -282,7 +254,6 @@
         }
     }
 
-    // --- Details / Lines Flows ---
     function renderDetailItemsTable() {
         const container = document.getElementById('mgmt-detailRowsContainer');
         if (!container) return;
@@ -291,21 +262,14 @@
         if (addBtn) addBtn.style.display = ContractsState.globalEditMode ? 'inline-block' : 'none';
 
         if (ContractsState.currentDetailItems.length === 0) {
-            container.innerHTML = `
-            <div class="col-span-full text-center py-8 border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/20">
-                <p class="text-slate-400 text-xs italic">No allocation or ramping detail records found for this Master Agreement.</p>
-            </div>`;
-            updateCommitButtonVisibility();
+            container.innerHTML = `<div class="col-span-full text-center py-8 border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/20"><p class="text-slate-400 text-xs italic">No allocation or ramping detail records found for this Master Agreement.</p></div>`;
             return;
         }
 
-        // 🌟 FIX PUNTO 1 & 1a: Niente più div intermedi, costruiamo una singola stringa HTML pura
         let cardsHtml = '';
-
         ContractsState.currentDetailItems.forEach((item) => {
             const d = item.data;
             const docLinks = (d["Contract Links"] || d.contractLinks || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
-
             const formatFinance = (val) => (val || 0).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
             const ledgerTotalSum = (item.ledger || []).reduce((acc, curr) => acc + (ContractsUtils.parseFinancialValue(curr["Amount"] || curr.amount)), 0);
@@ -318,10 +282,8 @@
 
             let warningBadgeHTML = '';
             const tolerance = 100;
-
             if (billingTerms === "Ledger-Driven" && rawCommitment > 0) {
                 const diff = ledgerTotalSum - rawCommitment;
-
                 if (diff > tolerance) {
                     warningBadgeHTML = `<div class="flex items-center justify-end bg-rose-50 border border-rose-200 px-2 py-0.5 rounded shadow-sm animate-pulse shrink-0" title="Ledger sum exceeds Total Commitment"><span class="text-[8px] text-rose-500 uppercase font-black tracking-wider whitespace-nowrap mr-1">Overage:</span><span class="font-mono font-black text-rose-600 text-[10px] whitespace-nowrap">+€${formatFinance(diff)}</span></div>`;
                 } else if (diff < -tolerance) {
@@ -348,11 +310,9 @@
             const contractEnd = (d["Contract End Date"] || d.contractEndDate) ? ContractsUtils.formatToEnglishCustomDate(d["Contract End Date"] || d.contractEndDate) : '—';
             const adjEnd = (d["Adjusted End Date"] || d.adjustedEndDate) ? ContractsUtils.formatToEnglishCustomDate(d["Adjusted End Date"] || d.adjustedEndDate) : '—';
 
-            // Delega pura al Template
             cardsHtml += ContractsTemplates.getDetailReadOnlyCard(item, warningBadgeHTML, effCommit, annVal, totCommit, cleanStart, cleanEnd, contractEnd, adjEnd, docLinks, ContractsState.globalEditMode);
         });
 
-        // 🌟 Scrittura Dom singola massiva (Altissime performance)
         container.innerHTML = cardsHtml;
 
         const targetLinks = container.querySelectorAll('.live-doc-link');
@@ -361,8 +321,6 @@
             const uniqueUrlsString = [...new Set(rawUrls)].join(',');
             ContractsAPI.resolveLiveDocumentNames(uniqueUrlsString, targetLinks);
         }
-
-        updateCommitButtonVisibility();
     }
 
     function cloneDetailRowItem(id) {
@@ -371,16 +329,11 @@
         }
     }
 
-    // 🌟 FIX PUNTO 3: Assicuriamoci che il toggle ignori i click sui link o bottoni e ruoti la freccia
     function toggleCompactAccordion(id, event) {
-        // Se si clicca un tasto, un link o un tooltip non aprire la card
         if (event && (event.target.tagName === 'BUTTON' || event.target.closest('button') || event.target.closest('span.tt-wrapper') || event.target.tagName === 'A')) return;
-
         const panel = document.getElementById(`compact-accordion-${id}`);
         const chevron = document.getElementById(`compact-chevron-${id}`);
-
         if (!panel) return;
-
         if (panel.classList.contains('hidden')) {
             panel.classList.remove('hidden');
             if (chevron) chevron.style.transform = "rotate(90deg)";
@@ -441,11 +394,7 @@
         item.ledger = Array.from(ledgerRows).map(row => {
             const sDate = row.querySelector('.ledger-start').value || "";
             const eDate = row.querySelector('.ledger-end').value || "";
-
-            if (sDate && eDate && new Date(sDate) > new Date(eDate)) {
-                ledgerDateValidationError = true;
-            }
-
+            if (sDate && eDate && new Date(sDate) > new Date(eDate)) { ledgerDateValidationError = true; }
             const rawAmtStr = row.querySelector('.ledger-amount').value.replace(/[^0-9]/g, '');
             return {
                 "Contract ID": item.data["Contract ID"] || "", "Start Date": sDate, "End Date": eDate,
@@ -509,13 +458,12 @@
 
         const dto = ContractMapper.toDto(item.data, CONTRACT_FIELD_MAP);
         const contract = new Contract(dto);
-        item.data = contract.exportToData(); 
+        item.data = contract.exportToData();
 
         item.isEditing = false;
         ContractsState.hasUnsavedChanges = true;
         if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
 
-        // ⚡ AGGIORNAMENTO RAM GLOBALE DELLA RIGA
         const cIndex = windowPayload.contracts.findIndex(c => c["Contract ID"] === item.data["Contract ID"]);
         if (cIndex > -1) windowPayload.contracts[cIndex] = item.data;
         else windowPayload.contracts.push(item.data);
@@ -535,7 +483,6 @@
             const linkedInits = (windowPayload.initiatives || []).filter(i => String(i["Master Contract ID"]).trim() === String(master.id).trim());
             ContractsState.currentMasterData = master.exportToData(linkedInits);
 
-            // ⚡ AGGIORNAMENTO RAM GLOBALE DEL MASTER PADRE
             const mIndex = windowPayload.masterContracts.findIndex(m => m["Master Contract ID"] === master.id);
             if (mIndex > -1) windowPayload.masterContracts[mIndex] = ContractsState.currentMasterData;
             else windowPayload.masterContracts.push(ContractsState.currentMasterData);
@@ -557,10 +504,8 @@
 
     function addNewDetailRowItem() {
         ContractsState.addNewDetailRow();
-
-        // 🌟 FIX: Invece di renderizzare una riga rotta, apri istantaneamente la Modale
         const latestItem = ContractsState.currentDetailItems[ContractsState.currentDetailItems.length - 1];
-        ContractsController.openContractModalWindow(latestItem.id);
+        window.ContractsController.openContractModalWindow(latestItem.id);
     }
 
     function removeRowFromLocalArchitecture(id) {
@@ -604,15 +549,10 @@
             suppliers: (windowPayload.suppliers || []).filter(s => String(s["Supplier"]).trim().toLowerCase() === String(spl).trim().toLowerCase()),
             initiatives: mId && mId.trim() !== "" ? (windowPayload.initiatives || []).filter(i => String(i["Master Contract ID"]).trim().toLowerCase() === mId.trim().toLowerCase()) : [],
 
-            // 🌟 VERO ISOMORFISMO: Diciamo addio alla mappatura manuale di 30 righe!
-            // Diamo in pasto i dati grezzi della UI alla Classe Pura. Lei li formatta, 
-            // li traduce in camelCase e li rende perfetti per il Backend.
             details: ContractsState.currentDetailItems.map(item => {
                 const dto = ContractMapper.toDto(item.data, CONTRACT_FIELD_MAP);
                 const contract = new Contract(dto);
                 const cleanExport = contract.exportToData();
-
-                // Riagganciamo i rami Ledger e Splits così com'erano
                 cleanExport.splits = item.splits || [];
                 cleanExport.ledger = item.ledger || [];
                 return cleanExport;
@@ -632,13 +572,11 @@
                 if (res && res.status === "SUCCESS") {
                     FinOpsUI.showNotificationBanner("Architecture synchronized successfully.", "success");
 
-                    // 1. Aggiorna la memoria globale con il Delta Payload
                     windowPayload.masterContracts = res.masterContracts || windowPayload.masterContracts;
                     windowPayload.contracts = res.contracts || windowPayload.contracts;
                     windowPayload.allocationSplits = res.allocationSplits || windowPayload.allocationSplits;
                     windowPayload.ledger = res.ledger || windowPayload.ledger;
 
-                    // 2. Ricalcola le proiezioni In-Memory a latenza zero!
                     windowPayload.projections = ProjectionsEngine.calculateAll(
                         windowPayload.contracts,
                         windowPayload.initiatives,
@@ -646,12 +584,10 @@
                         windowPayload.ledger
                     );
 
-                    // 3. Ricarica silenziosamente le altre dashboard senza F5
                     if (typeof DashboardState !== 'undefined') DashboardState.loadCachePayload(windowPayload);
                     if (typeof ProjectionsState !== 'undefined') ProjectionsState.loadPayload(windowPayload);
                     if (typeof initInventoryTab === 'function') initInventoryTab();
 
-                    // Ricarica la vista contratti pulita
                     selectAssetForManagement(ContractsState.currentSelectedAsset.name, ContractsState.currentSelectedAsset.id);
                 } else {
                     FinOpsUI.showNotificationBanner("Sync failed: unexpected execution outcome from server.", "error");
@@ -664,78 +600,7 @@
         );
     }
 
-    function addSplitRowToUI(detailId) {
-        const container = document.getElementById(`splits-container-${detailId}`);
-        if (!container) return;
-        const emptyMsg = container.querySelector('.empty-split-msg');
-        if (emptyMsg) emptyMsg.remove();
-
-        const startDateInput = document.getElementById(`edit-startDate-${detailId}`);
-        const endDateInput = document.getElementById(`edit-contractEndDate-${detailId}`);
-        const defStart = startDateInput ? startDateInput.value : "";
-        const defEnd = endDateInput ? endDateInput.value : "";
-
-        const leOptions = ContractsUtils.extractUniqueField(windowPayload.legalEntities, "Legal Entity").map(le => '<option value="' + le + '">' + le + '</option>').join('');
-        const ccOptions = ContractsUtils.extractUniqueField(windowPayload.costCenters, "Cost Center").map(cc => '<option value="' + cc + '">' + cc + '</option>').join('');
-
-        container.insertAdjacentHTML('beforeend', ContractsTemplates.getSplitRow(detailId, {}, defStart, defEnd, leOptions, ccOptions));
-    }
-
-    function addLedgerRowToUI(detailId, mov = null) {
-        const container = document.getElementById(`ledger-container-${detailId}`);
-        if (!container) return;
-
-        const emptyMsg = container.querySelector('.empty-ledger-msg');
-        if (emptyMsg) emptyMsg.remove();
-
-        // 🌟 REQ-4: Pre-compilazione Date Default
-        let movData = mov;
-        if (!movData || Object.keys(movData).length === 0) {
-            const now = new Date();
-            const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-            const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-
-            movData = {
-                "Start Date": FinOpsDate.toIso(firstDay),
-                "End Date": FinOpsDate.toIso(lastDay),
-                "Type": "ACTUAL",
-                "Amount": "",
-                "Notes": ""
-            };
-        }
-
-        container.insertAdjacentHTML('beforeend', ContractsTemplates.getLedgerRow(detailId, movData));
-
-        // Focus Automatico sull'Importo dopo aver renderizzato la riga
-        setTimeout(() => {
-            const newRows = container.querySelectorAll('.ledger-row-item');
-            if (newRows.length > 0) {
-                const amtInput = newRows[newRows.length - 1].querySelector('.ledger-amount');
-                if (amtInput) amtInput.focus();
-            }
-        }, 50);
-    }
-
-    function duplicateLedgerRowInUI(btnElement, detailId) {
-        const row = btnElement.closest('.ledger-row-item');
-        if (!row) return;
-
-        const rawAmtStr = row.querySelector('.ledger-amount').value.replace(/[^0-9]/g, '');
-
-        const currentMovementData = {
-            "Start Date": row.querySelector('.ledger-start').value || "",
-            "End Date": row.querySelector('.ledger-end').value || "",
-            "Type": row.querySelector('.ledger-type').value || "ACTUAL",
-            "Amount": parseInt(rawAmtStr, 10) || 0,
-            "Notes": row.querySelector('.ledger-notes').value || ""
-        };
-
-        addLedgerRowToUI(detailId, currentMovementData);
-    }
-
-    // 🌟 BLOCCO INTEGRATO FINALE: Sovrascrive l'oggetto globale esponendo tutte le API verso la View
     window.ContractsController = {
-
         switchContractModalTab: function (tabId, detailId) {
             const tabs = ['general', 'ledger', 'splits', 'metadata'];
             tabs.forEach(t => {
@@ -762,10 +627,10 @@
             const endInput = document.getElementById(`edit-contractEndDate-${id}`);
             if (earlyInput && endInput) {
                 if (earlyInput.value) {
-                    endInput.classList.add('opacity-40', 'cursor-not-allowed');
+                    endInput.classList.add('opacity-50', 'cursor-not-allowed', 'bg-slate-50');
                     endInput.disabled = true;
                 } else {
-                    endInput.classList.remove('opacity-40', 'cursor-not-allowed');
+                    endInput.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-slate-50');
                     endInput.disabled = false;
                 }
             }
@@ -777,11 +642,11 @@
             if (autoRenew && noticePeriod) {
                 if (autoRenew.value === "No") {
                     noticePeriod.disabled = true;
-                    noticePeriod.classList.add('opacity-40', 'cursor-not-allowed');
+                    noticePeriod.classList.add('opacity-50', 'cursor-not-allowed', 'bg-slate-50');
                     noticePeriod.value = "";
                 } else {
                     noticePeriod.disabled = false;
-                    noticePeriod.classList.remove('opacity-40', 'cursor-not-allowed');
+                    noticePeriod.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-slate-50');
                 }
             }
         },
@@ -792,8 +657,6 @@
             const freqContainer = document.getElementById(`container-billingFreq-${detailId}`);
             const freqSelect = document.getElementById(`edit-billingFrequency-${detailId}`);
             const autoForecastBtn = document.getElementById(`auto-forecast-btn-${detailId}`);
-
-            // Il bottone del Tab Ledger
             const ledgerTabBtn = document.getElementById(`modal-tab-btn-ledger-${detailId}`);
 
             if (billingTermsSelect && pricingModelSelect) {
@@ -803,18 +666,16 @@
                 const isPayg = terms === "Pay-As-You-Go";
                 const isConsumption = ["Pure Consumption", "Minimum Consumption", "Capped Consumption"].includes(model);
 
-                // 🌟 REQ-3.1: Blocco Frequenza per Full Upfront o Ledger/Payg
                 if (freqContainer && freqSelect) {
                     if (terms === "Full Upfront / Prepaid" || terms === "Full Upfront" || isLedgerDriven || isPayg) {
                         freqContainer.classList.add('hidden');
                         freqSelect.value = "";
                     } else {
                         freqContainer.classList.remove('hidden');
-                        if (!freqSelect.value) freqSelect.value = "Monthly"; // Default
+                        if (!freqSelect.value) freqSelect.value = "Monthly";
                     }
                 }
 
-                // 🌟 REQ-3.2: Sblocco Ledger Tab per PAYG o Ledger Driven o Consumption
                 if (ledgerTabBtn) {
                     if (isLedgerDriven || isPayg || isConsumption) {
                         ledgerTabBtn.classList.remove('opacity-40', 'cursor-not-allowed');
@@ -822,7 +683,6 @@
                     } else {
                         ledgerTabBtn.classList.add('opacity-40', 'cursor-not-allowed');
                         ledgerTabBtn.title = "Ledger disabled for Flat/Linear billing terms.";
-                        // Se siamo attualmente sul tab ledger disabilitato, torna al tab generale
                         const ledgerContent = document.getElementById(`modal-tab-content-ledger-${detailId}`);
                         if (ledgerContent && !ledgerContent.classList.contains('hidden')) {
                             this.switchContractModalTab('general', detailId);
@@ -840,17 +700,14 @@
 
         handleExpenditureTypeChange: function (detailId) {
             const expTypeVal = document.getElementById(`edit-expenditureType-${detailId}`).value;
-
             const displayPricing = document.getElementById(`finops-select-display-edit-pricingModel-${detailId}`);
             const inputPricing = document.getElementById(`edit-pricingModel-${detailId}`);
-
             const displayBilling = document.getElementById(`finops-select-display-edit-billingTerms-${detailId}`);
             const inputBilling = document.getElementById(`edit-billingTerms-${detailId}`);
 
             if (!displayPricing || !displayBilling) return;
 
             if (expTypeVal === "CAPEX") {
-                // Forza Flat e Full Upfront
                 displayPricing.value = "Flat";
                 inputPricing.value = "Flat";
                 displayPricing.disabled = true;
@@ -861,14 +718,11 @@
                 displayBilling.disabled = true;
                 displayBilling.classList.add('opacity-50', 'cursor-not-allowed', 'bg-slate-100');
             } else {
-                // Sblocca i campi
                 displayPricing.disabled = false;
                 displayPricing.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-slate-100');
-
                 displayBilling.disabled = false;
                 displayBilling.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-slate-100');
             }
-
             this.toggleLedgerVisibility(detailId);
         },
 
@@ -892,35 +746,20 @@
                 return;
             }
 
-            const contractData = {
-                pricingModel: model,
-                billingTerms: terms,
-                startDate: startDate,
-                contractEndDate: endDate,
-                totalCommitment: parseInt(totCommit, 10) || 0
-            };
-
+            const contractData = { pricingModel: model, billingTerms: terms, startDate: startDate, contractEndDate: endDate, totalCommitment: parseInt(totCommit, 10) || 0 };
             const ledgerRows = document.querySelectorAll(`#ledger-container-${detailId} .ledger-row-item`);
             const currentLedger = [];
             Array.from(ledgerRows).forEach(row => {
                 const type = row.querySelector('.ledger-type').value;
                 if (type === "ACTUAL" || type === "FORECAST") {
                     const rawAmt = row.querySelector('.ledger-amount').value.replace(/[^0-9]/g, '');
-                    currentLedger.push({
-                        type: type,
-                        startDate: row.querySelector('.ledger-start').value,
-                        endDate: row.querySelector('.ledger-end').value,
-                        amount: parseInt(rawAmt, 10) || 0,
-                        notes: row.querySelector('.ledger-notes').value
-                    });
+                    currentLedger.push({ type: type, startDate: row.querySelector('.ledger-start').value, endDate: row.querySelector('.ledger-end').value, amount: parseInt(rawAmt, 10) || 0, notes: row.querySelector('.ledger-notes').value });
                 }
             });
 
             try {
-                // Istanziamo il Dominio Isomorfico per calcolare i ratei
                 const contract = new Contract(contractData);
                 const ledgerMocks = currentLedger.map(l => new LedgerMovement(l));
-
                 const forecast = contract.generateForecastLedger(ledgerMocks);
                 const generatedRows = forecast.map(f => f.exportToData());
 
@@ -944,7 +783,6 @@
         addLedgerRowToUI: function (detailId, mov = null) {
             const container = document.getElementById(`ledger-container-${detailId}`);
             if (!container) return;
-
             const emptyMsg = container.querySelector('.empty-ledger-msg');
             if (emptyMsg) emptyMsg.remove();
 
@@ -953,18 +791,10 @@
                 const now = new Date();
                 const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
                 const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-
-                movData = {
-                    "Start Date": FinOpsDate.toIso(firstDay),
-                    "End Date": FinOpsDate.toIso(lastDay),
-                    "Type": "ACTUAL",
-                    "Amount": "",
-                    "Notes": ""
-                };
+                movData = { "Start Date": FinOpsDate.toIso(firstDay), "End Date": FinOpsDate.toIso(lastDay), "Type": "ACTUAL", "Amount": "", "Notes": "" };
             }
 
             container.insertAdjacentHTML('beforeend', ContractsTemplates.getLedgerRow(detailId, movData));
-
             setTimeout(() => {
                 const newRows = container.querySelectorAll('.ledger-row-item');
                 if (newRows.length > 0) {
@@ -994,17 +824,11 @@
         duplicateLedgerRowInUI: function (btnElement, detailId) {
             const row = btnElement.closest('.ledger-row-item');
             if (!row) return;
-
             const rawAmtStr = row.querySelector('.ledger-amount').value.replace(/[^0-9]/g, '');
-
             const currentMovementData = {
-                "Start Date": row.querySelector('.ledger-start').value || "",
-                "End Date": row.querySelector('.ledger-end').value || "",
-                "Type": row.querySelector('.ledger-type').value || "ACTUAL",
-                "Amount": parseInt(rawAmtStr, 10) || 0,
-                "Notes": row.querySelector('.ledger-notes').value || ""
+                "Start Date": row.querySelector('.ledger-start').value || "", "End Date": row.querySelector('.ledger-end').value || "",
+                "Type": row.querySelector('.ledger-type').value || "ACTUAL", "Amount": parseInt(rawAmtStr, 10) || 0, "Notes": row.querySelector('.ledger-notes').value || ""
             };
-
             this.addLedgerRowToUI(detailId, currentMovementData);
         },
 
@@ -1065,57 +889,7 @@
 
             const isEditActive = typeof ContractsState !== 'undefined' && ContractsState.globalEditMode;
 
-            mountPoint.innerHTML = ContractsTemplates.getContractModalFormStructure(
-                id, leList, tgOptions, locList, soList, ccList, docLinks, splitsHtml, ledgerHtml, d,
-                masterStartStr, masterEndStr, masterCommitment,
-                isEditActive 
-            );
-
-            mountPoint.classList.remove('hidden');
-            mountPoint.classList.add('flex');
-
-            this.toggleLedgerVisibility(id);
-        }, openContractModalWindow: function (id) {
-            let mountPoint = document.getElementById('contracts-modal-mount-point');
-            if (!mountPoint) {
-                mountPoint = document.createElement('div');
-                mountPoint.id = 'contracts-modal-mount-point';
-                mountPoint.className = 'hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4';
-                mountPoint.onclick = (e) => { if (e.target === mountPoint) this.closeContractModalWindow(); };
-                document.body.appendChild(mountPoint);
-            }
-
-            const item = ContractsState.currentDetailItems.find(i => i.id === id);
-            if (!item) return;
-            item.isEditing = true;
-
-            const d = item.data;
-            const docLinks = (d["Contract Links"] || d.contractLinks || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
-
-            const leList = ContractsUtils.extractUniqueField(windowPayload.legalEntities, "Legal Entity");
-            const locList = ContractsUtils.extractUniqueField(windowPayload.locations, "Location");
-            const ccList = ContractsUtils.extractUniqueField(windowPayload.costCenters, "Cost Center");
-            const soList = ContractsUtils.extractUniqueField(windowPayload.contracts, "Service Owner");
-            const tgOptions = ContractsState.currentAssetGroupIds.map(g => `<option value="${g}" ${g === d["Target Group ID"] ? 'selected' : ''}>${g}</option>`).join('');
-
-            const baseLeOptions = leList.map(le => `<option value="${le}">${le}</option>`).join('');
-            const baseCcOptions = ccList.map(cc => `<option value="${cc}">${cc}</option>`).join('');
-
-            let splitsHtml = item.splits && item.splits.length > 0
-                ? item.splits.map(s => ContractsTemplates.getSplitRow(item.id, s, d["Start Date"]?.split('T')[0] || "", d["Contract End Date"]?.split('T')[0] || "", baseLeOptions, baseCcOptions)).join('')
-                : `<p class="text-[9px] text-emerald-600 font-medium text-center py-2 empty-split-msg bg-emerald-50/50 rounded-md">➔ Standard Allocation Active (100% to main entity).</p>`;
-
-            let ledgerHtml = item.ledger && item.ledger.length > 0
-                ? item.ledger.map(l => ContractsTemplates.getLedgerRow(item.id, l)).join('')
-                : `<p class="text-[9px] text-slate-400 italic text-center py-2 empty-ledger-msg bg-slate-50 rounded-md">No manual ledger movements yet.</p>`;
-
-            const mData = ContractsState.currentMasterData || {};
-            const masterStartStr = mData["Master Start Date"] ? ContractsUtils.formatToEnglishCustomDate(mData["Master Start Date"]) : 'N/A';
-            const masterEndStr = mData["Master End Date"] ? ContractsUtils.formatToEnglishCustomDate(mData["Master End Date"]) : 'N/A';
-            const masterCommitment = (parseFloat(mData["Total Commitment"] || mData.totalCommitment) || 0).toLocaleString('it-IT');
-
-            // ⚡ FIX: Aggiunto ContractsState.globalEditMode come ultimo parametro per far compilare i campi!
-            mountPoint.innerHTML = ContractsTemplates.getContractModalFormStructure(id, leList, tgOptions, locList, soList, ccList, docLinks, splitsHtml, ledgerHtml, d, masterStartStr, masterEndStr, masterCommitment, ContractsState.globalEditMode);
+            mountPoint.innerHTML = ContractsTemplates.getContractModalFormStructure(id, leList, tgOptions, locList, soList, ccList, docLinks, splitsHtml, ledgerHtml, d, masterStartStr, masterEndStr, masterCommitment, isEditActive);
 
             mountPoint.classList.remove('hidden');
             mountPoint.classList.add('flex');
@@ -1133,7 +907,6 @@
                 document.body.appendChild(mountPoint);
             }
 
-            // ⚡ FIX: Ignoriamo la lookup globale se l'ID è vuoto (New Master)
             if (masterId) {
                 ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
                 const assetMatch = windowPayload.assets.find(a => a["Asset Name"] === windowPayload.masterContracts.find(m => m["Master Contract ID"] === masterId)["Asset Name"]);
@@ -1188,7 +961,9 @@
                 return true;
             });
 
+            if (window.currentActiveTabId === 'tab-contracts') {
                 renderDetailItemsTable();
+            }
         },
 
         filterSupplierOptions: function (query) {

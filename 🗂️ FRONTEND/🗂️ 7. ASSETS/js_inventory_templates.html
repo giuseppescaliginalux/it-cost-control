@@ -1,12 +1,9 @@
 <script>
     /**
-     * ============================================================================
-     * MODULO ASSET INVENTORY: VIEW (TEMPLATES)
-     * ============================================================================
+     * js_inventory_templates.html
      */
     const InventoryTemplates = {
 
-        // SCHELETRO COMPATTO DEI FILTRI (Risolto lo spazio verticale eccessivo)
         getWorkspaceLayout: function () {
             return `
             <div class="mb-3">
@@ -14,43 +11,27 @@
                 <p class="text-slate-500 text-xs font-medium mt-1">Centralized directory of Technology assets</p>
             </div>
             <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-
                 <div class="lg:col-span-1 space-y-3 sticky top-20">
                     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col gap-3">
                         <div class="flex justify-between items-center pb-2 border-b border-slate-200">
                             <h2 class="text-xs font-black text-slate-700 uppercase tracking-widest">Inventory Filters</h2>
-                            <button onclick="InventoryController.resetAllFilters()" class="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded transition-colors flex items-center gap-1 cursor-pointer">
-                                🗑️ Reset All
-                            </button>
+                            <button onclick="InventoryController.resetAllFilters()" class="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded transition-colors flex items-center gap-1 cursor-pointer">🗑️ Reset All</button>
                         </div>
-
                         <div class="bg-slate-50 rounded-xl border border-slate-200 p-3 shadow-inner">
                             <div class="flex items-center justify-between border-b border-slate-200 pb-1.5 mb-1.5">
-                                <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                                    📊 Current View
-                                </span>
+                                <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">📊 Current View</span>
                                 <span class="bg-teal-100 text-teal-800 text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider" id="asset-count-badge">0 Assets</span>
                             </div>
                             <div class="space-y-1 px-1">
-                                <div class="flex justify-between items-end">
-                                    <span class="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Total Run Rate</span>
-                                    <span class="font-mono text-xs font-black text-slate-700" id="filter-runrate-val">€ 0</span>
-                                </div>
-                                <div class="flex justify-between items-end">
-                                    <span class="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">FY27 Outlook</span>
-                                    <span class="font-mono text-xs font-black text-teal-700" id="filter-outlook-val">€ 0</span>
-                                </div>
+                                <div class="flex justify-between items-end"><span class="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Total Run Rate</span><span class="font-mono text-xs font-black text-slate-700" id="filter-runrate-val">€ 0</span></div>
+                                <div class="flex justify-between items-end"><span class="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">FY27 Outlook</span><span class="font-mono text-xs font-black text-teal-700" id="filter-outlook-val">€ 0</span></div>
                             </div>
                         </div>
-
                         <div class="space-y-2.5">
                             <div>
                                 <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Search Asset</label>
-                                <div class="relative">
                                 <input type="text" id="search-input" onkeyup="InventoryController.applyFiltersAndSort()" placeholder="🔍 Name or Manufacturer..." class="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-shadow">
                             </div>
-                            </div>
-
                             <div>
                                 <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Sort By</label>
                                 <select id="sort-select" onchange="InventoryController.applyFiltersAndSort()" class="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 cursor-pointer">
@@ -60,89 +41,51 @@
                                 </select>
                             </div>
                         </div>
-
                         <div class="border-t border-slate-100 pt-2.5 space-y-2.5">
-                            <div class="flex items-center gap-1.5 px-1">
-                                <h3 class="text-[10px] font-black text-slate-800 uppercase tracking-widest">⚙️ Asset Attributes</h3>
-                            </div>
-
+                            <div class="flex items-center gap-1.5 px-1"><h3 class="text-[10px] font-black text-slate-800 uppercase tracking-widest">⚙️ Asset Attributes</h3></div>
                             <div>
-                                <div class="flex justify-between items-end mb-1">
-                                    <span class="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Min Run Rate</span>
-                                    <span class="text-xs font-mono font-black text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200" id="budget-val">0</span>
-                                </div>
+                                <div class="flex justify-between items-end mb-1"><span class="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Min Run Rate</span><span class="text-xs font-mono font-black text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200" id="budget-val">0</span></div>
                                 <input type="range" id="budget-slider" min="0" max="100000" step="5000" value="0" class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-teal-600" oninput="InventoryController.applyFiltersAndSort()">
-                                <div class="flex justify-between text-[9px] font-bold text-slate-400 mt-1 px-0.5">
-                                    <span>€0</span>
-                                    <span id="slider-max-label">MAX</span>
-                                </div>
+                                <div class="flex justify-between text-[9px] font-bold text-slate-400 mt-1 px-0.5"><span>€0</span><span id="slider-max-label">MAX</span></div>
                             </div>
-
                             <details class="group border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
-                                <summary class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2.5 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">
-                                    Current Status
-                                    <span class="text-slate-400 text-xs transition group-open:rotate-180">▼</span>
-                                </summary>
+                                <summary class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2.5 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">Current Status<span class="text-slate-400 text-xs transition group-open:rotate-180">▼</span></summary>
                                 <div class="p-2 border-t border-slate-100 max-h-42 overflow-y-auto flex flex-col gap-1.5 bg-slate-50/50 pr-2" id="status-filter-container"></div>
                             </details>
-
                             <details class="group border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
-                                <summary class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2.5 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">
-                                    Budget Status
-                                    <span class="text-slate-400 text-xs transition group-open:rotate-180">▼</span>
-                                </summary>
+                                <summary class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2.5 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">Budget Status<span class="text-slate-400 text-xs transition group-open:rotate-180">▼</span></summary>
                                 <div class="p-2 border-t border-slate-100 max-h-42 overflow-y-auto flex flex-col gap-1.5 bg-slate-50/50 pr-2" id="budget-status-filter-container"></div>
                             </details>
-
                             <details class="group border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
-                                <summary class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2.5 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">
-                                    Business Driver
-                                    <span class="text-slate-400 text-xs transition group-open:rotate-180">▼</span>
-                                </summary>
+                                <summary class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2.5 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">Business Driver<span class="text-slate-400 text-xs transition group-open:rotate-180">▼</span></summary>
                                 <div class="p-2 border-t border-slate-100 max-h-42 overflow-y-auto flex flex-col gap-1.5 bg-slate-50/50 pr-2" id="driver-filter-container"></div>
                             </details>
                         </div>
-
                         <div class="border-t border-slate-100 pt-2.5 space-y-2">
-                            <div class="flex items-center gap-1.5 px-1">
-                                <h3 class="text-[10px] font-black text-slate-800 uppercase tracking-widest">📑 Contract Attributes</h3>
-                            </div>
-
+                            <div class="flex items-center gap-1.5 px-1"><h3 class="text-[10px] font-black text-slate-800 uppercase tracking-widest">📑 Contract Attributes</h3></div>
                             <div class="space-y-1.5">
                                 <details class="group border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
-                                    <summary class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">
-                                        Billing Channel <span class="text-slate-400 text-xs transition group-open:rotate-180">▼</span>
-                                    </summary>
+                                    <summary class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">Billing Channel <span class="text-slate-400 text-xs transition group-open:rotate-180">▼</span></summary>
                                     <div class="p-2.5 border-t border-slate-100 max-h-36 overflow-y-auto flex flex-col gap-1.5 bg-slate-50/30" id="filter-container-channel"></div>
                                 </details>
                                 <details class="group border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
-                                    <summary class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">
-                                        Expenditure Type <span class="text-slate-400 text-xs transition group-open:rotate-180">▼</span>
-                                    </summary>
+                                    <summary class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">Expenditure Type <span class="text-slate-400 text-xs transition group-open:rotate-180">▼</span></summary>
                                     <div class="p-2.5 border-t border-slate-100 max-h-36 overflow-y-auto flex flex-col gap-1.5 bg-slate-50/30" id="filter-container-exp"></div>
                                 </details>
                                 <details class="group border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
-                                    <summary class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">
-                                        Legal Entity <span class="text-slate-400 text-xs transition group-open:rotate-180">▼</span>
-                                    </summary>
+                                    <summary class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">Legal Entity <span class="text-slate-400 text-xs transition group-open:rotate-180">▼</span></summary>
                                     <div class="p-2.5 border-t border-slate-100 max-h-36 overflow-y-auto flex flex-col gap-1.5 bg-slate-50/30" id="filter-container-legal"></div>
                                 </details>
                                 <details class="group border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
-                                    <summary class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">
-                                        Supplier <span class="text-slate-400 text-xs transition group-open:rotate-180">▼</span>
-                                    </summary>
+                                    <summary class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">Supplier <span class="text-slate-400 text-xs transition group-open:rotate-180">▼</span></summary>
                                     <div class="p-2.5 border-t border-slate-100 max-h-44 overflow-y-auto flex flex-col gap-1.5 bg-slate-50/30" id="filter-container-supplier"></div>
                                 </details>
                                 <details class="group border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
-                                    <summary class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">
-                                        Cost Center <span class="text-slate-400 text-xs transition group-open:rotate-180">▼</span>
-                                    </summary>
+                                    <summary class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">Cost Center <span class="text-slate-400 text-xs transition group-open:rotate-180">▼</span></summary>
                                     <div class="p-2.5 border-t border-slate-100 max-h-36 overflow-y-auto flex flex-col gap-1.5 bg-slate-50/30" id="filter-container-costcenter"></div>
                                 </details>
                                 <details class="group border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
-                                    <summary class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">
-                                        Location <span class="text-slate-400 text-xs transition group-open:rotate-180">▼</span>
-                                    </summary>
+                                    <summary class="text-[10px] font-bold text-slate-700 uppercase tracking-wider p-2 cursor-pointer hover:bg-slate-50 flex justify-between items-center list-none select-none">Location <span class="text-slate-400 text-xs transition group-open:rotate-180">▼</span></summary>
                                     <div class="p-2.5 border-t border-slate-100 bg-slate-50/30 space-y-2">
                                         <div id="location-country-quick-select" class="flex flex-wrap gap-1 pb-1.5 border-b border-slate-100"></div>
                                         <div class="max-h-36 overflow-y-auto flex flex-col gap-1.5" id="filter-container-location"></div>
@@ -156,12 +99,9 @@
                 <div class="lg:col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[800px]">
                     <div class="divide-y divide-slate-100 table-container h-full" id="live-table-body"></div>
                 </div>
-
-            </div>
-            `;
+            </div>`;
         },
 
-        // CASSETTO ESPANSO DELL'ASSET (Risolto il baco dei sottomenu in sola lettura)
         getAssetRow: function (data, safeDOMId, alertClass, alertLabel, statusBadge, targetBadge, budgetBadge, financials) {
             return `
             <div class="group hover:bg-slate-50/50 transition-all border-b border-slate-100 w-full text-xs ${alertClass}">
@@ -172,9 +112,7 @@
                                 <svg id="arrow-${safeDOMId}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" class="w-3.5 h-3.5 text-slate-300 transition-transform duration-200"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
                             </div>
                             <div class="font-bold text-slate-900 text-sm truncate shrink">${data.name}</div>
-                            <div class="flex items-center gap-1 shrink-0 ml-2">
-                                ${alertLabel}
-                            </div>
+                            <div class="flex items-center gap-1 shrink-0 ml-2">${alertLabel}</div>
                         </div>
                         <div class="mt-1" style="padding-left: 25px;">
                             <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest truncate leading-tight pl-[10px]">
@@ -182,9 +120,7 @@
                             </p>
                             <div class="mt-1.5 flex items-center gap-3">
                                 ${statusBadge}
-                                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
-                                    ${data.datesHtml}
-                                </div>
+                                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-tight">${data.datesHtml}</div>
                             </div>
                         </div>
                     </div>
@@ -208,7 +144,6 @@
                         </div>
                     </div>
                 </div>
-
                 <div id="details-${safeDOMId}" class="hidden px-8 pb-6 pt-2 bg-slate-50 border-t border-slate-100 shadow-inner">
                      <div class="flex gap-4 border-b border-slate-200 mb-4">
                         <button id="tab-btn-contracts-${safeDOMId}" onclick="InventoryController.switchDetailTab('${safeDOMId}', 'contracts')" class="pb-2 font-bold text-[10px] uppercase border-b-2 border-teal-700 text-teal-700 transition-all">1. Contracts</button>
@@ -220,15 +155,12 @@
             </div>`;
         },
 
-        /**
-     * Genera la card del Master Contract con layout SaaS arricchito
-     */
         getMasterAccordionCard: function (master, childContractsHtml, isExpanded, globalEditMode) {
             const mId = master["Master Contract ID"] || 'N/A';
             const supplier = master["Supplier"] || "GENERIC SUPPLIER";
             const runRate = parseFloat(master["Run Rate"] || 0).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const totCommit = parseFloat(master["Total Commitment"] || master.totalCommitment || 0).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-            // Estrazione e formattazione date/durata
             const formatStrDate = (v) => v ? new Date(v).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A';
             const startStr = master["Master Start Date"] ? formatStrDate(master["Master Start Date"]) : "N/A";
             const expDateStr = master["Master End Date"] ? formatStrDate(master["Master End Date"]) : "N/A";
@@ -247,69 +179,67 @@
                 statusBadge = `<span class="px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-widest border bg-amber-50 text-amber-700 border-amber-200 shadow-2xs leading-none shrink-0">${status}</span>`;
             }
 
-            // Action panel contestuale in Edit Mode
             const editActions = globalEditMode ? `
-            <div class="flex items-center gap-2 ml-3 pl-3 border-l border-slate-200" onclick="event.stopPropagation()">
-                <button onclick="InventoryController.triggerAddContractLine('${mId}')" class="h-7 px-2.5 bg-slate-50 hover:bg-teal-50 text-slate-500 hover:text-teal-700 font-black text-[9px] uppercase tracking-widest rounded-lg border border-slate-300/70 shadow-2xs transition-all flex items-center gap-1 cursor-pointer">
-                    <svg class="w-3 h-3 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                    <span>ADD LINE</span>
-                </button>
-                <button onclick="InventoryController.triggerEditMaster('${mId}')" class="h-7 p-1.5 bg-slate-50 text-slate-400 hover:text-teal-600 hover:bg-teal-50 border border-slate-300/70 rounded-lg transition-all shadow-2xs group cursor-pointer" title="MASTER CONFIGURATION">
-                    <svg class="w-3.5 h-3.5 group-hover:rotate-45 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                </button>
-            </div>
-        ` : '';
+                <div class="flex items-center gap-2 ml-3 pl-3 border-l border-slate-200" onclick="event.stopPropagation()">
+                    <button onclick="InventoryController.triggerAddContractLine('${mId}')" class="h-7 px-2.5 bg-slate-50 hover:bg-teal-50 text-slate-500 hover:text-teal-700 font-black text-[9px] uppercase tracking-widest rounded-lg border border-slate-300/70 shadow-2xs transition-all flex items-center gap-1 cursor-pointer">
+                        <svg class="w-3 h-3 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                        <span>ADD LINE</span>
+                    </button>
+                    <button onclick="InventoryController.triggerEditMaster('${mId}')" class="h-7 p-1.5 bg-slate-50 text-slate-400 hover:text-teal-600 hover:bg-teal-50 border border-slate-300/70 rounded-lg transition-all shadow-2xs group cursor-pointer" title="MASTER CONFIGURATION">
+                        <svg class="w-3.5 h-3.5 group-hover:rotate-45 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </button>
+                </div>
+            ` : '';
 
             return `
-        <div class="bg-white border border-slate-200 rounded-xl shadow-2xs mb-1.5 transition-all ${opacityClass} overflow-hidden">
-            <div onclick="InventoryController.toggleMasterAccordion('${mId}')" class="p-3 flex justify-between items-center cursor-pointer hover:bg-slate-50/60 transition-colors">
-                
-                <div class="flex items-center gap-3 w-5/12 min-w-0">
-                    <svg id="master-chevron-${mId}" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-90 text-teal-600' : ''} shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
-                    <div class="min-w-0">
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <span class="font-black text-slate-800 text-xs tracking-wide uppercase truncate" title="${supplier}">${supplier}</span>
-                            ${statusBadge}
+            <div class="bg-white border border-slate-200 rounded-xl shadow-2xs mb-1.5 transition-all ${opacityClass} overflow-hidden">
+                <div onclick="InventoryController.toggleMasterAccordion('${mId}')" class="p-3 flex justify-between items-center cursor-pointer hover:bg-slate-50/60 transition-colors">
+                    
+                    <div class="flex items-center gap-3 w-4/12 min-w-0">
+                        <svg id="master-chevron-${mId}" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-90 text-teal-600' : ''} shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="font-black text-slate-800 text-xs tracking-wide uppercase truncate" title="${supplier}">${supplier}</span>
+                                ${statusBadge}
+                            </div>
+                            <div class="text-[8px] font-mono text-slate-400 mt-0.5 uppercase tracking-wider">Master ID: <span class="font-bold text-slate-600">${mId}</span></div>
                         </div>
-                        <div class="text-[8px] font-mono text-slate-400 mt-0.5 uppercase tracking-wider">Master ID: <span class="font-bold text-slate-600">${mId}</span></div>
+                    </div>
+                    
+                    <div class="flex items-center justify-end w-8/12">
+                        <div class="text-right pr-4 border-r border-slate-100 hidden sm:block">
+                            <span class="text-[7px] text-slate-400 uppercase font-black tracking-widest block">VALIDITY</span>
+                            <span class="font-mono font-bold text-slate-600 text-[10px] mt-0.5">${startStr} ➔ ${expDateStr} <span class="text-slate-400 ml-0.5">(${term}M)</span></span>
+                        </div>
+                        <div class="text-right px-4 border-r border-slate-100 hidden md:block">
+                            <span class="text-[7px] text-slate-400 uppercase font-black tracking-widest block">COMMITMENT</span>
+                            <span class="font-mono font-black text-slate-700 text-xs mt-0.5">€ ${totCommit}</span>
+                        </div>
+                        <div class="text-right pl-4">
+                            <span class="text-[7px] text-slate-400 uppercase font-black tracking-widest block">RUN RATE</span>
+                            <span class="font-mono font-black text-teal-800 text-xs mt-0.5">€ ${runRate}</span>
+                        </div>
+                        ${editActions}
                     </div>
                 </div>
-                
-                <div class="flex items-center justify-end w-7/12">
-                    <div class="text-right pr-4 border-r border-slate-100 hidden sm:block">
-                        <span class="text-[7px] text-slate-400 uppercase font-black tracking-widest block">VALIDITY SCOPE</span>
-                        <span class="font-mono font-bold text-slate-600 text-[10px] mt-0.5">${startStr} ➔ ${expDateStr} <span class="text-slate-400 ml-0.5">(${term}M)</span></span>
-                    </div>
-                    <div class="text-right pl-4">
-                        <span class="text-[7px] text-slate-400 uppercase font-black tracking-widest block">RUN RATE</span>
-                        <span class="font-mono font-black text-teal-800 text-xs mt-0.5">€ ${runRate}</span>
-                    </div>
-                    ${editActions}
+                <div id="master-body-${mId}" class="${isExpanded ? 'block' : 'hidden'} border-t border-slate-100 bg-slate-50/40 p-2 space-y-1">
+                    ${childContractsHtml}
                 </div>
-            </div>
-            
-            <div id="master-body-${mId}" class="${isExpanded ? 'block' : 'hidden'} border-t border-slate-100 bg-slate-50/40 p-2 space-y-1">
-                ${childContractsHtml}
-            </div>
-        </div>
-        `;
+            </div>`;
         },
 
-        /**
-         * Genera la riga di dettaglio del singolo contratto operativo (Cliccabile in Read-Only)
-         */
         getContractChildRowMarkup: function (contract, globalEditMode) {
             const cId = contract["Contract ID"] || 'N/A';
             const entity = contract["Legal Entity"] || 'UNMAPPED ENTITY';
             const status = (contract["Status"] || "ACTIVE").toUpperCase().trim();
-            
+
             const formatStrDate = (v) => v ? new Date(v).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : 'N/A';
             const start = formatStrDate(contract["Start Date"]);
             const end = formatStrDate(contract["Contract End Date"] || contract["End Date"]);
             const term = contract["Contract Term (Months)"] || '-';
-            
+
             const totCommit = parseFloat(contract["Total Commitment"] || 0).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             const runRate = parseFloat(contract["Annual Value"] || 0).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             const expType = contract["Expenditure Type"] || 'OPEX';
@@ -323,52 +253,47 @@
                 statusBadge = `<span class="px-1 py-0.5 rounded text-[6px] font-black uppercase tracking-widest border bg-amber-50 text-amber-600 border-amber-100 leading-none shrink-0">${status}</span>`;
             }
 
-            // Comandi rapidi di clone/edit visibili in Edit Mode
             const editActions = globalEditMode ? `
-            <div class="flex items-center gap-1.5 ml-3" onclick="event.stopPropagation()">
-                <button onclick="InventoryController.triggerCloneContract('${cId}')" class="h-6 w-6 p-1 bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 rounded-md transition-all shadow-3xs group cursor-pointer" title="CLONE LINE">
-                    <svg class="w-3.5 h-3.5 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                </button>
-                <button onclick="InventoryController.triggerEditContract('${cId}')" class="h-6 w-6 p-1 bg-slate-50 text-slate-400 hover:text-teal-600 hover:bg-teal-50 border border-slate-200 rounded-md transition-all shadow-3xs group cursor-pointer" title="EDIT ALLOCATION">
-                    <svg class="w-3.5 h-3.5 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg>
-                </button>
-            </div>
-        ` : '';
+                <div class="flex items-center gap-1.5 ml-3" onclick="event.stopPropagation()">
+                    <button onclick="InventoryController.triggerCloneContract('${cId}')" class="h-6 w-6 p-1 bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 rounded-md transition-all shadow-3xs group cursor-pointer" title="CLONE LINE">
+                        <svg class="w-3.5 h-3.5 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                    </button>
+                    <button onclick="InventoryController.triggerEditContract('${cId}')" class="h-6 w-6 p-1 bg-slate-50 text-slate-400 hover:text-teal-600 hover:bg-teal-50 border border-slate-200 rounded-md transition-all shadow-3xs group cursor-pointer" title="EDIT ALLOCATION">
+                        <svg class="w-3.5 h-3.5 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg>
+                    </button>
+                </div>
+            ` : '';
 
             return `
-        <div onclick="InventoryController.triggerEditContract('${cId}')" class="cursor-pointer flex items-center justify-between p-2 mb-1 last:mb-0 bg-white border border-slate-100 rounded-lg shadow-3xs hover:border-teal-200 hover:shadow-sm transition-all group/child">
-            
-            <div class="flex items-center gap-2.5 w-5/12 min-w-0">
-                <span class="px-1.5 py-0.5 bg-slate-100 text-slate-500 font-black text-[7px] uppercase tracking-widest rounded border border-slate-200/60 shrink-0">${expType}</span>
-                <div class="min-w-0">
-                    <div class="flex items-center gap-1.5">
-                        <div class="font-black text-slate-700 text-[10px] uppercase tracking-wide truncate" title="${entity}">${entity}</div>
-                        ${statusBadge}
+            <div onclick="InventoryController.triggerEditContract('${cId}')" class="cursor-pointer flex items-center justify-between p-2 mb-1 last:mb-0 bg-white border border-slate-100 rounded-lg shadow-3xs hover:border-teal-200 hover:shadow-sm transition-all group/child">
+                <div class="flex items-center gap-2.5 w-5/12 min-w-0">
+                    <span class="px-1.5 py-0.5 bg-slate-100 text-slate-500 font-black text-[7px] uppercase tracking-widest rounded border border-slate-200/60 shrink-0">${expType}</span>
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-1.5">
+                            <div class="font-black text-slate-700 text-[10px] uppercase tracking-wide truncate" title="${entity}">${entity}</div>
+                            ${statusBadge}
+                        </div>
+                        <div class="text-[8px] font-mono text-slate-400 mt-0.5 truncate">ID: ${cId}</div>
                     </div>
-                    <div class="text-[8px] font-mono text-slate-400 mt-0.5 truncate">ID: ${cId}</div>
                 </div>
-            </div>
-            
-            <div class="flex items-center justify-end w-7/12">
-                <div class="text-right border-r border-slate-100 pr-3 hidden sm:block">
-                    <span class="text-[6px] text-slate-400 uppercase font-black tracking-widest block">LIFECYCLE</span>
-                    <span class="text-[9px] font-mono font-medium text-slate-500">${start} ➔ ${end} <span class="text-slate-400 text-[8px]">(${term}M)</span></span>
+                <div class="flex items-center justify-end w-7/12">
+                    <div class="text-right border-r border-slate-100 pr-3 hidden sm:block">
+                        <span class="text-[6px] text-slate-400 uppercase font-black tracking-widest block">LIFECYCLE</span>
+                        <span class="text-[9px] font-mono font-medium text-slate-500">${start} ➔ ${end} <span class="text-slate-400 text-[8px]">(${term}M)</span></span>
+                    </div>
+                    <div class="text-right border-r border-slate-100 px-3 hidden md:block">
+                        <span class="text-[6px] text-slate-400 uppercase font-black tracking-widest block">TOTAL COMMITMENT</span>
+                        <span class="text-[9px] font-mono font-bold text-slate-600">€ ${totCommit}</span>
+                    </div>
+                    <div class="text-right pl-3">
+                        <span class="text-[6px] text-slate-400 uppercase font-black tracking-widest block">RUN RATE</span>
+                        <span class="text-[9px] font-mono font-black text-slate-700">€ ${runRate}</span>
+                    </div>
+                    ${editActions}
                 </div>
-                <div class="text-right border-r border-slate-100 px-3 hidden md:block">
-                    <span class="text-[6px] text-slate-400 uppercase font-black tracking-widest block">TOTAL COMMITMENT</span>
-                    <span class="text-[9px] font-mono font-bold text-slate-600">€ ${totCommit}</span>
-                </div>
-                <div class="text-right pl-3">
-                    <span class="text-[6px] text-slate-400 uppercase font-black tracking-widest block">RUN RATE</span>
-                    <span class="text-[9px] font-mono font-black text-slate-700">€ ${runRate}</span>
-                </div>
-                ${editActions}
-            </div>
-        </div>
-        `;
+            </div>`;
         },
 
-        // --- FUNZIONI DI FORMATTAZIONE BADGE SPOSTATE NEL TEMPLATE ---
         getCurrentStatusBadge: function (status) {
             const val = (status || "").toUpperCase().trim();
             const styles = {
@@ -379,27 +304,23 @@
                 'EXPIRED': 'text-rose-700 bg-rose-50 border-rose-100',
                 'DISMISSED': 'text-slate-500 bg-slate-50 border-slate-200'
             };
-            return `<span
-    class="px-2 py-0.5 text-[9px] font-bold rounded-full border ${styles[val] || 'text-slate-400 bg-slate-50 border-slate-100'}">${val}</span>`;
+            return `<span class="px-2 py-0.5 text-[9px] font-bold rounded-full border ${styles[val] || 'text-slate-400 bg-slate-50 border-slate-100'}">${val}</span>`;
         },
 
         getTargetStatusText: function (target) {
             const val = (target || "").toUpperCase().trim();
             const colors = { 'RETAIN': 'text-emerald-600', 'EXIT': 'text-rose-600', 'HANDOVER': 'text-sky-600' };
-            return `<span
-    class="text-[10px] font-black tracking-widest uppercase ${colors[val] || 'text-slate-400'}">${val}</span>`;
+            return `<span class="text-[10px] font-black tracking-widest uppercase ${colors[val] || 'text-slate-400'}">${val}</span>`;
         },
 
         getBudgetStatusBadge: function (budgetStatus) {
             const val = (budgetStatus || "").toUpperCase().trim();
-            if (val === "SECURED") return `<span class="flex items-center gap-1.5 text-slate-600 font-medium"><span
-        class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> SECURED</span>`;
-            if (val === "AT RISK") return `<span class="flex items-center gap-1.5 text-slate-600 font-medium"><span
-        class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> AT RISK</span>`;
+            if (val === "SECURED") return `<span class="flex items-center gap-1.5 text-slate-600 font-medium"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> SECURED</span>`;
+            if (val === "AT RISK") return `<span class="flex items-center gap-1.5 text-slate-600 font-medium"><span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> AT RISK</span>`;
             return `<span class="text-slate-300">—</span>`;
         }
-
     };
-    
+
+    // Aggancio del riferimento per la funzione chiamata in js_inventory_controller
     InventoryTemplates.getTemplateOfMasterAccordion = InventoryTemplates.getMasterAccordionCard;
 </script>
