@@ -168,10 +168,6 @@
         if (!window.originalPayloadSnapshot) return;
         console.log("⏪ MEMENTO: Ripristino snapshot in memoria...");
 
-        // Salva il contesto dei Contratti prima del ripristino
-        const activeAsset = typeof ContractsState !== 'undefined' ? ContractsState.currentSelectedAsset : null;
-        const activeMaster = typeof ContractsState !== 'undefined' && ContractsState.currentMasterData ? ContractsState.currentMasterData["Master Contract ID"] : null;
-
         // Restituisce la RAM allo stato di Snapshot a latenza zero
         windowPayload = JSON.parse(JSON.stringify(window.originalPayloadSnapshot));
 
@@ -184,26 +180,20 @@
         if (typeof setEditModeActive !== 'undefined') setEditModeActive(false);
 
         // Ricarica la vista basandosi sul tab attivo (SENZA chiamare il server!)
-        if (window.currentActiveTabId === 'tab-contracts' && typeof toggleGlobalEditMode !== 'undefined') {
+        if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined') {
+            InventoryController.initWorkspace(); 
+        } else if (window.currentActiveTabId === 'tab-contracts') {
             ContractsState.globalEditMode = false;
-            // Ricarica l'asset e il master selezionati per non mostrare schermata vuota
-            if (activeAsset) {
-                selectAssetForManagement(activeAsset.name, activeAsset.id);
-                if (activeMaster) loadFullMasterDetailArchitecture(activeMaster);
-            } else {
-                document.getElementById('tab-contracts').innerHTML = ContractsTemplates.getBaseLayout();
-                renderAssetSearchList();
-            }
+            document.getElementById('tab-contracts').innerHTML = ContractsTemplates.getBaseLayout();
+            renderAssetSearchList();
         } else if (window.currentActiveTabId === 'tab-operations' && typeof InitiativesController !== 'undefined') {
             InitiativesState.globalEditMode = false;
             InitiativesController.renderKanbanBoard(true);
         } else if (window.currentActiveTabId === 'tab-timeline' && typeof TimelineController !== 'undefined') {
             TimelineState.isTimelineEditable = false;
             TimelineController.initTimelineWorkspace(windowPayload);
-        } else {
-            // Selezioni che non hanno un proprio render engine locale
-            fetchLiveData();
         }
+        
         FinOpsUI.showNotificationBanner("Modifiche scartate. Dati ripristinati.", "success");
     };
 

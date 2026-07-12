@@ -10,13 +10,15 @@
     }
 
     // --- Tab Router Override ---
-    const originalSwitchTab = switchTab;
+    const originalSwitchTabContracts = switchTab;
     switchTab = function (tabId) {
-        originalSwitchTab(tabId);
+        originalSwitchTabContracts(tabId);
         if (tabId === 'tab-contracts') {
             if (!window.isContractsLayoutRendered) {
-                document.getElementById('tab-contracts').innerHTML = ContractsTemplates.getBaseLayout();
-                window.isContractsLayoutRendered = true;
+                if (typeof ContractsTemplates !== 'undefined') {
+                    document.getElementById('tab-contracts').innerHTML = ContractsTemplates.getBaseLayout();
+                    window.isContractsLayoutRendered = true;
+                }
             }
 
             document.getElementById('mgmt-asset-search-input').value = '';
@@ -224,6 +226,27 @@
         const fileInput = document.getElementById('upload-files');
         const hasFiles = fileInput && fileInput.files.length > 0;
 
+        const wrapUpMasterSave = () => {
+            ContractsState.updateMasterEditState(false);
+            ContractsState.hasUnsavedChanges = true;
+            if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
+
+            // ⚡ AGGIORNAMENTO RAM GLOBALE PER RENDER IMMEDIATO NEGLI ASSET
+            const mIndex = windowPayload.masterContracts.findIndex(m => m["Master Contract ID"] === ContractsState.currentMasterData["Master Contract ID"]);
+            if (mIndex > -1) windowPayload.masterContracts[mIndex] = ContractsState.currentMasterData;
+            else windowPayload.masterContracts.push(ContractsState.currentMasterData);
+
+            if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined') {
+                const mountPoint = document.getElementById('contracts-modal-mount-point');
+                if (mountPoint) { mountPoint.classList.add('hidden'); mountPoint.classList.remove('flex'); mountPoint.innerHTML = ''; }
+                InventoryState.loadAssetDrillDownData(ContractsState.currentSelectedAsset.name);
+                InventoryController.renderContractsTabContent(InventoryState.expandedAssetId);
+                InventoryController.applyFiltersAndSort();
+            } else {
+                renderMasterFormBox();
+            }
+        };
+
         if (hasFiles) {
             showLoading();
             let filesData = [];
@@ -245,9 +268,7 @@
                                 urls.forEach(u => { if (!currentLinks.includes(u)) currentLinks.push(u); });
                                 data["Contract Links"] = currentLinks.join(', ');
                                 hideLoading();
-                                ContractsState.updateMasterEditState(false);
-                                ContractsState.hasUnsavedChanges = true;
-                                renderMasterFormBox();
+                                wrapUpMasterSave();
                             },
                             (err) => { hideLoading(); alert("Upload Error: " + err.message); }
                         );
@@ -257,9 +278,7 @@
             });
         } else {
             data["Contract Links"] = baseLinks;
-            ContractsState.updateMasterEditState(false);
-            ContractsState.hasUnsavedChanges = true;
-            renderMasterFormBox();
+            wrapUpMasterSave();
         }
     }
 
@@ -488,40 +507,52 @@
     function finalizeRowSave(item, id) {
         hideLoading();
 
-        // 🌟 1. ISOMORFISMO TOTALE: Il Client usa il Mapper e l'entità Contract pura!
         const dto = ContractMapper.toDto(item.data, CONTRACT_FIELD_MAP);
         const contract = new Contract(dto);
-        item.data = contract.exportToData(); // BOOM! Logica identica al server a latenza zero
+        item.data = contract.exportToData();
 
         item.isEditing = false;
         ContractsState.hasUnsavedChanges = true;
         if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
 
-        // 🌟 2. ISOMORFISMO SUL MASTER: Aggiorniamo MasterContract in RAM con Date sicure
+        // ⚡ AGGIORNAMENTO RAM GLOBALE DELLA RIGA
+        const cIndex = windowPayload.contracts.findIndex(c => c["Contract ID"] === item.data["Contract ID"]);
+        if (cIndex > -1) windowPayload.contracts[cIndex] = item.data;
+        else windowPayload.contracts.push(item.data);
+
         if (ContractsState.currentMasterData) {
             const masterDto = ContractMapper.toDto(ContractsState.currentMasterData, MASTER_FIELD_MAP);
             const master = new MasterContract(masterDto);
 
             ContractsState.currentDetailItems.forEach(childItem => {
                 const childDto = ContractMapper.toDto(childItem.data, CONTRACT_FIELD_MAP);
-                // Assicuriamoci che le date siano oggetti Date per far funzionare i calcoli Min/Max
                 if (childDto.startDate) childDto.startDate = new Date(childDto.startDate);
                 if (childDto.contractEndDate) childDto.contractEndDate = new Date(childDto.contractEndDate);
                 if (childDto.adjustedEndDate) childDto.adjustedEndDate = new Date(childDto.adjustedEndDate);
-
                 master.addChild(new Contract(childDto));
             });
 
             const linkedInits = (windowPayload.initiatives || []).filter(i => String(i["Master Contract ID"]).trim() === String(master.id).trim());
             ContractsState.currentMasterData = master.exportToData(linkedInits);
+
+            // ⚡ AGGIORNAMENTO RAM GLOBALE DEL MASTER PADRE
+            const mIndex = windowPayload.masterContracts.findIndex(m => m["Master Contract ID"] === master.id);
+            if (mIndex > -1) windowPayload.masterContracts[mIndex] = ContractsState.currentMasterData;
+            else windowPayload.masterContracts.push(ContractsState.currentMasterData);
         }
 
         if (window.ContractsController && window.ContractsController.closeContractModalWindow) {
             window.ContractsController.closeContractModalWindow();
         }
 
-        renderMasterFormBox();
-        renderDetailItemsTable();
+        if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined') {
+            InventoryState.loadAssetDrillDownData(ContractsState.currentSelectedAsset.name);
+            InventoryController.renderContractsTabContent(InventoryState.expandedAssetId);
+            InventoryController.applyFiltersAndSort();
+        } else {
+            renderMasterFormBox();
+            renderDetailItemsTable();
+        }
     }
 
     function addNewDetailRowItem() {
@@ -994,8 +1025,14 @@
         },
 
         openContractModalWindow: function (id) {
-            const mountPoint = document.getElementById('contracts-modal-mount-point');
-            if (!mountPoint) return;
+            let mountPoint = document.getElementById('contracts-modal-mount-point');
+            if (!mountPoint) {
+                mountPoint = document.createElement('div');
+                mountPoint.id = 'contracts-modal-mount-point';
+                mountPoint.className = 'hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4';
+                mountPoint.onclick = (e) => { if (e.target === mountPoint) this.closeContractModalWindow(); };
+                document.body.appendChild(mountPoint);
+            }
 
             const item = ContractsState.currentDetailItems.find(i => i.id === id);
             if (!item) return;
@@ -1021,12 +1058,118 @@
                 ? item.ledger.map(l => ContractsTemplates.getLedgerRow(item.id, l)).join('')
                 : `<p class="text-[9px] text-slate-400 italic text-center py-2 empty-ledger-msg bg-slate-50 rounded-md">No manual ledger movements yet.</p>`;
 
-            mountPoint.innerHTML = ContractsTemplates.getContractModalFormStructure(id, leList, tgOptions, locList, soList, ccList, docLinks, splitsHtml, ledgerHtml, d);
+            const mData = ContractsState.currentMasterData || {};
+            const masterStartStr = mData["Master Start Date"] ? ContractsUtils.formatToEnglishCustomDate(mData["Master Start Date"]) : 'N/A';
+            const masterEndStr = mData["Master End Date"] ? ContractsUtils.formatToEnglishCustomDate(mData["Master End Date"]) : 'N/A';
+            const masterCommitment = (parseFloat(mData["Total Commitment"] || mData.totalCommitment) || 0).toLocaleString('it-IT');
+
+            const isEditActive = typeof ContractsState !== 'undefined' && ContractsState.globalEditMode;
+
+            mountPoint.innerHTML = ContractsTemplates.getContractModalFormStructure(
+                id, leList, tgOptions, locList, soList, ccList, docLinks, splitsHtml, ledgerHtml, d,
+                masterStartStr, masterEndStr, masterCommitment,
+                isEditActive 
+            );
 
             mountPoint.classList.remove('hidden');
             mountPoint.classList.add('flex');
 
             this.toggleLedgerVisibility(id);
+        }, openContractModalWindow: function (id) {
+            let mountPoint = document.getElementById('contracts-modal-mount-point');
+            if (!mountPoint) {
+                mountPoint = document.createElement('div');
+                mountPoint.id = 'contracts-modal-mount-point';
+                mountPoint.className = 'hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4';
+                mountPoint.onclick = (e) => { if (e.target === mountPoint) this.closeContractModalWindow(); };
+                document.body.appendChild(mountPoint);
+            }
+
+            const item = ContractsState.currentDetailItems.find(i => i.id === id);
+            if (!item) return;
+            item.isEditing = true;
+
+            const d = item.data;
+            const docLinks = (d["Contract Links"] || d.contractLinks || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
+
+            const leList = ContractsUtils.extractUniqueField(windowPayload.legalEntities, "Legal Entity");
+            const locList = ContractsUtils.extractUniqueField(windowPayload.locations, "Location");
+            const ccList = ContractsUtils.extractUniqueField(windowPayload.costCenters, "Cost Center");
+            const soList = ContractsUtils.extractUniqueField(windowPayload.contracts, "Service Owner");
+            const tgOptions = ContractsState.currentAssetGroupIds.map(g => `<option value="${g}" ${g === d["Target Group ID"] ? 'selected' : ''}>${g}</option>`).join('');
+
+            const baseLeOptions = leList.map(le => `<option value="${le}">${le}</option>`).join('');
+            const baseCcOptions = ccList.map(cc => `<option value="${cc}">${cc}</option>`).join('');
+
+            let splitsHtml = item.splits && item.splits.length > 0
+                ? item.splits.map(s => ContractsTemplates.getSplitRow(item.id, s, d["Start Date"]?.split('T')[0] || "", d["Contract End Date"]?.split('T')[0] || "", baseLeOptions, baseCcOptions)).join('')
+                : `<p class="text-[9px] text-emerald-600 font-medium text-center py-2 empty-split-msg bg-emerald-50/50 rounded-md">➔ Standard Allocation Active (100% to main entity).</p>`;
+
+            let ledgerHtml = item.ledger && item.ledger.length > 0
+                ? item.ledger.map(l => ContractsTemplates.getLedgerRow(item.id, l)).join('')
+                : `<p class="text-[9px] text-slate-400 italic text-center py-2 empty-ledger-msg bg-slate-50 rounded-md">No manual ledger movements yet.</p>`;
+
+            const mData = ContractsState.currentMasterData || {};
+            const masterStartStr = mData["Master Start Date"] ? ContractsUtils.formatToEnglishCustomDate(mData["Master Start Date"]) : 'N/A';
+            const masterEndStr = mData["Master End Date"] ? ContractsUtils.formatToEnglishCustomDate(mData["Master End Date"]) : 'N/A';
+            const masterCommitment = (parseFloat(mData["Total Commitment"] || mData.totalCommitment) || 0).toLocaleString('it-IT');
+
+            // ⚡ FIX: Aggiunto ContractsState.globalEditMode come ultimo parametro per far compilare i campi!
+            mountPoint.innerHTML = ContractsTemplates.getContractModalFormStructure(id, leList, tgOptions, locList, soList, ccList, docLinks, splitsHtml, ledgerHtml, d, masterStartStr, masterEndStr, masterCommitment, ContractsState.globalEditMode);
+
+            mountPoint.classList.remove('hidden');
+            mountPoint.classList.add('flex');
+
+            this.toggleLedgerVisibility(id);
+        },
+
+        openMasterModalWindow: function (masterId) {
+            let mountPoint = document.getElementById('contracts-modal-mount-point');
+            if (!mountPoint) {
+                mountPoint = document.createElement('div');
+                mountPoint.id = 'contracts-modal-mount-point';
+                mountPoint.className = 'hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4';
+                mountPoint.onclick = (e) => { if (e.target === mountPoint) this.cancelMasterFormEditState(false); };
+                document.body.appendChild(mountPoint);
+            }
+
+            // ⚡ FIX: Ignoriamo la lookup globale se l'ID è vuoto (New Master)
+            if (masterId) {
+                ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
+                const assetMatch = windowPayload.assets.find(a => a["Asset Name"] === windowPayload.masterContracts.find(m => m["Master Contract ID"] === masterId)["Asset Name"]);
+                if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"], id: assetMatch["Asset ID"] };
+            }
+
+            const data = ContractsState.currentMasterData;
+            const isNew = data["Master Contract ID"] === "";
+            const suppliersList = ContractsUtils.extractUniqueField(windowPayload.masterContracts || windowPayload.contracts, "Supplier");
+            const masterLinks = (data["Contract Links"] || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
+
+            const formHtml = ContractsTemplates.getMasterEditCard(data, isNew, suppliersList, masterLinks);
+
+            mountPoint.innerHTML = `
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 w-full max-w-3xl shadow-2xl relative animate-fade-in text-xs flex flex-col" onclick="if(typeof FinOpsSelect !== 'undefined') FinOpsSelect.closeAll(event); event.stopPropagation();">
+                ${formHtml}
+            </div>`;
+
+            mountPoint.classList.remove('hidden');
+            mountPoint.classList.add('flex');
+        },
+
+        cancelMasterFormEditState: function (isNew) {
+            if (window.currentActiveTabId === 'tab-inventory') {
+                const mountPoint = document.getElementById('contracts-modal-mount-point');
+                if (mountPoint) { mountPoint.classList.add('hidden'); mountPoint.classList.remove('flex'); mountPoint.innerHTML = ''; }
+                return;
+            }
+            if (isNew) {
+                document.getElementById('mgmt-master-form-container').classList.add('hidden');
+                ContractsState.currentMasterData = null;
+                ContractsState.currentDetailItems = [];
+            } else {
+                ContractsState.updateMasterEditState(false);
+                renderMasterFormBox();
+            }
         },
 
         closeContractModalWindow: function () {
@@ -1046,17 +1189,6 @@
             });
 
             renderDetailItemsTable();
-        },
-
-        cancelMasterFormEditState: function (isNew) {
-            if (isNew) {
-                document.getElementById('mgmt-master-form-container').classList.add('hidden');
-                ContractsState.currentMasterData = null;
-                ContractsState.currentDetailItems = [];
-            } else {
-                ContractsState.updateMasterEditState(false);
-                renderMasterFormBox();
-            }
         },
 
         filterSupplierOptions: function (query) {
