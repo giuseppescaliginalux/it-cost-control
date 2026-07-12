@@ -509,7 +509,7 @@
 
         const dto = ContractMapper.toDto(item.data, CONTRACT_FIELD_MAP);
         const contract = new Contract(dto);
-        item.data = contract.exportToData();
+        item.data = contract.exportToData(); 
 
         item.isEditing = false;
         ContractsState.hasUnsavedChanges = true;
@@ -1188,7 +1188,7 @@
                 return true;
             });
 
-            renderDetailItemsTable();
+                renderDetailItemsTable();
         },
 
         filterSupplierOptions: function (query) {

@@ -47,8 +47,8 @@
                             <div>
                                 <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Search Asset</label>
                                 <div class="relative">
-                                    <input type="text" id="search-input" onkeyup="InventoryController.applyFiltersAndSort()" placeholder="🔍 Name or Manufacturer..." class="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-shadow">
-                                </div>
+                                <input type="text" id="search-input" onkeyup="InventoryController.applyFiltersAndSort()" placeholder="🔍 Name or Manufacturer..." class="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-shadow">
+                            </div>
                             </div>
 
                             <div>
@@ -304,12 +304,12 @@
             const cId = contract["Contract ID"] || 'N/A';
             const entity = contract["Legal Entity"] || 'UNMAPPED ENTITY';
             const status = (contract["Status"] || "ACTIVE").toUpperCase().trim();
-
+            
             const formatStrDate = (v) => v ? new Date(v).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : 'N/A';
             const start = formatStrDate(contract["Start Date"]);
             const end = formatStrDate(contract["Contract End Date"] || contract["End Date"]);
             const term = contract["Contract Term (Months)"] || '-';
-
+            
             const totCommit = parseFloat(contract["Total Commitment"] || 0).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             const runRate = parseFloat(contract["Annual Value"] || 0).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             const expType = contract["Expenditure Type"] || 'OPEX';
@@ -400,6 +400,6 @@
         }
 
     };
-
+    
     InventoryTemplates.getTemplateOfMasterAccordion = InventoryTemplates.getMasterAccordionCard;
 </script>
