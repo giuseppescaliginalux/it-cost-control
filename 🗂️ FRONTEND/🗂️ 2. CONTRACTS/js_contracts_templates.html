@@ -17,6 +17,11 @@
                 
                 <div class="flex items-center justify-end gap-3 shrink-0 flex-nowrap w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0">
                     
+                    <button onclick="ContractsController.discardLocalChanges()" id="contracts-discard-btn" class="hidden px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-[11px] uppercase tracking-wider rounded-xl border border-rose-200 transition-all items-center justify-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer shadow-sm">
+                        <svg class="w-4 h-4 text-rose-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        <span>Discard Changes</span>
+                    </button>
+
                     <button onclick="saveCurrentContract()" id="contracts-commit-btn" class="hidden px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white font-black text-[11px] uppercase tracking-wider rounded-xl shadow-md transition-all items-center justify-center gap-1.5 shrink-0 whitespace-nowrap">
                         <svg class="w-4 h-4 text-white shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
                         <span>Commit & Push</span>
@@ -53,7 +58,7 @@
                         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
                             <div class="flex justify-between items-center pb-2 border-b border-slate-200 mb-4">
                                 <h3 class="text-xs font-black text-slate-700 uppercase tracking-widest">Step 3: Granular Items Allocation (Contracts table)</h3>
-                                <button onclick="addNewDetailRowItem()" id="btn-add-contract-row" style="display: none;" class="px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 font-black text-[10px] uppercase tracking-wider rounded-lg hover:bg-emerald-100 transition-colors shadow-sm shrink-0">Add Contract Line 📄</button>
+                                <button onclick="addNewDetailRowItem()" id="btn-add-contract-row" style="display: none;" class="px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 font-black text-[10px] uppercase tracking-wider rounded-lg hover:bg-emerald-100 transition-colors shadow-sm shrink-0 cursor-pointer">Add Contract Line 📄</button>
                             </div>
                             <div id="mgmt-detailRowsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[600px] overflow-y-auto pr-1.5 pb-2"></div>
                         </div>
@@ -154,13 +159,21 @@
         getMasterEditCard: function (data, isNew, suppliersList, masterLinks) {
             const currentSupplier = data["Supplier"] || data.supplier || '';
             const bChannel = data["Billing Channel"] || data.billingChannel || 'Direct Vendor';
+            
+            const childCount = (typeof ContractsState !== 'undefined' && ContractsState.currentDetailItems) ? ContractsState.currentDetailItems.length : 0;
+            const deleteBtnHtml = `
+                <button onclick="ContractsController.deleteCurrentMaster()" class="px-2.5 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors flex items-center justify-center shrink-0 border border-rose-200 shadow-3xs cursor-pointer ${childCount > 0 ? 'opacity-50 cursor-not-allowed' : ''}" title="${childCount > 0 ? 'Cannot delete master with active contracts' : 'Delete temporary master'}">
+                    <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </button>
+            `;
 
             return `
             <div class="flex justify-between items-center border-b border-slate-200 pb-2 mb-4">
                 <h3 class="text-xs font-black text-slate-700 uppercase tracking-widest">Master Info Setup</h3>
-                <div class="flex gap-2">
-                    <button onclick="ContractsController.cancelMasterFormEditState(${isNew})" class="px-3 py-1.5 text-[10px] font-black uppercase text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">Cancel</button>
-                    <button onclick="confirmMasterEditLocalChanges()" class="px-4 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-lg font-black text-[10px] uppercase tracking-wider shadow-md transition-colors">Confirm Master</button>
+                <div class="flex gap-2 items-center">
+                    ${deleteBtnHtml}
+                    <button onclick="ContractsController.cancelMasterFormEditState(${isNew})" class="px-3 py-1.5 text-[10px] font-black uppercase text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer">Cancel</button>
+                    <button onclick="confirmMasterEditLocalChanges()" class="px-4 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-lg font-black text-[10px] uppercase tracking-wider shadow-md transition-colors cursor-pointer">Confirm Master</button>
                 </div>
             </div>
             
@@ -210,7 +223,7 @@
                             ${masterLinks.map((url, idx) => `
                                 <div class="flex items-center gap-0 bg-indigo-50 border border-indigo-200 rounded-md shadow-sm overflow-hidden group">
                                     <a href="#" target="_blank" class="live-doc-link px-2 py-0.5 text-indigo-700 hover:bg-indigo-600 hover:text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-1 transition-colors" data-raw="${url.trim()}">Doc ${idx + 1}</a>
-                                    <button type="button" onclick="ContractsUtils.removeDocumentLink(event, '${url.trim()}', true)" class="px-1.5 py-0.5 text-indigo-400 hover:bg-rose-500 hover:text-white transition-colors border-l border-indigo-200">×</button>
+                                    <button type="button" onclick="ContractsUtils.removeDocumentLink(event, '${url.trim()}', true)" class="px-1.5 py-0.5 text-indigo-400 hover:bg-rose-500 hover:text-white transition-colors border-l border-indigo-200 cursor-pointer">×</button>
                                 </div>`).join('')}
                         </div>
                     </div>` : ''}

@@ -208,6 +208,8 @@
 
         const wrapUpMasterSave = () => {
             ContractsState.updateMasterEditState(false);
+
+            // Segnaliamo le modifiche alla UI (Accensione tasto Commit)
             ContractsState.hasUnsavedChanges = true;
             if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
 
@@ -465,41 +467,27 @@
     function finalizeRowSave(item, id) {
         hideLoading();
 
-        // 1. Gestione sicura del Contract ID (fondamentale per poter ri-clonare un clone appena fatto)
-        const cIdProp = typeof CONTRACT_FIELD_MAP !== 'undefined' && CONTRACT_FIELD_MAP["Contract ID"] ? CONTRACT_FIELD_MAP["Contract ID"] : "contractId";
-        let cId = item.data["Contract ID"] || item.data[cIdProp];
-        if (!cId || cId.trim() === "") {
-            cId = "TMP-CTR-" + Date.now() + Math.floor(Math.random() * 1000);
-            item.data["Contract ID"] = cId;
-            if (cIdProp !== "Contract ID") item.data[cIdProp] = cId;
-        }
-
-        // 2. Protezione Referenziale: Ereditarietà da Master (Asset e Supplier inclusi)
         if (ContractsState.currentMasterData) {
-            const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' && MASTER_FIELD_MAP["Master Contract ID"] ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
+            const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
             const mId = ContractsState.currentMasterData["Master Contract ID"] || ContractsState.currentMasterData[mIdProp];
-            
-            const assetName = ContractsState.currentSelectedAsset ? ContractsState.currentSelectedAsset.name : (ContractsState.currentMasterData["Asset Name"] || "");
-            const supplier = ContractsState.currentMasterData["Supplier"] || "";
-
             item.data["Master Contract ID"] = mId;
-            item.data["Asset Name"] = assetName;
-            item.data["Supplier"] = supplier;
-
-            if (typeof CONTRACT_FIELD_MAP !== 'undefined') {
-                if (CONTRACT_FIELD_MAP["Master Contract ID"]) item.data[CONTRACT_FIELD_MAP["Master Contract ID"]] = mId;
-                if (CONTRACT_FIELD_MAP["Asset Name"]) item.data[CONTRACT_FIELD_MAP["Asset Name"]] = assetName;
-                if (CONTRACT_FIELD_MAP["Supplier"]) item.data[CONTRACT_FIELD_MAP["Supplier"]] = supplier;
+            if (typeof CONTRACT_FIELD_MAP !== 'undefined' && CONTRACT_FIELD_MAP["Master Contract ID"]) {
+                item.data[CONTRACT_FIELD_MAP["Master Contract ID"]] = mId;
             }
         }
 
         const dto = ContractMapper.toDto(item.data, CONTRACT_FIELD_MAP);
         const contract = new Contract(dto);
-        item.data = contract.exportToData(); 
+        item.data = contract.exportToData();
 
         item.isEditing = false;
+
+        // Segnaliamo le modifiche alla UI (Accensione tasto Commit)
         ContractsState.hasUnsavedChanges = true;
         if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
+
+        const cIdProp = typeof CONTRACT_FIELD_MAP !== 'undefined' ? CONTRACT_FIELD_MAP["Contract ID"] : "contractId";
+        const cId = item.data["Contract ID"] || item.data[cIdProp];
 
         const cIndex = windowPayload.contracts.findIndex(c => (c["Contract ID"] || c[cIdProp]) === cId);
         if (cIndex > -1) windowPayload.contracts[cIndex] = item.data;
@@ -517,13 +505,13 @@
                 master.addChild(new Contract(childDto));
             });
 
-            const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' && MASTER_FIELD_MAP["Master Contract ID"] ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
+            const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
             const linkedInits = (windowPayload.initiatives || []).filter(i => String(i["Master Contract ID"] || i.masterId).trim() === String(master.id).trim());
             ContractsState.currentMasterData = master.exportToData(linkedInits);
-            
+
             const mId = ContractsState.currentMasterData["Master Contract ID"] || ContractsState.currentMasterData[mIdProp];
             const mIndex = windowPayload.masterContracts.findIndex(m => (m["Master Contract ID"] || m[mIdProp]) === mId);
-            
+
             if (mIndex > -1) windowPayload.masterContracts[mIndex] = ContractsState.currentMasterData;
             else windowPayload.masterContracts.push(ContractsState.currentMasterData);
         }
@@ -640,6 +628,12 @@
                         windowPayload.ledger
                     );
 
+                    // ⚡ AGGIORNAMENTO SNAPSHOT GLOBALE: Questo fissa il nuovo "Punto di Ripristino"
+                    if (typeof window.originalPayloadSnapshot !== 'undefined') {
+                        window.originalPayloadSnapshot = JSON.parse(JSON.stringify(windowPayload));
+                    }
+                    setPendingChanges(false);
+
                     if (typeof DashboardState !== 'undefined') DashboardState.loadCachePayload(windowPayload);
                     if (typeof ProjectionsState !== 'undefined') ProjectionsState.loadPayload(windowPayload);
                     if (typeof initInventoryTab === 'function') initInventoryTab();
@@ -657,6 +651,85 @@
     }
 
     window.ContractsController = {
+
+        // ⚡ GESTIONE ELIMINAZIONE MASTER
+        deleteCurrentMaster: function () {
+            if (ContractsState.currentDetailItems.length > 0) {
+                FinOpsUI.showAlert("Warning", "Cannot delete a Master Agreement that contains active contract lines. Please remove the lines first.");
+                return;
+            }
+
+            FinOpsUI.showConfirm("Delete Master", "Are you sure you want to permanently remove this Master Agreement?", () => {
+                const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
+                const mId = ContractsState.currentMasterData["Master Contract ID"] || ContractsState.currentMasterData[mIdProp];
+
+                // Rimuovi fisicamente dalla memoria locale
+                windowPayload.masterContracts = windowPayload.masterContracts.filter(m => (m["Master Contract ID"] || m[mIdProp]) !== mId);
+
+                ContractsState.currentMasterData = null;
+                ContractsState.currentDetailItems = [];
+
+                // Ripulisci la UI della modale
+                const mountPoint = document.getElementById('contracts-modal-mount-point');
+                if (mountPoint) { mountPoint.classList.add('hidden'); mountPoint.classList.remove('flex'); mountPoint.innerHTML = ''; }
+
+                const formContainer = document.getElementById('mgmt-master-form-container');
+                if (formContainer) formContainer.classList.add('hidden');
+
+                // Notifica UI che ci sono cambiamenti in attesa di push
+                ContractsState.hasUnsavedChanges = true;
+                if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
+
+                // Ridisegna in base al tab svuotando la cache
+                if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined') {
+                    if (InventoryState.expandedAssetId) {
+                        const assetObj = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"] || a.assetName)).replace(/=/g, "") === InventoryState.expandedAssetId);
+                        if (assetObj) {
+                            InventoryState.loadAssetDrillDownData(assetObj["Asset Name"] || assetObj.assetName);
+                        }
+                    }
+                    InventoryController.renderContractsTabContent(InventoryState.expandedAssetId);
+                    InventoryController.applyFiltersAndSort();
+                } else {
+                    if (typeof renderMasterFormBox === 'function') renderMasterFormBox();
+                    if (typeof renderMasterContractsList === 'function' && ContractsState.currentSelectedAsset) {
+                        const assetMasters = windowPayload.masterContracts.filter(m => (m["Asset Name"] || "").toString().toLowerCase() === ContractsState.currentSelectedAsset.name.toLowerCase());
+                        renderMasterContractsList(assetMasters);
+                    }
+                }
+            });
+        },
+
+        // ⚡ GESTIONE DISCARD CHANGES CON SVUOTAMENTO CACHE INVENTORY
+        discardLocalChanges: function () {
+            FinOpsUI.showConfirm("Discard Changes", "Are you sure you want to revert all local modifications? All new uncommitted items will be permanently lost.", () => {
+
+                // 1. Chiudiamo tutte le modali di Contratto per evitare glitch visivi
+                const mountPoint = document.getElementById('contracts-modal-mount-point');
+                if (mountPoint) { mountPoint.classList.add('hidden'); mountPoint.classList.remove('flex'); mountPoint.innerHTML = ''; }
+
+                const formContainer = document.getElementById('mgmt-master-form-container');
+                if (formContainer) formContainer.classList.add('hidden');
+
+                // 2. Chiamata alla funzione Core globale che fa il ripristino del windowPayload
+                if (typeof window.revertLocalChanges === 'function') {
+                    window.revertLocalChanges();
+                }
+
+                // 3. FIX CRITICO: Pulizia della cache specifica dell'Inventory Tab
+                // Senza questo, il tab Inventory continua a mostrare i cloni appena "cancellati"
+                if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined' && typeof InventoryState !== 'undefined') {
+                    if (InventoryState.expandedAssetId) {
+                        const assetObj = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"] || a.assetName)).replace(/=/g, "") === InventoryState.expandedAssetId);
+                        if (assetObj) {
+                            // Ricarica i dati freschi dal windowPayload appena ripristinato dal Core
+                            InventoryState.loadAssetDrillDownData(assetObj["Asset Name"] || assetObj.assetName);
+                            InventoryController.renderContractsTabContent(InventoryState.expandedAssetId);
+                        }
+                    }
+                }
+            });
+        },
 
         switchContractModalTab: function (tabId, detailId) {
             const tabs = ['general', 'ledger', 'splits', 'metadata'];
