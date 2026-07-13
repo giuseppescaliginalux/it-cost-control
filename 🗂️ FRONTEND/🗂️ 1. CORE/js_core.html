@@ -164,6 +164,7 @@
         }
     };
 
+    // ⚡ FIX: Aggiornamento della cache locale per rimuovere i contratti "fantasma" nell'Inventory
     window.revertLocalChanges = function () {
         if (!window.originalPayloadSnapshot) return;
         console.log("⏪ MEMENTO: Ripristino snapshot in memoria...");
@@ -179,9 +180,17 @@
         setPendingChanges(false);
         if (typeof setEditModeActive !== 'undefined') setEditModeActive(false);
 
-        // Ricarica la vista basandosi sul tab attivo (SENZA chiamare il server!)
+        // Ricarica la vista basandosi sul tab attivo
         if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined') {
             InventoryController.initWorkspace(); 
+            // ⚡ Se un accordion era aperto, forza il reload dei suoi dati figli dalla RAM appena pulita
+            if (typeof InventoryState !== 'undefined' && InventoryState.expandedAssetId) {
+                const assetObj = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"] || a.assetName)).replace(/=/g, "") === InventoryState.expandedAssetId);
+                if (assetObj) {
+                    InventoryState.loadAssetDrillDownData(assetObj["Asset Name"] || assetObj.assetName);
+                    InventoryController.renderContractsTabContent(InventoryState.expandedAssetId);
+                }
+            }
         } else if (window.currentActiveTabId === 'tab-contracts') {
             ContractsState.globalEditMode = false;
             document.getElementById('tab-contracts').innerHTML = ContractsTemplates.getBaseLayout();
@@ -194,7 +203,7 @@
             TimelineController.initTimelineWorkspace(windowPayload);
         }
         
-        FinOpsUI.showNotificationBanner("Modifiche scartate. Dati ripristinati.", "success");
+        FinOpsUI.showNotificationBanner("Changes discarded. Registry restored.", "success");
     };
 
     window.triggerGlobalCommit = function () {
