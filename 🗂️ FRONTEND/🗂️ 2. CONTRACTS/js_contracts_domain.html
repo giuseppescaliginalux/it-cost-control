@@ -395,10 +395,25 @@ class MasterContract {
     const hasActiveChilds = childStatuses.includes("ACTIVE");
     const hasUpcomingChilds = childStatuses.includes("UPCOMING");
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     (linkedInitiatives || []).forEach(init => {
       const initStatus = String(init["Initiative Status"] || init.status || "").toUpperCase().trim();
       const decision = String(init["Decision"] || init.decision || "").toUpperCase().trim();
-      if (initStatus === "COMPLETED" && ["TERMINATE", "REPLACE", "TRANSFER"].includes(decision)) checkTerminated++;
+      
+      if (initStatus === "COMPLETED" && ["TERMINATE", "REPLACE", "TRANSFER"].includes(decision)) {
+        let isPastTargetDate = true;
+        const targetDateStr = init["Target Date"] || init.targetDate;
+        if (targetDateStr) {
+            const tDate = new Date(targetDateStr);
+            if (!isNaN(tDate.getTime()) && tDate > today) {
+                isPastTargetDate = false;
+            }
+        }
+        if (isPastTargetDate) checkTerminated++;
+      }
+      
       if (initStatus === "IN PROGRESS") checkNegotiation++;
     });
 

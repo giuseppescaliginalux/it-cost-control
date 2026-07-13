@@ -199,7 +199,6 @@
         const fileInput = document.getElementById('upload-files');
         const hasFiles = fileInput && fileInput.files.length > 0;
 
-        // Iniezione forzata dell'Asset Name per i nuovi Master
         if (ContractsState.currentSelectedAsset && ContractsState.currentSelectedAsset.name) {
             data["Asset Name"] = ContractsState.currentSelectedAsset.name;
             if (typeof MASTER_FIELD_MAP !== 'undefined' && MASTER_FIELD_MAP["Asset Name"]) {
@@ -462,28 +461,45 @@
         }
     }
 
+    // ⚡ Iniezione forzata di Asset Name, Supplier e Contract ID prima del salvataggio
     function finalizeRowSave(item, id) {
         hideLoading();
 
+        // 1. Gestione sicura del Contract ID (fondamentale per poter ri-clonare un clone appena fatto)
+        const cIdProp = typeof CONTRACT_FIELD_MAP !== 'undefined' && CONTRACT_FIELD_MAP["Contract ID"] ? CONTRACT_FIELD_MAP["Contract ID"] : "contractId";
+        let cId = item.data["Contract ID"] || item.data[cIdProp];
+        if (!cId || cId.trim() === "") {
+            cId = "TMP-CTR-" + Date.now() + Math.floor(Math.random() * 1000);
+            item.data["Contract ID"] = cId;
+            if (cIdProp !== "Contract ID") item.data[cIdProp] = cId;
+        }
+
+        // 2. Protezione Referenziale: Ereditarietà da Master (Asset e Supplier inclusi)
         if (ContractsState.currentMasterData) {
-            const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
+            const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' && MASTER_FIELD_MAP["Master Contract ID"] ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
             const mId = ContractsState.currentMasterData["Master Contract ID"] || ContractsState.currentMasterData[mIdProp];
+            
+            const assetName = ContractsState.currentSelectedAsset ? ContractsState.currentSelectedAsset.name : (ContractsState.currentMasterData["Asset Name"] || "");
+            const supplier = ContractsState.currentMasterData["Supplier"] || "";
+
             item.data["Master Contract ID"] = mId;
+            item.data["Asset Name"] = assetName;
+            item.data["Supplier"] = supplier;
+
             if (typeof CONTRACT_FIELD_MAP !== 'undefined') {
-                item.data[CONTRACT_FIELD_MAP["Master Contract ID"]] = mId;
+                if (CONTRACT_FIELD_MAP["Master Contract ID"]) item.data[CONTRACT_FIELD_MAP["Master Contract ID"]] = mId;
+                if (CONTRACT_FIELD_MAP["Asset Name"]) item.data[CONTRACT_FIELD_MAP["Asset Name"]] = assetName;
+                if (CONTRACT_FIELD_MAP["Supplier"]) item.data[CONTRACT_FIELD_MAP["Supplier"]] = supplier;
             }
         }
 
         const dto = ContractMapper.toDto(item.data, CONTRACT_FIELD_MAP);
         const contract = new Contract(dto);
-        item.data = contract.exportToData();
+        item.data = contract.exportToData(); 
 
         item.isEditing = false;
         ContractsState.hasUnsavedChanges = true;
         if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
-
-        const cIdProp = typeof CONTRACT_FIELD_MAP !== 'undefined' ? CONTRACT_FIELD_MAP["Contract ID"] : "contractId";
-        const cId = item.data["Contract ID"] || item.data[cIdProp];
 
         const cIndex = windowPayload.contracts.findIndex(c => (c["Contract ID"] || c[cIdProp]) === cId);
         if (cIndex > -1) windowPayload.contracts[cIndex] = item.data;
@@ -501,13 +517,13 @@
                 master.addChild(new Contract(childDto));
             });
 
-            const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
+            const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' && MASTER_FIELD_MAP["Master Contract ID"] ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
             const linkedInits = (windowPayload.initiatives || []).filter(i => String(i["Master Contract ID"] || i.masterId).trim() === String(master.id).trim());
             ContractsState.currentMasterData = master.exportToData(linkedInits);
-
+            
             const mId = ContractsState.currentMasterData["Master Contract ID"] || ContractsState.currentMasterData[mIdProp];
             const mIndex = windowPayload.masterContracts.findIndex(m => (m["Master Contract ID"] || m[mIdProp]) === mId);
-
+            
             if (mIndex > -1) windowPayload.masterContracts[mIndex] = ContractsState.currentMasterData;
             else windowPayload.masterContracts.push(ContractsState.currentMasterData);
         }
@@ -530,11 +546,10 @@
         ContractsState.addNewDetailRow();
         const latestItem = ContractsState.currentDetailItems[ContractsState.currentDetailItems.length - 1];
 
-        // Assicura la presenza del Contract ID Temporaneo e l'aggancio al Master
         if (!latestItem.data["Contract ID"] && !latestItem.data.contractId) {
             const tempId = "TMP-CTR-" + Date.now();
             latestItem.data["Contract ID"] = tempId;
-            if (typeof CONTRACT_FIELD_MAP !== 'undefined') {
+            if (typeof CONTRACT_FIELD_MAP !== 'undefined' && CONTRACT_FIELD_MAP["Contract ID"]) {
                 latestItem.data[CONTRACT_FIELD_MAP["Contract ID"]] = tempId;
             }
         }
@@ -542,7 +557,7 @@
         const mData = ContractsState.currentMasterData;
         const mId = mData["Master Contract ID"] || mData.masterId;
         latestItem.data["Master Contract ID"] = mId;
-        if (typeof CONTRACT_FIELD_MAP !== 'undefined') {
+        if (typeof CONTRACT_FIELD_MAP !== 'undefined' && CONTRACT_FIELD_MAP["Master Contract ID"]) {
             latestItem.data[CONTRACT_FIELD_MAP["Master Contract ID"]] = mId;
         }
 
@@ -642,6 +657,7 @@
     }
 
     window.ContractsController = {
+
         switchContractModalTab: function (tabId, detailId) {
             const tabs = ['general', 'ledger', 'splits', 'metadata'];
             tabs.forEach(t => {
@@ -889,15 +905,19 @@
             if (panel) panel.classList.toggle('hidden');
         },
 
+        // ⚡ Spostamento modale sul document.body (visibile ovunque)
         openContractModalWindow: function (id) {
             let mountPoint = document.getElementById('contracts-modal-mount-point');
+            // Assicuriamoci che stia sempre nel body, anche se il tab-contracts lo aveva generato lì dentro
+            if (mountPoint && mountPoint.parentElement !== document.body) document.body.appendChild(mountPoint);
+
             if (!mountPoint) {
                 mountPoint = document.createElement('div');
                 mountPoint.id = 'contracts-modal-mount-point';
                 mountPoint.className = 'hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4';
-                mountPoint.onclick = (e) => { if (e.target === mountPoint) this.closeContractModalWindow(); };
                 document.body.appendChild(mountPoint);
             }
+            mountPoint.onclick = (e) => { if (e.target === mountPoint) this.closeContractModalWindow(); };
 
             const item = ContractsState.currentDetailItems.find(i => i.id === id);
             if (!item) return;
@@ -937,7 +957,7 @@
 
             this.toggleLedgerVisibility(id);
 
-            // ⚡ FIX: Innesco dell'API Asincrona per tradurre i nomi dei file (Aggiunto!)
+            // API Asincrona Documenti
             if (docLinks.length > 0 && typeof ContractsAPI !== 'undefined') {
                 const targetLinks = mountPoint.querySelectorAll('.live-doc-link');
                 if (targetLinks.length > 0) {
@@ -948,15 +968,18 @@
             }
         },
 
+        // ⚡ Modale Master Globale con Read-Only dinamico
         openMasterModalWindow: function (masterId) {
             let mountPoint = document.getElementById('contracts-modal-mount-point');
+            if (mountPoint && mountPoint.parentElement !== document.body) document.body.appendChild(mountPoint);
+
             if (!mountPoint) {
                 mountPoint = document.createElement('div');
                 mountPoint.id = 'contracts-modal-mount-point';
                 mountPoint.className = 'hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4';
-                mountPoint.onclick = (e) => { if (e.target === mountPoint) this.cancelMasterFormEditState(false); };
                 document.body.appendChild(mountPoint);
             }
+            mountPoint.onclick = (e) => { if (e.target === mountPoint) this.cancelMasterFormEditState(false); };
 
             const isEditActive = typeof ContractsState !== 'undefined' && ContractsState.globalEditMode;
 
@@ -976,7 +999,6 @@
             const masterLinks = (data["Contract Links"] || data.contractLinks || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
 
             let formHtml = '';
-
             if (isEditActive) {
                 formHtml = ContractsTemplates.getMasterEditCard(data, isNew, suppliersList, masterLinks);
             } else {
@@ -1004,15 +1026,19 @@
             mountPoint.classList.remove('hidden');
             mountPoint.classList.add('flex');
 
-            if (!isEditActive && masterLinks.length > 0) {
+            // API Asincrona Documenti (se in readonly)
+            if (!isEditActive && masterLinks.length > 0 && typeof ContractsAPI !== 'undefined') {
                 const targetLinks = mountPoint.querySelectorAll('.live-doc-link');
-                if (targetLinks.length > 0 && typeof ContractsAPI !== 'undefined') {
+                if (targetLinks.length > 0) {
                     const rawUrls = Array.from(targetLinks).map(el => el.getAttribute('data-raw'));
                     const uniqueUrlsString = [...new Set(rawUrls)].join(',');
                     ContractsAPI.resolveLiveDocumentNames(uniqueUrlsString, targetLinks);
                 }
             }
         },
+
+        // Export fondamentale per permettere l'innesco dal tab Inventory
+        addNewDetailRowItem: function () { addNewDetailRowItem(); },
 
         cancelMasterFormEditState: function (isNew) {
             if (window.currentActiveTabId === 'tab-inventory') {
