@@ -27,6 +27,24 @@
                 if (budgetValDisplay) budgetValDisplay.textContent = InventoryState.filters.minRunRate.toLocaleString('it-IT');
             }
 
+            // ⚡ FIX: Lettura dinamica di tutti i checkbox selezionati nella UI
+            const getCheckedValues = (containerId) => {
+                const container = document.getElementById(containerId);
+                if (!container) return [];
+                return Array.from(container.querySelectorAll('input:checked')).map(cb => cb.value);
+            };
+
+            InventoryState.filters.status = getCheckedValues('status-filter-container');
+            InventoryState.filters.budgetStatus = getCheckedValues('budget-status-filter-container');
+            InventoryState.filters.driver = getCheckedValues('driver-filter-container');
+
+            InventoryState.filters.channel = getCheckedValues('filter-container-channel');
+            InventoryState.filters.expType = getCheckedValues('filter-container-exp');
+            InventoryState.filters.legalEntity = getCheckedValues('filter-container-legal');
+            InventoryState.filters.supplier = getCheckedValues('filter-container-supplier');
+            InventoryState.filters.costCenter = getCheckedValues('filter-container-costcenter');
+            InventoryState.filters.location = getCheckedValues('filter-container-location');
+
             const filteredAssets = InventoryState.getFilteredAndSortedAssets();
             const tableBody = document.getElementById('live-table-body');
             if (!tableBody) return;
@@ -216,12 +234,12 @@
             if (!contentDiv) return;
 
             const assetContracts = InventoryState.currentDrillDownData.contracts || [];
-            
+
             const targetAssetObj = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"] || a.assetName)).replace(/=/g, "") === safeDOMId);
             const actualAssetName = targetAssetObj ? (targetAssetObj["Asset Name"] || targetAssetObj.assetName) : "";
 
             const allMasters = windowPayload.masterContracts || [];
-            
+
             // ⚡ Filtro che include anche i master vuoti dell'asset selezionato
             const filteredMasters = allMasters.filter(m => {
                 const mAsset = (m["Asset Name"] || m.assetName || "").trim().toLowerCase();
@@ -250,7 +268,7 @@
             filteredMasters.forEach(master => {
                 const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
                 const mId = master["Master Contract ID"] || master[mIdProp] || master.masterId;
-                
+
                 let childContracts = assetContracts.filter(c => {
                     const childMId = c["Master Contract ID"] || c.masterId || "";
                     return String(childMId).trim() === String(mId).trim();
@@ -262,7 +280,7 @@
                     const dEndB = b["Adjusted End Date"] || b.adjustedEndDate || b["Contract End Date"] || b.contractEndDate || b["End Date"] || b.endDate;
                     const timeA = dEndA ? new Date(dEndA).getTime() : 0;
                     const timeB = dEndB ? new Date(dEndB).getTime() : 0;
-                    return timeB - timeA; 
+                    return timeB - timeA;
                 });
 
                 let childRowsHtml = '';
@@ -306,14 +324,14 @@
             if (typeof window.ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
                 const contractObj = windowPayload.contracts.find(c => (c["Contract ID"] || c.contractId) === contractId);
                 const masterId = contractObj ? (contractObj["Master Contract ID"] || contractObj.masterId) : null;
-                
+
                 if (masterId) {
                     ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
                     const masterMatch = windowPayload.masterContracts.find(m => (m["Master Contract ID"] || m.masterId) === masterId);
                     const assetName = masterMatch ? (masterMatch["Asset Name"] || masterMatch.assetName) : null;
                     const assetMatch = windowPayload.assets.find(a => (a["Asset Name"] || a.assetName) === assetName);
                     if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"] || assetMatch.assetName, id: assetMatch["Asset ID"] || assetMatch.assetId };
-                    
+
                     const item = ContractsState.currentDetailItems.find(i => (i.data["Contract ID"] || i.data.contractId) === contractId);
                     if (item) window.ContractsController.openContractModalWindow(item.id);
                 }
@@ -327,7 +345,7 @@
                 const assetName = masterMatch ? (masterMatch["Asset Name"] || masterMatch.assetName) : null;
                 const assetMatch = windowPayload.assets.find(a => (a["Asset Name"] || a.assetName) === assetName);
                 if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"] || assetMatch.assetName, id: assetMatch["Asset ID"] || assetMatch.assetId };
-                
+
                 window.ContractsController.addNewDetailRowItem();
             }
         },
@@ -343,17 +361,17 @@
         triggerCreateNewMaster: function () {
             if (typeof window.ContractsController !== 'undefined' && InventoryState.expandedAssetId) {
                 const assetMatch = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"] || a.assetName)).replace(/=/g, "") === InventoryState.expandedAssetId);
-                
+
                 if (assetMatch) {
-                    ContractsState.currentSelectedAsset = { 
-                        name: assetMatch["Asset Name"] || assetMatch.assetName, 
-                        id: assetMatch["Asset ID"] || assetMatch.assetId 
+                    ContractsState.currentSelectedAsset = {
+                        name: assetMatch["Asset Name"] || assetMatch.assetName,
+                        id: assetMatch["Asset ID"] || assetMatch.assetId
                     };
                     ContractsState.resetMaster();
-                    
+
                     const tempId = "TMP-MCT-" + Date.now();
                     ContractsState.currentMasterData["Master Contract ID"] = tempId;
-                    
+
                     if (typeof MASTER_FIELD_MAP !== 'undefined' && MASTER_FIELD_MAP["Master Contract ID"]) {
                         ContractsState.currentMasterData[MASTER_FIELD_MAP["Master Contract ID"]] = tempId;
                     }
@@ -361,7 +379,7 @@
                     if (typeof MASTER_FIELD_MAP !== 'undefined' && MASTER_FIELD_MAP["Asset Name"]) {
                         ContractsState.currentMasterData[MASTER_FIELD_MAP["Asset Name"]] = ContractsState.currentSelectedAsset.name;
                     }
-                    
+
                     window.ContractsController.openMasterModalWindow("");
                 }
             }
@@ -371,11 +389,11 @@
             if (typeof window.ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
                 const contractObj = windowPayload.contracts.find(c => (c["Contract ID"] || c.contractId) === contractId);
                 const masterId = contractObj ? (contractObj["Master Contract ID"] || contractObj.masterId) : null;
-                
+
                 if (masterId) {
                     ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
                     const item = ContractsState.currentDetailItems.find(i => (i.data["Contract ID"] || i.data.contractId) === contractId);
-                    
+
                     if (item && ContractsState.cloneDetailRow(item.id)) {
                         const latestItem = ContractsState.currentDetailItems[ContractsState.currentDetailItems.length - 1];
                         window.ContractsController.openContractModalWindow(latestItem.id);

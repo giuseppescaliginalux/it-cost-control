@@ -192,8 +192,17 @@
 
     function confirmMasterEditLocalChanges() {
         const data = ContractsState.currentMasterData;
-        data["Supplier"] = document.getElementById('ins-masterSupplier').value;
-        data["Scope"] = document.getElementById('ins-masterScope').value.trim();
+        const supplierInput = document.getElementById('ins-masterSupplier').value.trim();
+        const scopeInput = document.getElementById('ins-masterScope').value.trim();
+
+        // ⚡ FIX: Hard-stop per validazione campi obbligatori
+        if (!supplierInput || !scopeInput) {
+            FinOpsUI.showAlert("Validation Error", "Supplier Context and Master Scope are strictly mandatory to create or modify an agreement.");
+            return;
+        }
+
+        data["Supplier"] = supplierInput;
+        data["Scope"] = scopeInput;
         data["Comments"] = document.getElementById('ins-masterComments').value.trim();
         const baseLinks = document.getElementById('ins-masterDocumentLink').value.trim();
         const fileInput = document.getElementById('upload-files');

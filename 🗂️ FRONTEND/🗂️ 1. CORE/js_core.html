@@ -13,6 +13,23 @@
     Number.prototype.formatCurrency = function () {
         return this.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
     }
+
+    // ⚡ FIX: Formattatore compatto globale estratto dalle proiezioni
+    window.formatKM = function (num) {
+        if (!num || isNaN(num) || num === 0) return "0";
+        const absNum = Math.abs(num);
+        const sign = num < 0 ? "-" : "";
+        if (absNum >= 1000000) {
+            const m = absNum / 1000000;
+            return sign + (m >= 100 ? m.toFixed(0) : m.toFixed(1)) + 'M';
+        }
+        if (absNum >= 1000) {
+            const k = absNum / 1000;
+            return sign + (k >= 100 ? k.toFixed(0) : k.toFixed(1)) + 'k';
+        }
+        return sign + absNum.toFixed(0);
+    };
+
     Date.prototype.formatDashboardDate = function () {
         if (isNaN(this.getTime())) return "-";
         return this.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
