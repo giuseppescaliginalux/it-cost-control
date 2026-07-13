@@ -216,15 +216,22 @@
             if (!contentDiv) return;
 
             const assetContracts = InventoryState.currentDrillDownData.contracts || [];
-            const linkedMasterIds = [...new Set(assetContracts.map(c => String(c["Master Contract ID"] || c.masterId).trim()).filter(Boolean))];
+            
+            // Troviamo il nome Asset corrispondente al safeDOMId
+            const targetAssetObj = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"] || a.assetName)).replace(/=/g, "") === safeDOMId);
+            const actualAssetName = targetAssetObj ? (targetAssetObj["Asset Name"] || targetAssetObj.assetName) : "";
 
             const allMasters = windowPayload.masterContracts || [];
-            const filteredMasters = allMasters.filter(m => linkedMasterIds.includes(String(m["Master Contract ID"] || m.masterId).trim()));
+            
+            // ⚡ Filtriamo i Master in base all'Asset, così i nuovi Master (vuoti) non spariscono
+            const filteredMasters = allMasters.filter(m => {
+                const mAsset = (m["Asset Name"] || m.assetName || "").trim().toLowerCase();
+                return mAsset === actualAssetName.trim().toLowerCase();
+            });
 
             let newMasterBtnHtml = '';
             const isEditActive = typeof ContractsState !== 'undefined' && ContractsState.globalEditMode;
 
-            // ⚡ TASTO NEW MASTER SCOLPITO E COORDINATO ALLA PALETTE
             if (isEditActive) {
                 newMasterBtnHtml = `
                 <div class="flex justify-end mb-3 animate-fade-in">
@@ -242,8 +249,23 @@
 
             let htmlBuffer = newMasterBtnHtml + `<div class="flex flex-col gap-0">`;
             filteredMasters.forEach(master => {
-                const mId = master["Master Contract ID"] || master.masterId;
-                const childContracts = assetContracts.filter(c => String(c["Master Contract ID"] || c.masterId).trim() === String(mId).trim());
+                const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
+                const mId = master["Master Contract ID"] || master[mIdProp] || master.masterId;
+                
+                // Troviamo i contratti di questo master
+                let childContracts = assetContracts.filter(c => {
+                    const childMId = c["Master Contract ID"] || c.masterId || "";
+                    return String(childMId).trim() === String(mId).trim();
+                });
+
+                // ⚡ Ordinamento per Data di Scadenza Decrescente (End Date Desc)
+                childContracts.sort((a, b) => {
+                    const dEndA = a["Adjusted End Date"] || a.adjustedEndDate || a["Contract End Date"] || a.contractEndDate || a["End Date"] || a.endDate;
+                    const dEndB = b["Adjusted End Date"] || b.adjustedEndDate || b["Contract End Date"] || b.contractEndDate || b["End Date"] || b.endDate;
+                    const timeA = dEndA ? new Date(dEndA).getTime() : 0;
+                    const timeB = dEndB ? new Date(dEndB).getTime() : 0;
+                    return timeB - timeA; 
+                });
 
                 let childRowsHtml = '';
                 childContracts.forEach(c => { childRowsHtml += InventoryTemplates.getContractChildRowMarkup(c, isEditActive); });
@@ -254,6 +276,14 @@
             });
             htmlBuffer += `</div>`;
             contentDiv.innerHTML = htmlBuffer;
+
+            // ⚡ Innesco dell'API Asincrona per tradurre i nomi dei file
+            const targetLinks = contentDiv.querySelectorAll('.live-doc-link');
+            if (targetLinks.length > 0 && typeof ContractsAPI !== 'undefined') {
+                const rawUrls = Array.from(targetLinks).map(el => el.getAttribute('data-raw'));
+                const uniqueUrlsString = [...new Set(rawUrls)].join(',');
+                ContractsAPI.resolveLiveDocumentNames(uniqueUrlsString, targetLinks);
+            }
         },
 
         toggleMasterAccordion: function (masterId) {
@@ -324,13 +354,15 @@
                     };
                     ContractsState.resetMaster();
                     
-                    // ⚡ GENERA ID TEMPORANEO IN RAM: Impedisce l'assenza visiva pre-commit
-                    const tempId = "TEMP_MCT_" + Date.now();
+                    // ⚡ GENERA ID TEMPORANEO IN RAM
+                    const tempId = "TMP-MCT-" + Date.now();
                     ContractsState.currentMasterData["Master Contract ID"] = tempId;
                     
                     if (typeof MASTER_FIELD_MAP !== 'undefined') {
                         ContractsState.currentMasterData[MASTER_FIELD_MAP["Master Contract ID"]] = tempId;
                         ContractsState.currentMasterData[MASTER_FIELD_MAP["Asset Name"]] = ContractsState.currentSelectedAsset.name;
+                    } else {
+                        ContractsState.currentMasterData["Asset Name"] = ContractsState.currentSelectedAsset.name;
                     }
                     
                     window.ContractsController.openMasterModalWindow("");

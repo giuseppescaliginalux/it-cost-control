@@ -199,12 +199,19 @@
         const fileInput = document.getElementById('upload-files');
         const hasFiles = fileInput && fileInput.files.length > 0;
 
+        // Iniezione forzata dell'Asset Name per i nuovi Master
+        if (ContractsState.currentSelectedAsset && ContractsState.currentSelectedAsset.name) {
+            data["Asset Name"] = ContractsState.currentSelectedAsset.name;
+            if (typeof MASTER_FIELD_MAP !== 'undefined' && MASTER_FIELD_MAP["Asset Name"]) {
+                data[MASTER_FIELD_MAP["Asset Name"]] = ContractsState.currentSelectedAsset.name;
+            }
+        }
+
         const wrapUpMasterSave = () => {
             ContractsState.updateMasterEditState(false);
             ContractsState.hasUnsavedChanges = true;
             if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
 
-            // ⚡ MAPPATURA DOMINIO
             const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
             const mId = data["Master Contract ID"] || data[mIdProp];
 
@@ -214,7 +221,7 @@
 
             if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined') {
                 const mountPoint = document.getElementById('contracts-modal-mount-point');
-                if(mountPoint) { mountPoint.classList.add('hidden'); mountPoint.classList.remove('flex'); mountPoint.innerHTML = ''; }
+                if (mountPoint) { mountPoint.classList.add('hidden'); mountPoint.classList.remove('flex'); mountPoint.innerHTML = ''; }
                 InventoryState.loadAssetDrillDownData(ContractsState.currentSelectedAsset.name);
                 InventoryController.renderContractsTabContent(InventoryState.expandedAssetId);
                 InventoryController.applyFiltersAndSort();
@@ -224,7 +231,6 @@
         };
 
         if (hasFiles) {
-            // ... (Tieni invariato tutto il blocco FileReader del caricamento) ...
             showLoading();
             let filesData = []; let filesProcessed = 0;
             const supplier = data["Supplier"] || "Unknown_Supplier";
@@ -459,18 +465,26 @@
     function finalizeRowSave(item, id) {
         hideLoading();
 
+        if (ContractsState.currentMasterData) {
+            const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
+            const mId = ContractsState.currentMasterData["Master Contract ID"] || ContractsState.currentMasterData[mIdProp];
+            item.data["Master Contract ID"] = mId;
+            if (typeof CONTRACT_FIELD_MAP !== 'undefined') {
+                item.data[CONTRACT_FIELD_MAP["Master Contract ID"]] = mId;
+            }
+        }
+
         const dto = ContractMapper.toDto(item.data, CONTRACT_FIELD_MAP);
         const contract = new Contract(dto);
-        item.data = contract.exportToData(); 
+        item.data = contract.exportToData();
 
         item.isEditing = false;
         ContractsState.hasUnsavedChanges = true;
         if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
 
-        // ⚡ MAPPATURA DOMINIO PER IL CONTRATTO E IL MASTER
         const cIdProp = typeof CONTRACT_FIELD_MAP !== 'undefined' ? CONTRACT_FIELD_MAP["Contract ID"] : "contractId";
         const cId = item.data["Contract ID"] || item.data[cIdProp];
-        
+
         const cIndex = windowPayload.contracts.findIndex(c => (c["Contract ID"] || c[cIdProp]) === cId);
         if (cIndex > -1) windowPayload.contracts[cIndex] = item.data;
         else windowPayload.contracts.push(item.data);
@@ -490,10 +504,10 @@
             const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
             const linkedInits = (windowPayload.initiatives || []).filter(i => String(i["Master Contract ID"] || i.masterId).trim() === String(master.id).trim());
             ContractsState.currentMasterData = master.exportToData(linkedInits);
-            
+
             const mId = ContractsState.currentMasterData["Master Contract ID"] || ContractsState.currentMasterData[mIdProp];
             const mIndex = windowPayload.masterContracts.findIndex(m => (m["Master Contract ID"] || m[mIdProp]) === mId);
-            
+
             if (mIndex > -1) windowPayload.masterContracts[mIndex] = ContractsState.currentMasterData;
             else windowPayload.masterContracts.push(ContractsState.currentMasterData);
         }
@@ -515,6 +529,23 @@
     function addNewDetailRowItem() {
         ContractsState.addNewDetailRow();
         const latestItem = ContractsState.currentDetailItems[ContractsState.currentDetailItems.length - 1];
+
+        // Assicura la presenza del Contract ID Temporaneo e l'aggancio al Master
+        if (!latestItem.data["Contract ID"] && !latestItem.data.contractId) {
+            const tempId = "TMP-CTR-" + Date.now();
+            latestItem.data["Contract ID"] = tempId;
+            if (typeof CONTRACT_FIELD_MAP !== 'undefined') {
+                latestItem.data[CONTRACT_FIELD_MAP["Contract ID"]] = tempId;
+            }
+        }
+
+        const mData = ContractsState.currentMasterData;
+        const mId = mData["Master Contract ID"] || mData.masterId;
+        latestItem.data["Master Contract ID"] = mId;
+        if (typeof CONTRACT_FIELD_MAP !== 'undefined') {
+            latestItem.data[CONTRACT_FIELD_MAP["Master Contract ID"]] = mId;
+        }
+
         window.ContractsController.openContractModalWindow(latestItem.id);
     }
 
@@ -917,16 +948,14 @@
                 document.body.appendChild(mountPoint);
             }
 
+            const isEditActive = typeof ContractsState !== 'undefined' && ContractsState.globalEditMode;
+
             if (masterId) {
                 ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
-                
-                // ⚡ MAPPATURA DOMINIO
                 const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
                 const mAssetProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Asset Name"] : "assetName";
-                
                 const masterObj = windowPayload.masterContracts.find(m => (m["Master Contract ID"] || m[mIdProp]) === masterId);
                 const assetName = masterObj ? (masterObj["Asset Name"] || masterObj[mAssetProp]) : null;
-                
                 const assetMatch = windowPayload.assets.find(a => (a["Asset Name"] || a.assetName) === assetName);
                 if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"] || assetMatch.assetName, id: assetMatch["Asset ID"] || assetMatch.assetId };
             }
@@ -936,7 +965,26 @@
             const suppliersList = ContractsUtils.extractUniqueField(windowPayload.masterContracts || windowPayload.contracts, "Supplier");
             const masterLinks = (data["Contract Links"] || data.contractLinks || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
 
-            const formHtml = ContractsTemplates.getMasterEditCard(data, isNew, suppliersList, masterLinks);
+            let formHtml = '';
+
+            if (isEditActive) {
+                formHtml = ContractsTemplates.getMasterEditCard(data, isNew, suppliersList, masterLinks);
+            } else {
+                const status = (data["Status"] || "ACTIVE").toUpperCase().trim();
+                const rawStart = data["Master Start Date"] || data.masterStartDate;
+                const rawEnd = data["Master End Date"] || data.masterEndDate;
+                const cleanStart = rawStart ? ContractsUtils.formatToEnglishCustomDate(rawStart) : '—';
+                const cleanEnd = rawEnd ? ContractsUtils.formatToEnglishCustomDate(rawEnd) : '—';
+                let rawTerm = data["contractTerm"] !== undefined ? data["contractTerm"] : (data["Contract Term (Months)"] !== undefined ? data["Contract Term (Months)"] : '—');
+                let termMonths = (typeof rawTerm === 'number' || !isNaN(parseFloat(rawTerm))) ? Math.round(parseFloat(rawTerm)) : rawTerm;
+
+                let statusClass = "bg-slate-50 text-slate-500 border-slate-200";
+                if (status === "ACTIVE") statusClass = "bg-emerald-50 text-emerald-700 border-emerald-200/50";
+                if (status === "EXPIRED" || status === "TERMINATED") statusClass = "bg-rose-50 text-rose-600 border-rose-200/50";
+                if (status === "IN NEGOTIATION") statusClass = "bg-amber-50 text-amber-700 border-amber-200/50";
+
+                formHtml = ContractsTemplates.getMasterReadOnly(data, masterLinks, cleanStart, cleanEnd, termMonths, status, statusClass, isEditActive);
+            }
 
             mountPoint.innerHTML = `
             <div class="bg-white rounded-2xl border border-slate-200 p-6 w-full max-w-3xl shadow-2xl relative animate-fade-in text-xs flex flex-col" onclick="if(typeof FinOpsSelect !== 'undefined') FinOpsSelect.closeAll(event); event.stopPropagation();">
@@ -945,6 +993,15 @@
 
             mountPoint.classList.remove('hidden');
             mountPoint.classList.add('flex');
+
+            if (!isEditActive && masterLinks.length > 0) {
+                const targetLinks = mountPoint.querySelectorAll('.live-doc-link');
+                if (targetLinks.length > 0 && typeof ContractsAPI !== 'undefined') {
+                    const rawUrls = Array.from(targetLinks).map(el => el.getAttribute('data-raw'));
+                    const uniqueUrlsString = [...new Set(rawUrls)].join(',');
+                    ContractsAPI.resolveLiveDocumentNames(uniqueUrlsString, targetLinks);
+                }
+            }
         },
 
         cancelMasterFormEditState: function (isNew) {
