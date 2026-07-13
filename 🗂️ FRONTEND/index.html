@@ -80,7 +80,8 @@
                     </button>
 
                     <div id="global-pending-tabs" class="hidden absolute top-14 right-4 z-40 gap-2 animate-fade-in">
-                        <button id="btn-global-cancel" onclick="FinOpsUI.showConfirm('DISCARD CHANGES', 'Are you sure you want to revert all uncommitted modifications?', window.revertLocalChanges)"
+                        <button id="btn-global-cancel"
+                            onclick="FinOpsUI.showConfirm('DISCARD CHANGES', 'Are you sure you want to revert all uncommitted modifications?', window.revertLocalChanges)"
                             class="h-7 px-3 bg-slate-200 hover:bg-slate-300 text-slate-600 font-black text-[9px] uppercase tracking-widest rounded-b-xl border-x border-b border-slate-300/60 shadow-md cursor-pointer transition-all flex items-center gap-1">
                             <svg class="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"
                                 stroke-width="2.5">
@@ -149,6 +150,8 @@
 
     <?!= include('js_core'); ?>
     <?!= include('js_ui_render'); ?>
+    <?!= include('js_assets_domain'); ?>
+    <?!= include('js_hydration_service'); ?>
 
     <?!= include('js_inventory_state'); ?>
     <?!= include('js_inventory_templates'); ?>

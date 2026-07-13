@@ -61,24 +61,31 @@
         document.getElementById('dashboard-content').classList.add('hidden');
 
         try {
+            // 1. Fetch raw data
             const payload = await apiFetchFullPayload();
-            console.log("⚡ BOOT: Generazione Proiezioni In-Memory (Global Engine)...");
+            
+            // 2. Just-In-Time Hydration per gli stati "stantii"
+            console.log("⚡ BOOT: Healing Temporale degli Status (JIT Hydration)...");
+            const hydratedPayload = HydrationEngine.hydrateAllStatuses(payload);
 
-            payload.projections = ProjectionsEngine.calculateAll(
-                payload.contracts || [],
-                payload.initiatives || [],
-                payload.masterContracts || [],
-                payload.ledger || []
+            // 3. Generazione Finanziaria Dinamica in RAM
+            console.log("⚡ BOOT: Generazione Proiezioni In-Memory (Global Engine)...");
+            hydratedPayload.projections = ProjectionsEngine.calculateAll(
+                hydratedPayload.contracts || [],
+                hydratedPayload.initiatives || [],
+                hydratedPayload.masterContracts || [],
+                hydratedPayload.ledger || []
             );
 
-            windowPayload = payload;
+            windowPayload = hydratedPayload;
 
             // 🌟 MEMENTO PATTERN: Creazione Snapshot disconnesso!
-            window.originalPayloadSnapshot = JSON.parse(JSON.stringify(payload));
-            setPendingChanges(false); // Resetta la UI
+            window.originalPayloadSnapshot = JSON.parse(JSON.stringify(hydratedPayload));
+            setPendingChanges(false);
 
-            globalCachedData = (payload.assets || []).filter(r => (r["Asset Name"] || "").toString().trim() !== "");
+            globalCachedData = (hydratedPayload.assets || []).filter(r => (r["Asset Name"] || "").toString().trim() !== "");
 
+            // ... Il resto della funzione per calcolare i KPI Inventory rimane identico
             globalCachedData.forEach(asset => {
                 const assetName = (asset["Asset Name"] || "").toString().toLowerCase().trim();
                 const projForAsset = windowPayload.projections.filter(p => (p["Asset Name"] || "").toLowerCase().trim() === assetName);
@@ -114,11 +121,10 @@
                 }
             });
 
-            // Rinfresca e popola l'Inventory tab all'avvio leggendo la RAM
             if (typeof InventoryController !== "undefined") InventoryController.initWorkspace();
-            if (typeof updateExecutiveDashboard === "function") updateExecutiveDashboard(payload);
-            if (typeof renderOperationsHub === "function") renderOperationsHub(payload);
-            if (typeof renderProjectionsHub === "function") renderProjectionsHub(payload);
+            if (typeof updateExecutiveDashboard === "function") updateExecutiveDashboard(hydratedPayload);
+            if (typeof renderOperationsHub === "function") renderOperationsHub(hydratedPayload);
+            if (typeof renderProjectionsHub === "function") renderProjectionsHub(hydratedPayload);
 
             document.getElementById('loading-state').classList.add('hidden');
             document.getElementById('dashboard-content').classList.remove('hidden');

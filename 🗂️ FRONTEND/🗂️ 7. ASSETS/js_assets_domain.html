@@ -1,0 +1,114 @@
+<script>
+    /**
+     * js_assets_domain.html
+     * ISOMORPHIC DOMAIN: ASSETS
+     * Gestisce la Macchina a Stati Finiti in condivisione col Backend.
+     */
+
+    const ASSET_FIELD_MAP = {
+        "Asset ID": "id", "Asset Name": "name", "Manufacturer": "manufacturer",
+        "Business Driver": "businessDriver", "Asset Category": "category", "Asset Type": "assetType",
+        "Description": "description", "Budget Status (FY27)": "budgetStatusFY27", "Run Rate": "runRate",
+        "Current Status": "currentStatus", "Target Status": "targetStatus", "Cost Improvement": "costImprovement",
+        "Exit Date": "exitDate", "Transfer Date": "transferDate", "Initiative Target Date": "initiativeTargetDate",
+        "Last End Date": "lastEndDate"
+    };
+
+    const AssetMapper = {
+        toDto: (rawRow) => {
+            const dto = {};
+            const mappedKeys = Object.keys(ASSET_FIELD_MAP);
+            const mappedCamelKeys = Object.values(ASSET_FIELD_MAP);
+            for (let key in rawRow) {
+                if (!mappedKeys.includes(key) && !mappedCamelKeys.includes(key)) dto[key] = rawRow[key];
+            }
+            for (let sheetHeader in ASSET_FIELD_MAP) {
+                const camelProp = ASSET_FIELD_MAP[sheetHeader];
+                let val = rawRow[sheetHeader] !== undefined ? rawRow[sheetHeader] : rawRow[camelProp];
+                dto[camelProp] = val !== undefined && val !== null ? val : "";
+            }
+            return dto;
+        }
+    };
+
+    class Asset {
+        constructor(dto = {}) {
+            this.id = dto.id || ""; this.name = dto.name || ""; this.manufacturer = dto.manufacturer || "";
+            this.businessDriver = dto.businessDriver || ""; this.category = dto.category || ""; this.assetType = dto.assetType || "";
+            this.description = dto.description || ""; this.budgetStatusFY27 = dto.budgetStatusFY27 || "Not Budgeted";
+            this.runRate = parseFloat(dto.runRate) || 0; this.currentStatus = dto.currentStatus || "RUNNING";
+            this.targetStatus = dto.targetStatus || "RETAIN"; this.costImprovement = parseFloat(dto.costImprovement) || 0;
+            this.exitDate = dto.exitDate || ""; this.transferDate = dto.transferDate || "";
+            this.initiativeTargetDate = dto.initiativeTargetDate || ""; this.lastEndDate = dto.lastEndDate || "";
+            
+            this.extraProperties = {};
+            const knownProperties = Object.values(ASSET_FIELD_MAP);
+            for (let key in dto) if (!knownProperties.includes(key)) this.extraProperties[key] = dto[key];
+        }
+
+        injectContext(assetProjections, assetContracts, assetInits, assetVariances) {
+            let maxEndDate = null;
+            assetContracts.forEach(c => {
+                const dEndRaw = c.adjustedEndDate || c["Adjusted End Date"] || c.contractEndDate || c["Contract End Date"];
+                const dEnd = dEndRaw ? new Date(dEndRaw) : null;
+                if (dEnd && !isNaN(dEnd.getTime()) && (!maxEndDate || dEnd > maxEndDate)) maxEndDate = dEnd;
+            });
+            this.lastEndDate = maxEndDate ? FinOpsDate.toIso(maxEndDate) : "";
+
+            let costImprovementSum = 0; let strategy = "RETAIN";
+            let exitDateStr = ""; let transferDateStr = ""; let initTargetDateStr = "";
+            let hasTerminate = false; let hasTransfer = false; let hasOptimize = false;
+
+            assetInits.forEach(init => {
+                const initStatus = String(init.status || init["Initiative Status"] || "").toUpperCase();
+                const decision = String(init.decision || init["Decision"] || "").toUpperCase();
+
+                if (["COMPLETED", "IN PROGRESS"].includes(initStatus)) {
+                    costImprovementSum += parseFloat(init.actualSavingAnnualized || init["Actual Saving (Annualized)"] || init.targetSavingAnnualized || init["Target Saving (Annualized)"] || 0);
+                    const tDateRaw = init.targetDate || init["Target Date"];
+                    if (tDateRaw) {
+                        const dTarget = new Date(tDateRaw);
+                        if (!isNaN(dTarget.getTime())) initTargetDateStr = FinOpsDate.toIso(dTarget);
+                    }
+
+                    if (["TERMINATE", "REPLACE"].includes(decision)) {
+                        hasTerminate = true; strategy = "EXIT";
+                        const dEff = init.actualDate || init["Actual Date"] || init.targetDate || init["Target Date"];
+                        if (dEff) { const d = new Date(dEff); if (!isNaN(d.getTime())) exitDateStr = FinOpsDate.toIso(d); }
+                    } else if (decision === "TRANSFER") {
+                        hasTransfer = true; strategy = "HANDOVER";
+                        const dEff = init.actualDate || init["Actual Date"] || init.targetDate || init["Target Date"];
+                        if (dEff) { const d = new Date(dEff); if (!isNaN(d.getTime())) transferDateStr = FinOpsDate.toIso(d); }
+                    } else if (["OPTIMIZATION", "OPTIMIZE"].includes(decision)) {
+                        hasOptimize = true;
+                    }
+                }
+            });
+
+            this.costImprovement = parseFloat(costImprovementSum.toFixed(2));
+            this.targetStatus = strategy; this.exitDate = exitDateStr;
+            this.transferDate = transferDateStr; this.initiativeTargetDate = initTargetDateStr;
+
+            let computedStatus = "RUNNING";
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+
+            if (hasTransfer) computedStatus = "TRANSFERRED";
+            else if (hasTerminate) computedStatus = (exitDateStr && new Date(exitDateStr) <= today) ? "DISMISSED" : "EXITING";
+            else if (hasOptimize) computedStatus = "OPTIMIZING";
+            else if (maxEndDate && maxEndDate < today) computedStatus = "EXPIRED";
+
+            this.currentStatus = computedStatus;
+        }
+
+        exportToData() {
+            return {
+                ...this.extraProperties, "Asset ID": this.id, "Asset Name": this.name, "Manufacturer": this.manufacturer,
+                "Business Driver": this.businessDriver, "Asset Category": this.category, "Asset Type": this.assetType,
+                "Description": this.description, "Budget Status (FY27)": this.budgetStatusFY27, "Run Rate": this.runRate,
+                "Current Status": this.currentStatus, "Target Status": this.targetStatus, "Cost Improvement": this.costImprovement,
+                "Exit Date": this.exitDate, "Transfer Date": this.transferDate, "Initiative Target Date": this.initiativeTargetDate,
+                "Last End Date": this.lastEndDate
+            };
+        }
+    }
+</script>
