@@ -936,6 +936,16 @@
             mountPoint.classList.add('flex');
 
             this.toggleLedgerVisibility(id);
+
+            // ⚡ FIX: Innesco dell'API Asincrona per tradurre i nomi dei file (Aggiunto!)
+            if (docLinks.length > 0 && typeof ContractsAPI !== 'undefined') {
+                const targetLinks = mountPoint.querySelectorAll('.live-doc-link');
+                if (targetLinks.length > 0) {
+                    const rawUrls = Array.from(targetLinks).map(el => el.getAttribute('data-raw'));
+                    const uniqueUrlsString = [...new Set(rawUrls)].join(',');
+                    ContractsAPI.resolveLiveDocumentNames(uniqueUrlsString, targetLinks);
+                }
+            }
         },
 
         openMasterModalWindow: function (masterId) {

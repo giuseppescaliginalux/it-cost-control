@@ -200,9 +200,9 @@
                 if (dataList.length === 0) { contentDiv.innerHTML = '<p class="text-slate-400 italic py-4 text-center text-xs">No initiatives linked to this asset.</p>'; return; }
                 let html = '<div class="flex flex-col gap-2">';
                 dataList.forEach(log => {
-                    const isActual = (parseFloat(log["Actual Saving (Annualized)"] || log.actualSavingAnnualized) || 0) > 0; 
+                    const isActual = (parseFloat(log["Actual Saving (Annualized)"] || log.actualSavingAnnualized) || 0) > 0;
                     const savingVal = isActual ? parseFloat(log["Actual Saving (Annualized)"] || log.actualSavingAnnualized) : parseFloat(log["Target Saving (Annualized)"] || log.targetSavingAnnualized);
-                    const baselineVal = parseFloat(log["Baseline Spend (Annualized)"] || log.baselineSpendAnnualized) || 0; 
+                    const baselineVal = parseFloat(log["Baseline Spend (Annualized)"] || log.baselineSpendAnnualized) || 0;
                     const savingPct = baselineVal > 0 ? Math.round((savingVal / baselineVal) * 100) : 0;
                     const borderClass = isActual ? "border-emerald-500 shadow-emerald-50" : "border-amber-500 shadow-amber-50";
                     html += `<div class="bg-white p-3 rounded-xl border-l-4 ${borderClass} border-slate-100 shadow-sm flex justify-between items-center gap-4 hover:shadow-md transition-shadow"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1"><span class="font-black text-slate-900 text-[13px] uppercase truncate">${log["Decision"] || log.decision}</span><span class="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-widest">${log["Initiative Status"] || log.status}</span></div><p class="text-[10px] text-slate-500 italic truncate opacity-80">"${log["Description"] || log.description || "No description."}"</p></div><div class="flex gap-3 items-center shrink-0"><div class="text-center px-3 border-r border-slate-100"><p class="text-[8px] text-slate-400 font-black uppercase mb-0.5 tracking-tighter">Target Date</p><p class="font-mono font-bold text-slate-800 text-[10px]">${safeFormatStringDate(log["Target Date"] || log.targetDate || log["Actual Date"] || log.actualDate)}</p></div><div class="text-right px-3 border-r border-slate-100 hidden sm:block"><p class="text-[8px] text-slate-400 font-black uppercase mb-0.5 tracking-tighter">Baseline Spend</p><p class="font-mono font-bold text-slate-600 text-[10px]">€${baselineVal.formatCurrency()}</p></div><div class="text-right min-w-[85px]"><p class="text-[8px] text-emerald-500 font-black uppercase mb-0.5 tracking-tighter">${isActual ? 'Actual Saving' : 'Target Saving'}</p><div class="flex flex-col items-end gap-0.5"><p class="font-mono font-black text-emerald-700 text-xs">€${savingVal.formatCurrency()}</p>${savingPct > 0 ? `<span class="bg-emerald-100 text-emerald-700 text-[8px] font-bold px-1 py-0.5 rounded leading-none">-${savingPct}%</span>` : ''}</div></div></div></div>`;
@@ -216,13 +216,13 @@
             if (!contentDiv) return;
 
             const assetContracts = InventoryState.currentDrillDownData.contracts || [];
-            
+
             // Troviamo il nome Asset corrispondente al safeDOMId
             const targetAssetObj = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"] || a.assetName)).replace(/=/g, "") === safeDOMId);
             const actualAssetName = targetAssetObj ? (targetAssetObj["Asset Name"] || targetAssetObj.assetName) : "";
 
             const allMasters = windowPayload.masterContracts || [];
-            
+
             // ⚡ Filtriamo i Master in base all'Asset, così i nuovi Master (vuoti) non spariscono
             const filteredMasters = allMasters.filter(m => {
                 const mAsset = (m["Asset Name"] || m.assetName || "").trim().toLowerCase();
@@ -251,8 +251,7 @@
             filteredMasters.forEach(master => {
                 const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
                 const mId = master["Master Contract ID"] || master[mIdProp] || master.masterId;
-                
-                // Troviamo i contratti di questo master
+
                 let childContracts = assetContracts.filter(c => {
                     const childMId = c["Master Contract ID"] || c.masterId || "";
                     return String(childMId).trim() === String(mId).trim();
@@ -264,7 +263,7 @@
                     const dEndB = b["Adjusted End Date"] || b.adjustedEndDate || b["Contract End Date"] || b.contractEndDate || b["End Date"] || b.endDate;
                     const timeA = dEndA ? new Date(dEndA).getTime() : 0;
                     const timeB = dEndB ? new Date(dEndB).getTime() : 0;
-                    return timeB - timeA; 
+                    return timeB - timeA;
                 });
 
                 let childRowsHtml = '';
@@ -308,16 +307,16 @@
             if (typeof window.ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
                 const contractObj = windowPayload.contracts.find(c => (c["Contract ID"] || c.contractId) === contractId);
                 const masterId = contractObj ? (contractObj["Master Contract ID"] || contractObj.masterId) : null;
-                
+
                 if (masterId) {
                     ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
                     const masterMatch = windowPayload.masterContracts.find(m => (m["Master Contract ID"] || m.masterId) === masterId);
                     const assetName = masterMatch ? (masterMatch["Asset Name"] || masterMatch.assetName) : null;
                     const assetMatch = windowPayload.assets.find(a => (a["Asset Name"] || a.assetName) === assetName);
                     if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"] || assetMatch.assetName, id: assetMatch["Asset ID"] || assetMatch.assetId };
-                    
+
                     const itemToOpen = ContractsState.currentDetailItems.find(item => (item.data["Contract ID"] || item.data.contractId) === contractId);
-                    if(itemToOpen) window.ContractsController.openContractModalWindow(itemToOpen.id);
+                    if (itemToOpen) window.ContractsController.openContractModalWindow(itemToOpen.id);
                 }
             }
         },
@@ -329,7 +328,7 @@
                 const assetName = masterMatch ? (masterMatch["Asset Name"] || masterMatch.assetName) : null;
                 const assetMatch = windowPayload.assets.find(a => (a["Asset Name"] || a.assetName) === assetName);
                 if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"] || assetMatch.assetName, id: assetMatch["Asset ID"] || assetMatch.assetId };
-                
+
                 if (typeof addNewDetailRowItem === 'function') addNewDetailRowItem();
             }
         },
@@ -346,25 +345,25 @@
         triggerCreateNewMaster: function () {
             if (typeof window.ContractsController !== 'undefined' && InventoryState.expandedAssetId) {
                 const assetMatch = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"] || a.assetName)).replace(/=/g, "") === InventoryState.expandedAssetId);
-                
+
                 if (assetMatch) {
-                    ContractsState.currentSelectedAsset = { 
-                        name: assetMatch["Asset Name"] || assetMatch.assetName, 
-                        id: assetMatch["Asset ID"] || assetMatch.assetId 
+                    ContractsState.currentSelectedAsset = {
+                        name: assetMatch["Asset Name"] || assetMatch.assetName,
+                        id: assetMatch["Asset ID"] || assetMatch.assetId
                     };
                     ContractsState.resetMaster();
-                    
+
                     // ⚡ GENERA ID TEMPORANEO IN RAM
                     const tempId = "TMP-MCT-" + Date.now();
                     ContractsState.currentMasterData["Master Contract ID"] = tempId;
-                    
+
                     if (typeof MASTER_FIELD_MAP !== 'undefined') {
                         ContractsState.currentMasterData[MASTER_FIELD_MAP["Master Contract ID"]] = tempId;
                         ContractsState.currentMasterData[MASTER_FIELD_MAP["Asset Name"]] = ContractsState.currentSelectedAsset.name;
                     } else {
                         ContractsState.currentMasterData["Asset Name"] = ContractsState.currentSelectedAsset.name;
                     }
-                    
+
                     window.ContractsController.openMasterModalWindow("");
                 }
             }
@@ -374,14 +373,14 @@
             if (typeof window.ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
                 const contractObj = windowPayload.contracts.find(c => (c["Contract ID"] || c.contractId) === contractId);
                 const masterId = contractObj ? (contractObj["Master Contract ID"] || contractObj.masterId) : null;
-                
+
                 if (masterId) {
                     ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
                     const masterMatch = windowPayload.masterContracts.find(m => (m["Master Contract ID"] || m.masterId) === masterId);
                     const assetName = masterMatch ? (masterMatch["Asset Name"] || masterMatch.assetName) : null;
                     const assetMatch = windowPayload.assets.find(a => (a["Asset Name"] || a.assetName) === assetName);
                     if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"] || assetMatch.assetName, id: assetMatch["Asset ID"] || assetMatch.assetId };
-                    
+
                     const detailItem = ContractsState.currentDetailItems.find(item => (item.data["Contract ID"] || item.data.contractId) === contractId);
                     if (detailItem) {
                         if (ContractsState.cloneDetailRow(detailItem.id)) {
