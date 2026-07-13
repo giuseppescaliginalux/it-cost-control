@@ -1,28 +1,19 @@
 <script>
     /**
-     * ============================================================================
-     * MODULO ASSET INVENTORY: CONTROLLER
-     * ============================================================================
+     * js_inventory_controller.html
      */
     const InventoryController = {
-
-        // INIZIALIZZAZIONE COMPLETA (Risolto il problema delle tendine vuote e dei totali a zero)
         initWorkspace: function () {
             const container = document.getElementById('tab-inventory');
             if (!container) return;
-
             container.innerHTML = InventoryTemplates.getWorkspaceLayout();
-
-            // Sincronizza i filtri usando i metodi interni aggiornati
             this.setupDynamicSlider(globalCachedData);
             this.populateAssetFilters();
             this.populateContractFilters();
-
             this.syncFiltersUIFromState();
             this.applyFiltersAndSort();
         },
 
-        // APPLICAZIONE DEI FILTRI E RENDERING DELLA TABELLA PRINCIPALE
         applyFiltersAndSort: function () {
             const searchInput = document.getElementById('search-input');
             const sortSelect = document.getElementById('sort-select');
@@ -36,9 +27,7 @@
                 if (budgetValDisplay) budgetValDisplay.textContent = InventoryState.filters.minRunRate.toLocaleString('it-IT');
             }
 
-            // Recupera gli Asset filtrati e ordinati dallo State
             const filteredAssets = InventoryState.getFilteredAndSortedAssets();
-
             const tableBody = document.getElementById('live-table-body');
             if (!tableBody) return;
 
@@ -53,18 +42,18 @@
             alertThreshold.setDate(today.getDate() + 30);
 
             filteredAssets.forEach(row => {
-                const name = row["Asset Name"] || row.asset_name || "Unknown Asset";
-                const manufacturer = row["Manufacturer"] || "";
-                const businessDriver = row["Business Driver"] || "Technology";
-                const status = (row["Current Status"] || "Active").toUpperCase().trim();
-                const target = row["Target Status"] || "-";
-                const budgetStatus = row["Budget Status (FY27)"] || row["Budget Status"] || "";
-                const exitDate = row["Exit Date"] || "";
-                const lastEndDate = row["Last End Date"] ? new Date(row["Last End Date"]) : null;
+                const name = row["Asset Name"] || row.asset_name || row.assetName || "Unknown Asset";
+                const manufacturer = row["Manufacturer"] || row.manufacturer || "";
+                const businessDriver = row["Business Driver"] || row.businessDriver || "Technology";
+                const status = (row["Current Status"] || row.currentStatus || "Active").toUpperCase().trim();
+                const target = row["Target Status"] || row.targetStatus || "-";
+                const budgetStatus = row["Budget Status (FY27)"] || row.budgetStatusFY27 || row["Budget Status"] || "";
+                const exitDate = row["Exit Date"] || row.exitDate || "";
+                const lastEndDate = (row["Last End Date"] || row.lastEndDate) ? new Date(row["Last End Date"] || row.lastEndDate) : null;
 
-                const runRate = parseFloat(row["Run Rate"]) || 0;
-                const costImprovement = parseFloat(row["Cost Improvement"]) || 0;
-                const fiscalProjection = parseFloat(row["Fiscal Projection (FY27)"] || row["Fiscal FY27"] || row["Fiscal Projection"] || 0);
+                const runRate = parseFloat(row["Run Rate"] || row.runRate) || 0;
+                const costImprovement = parseFloat(row["Cost Improvement"] || row.costImprovement) || 0;
+                const fiscalProjection = parseFloat(row["Fiscal Projection (FY27)"] || row["Fiscal FY27"] || row.fiscalProjectionFY27 || 0);
 
                 const isActiveGroup = ["RUNNING", "EXPIRED", "OPTIMIZNG", "ACTIVE"].includes(status);
                 const isInactiveGroup = ["DISMISSED", "TRANSFERRED", "EXTNG", "EXITING"].includes(status);
@@ -107,11 +96,10 @@
 
             tableBody.innerHTML = htmlBuffer;
 
-            // Ricalcolo e compilazione immediata dei riepiloghi numerici in alto a sinistra
             let sumRunRate = 0; let sumOutlook = 0;
             filteredAssets.forEach(row => {
-                sumRunRate += parseFloat(row["Run Rate"]) || 0;
-                sumOutlook += parseFloat(row["Fiscal Projection (FY27)"] || row["Fiscal FY27"] || row["Fiscal Projection"]) || 0;
+                sumRunRate += parseFloat(row["Run Rate"] || row.runRate) || 0;
+                sumOutlook += parseFloat(row["Fiscal Projection (FY27)"] || row["Fiscal FY27"] || row.fiscalProjectionFY27) || 0;
             });
 
             if (document.getElementById('asset-count-badge')) document.getElementById('asset-count-badge').textContent = filteredAssets.length + " Assets";
@@ -123,7 +111,6 @@
             }
         },
 
-        // APERTURA/CHIUSURA DEL CASSETTO DELL'ASSET (ACCORDION LIVELLO 1)
         toggleAssetDrawer: function (assetName, safeDOMId) {
             const container = document.getElementById(`details-${safeDOMId}`);
             const arrow = document.getElementById(`arrow-${safeDOMId}`);
@@ -166,7 +153,6 @@
             }
         },
 
-        // NAVIGAZIONE INTERNA AI SOTTO-TAB DEL CASSETTO
         switchDetailTab: function (safeDOMId, tabType) {
             const contentDiv = document.getElementById(`tab-content-${safeDOMId}`);
             if (!contentDiv || !InventoryState.currentDrillDownData) return;
@@ -207,42 +193,45 @@
             else if (tabType === 'initiatives') {
                 const dataList = InventoryState.currentDrillDownData.initiatives || [];
                 dataList.sort((a, b) => {
-                    const dA = a["Target Date"] ? new Date(a["Target Date"]).getTime() : new Date(2099, 11, 31).getTime();
-                    const dB = b["Target Date"] ? new Date(b["Target Date"]).getTime() : new Date(2099, 11, 31).getTime();
+                    const dA = (a["Target Date"] || a.targetDate) ? new Date(a["Target Date"] || a.targetDate).getTime() : new Date(2099, 11, 31).getTime();
+                    const dB = (b["Target Date"] || b.targetDate) ? new Date(b["Target Date"] || b.targetDate).getTime() : new Date(2099, 11, 31).getTime();
                     return dA - dB;
                 });
                 if (dataList.length === 0) { contentDiv.innerHTML = '<p class="text-slate-400 italic py-4 text-center text-xs">No initiatives linked to this asset.</p>'; return; }
                 let html = '<div class="flex flex-col gap-2">';
                 dataList.forEach(log => {
-                    const isActual = (parseFloat(log["Actual Saving (Annualized)"]) || 0) > 0; const savingVal = isActual ? parseFloat(log["Actual Saving (Annualized)"]) : parseFloat(log["Target Saving (Annualized)"]);
-                    const baselineVal = parseFloat(log["Baseline Spend (Annualized)"]) || 0; const savingPct = baselineVal > 0 ? Math.round((savingVal / baselineVal) * 100) : 0;
+                    const isActual = (parseFloat(log["Actual Saving (Annualized)"] || log.actualSavingAnnualized) || 0) > 0; 
+                    const savingVal = isActual ? parseFloat(log["Actual Saving (Annualized)"] || log.actualSavingAnnualized) : parseFloat(log["Target Saving (Annualized)"] || log.targetSavingAnnualized);
+                    const baselineVal = parseFloat(log["Baseline Spend (Annualized)"] || log.baselineSpendAnnualized) || 0; 
+                    const savingPct = baselineVal > 0 ? Math.round((savingVal / baselineVal) * 100) : 0;
                     const borderClass = isActual ? "border-emerald-500 shadow-emerald-50" : "border-amber-500 shadow-amber-50";
-                    html += `<div class="bg-white p-3 rounded-xl border-l-4 ${borderClass} border-slate-100 shadow-sm flex justify-between items-center gap-4 hover:shadow-md transition-shadow"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1"><span class="font-black text-slate-900 text-[13px] uppercase truncate">${log["Decision"]}</span><span class="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-widest">${log["Initiative Status"]}</span></div><p class="text-[10px] text-slate-500 italic truncate opacity-80">"${log["Description"] || "No description."}"</p></div><div class="flex gap-3 items-center shrink-0"><div class="text-center px-3 border-r border-slate-100"><p class="text-[8px] text-slate-400 font-black uppercase mb-0.5 tracking-tighter">Target Date</p><p class="font-mono font-bold text-slate-800 text-[10px]">${safeFormatStringDate(log["Target Date"] || log["Actual Date"])}</p></div><div class="text-right px-3 border-r border-slate-100 hidden sm:block"><p class="text-[8px] text-slate-400 font-black uppercase mb-0.5 tracking-tighter">Baseline Spend</p><p class="font-mono font-bold text-slate-600 text-[10px]">€${baselineVal.formatCurrency()}</p></div><div class="text-right min-w-[85px]"><p class="text-[8px] text-emerald-500 font-black uppercase mb-0.5 tracking-tighter">${isActual ? 'Actual Saving' : 'Target Saving'}</p><div class="flex flex-col items-end gap-0.5"><p class="font-mono font-black text-emerald-700 text-xs">€${savingVal.formatCurrency()}</p>${savingPct > 0 ? `<span class="bg-emerald-100 text-emerald-700 text-[8px] font-bold px-1 py-0.5 rounded leading-none">-${savingPct}%</span>` : ''}</div></div></div></div>`;
+                    html += `<div class="bg-white p-3 rounded-xl border-l-4 ${borderClass} border-slate-100 shadow-sm flex justify-between items-center gap-4 hover:shadow-md transition-shadow"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1"><span class="font-black text-slate-900 text-[13px] uppercase truncate">${log["Decision"] || log.decision}</span><span class="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-widest">${log["Initiative Status"] || log.status}</span></div><p class="text-[10px] text-slate-500 italic truncate opacity-80">"${log["Description"] || log.description || "No description."}"</p></div><div class="flex gap-3 items-center shrink-0"><div class="text-center px-3 border-r border-slate-100"><p class="text-[8px] text-slate-400 font-black uppercase mb-0.5 tracking-tighter">Target Date</p><p class="font-mono font-bold text-slate-800 text-[10px]">${safeFormatStringDate(log["Target Date"] || log.targetDate || log["Actual Date"] || log.actualDate)}</p></div><div class="text-right px-3 border-r border-slate-100 hidden sm:block"><p class="text-[8px] text-slate-400 font-black uppercase mb-0.5 tracking-tighter">Baseline Spend</p><p class="font-mono font-bold text-slate-600 text-[10px]">€${baselineVal.formatCurrency()}</p></div><div class="text-right min-w-[85px]"><p class="text-[8px] text-emerald-500 font-black uppercase mb-0.5 tracking-tighter">${isActual ? 'Actual Saving' : 'Target Saving'}</p><div class="flex flex-col items-end gap-0.5"><p class="font-mono font-black text-emerald-700 text-xs">€${savingVal.formatCurrency()}</p>${savingPct > 0 ? `<span class="bg-emerald-100 text-emerald-700 text-[8px] font-bold px-1 py-0.5 rounded leading-none">-${savingPct}%</span>` : ''}</div></div></div></div>`;
                 });
                 contentDiv.innerHTML = html + '</div>';
             }
         },
 
-        // RENDERING DEL SOTTO-TAB CONTRATTI
         renderContractsTabContent: function (safeDOMId) {
             const contentDiv = document.getElementById(`tab-content-${safeDOMId}`);
             if (!contentDiv) return;
 
             const assetContracts = InventoryState.currentDrillDownData.contracts || [];
-            const linkedMasterIds = [...new Set(assetContracts.map(c => String(c["Master Contract ID"]).trim()).filter(Boolean))];
+            const linkedMasterIds = [...new Set(assetContracts.map(c => String(c["Master Contract ID"] || c.masterId).trim()).filter(Boolean))];
 
             const allMasters = windowPayload.masterContracts || [];
-            const filteredMasters = allMasters.filter(m => linkedMasterIds.includes(String(m["Master Contract ID"]).trim()));
+            const filteredMasters = allMasters.filter(m => linkedMasterIds.includes(String(m["Master Contract ID"] || m.masterId).trim()));
 
             let newMasterBtnHtml = '';
-
-            // ⚡ FISSO: Rilevamento corretto dello stato senza window per sbloccare i pulsanti
             const isEditActive = typeof ContractsState !== 'undefined' && ContractsState.globalEditMode;
 
+            // ⚡ TASTO NEW MASTER SCOLPITO E COORDINATO ALLA PALETTE
             if (isEditActive) {
                 newMasterBtnHtml = `
-                <div class="flex justify-end mb-2.5 animate-fade-in">
-                    <button onclick="InventoryController.triggerCreateNewMaster()" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[9px] uppercase tracking-wider rounded-lg shadow-md transition-colors">+ Link New Master Agreement</button>
+                <div class="flex justify-end mb-3 animate-fade-in">
+                    <button onclick="InventoryController.triggerCreateNewMaster()" class="h-8 px-4 bg-teal-600 hover:bg-teal-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-teal-700">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                        <span>NEW MASTER AGREEMENT</span>
+                    </button>
                 </div>`;
             }
 
@@ -252,32 +241,21 @@
             }
 
             let htmlBuffer = newMasterBtnHtml + `<div class="flex flex-col gap-0">`;
-
             filteredMasters.forEach(master => {
-                const mId = master["Master Contract ID"];
-                const childContracts = assetContracts.filter(c => String(c["Master Contract ID"]).trim() === String(mId).trim());
+                const mId = master["Master Contract ID"] || master.masterId;
+                const childContracts = assetContracts.filter(c => String(c["Master Contract ID"] || c.masterId).trim() === String(mId).trim());
 
                 let childRowsHtml = '';
-                childContracts.forEach(c => {
-                    childRowsHtml += InventoryTemplates.getContractChildRowMarkup(c, isEditActive);
-                });
-
-                if (childRowsHtml === '') {
-                    childRowsHtml = `<p class="text-slate-400 italic p-2 text-center text-[10px]">No operational rows linked.</p>`;
-                }
+                childContracts.forEach(c => { childRowsHtml += InventoryTemplates.getContractChildRowMarkup(c, isEditActive); });
+                if (childRowsHtml === '') childRowsHtml = `<p class="text-slate-400 italic p-2 text-center text-[10px]">No operational rows linked.</p>`;
 
                 const isMasterExpanded = InventoryState.expandedMasterId === mId;
-
-                htmlBuffer += InventoryTemplates.getTemplateOfMasterAccordion(
-                    master, childRowsHtml, isMasterExpanded, isEditActive
-                );
+                htmlBuffer += InventoryTemplates.getTemplateOfMasterAccordion(master, childRowsHtml, isMasterExpanded, isEditActive);
             });
-
             htmlBuffer += `</div>`;
             contentDiv.innerHTML = htmlBuffer;
         },
 
-        // APERTURA/CHIUSURA FISARMONICA DEL MASTER (ACCORDION LIVELLO 2)
         toggleMasterAccordion: function (masterId) {
             const body = document.getElementById(`master-body-${masterId}`);
             const chevron = document.getElementById(`master-chevron-${masterId}`);
@@ -296,43 +274,90 @@
             }
         },
 
-        // INNESTATORI DI AZIONE VERSO LE MEGA-MODALI
         triggerEditContract: function (contractId) {
-            if (typeof ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
-                const masterId = (windowPayload.contracts.find(c => c["Contract ID"] === contractId) || {})["Master Contract ID"];
+            if (typeof window.ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
+                const contractObj = windowPayload.contracts.find(c => (c["Contract ID"] || c.contractId) === contractId);
+                const masterId = contractObj ? (contractObj["Master Contract ID"] || contractObj.masterId) : null;
+                
                 if (masterId) {
                     ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
-                    const assetMatch = windowPayload.assets.find(a => a["Asset Name"] === windowPayload.masterContracts.find(m => m["Master Contract ID"] === masterId)["Asset Name"]);
-                    if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"], id: assetMatch["Asset ID"] };
-                    ContractsController.openContractModalWindow(ContractsState.currentDetailItems.find(item => item.data["Contract ID"] === contractId).id);
+                    const masterMatch = windowPayload.masterContracts.find(m => (m["Master Contract ID"] || m.masterId) === masterId);
+                    const assetName = masterMatch ? (masterMatch["Asset Name"] || masterMatch.assetName) : null;
+                    const assetMatch = windowPayload.assets.find(a => (a["Asset Name"] || a.assetName) === assetName);
+                    if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"] || assetMatch.assetName, id: assetMatch["Asset ID"] || assetMatch.assetId };
+                    
+                    const itemToOpen = ContractsState.currentDetailItems.find(item => (item.data["Contract ID"] || item.data.contractId) === contractId);
+                    if(itemToOpen) window.ContractsController.openContractModalWindow(itemToOpen.id);
                 }
             }
         },
 
         triggerAddContractLine: function (masterId) {
-            if (typeof ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
+            if (typeof window.ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
                 ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
-                const assetMatch = windowPayload.assets.find(a => a["Asset Name"] === windowPayload.masterContracts.find(m => m["Master Contract ID"] === masterId)["Asset Name"]);
-                if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"], id: assetMatch["Asset ID"] };
-                addNewDetailRowItem();
+                const masterMatch = windowPayload.masterContracts.find(m => (m["Master Contract ID"] || m.masterId) === masterId);
+                const assetName = masterMatch ? (masterMatch["Asset Name"] || masterMatch.assetName) : null;
+                const assetMatch = windowPayload.assets.find(a => (a["Asset Name"] || a.assetName) === assetName);
+                if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"] || assetMatch.assetName, id: assetMatch["Asset ID"] || assetMatch.assetId };
+                
+                if (typeof addNewDetailRowItem === 'function') addNewDetailRowItem();
             }
         },
 
         triggerEditMaster: function (masterId) {
-            if (typeof loadFullMasterDetailArchitecture === 'function') {
-                loadFullMasterDetailArchitecture(masterId);
-                toggleMasterEditState(true);
-                window.location.hash = "#mgmt-master-form-container";
+            if (typeof window.ContractsController !== 'undefined') {
+                // Sincronizza lo stato di Edit e bypassa le dipendenze in RAM
+                const isEditActive = typeof ContractsState !== 'undefined' && ContractsState.globalEditMode;
+                ContractsState.updateMasterEditState(isEditActive);
+                window.ContractsController.openMasterModalWindow(masterId);
             }
         },
 
         triggerCreateNewMaster: function () {
-            if (typeof setupNewMasterAgreement === 'function' && InventoryState.expandedAssetId) {
-                const decodedAssetName = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"])).replace(/=/g, "") === InventoryState.expandedAssetId)["Asset Name"];
-                const decodedAssetId = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"])).replace(/=/g, "") === InventoryState.expandedAssetId)["Asset ID"];
-                ContractsState.currentSelectedAsset = { name: decodedAssetName, id: decodedAssetId };
-                setupNewMasterAgreement();
-                window.location.hash = "#mgmt-master-form-container";
+            if (typeof window.ContractsController !== 'undefined' && InventoryState.expandedAssetId) {
+                const assetMatch = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"] || a.assetName)).replace(/=/g, "") === InventoryState.expandedAssetId);
+                
+                if (assetMatch) {
+                    ContractsState.currentSelectedAsset = { 
+                        name: assetMatch["Asset Name"] || assetMatch.assetName, 
+                        id: assetMatch["Asset ID"] || assetMatch.assetId 
+                    };
+                    ContractsState.resetMaster();
+                    
+                    // ⚡ GENERA ID TEMPORANEO IN RAM: Impedisce l'assenza visiva pre-commit
+                    const tempId = "TEMP_MCT_" + Date.now();
+                    ContractsState.currentMasterData["Master Contract ID"] = tempId;
+                    
+                    if (typeof MASTER_FIELD_MAP !== 'undefined') {
+                        ContractsState.currentMasterData[MASTER_FIELD_MAP["Master Contract ID"]] = tempId;
+                        ContractsState.currentMasterData[MASTER_FIELD_MAP["Asset Name"]] = ContractsState.currentSelectedAsset.name;
+                    }
+                    
+                    window.ContractsController.openMasterModalWindow("");
+                }
+            }
+        },
+
+        triggerCloneContract: function (contractId) {
+            if (typeof window.ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
+                const contractObj = windowPayload.contracts.find(c => (c["Contract ID"] || c.contractId) === contractId);
+                const masterId = contractObj ? (contractObj["Master Contract ID"] || contractObj.masterId) : null;
+                
+                if (masterId) {
+                    ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
+                    const masterMatch = windowPayload.masterContracts.find(m => (m["Master Contract ID"] || m.masterId) === masterId);
+                    const assetName = masterMatch ? (masterMatch["Asset Name"] || masterMatch.assetName) : null;
+                    const assetMatch = windowPayload.assets.find(a => (a["Asset Name"] || a.assetName) === assetName);
+                    if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"] || assetMatch.assetName, id: assetMatch["Asset ID"] || assetMatch.assetId };
+                    
+                    const detailItem = ContractsState.currentDetailItems.find(item => (item.data["Contract ID"] || item.data.contractId) === contractId);
+                    if (detailItem) {
+                        if (ContractsState.cloneDetailRow(detailItem.id)) {
+                            const latestItem = ContractsState.currentDetailItems[ContractsState.currentDetailItems.length - 1];
+                            window.ContractsController.openContractModalWindow(latestItem.id);
+                        }
+                    }
+                }
             }
         },
 
@@ -348,10 +373,9 @@
             if (slider) slider.value = InventoryState.filters.minRunRate;
         },
 
-        // --- NUOVO: METODI DI POPOLAMENTO FILTRI INTEGRATI NEL CONTROLLER ---
         populateContractFilters: function () {
             const contracts = windowPayload.contracts || [];
-            const getUnique = (key) => [...new Set(contracts.map(c => (c[key] || "").toString().trim()).filter(v => v !== ""))].sort();
+            const getUnique = (key1, key2) => [...new Set(contracts.map(c => (c[key1] || c[key2] || "").toString().trim()).filter(v => v !== ""))].sort();
 
             const buildCheckboxes = (values, containerId) => {
                 const container = document.getElementById(containerId);
@@ -364,15 +388,14 @@
                 `).join('');
             };
 
-            buildCheckboxes(getUnique("Billing Channel"), "filter-container-channel");
-            buildCheckboxes(getUnique("Expenditure Type"), "filter-container-exp");
-            buildCheckboxes(getUnique("Legal Entity"), "filter-container-legal");
-            buildCheckboxes(getUnique("Supplier"), "filter-container-supplier");
-            buildCheckboxes(getUnique("Cost Center"), "filter-container-costcenter");
-            buildCheckboxes(getUnique("Location"), "filter-container-location");
+            buildCheckboxes(getUnique("Billing Channel", "billingChannel"), "filter-container-channel");
+            buildCheckboxes(getUnique("Expenditure Type", "expenditureType"), "filter-container-exp");
+            buildCheckboxes(getUnique("Legal Entity", "legalEntity"), "filter-container-legal");
+            buildCheckboxes(getUnique("Supplier", "supplier"), "filter-container-supplier");
+            buildCheckboxes(getUnique("Cost Center", "costCenter"), "filter-container-costcenter");
+            buildCheckboxes(getUnique("Location", "location"), "filter-container-location");
 
-            // Generazione Quick-Select Nazioni [XYZ]
-            const uniqueLocations = getUnique("Location");
+            const uniqueLocations = getUnique("Location", "location");
             const countrySet = new Set();
             uniqueLocations.forEach(loc => {
                 const match = loc.match(/^\[([A-Z]{3})\]/);
@@ -391,55 +414,48 @@
         },
 
         toggleCountryLocations: function (event, country) {
-            if (event) {
-                event.preventDefault();
-                event.stopPropagation();
-            }
+            if (event) { event.preventDefault(); event.stopPropagation(); }
             const checkBoxes = document.querySelectorAll('#filter-container-location input');
             let targetBoxes = Array.from(checkBoxes).filter(cb => {
                 const match = cb.value.match(/^\[([A-Z]{3})\]/);
                 return match && match[1].trim().toUpperCase() === country.toUpperCase();
             });
             if (targetBoxes.length === 0) return;
-
             const allChecked = targetBoxes.every(cb => cb.checked);
             targetBoxes.forEach(cb => cb.checked = !allChecked);
-
             this.applyFiltersAndSort();
         },
 
         populateAssetFilters: function () {
             const assets = globalCachedData || [];
+            const getUnique = (key1, key2) => [...new Set(assets.map(a => (a[key1] || a[key2] || "").toString().trim()).filter(v => v !== "" && v !== "-"))].sort();
 
-            const uniqueStatuses = [...new Set(assets.map(a => (a["Current Status"] || "").toString().trim().toUpperCase()).filter(v => v !== ""))].sort();
             const container = document.getElementById("status-filter-container");
             if (container) {
-                container.innerHTML = uniqueStatuses.map(val => `
+                container.innerHTML = getUnique("Current Status", "currentStatus").map(val => `
                     <label class="flex items-center gap-2 cursor-pointer group/cb">
-                        <input type="checkbox" value="${val}" onchange="InventoryController.applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
-                        <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val}</span>
+                        <input type="checkbox" value="${val.toUpperCase()}" onchange="InventoryController.applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
+                        <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val.toUpperCase()}</span>
                     </label>
                 `).join('');
             }
 
-            const uniqueBudgetStatuses = [...new Set(assets.map(a => (a["Budget Status (FY27)"] || a["Budget Status"] || "").toString().trim()).filter(v => v !== "" && v !== "-"))].sort();
             const budgetContainer = document.getElementById("budget-status-filter-container");
             if (budgetContainer) {
-                budgetContainer.innerHTML = uniqueBudgetStatuses.map(val => `
+                budgetContainer.innerHTML = getUnique("Budget Status (FY27)", "budgetStatusFY27").map(val => `
                     <label class="flex items-center gap-2 cursor-pointer group/cb">
-                        <input type="checkbox" value="${val}" onchange="InventoryController.applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
-                        <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val}</span>
+                        <input type="checkbox" value="${val.toUpperCase()}" onchange="InventoryController.applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
+                        <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val.toUpperCase()}</span>
                     </label>
                 `).join('');
             }
 
-            const uniqueDrivers = [...new Set(assets.map(a => (a["Business Driver"] || "").toString().trim()).filter(v => v !== ""))].sort();
             const driverContainer = document.getElementById("driver-filter-container");
             if (driverContainer) {
-                driverContainer.innerHTML = uniqueDrivers.map(val => `
+                driverContainer.innerHTML = getUnique("Business Driver", "businessDriver").map(val => `
                     <label class="flex items-center gap-2 cursor-pointer group/cb">
-                        <input type="checkbox" value="${val}" onchange="InventoryController.applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
-                        <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val}</span>
+                        <input type="checkbox" value="${val.toUpperCase()}" onchange="InventoryController.applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
+                        <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val.toUpperCase()}</span>
                     </label>
                 `).join('');
             }
@@ -448,7 +464,7 @@
         setupDynamicSlider: function (allRows) {
             let maxRunRate = 0;
             allRows.forEach(row => {
-                const rate = parseFloat(row["Run Rate"]) || 0;
+                const rate = parseFloat(row["Run Rate"] || row.runRate) || 0;
                 if (rate > maxRunRate) maxRunRate = rate;
             });
             if (maxRunRate === 0) maxRunRate = 1000000;
@@ -463,7 +479,6 @@
             }
         },
 
-        // Formattatore monetario interno al modulo (Risolve il problema dei totali a zero)
         formatFilterValue: function (val) {
             if (val >= 1000000) return '€ ' + (val / 1000000).toFixed(2) + 'M';
             if (val >= 1000) return '€ ' + (val / 1000).toFixed(0) + 'k';
@@ -471,7 +486,6 @@
         }
     };
 
-    // Routing ad aggancio atomico
     const mvcOriginalExecuteTabSwitch = executeTabSwitch;
     executeTabSwitch = function (tabId) {
         mvcOriginalExecuteTabSwitch(tabId);

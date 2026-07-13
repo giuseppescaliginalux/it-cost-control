@@ -204,13 +204,17 @@
             ContractsState.hasUnsavedChanges = true;
             if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
 
-            const mIndex = windowPayload.masterContracts.findIndex(m => m["Master Contract ID"] === ContractsState.currentMasterData["Master Contract ID"]);
-            if (mIndex > -1) windowPayload.masterContracts[mIndex] = ContractsState.currentMasterData;
-            else windowPayload.masterContracts.push(ContractsState.currentMasterData);
+            // ⚡ MAPPATURA DOMINIO
+            const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
+            const mId = data["Master Contract ID"] || data[mIdProp];
+
+            const mIndex = windowPayload.masterContracts.findIndex(m => (m["Master Contract ID"] || m[mIdProp]) === mId);
+            if (mIndex > -1) windowPayload.masterContracts[mIndex] = data;
+            else windowPayload.masterContracts.push(data);
 
             if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined') {
                 const mountPoint = document.getElementById('contracts-modal-mount-point');
-                if (mountPoint) { mountPoint.classList.add('hidden'); mountPoint.classList.remove('flex'); mountPoint.innerHTML = ''; }
+                if(mountPoint) { mountPoint.classList.add('hidden'); mountPoint.classList.remove('flex'); mountPoint.innerHTML = ''; }
                 InventoryState.loadAssetDrillDownData(ContractsState.currentSelectedAsset.name);
                 InventoryController.renderContractsTabContent(InventoryState.expandedAssetId);
                 InventoryController.applyFiltersAndSort();
@@ -220,9 +224,9 @@
         };
 
         if (hasFiles) {
+            // ... (Tieni invariato tutto il blocco FileReader del caricamento) ...
             showLoading();
-            let filesData = [];
-            let filesProcessed = 0;
+            let filesData = []; let filesProcessed = 0;
             const supplier = data["Supplier"] || "Unknown_Supplier";
             const assetName = ContractsState.currentSelectedAsset.name || "Unknown_Asset";
             let dateStr = data["Master Start Date"];
@@ -239,8 +243,7 @@
                                 let currentLinks = baseLinks ? baseLinks.split(',').map(s => s.trim()).filter(s => s) : [];
                                 urls.forEach(u => { if (!currentLinks.includes(u)) currentLinks.push(u); });
                                 data["Contract Links"] = currentLinks.join(', ');
-                                hideLoading();
-                                wrapUpMasterSave();
+                                hideLoading(); wrapUpMasterSave();
                             },
                             (err) => { hideLoading(); alert("Upload Error: " + err.message); }
                         );
@@ -458,13 +461,17 @@
 
         const dto = ContractMapper.toDto(item.data, CONTRACT_FIELD_MAP);
         const contract = new Contract(dto);
-        item.data = contract.exportToData();
+        item.data = contract.exportToData(); 
 
         item.isEditing = false;
         ContractsState.hasUnsavedChanges = true;
         if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
 
-        const cIndex = windowPayload.contracts.findIndex(c => c["Contract ID"] === item.data["Contract ID"]);
+        // ⚡ MAPPATURA DOMINIO PER IL CONTRATTO E IL MASTER
+        const cIdProp = typeof CONTRACT_FIELD_MAP !== 'undefined' ? CONTRACT_FIELD_MAP["Contract ID"] : "contractId";
+        const cId = item.data["Contract ID"] || item.data[cIdProp];
+        
+        const cIndex = windowPayload.contracts.findIndex(c => (c["Contract ID"] || c[cIdProp]) === cId);
         if (cIndex > -1) windowPayload.contracts[cIndex] = item.data;
         else windowPayload.contracts.push(item.data);
 
@@ -480,10 +487,13 @@
                 master.addChild(new Contract(childDto));
             });
 
-            const linkedInits = (windowPayload.initiatives || []).filter(i => String(i["Master Contract ID"]).trim() === String(master.id).trim());
+            const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
+            const linkedInits = (windowPayload.initiatives || []).filter(i => String(i["Master Contract ID"] || i.masterId).trim() === String(master.id).trim());
             ContractsState.currentMasterData = master.exportToData(linkedInits);
-
-            const mIndex = windowPayload.masterContracts.findIndex(m => m["Master Contract ID"] === master.id);
+            
+            const mId = ContractsState.currentMasterData["Master Contract ID"] || ContractsState.currentMasterData[mIdProp];
+            const mIndex = windowPayload.masterContracts.findIndex(m => (m["Master Contract ID"] || m[mIdProp]) === mId);
+            
             if (mIndex > -1) windowPayload.masterContracts[mIndex] = ContractsState.currentMasterData;
             else windowPayload.masterContracts.push(ContractsState.currentMasterData);
         }
@@ -909,14 +919,22 @@
 
             if (masterId) {
                 ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
-                const assetMatch = windowPayload.assets.find(a => a["Asset Name"] === windowPayload.masterContracts.find(m => m["Master Contract ID"] === masterId)["Asset Name"]);
-                if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"], id: assetMatch["Asset ID"] };
+                
+                // ⚡ MAPPATURA DOMINIO
+                const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
+                const mAssetProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Asset Name"] : "assetName";
+                
+                const masterObj = windowPayload.masterContracts.find(m => (m["Master Contract ID"] || m[mIdProp]) === masterId);
+                const assetName = masterObj ? (masterObj["Asset Name"] || masterObj[mAssetProp]) : null;
+                
+                const assetMatch = windowPayload.assets.find(a => (a["Asset Name"] || a.assetName) === assetName);
+                if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"] || assetMatch.assetName, id: assetMatch["Asset ID"] || assetMatch.assetId };
             }
 
             const data = ContractsState.currentMasterData;
-            const isNew = data["Master Contract ID"] === "";
+            const isNew = !data["Master Contract ID"] && !data.masterId;
             const suppliersList = ContractsUtils.extractUniqueField(windowPayload.masterContracts || windowPayload.contracts, "Supplier");
-            const masterLinks = (data["Contract Links"] || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
+            const masterLinks = (data["Contract Links"] || data.contractLinks || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
 
             const formHtml = ContractsTemplates.getMasterEditCard(data, isNew, suppliersList, masterLinks);
 

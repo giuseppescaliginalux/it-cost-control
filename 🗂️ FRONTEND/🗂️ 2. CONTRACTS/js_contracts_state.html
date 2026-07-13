@@ -21,20 +21,33 @@
         },
 
         loadMasterDetails: function (masterId, allMasterContracts, allContracts, allocationSplits, ledger) {
-            this.currentMasterData = allMasterContracts.find(m => m["Master Contract ID"].toString().trim() === masterId.toString().trim());
-            const rawDetails = allContracts.filter(c => c["Master Contract ID"].toString().trim() === masterId.toString().trim());
+            const cleanId = String(masterId).trim();
+            
+            // ⚡ TRADUTTORI DAL DOMINIO
+            const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
+            const cMIdProp = typeof CONTRACT_FIELD_MAP !== 'undefined' ? CONTRACT_FIELD_MAP["Master Contract ID"] : "masterId";
+            const cIdProp = typeof CONTRACT_FIELD_MAP !== 'undefined' ? CONTRACT_FIELD_MAP["Contract ID"] : "contractId";
+
+            this.currentMasterData = allMasterContracts.find(m => {
+                const currentMId = String(m["Master Contract ID"] || m[mIdProp] || "").trim();
+                return currentMId === cleanId;
+            });
+
+            const rawDetails = allContracts.filter(c => {
+                const currentMId = String(c["Master Contract ID"] || c[cMIdProp] || "").trim();
+                return currentMId === cleanId;
+            });
 
             this.currentDetailItems = rawDetails.map((row, index) => {
-                const cId = (row["Contract ID"] || "").toString().trim();
-                const linkedSplits = allocationSplits.filter(s => (s["Contract ID"] || "").toString().trim() === cId);
-                const linkedLedger = ledger.filter(l => (l["Contract ID"] || "").toString().trim() === cId);
+                const cId = String(row["Contract ID"] || row[cIdProp] || "").trim();
+                const linkedSplits = allocationSplits.filter(s => String(s["Contract ID"] || s.contractId || "").trim() === cId);
+                const linkedLedger = ledger.filter(l => String(l["Contract ID"] || l.contractId || "").trim() === cId);
 
                 return { id: index, isEditing: false, data: row, splits: linkedSplits, ledger: linkedLedger };
             });
 
             this.isMasterEditable = false;
             this.hasUnsavedChanges = false;
-            // RIMOSSO IL BACO SILENZIOSO: this.globalEditMode = false;
         },
 
         addNewDetailRow: function () {
