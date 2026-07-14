@@ -2,6 +2,7 @@
     /**
      * js_timeline_controller.html
      * CONTROLLER: Advanced Filtering, Topological Sorting, Dynamic bounds, SVG Bezier routing.
+     * Bonificato integralmente sui DTO camelCase nativi per azzerare i valori undefined.
      */
     const TimelineController = {
         linkingSourceMasterId: null,
@@ -24,7 +25,7 @@
         renderDropdowns: function () {
             const assetsMetadata = windowPayload.assets || [];
 
-            const uniqueCurrent = [...new Set(assetsMetadata.map(a => (a["Current Status"] || "ACTIVE").toUpperCase().trim()))].sort();
+            const uniqueCurrent = [...new Set(assetsMetadata.map(a => (a.currentStatus || "ACTIVE").toUpperCase().trim()))].sort();
             const currContainer = document.getElementById('tl-drop-current');
             if (currContainer) {
                 currContainer.innerHTML = uniqueCurrent.map(status => `
@@ -35,7 +36,7 @@
                 `).join('');
             }
 
-            const uniqueTarget = [...new Set(assetsMetadata.map(a => (a["Target Status"] || "RETAIN").toUpperCase().trim()))].sort();
+            const uniqueTarget = [...new Set(assetsMetadata.map(a => (a.targetStatus || "RETAIN").toUpperCase().trim()))].sort();
             const targetContainer = document.getElementById('tl-drop-target');
             if (targetContainer) {
                 targetContainer.innerHTML = uniqueTarget.map(status => `
@@ -82,13 +83,6 @@
             this.renderActiveTimelineCanvas();
         },
 
-        scrollTimelineCanvas: function (direction) {
-            const wrapper = document.getElementById('timeline-matrix-canvas-wrapper');
-            if (!wrapper) return;
-            const scrollStep = 12 * TimelineState.pixelRatePerMonth;
-            wrapper.scrollLeft += (direction === 'left' ? -scrollStep : scrollStep);
-        },
-
         renderActiveTimelineCanvas: function () {
             const wrapper = document.getElementById('timeline-matrix-canvas-wrapper');
             const viewport = document.getElementById('timeline-matrix-swimlanes-viewport');
@@ -101,10 +95,10 @@
             const searchQ = TimelineState.searchKeyword;
 
             let validAssets = assetsMetadata.filter(asset => {
-                const name = (asset["Asset Name"] || "").toLowerCase();
-                const mfg = (asset["Manufacturer"] || "").toLowerCase();
-                const cStatus = (asset["Current Status"] || "ACTIVE").toUpperCase().trim();
-                const tStatus = (asset["Target Status"] || "RETAIN").toUpperCase().trim();
+                const name = (asset.name || "").toLowerCase();
+                const mfg = (asset.manufacturer || "").toLowerCase();
+                const cStatus = (asset.currentStatus || "ACTIVE").toUpperCase().trim();
+                const tStatus = (asset.targetStatus || "RETAIN").toUpperCase().trim();
 
                 if (TimelineState.currentStatusFilters.length > 0 && !TimelineState.currentStatusFilters.includes(cStatus)) return false;
                 if (TimelineState.targetStatusFilters.length > 0 && !TimelineState.targetStatusFilters.includes(tStatus)) return false;
@@ -112,19 +106,19 @@
                 if (searchQ) {
                     let match = name.includes(searchQ) || mfg.includes(searchQ);
                     if (!match) {
-                        const linkedMasters = masters.filter(m => String(m["Asset Name"]).toLowerCase() === name);
-                        match = linkedMasters.some(m => (m["Supplier"] || "").toLowerCase().includes(searchQ));
+                        const linkedMasters = masters.filter(m => String(m.assetName).toLowerCase() === name);
+                        match = linkedMasters.some(m => (m.supplier || "").toLowerCase().includes(searchQ));
                     }
                     if (!match) return false;
                 }
                 return true;
             });
 
-            let validAssetNames = validAssets.map(a => String(a["Asset Name"]).trim());
+            let validAssetNames = validAssets.map(a => String(a.name).trim());
 
             const swimlanesBuckets = {};
             masters.forEach(m => {
-                let asset = (m["Asset Name"] || "Unassigned Asset").toString().trim();
+                let asset = (m.assetName || "Unassigned Asset").toString().trim();
                 if (validAssetNames.includes(asset) || (validAssetNames.length === 0 && TimelineState.currentStatusFilters.length === 0 && TimelineState.targetStatusFilters.length === 0)) {
                     if (asset === "") asset = "Unassigned Asset";
                     if (!swimlanesBuckets[asset]) swimlanesBuckets[asset] = [];
@@ -140,8 +134,8 @@
 
             if (TimelineState.sortKey === 'runRate') {
                 sortedAssetNames.sort((a, b) => {
-                    let runA = swimlanesBuckets[a].reduce((sum, m) => sum + (parseFloat(m["Run Rate"]) || 0), 0);
-                    let runB = swimlanesBuckets[b].reduce((sum, m) => sum + (parseFloat(m["Run Rate"]) || 0), 0);
+                    let runA = swimlanesBuckets[a].reduce((sum, m) => sum + (parseFloat(m.runRate) || 0), 0);
+                    let runB = swimlanesBuckets[b].reduce((sum, m) => sum + (parseFloat(m.runRate) || 0), 0);
                     return runB - runA;
                 });
             } else {
@@ -160,17 +154,16 @@
             const allInitiatives = windowPayload.initiatives || [];
 
             sortedAssetNames.forEach(assetName => {
-
                 const mastersInAsset = swimlanesBuckets[assetName];
                 const masterMap = new Map();
-                mastersInAsset.forEach(m => masterMap.set(m["Master Contract ID"], m));
+                mastersInAsset.forEach(m => masterMap.set(m.masterId, m));
 
                 const roots = [];
                 const childrenMap = new Map();
 
                 mastersInAsset.forEach(m => {
-                    const mId = m["Master Contract ID"];
-                    const prevIds = (m["Previous Master ID"] || "").toString().split(',').map(s => s.trim()).filter(s => s);
+                    const mId = m.masterId;
+                    const prevIds = (m.previousMasterId || "").toString().split(',').map(s => s.trim()).filter(s => s);
 
                     let isRoot = true;
                     prevIds.forEach(prevId => {
@@ -183,33 +176,33 @@
                     if (isRoot) roots.push(m);
                 });
 
-                roots.sort((a, b) => new Date(a["Start Date"] || a["Master Start Date"] || 0).getTime() - new Date(b["Start Date"] || b["Master Start Date"] || 0).getTime());
+                roots.sort((a, b) => new Date(a.masterStartDate || a.startDate || 0).getTime() - new Date(b.masterStartDate || b.startDate || 0).getTime());
 
                 const orderedMasters = [];
                 const visited = new Set();
 
                 function traverse(node) {
-                    if (visited.has(node["Master Contract ID"])) return;
-                    visited.add(node["Master Contract ID"]);
+                    if (visited.has(node.masterId)) return;
+                    visited.add(node.masterId);
                     orderedMasters.push(node);
 
-                    const children = childrenMap.get(node["Master Contract ID"]) || [];
-                    children.sort((a, b) => new Date(a["Start Date"] || a["Master Start Date"] || 0).getTime() - new Date(b["Start Date"] || b["Master Start Date"] || 0).getTime());
+                    const children = childrenMap.get(node.masterId) || [];
+                    children.sort((a, b) => new Date(a.masterStartDate || a.startDate || 0).getTime() - new Date(b.masterStartDate || b.startDate || 0).getTime());
                     children.forEach(child => traverse(child));
                 }
 
                 roots.forEach(root => traverse(root));
-                mastersInAsset.forEach(m => { if (!visited.has(m["Master Contract ID"])) traverse(m); });
+                mastersInAsset.forEach(m => { if (!visited.has(m.masterId)) traverse(m); });
                 swimlanesBuckets[assetName] = orderedMasters;
 
                 let cardsHtml = '';
                 const masterGeometryMap = {};
 
                 swimlanesBuckets[assetName].forEach((master, index) => {
-                    const mId = master["Master Contract ID"];
+                    const mId = master.masterId;
                     const coord = TimelineState.calculateTimeCoordinates(
-                        master["Start Date"] || master["Master Start Date"],
-                        master["End Date"] || master["Master End Date"]
+                        master.masterStartDate || master.startDate,
+                        master.masterEndDate || master.endDate
                     );
 
                     const verticalTop = index * (rowHeight + rowGap);
@@ -220,8 +213,8 @@
                         bottomY: verticalTop + rowHeight
                     };
 
-                    const childCount = allContracts.filter(c => c["Master Contract ID"] === mId).length;
-                    const linkedInits = allInitiatives.filter(i => String(i["Master Contract ID"]).trim() === String(mId).trim());
+                    const childCount = allContracts.filter(c => c.masterId === mId).length;
+                    const linkedInits = allInitiatives.filter(i => String(i.masterId).trim() === String(mId).trim());
                     let initiativeStripHtml = '';
                     if (linkedInits.length > 0) {
                         const countHtml = linkedInits.length > 1 ? `<span class="mt-1 text-[9px] font-black bg-white text-amber-600 px-1 rounded shadow-sm">${linkedInits.length}</span>` : '';
@@ -239,8 +232,8 @@
                 const supplierTrackHeight = swimlanesBuckets[assetName].length * (rowHeight + rowGap);
 
                 swimlanesBuckets[assetName].forEach(master => {
-                    const mId = master["Master Contract ID"];
-                    const prevIds = (master["Previous Master ID"] || "").toString().split(',').map(s => s.trim()).filter(s => s);
+                    const mId = master.masterId;
+                    const prevIds = (master.previousMasterId || "").toString().split(',').map(s => s.trim()).filter(s => s);
 
                     prevIds.forEach(prevId => {
                         if (masterGeometryMap[prevId]) {
@@ -288,9 +281,9 @@
                     ${svgPathsHtml}
                 </svg>` : '';
 
-                const assetMatch = validAssets.find(a => String(a["Asset Name"]).trim().toLowerCase() === String(assetName).trim().toLowerCase()) || {};
-                const currentStatus = assetMatch["Current Status"] || "ACTIVE";
-                const targetStrategy = assetMatch["Target Status"] || "RETAIN";
+                const assetMatch = validAssets.find(a => String(a.name).trim().toLowerCase() === String(assetName).trim().toLowerCase()) || {};
+                const currentStatus = assetMatch.currentStatus || "ACTIVE";
+                const targetStrategy = assetMatch.targetStatus || "RETAIN";
 
                 const styles = { 'RUNNING': 'text-emerald-700 bg-emerald-50 border-emerald-100', 'OPTIMIZING': 'text-amber-700 bg-amber-50 border-amber-100', 'EXITING': 'text-orange-700 bg-orange-50 border-orange-100', 'TRANSFERRED': 'text-sky-700 bg-sky-50 border-sky-100', 'EXPIRED': 'text-rose-700 bg-rose-50 border-rose-100', 'DISMISSED': 'text-slate-500 bg-slate-50 border-slate-200' };
                 const assetStatusPill = `<span class="px-2 py-0.5 text-[9px] font-bold rounded-full border ${styles[currentStatus.toUpperCase()] || 'text-slate-400 bg-slate-50 border-slate-100'}">${currentStatus.toUpperCase()}</span>`;
@@ -311,14 +304,16 @@
             const mountPoint = document.getElementById('timeline-modal-mount-point');
             if (!mountPoint) return;
 
-            const masterData = (windowPayload.masterContracts || []).find(m => m["Master Contract ID"] === masterId);
+            const masterData = (windowPayload.masterContracts || []).find(m => m.masterId === masterId);
             if (!masterData) return;
 
-            const childContracts = (windowPayload.contracts || []).filter(c => c["Master Contract ID"] === masterId);
+            const childContracts = (windowPayload.contracts || []).filter(c => c.masterId === masterId);
 
             childContracts.sort((a, b) => {
-                const timeA = a["End Date"] ? new Date(a["End Date"]).getTime() : 0;
-                const timeB = b["End Date"] ? new Date(b["End Date"]).getTime() : 0;
+                const dEndA = a.contractEndDate || a.endDate;
+                const dEndB = b.contractEndDate || b.endDate;
+                const timeA = dEndA ? new Date(dEndA).getTime() : 0;
+                const timeB = dEndB ? new Date(dEndB).getTime() : 0;
                 return timeB - timeA;
             });
 
@@ -331,7 +326,7 @@
             const mountPoint = document.getElementById('timeline-modal-mount-point');
             if (!mountPoint) return;
 
-            const linkedInits = (windowPayload.initiatives || []).filter(i => String(i["Master Contract ID"]).trim() === String(masterId).trim());
+            const linkedInits = (windowPayload.initiatives || []).filter(i => String(i.masterId).trim() === String(masterId).trim());
             if (linkedInits.length === 0) return;
 
             mountPoint.innerHTML = TimelineTemplates.getInitiativePopoverMarkup(linkedInits);
@@ -340,7 +335,7 @@
         },
 
         closeMasterDetailsModal: function () {
-            this.resetAnchorSelection(); // Pulisce i pallini colorati se annulli la modale
+            this.resetAnchorSelection();
             const mountPoint = document.getElementById('timeline-modal-mount-point');
             if (!mountPoint) return;
             mountPoint.classList.add('hidden');
@@ -348,12 +343,6 @@
             mountPoint.innerHTML = '';
             mountPoint.onclick = () => this.closeMasterDetailsModal();
         },
-
-        // ==========================================
-        // WORKSPACE GOVERNANCE: INTERACTIVE EDIT MODES & LOGIC
-        // ==========================================
-
-        linkingSourceMasterId: null,
 
         toggleTimelineEditMode: function () {
             if (window.hasPendingChanges && TimelineState.isTimelineEditable) {
@@ -367,27 +356,17 @@
                 return;
             }
 
-            // Sincronizza lo stato con la variabile booleana
             if (typeof TimelineState.isTimelineEditable === 'undefined') TimelineState.isTimelineEditable = false;
             TimelineState.isTimelineEditable = !TimelineState.isTimelineEditable;
             if (typeof setEditModeActive !== 'undefined') setEditModeActive(TimelineState.isTimelineEditable);
 
-            const editBtn = document.getElementById('timeline-edit-mode-btn');
             const pullTab = document.getElementById('timeline-orphans-pull-tab');
             const drawer = document.getElementById('timeline-orphans-drawer');
 
             if (TimelineState.isTimelineEditable) {
-                if (editBtn) {
-                    editBtn.className = "px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-black text-[11px] uppercase tracking-wider rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer";
-                    editBtn.innerHTML = `<svg class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg> Editing Mode`;
-                }
                 if (pullTab) pullTab.classList.remove('hidden');
                 this.renderOrphansList();
             } else {
-                if (editBtn) {
-                    editBtn.className = "px-4 py-2 bg-white border border-slate-300 text-slate-700 font-black text-[11px] uppercase tracking-wider rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer hover:bg-slate-50";
-                    editBtn.innerHTML = `<svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.25 0 113.536 3.536L6.5 21.036H3v-3.536L16.5 3.536z" /></svg> Edit Mode`;
-                }
                 if (pullTab) pullTab.classList.add('hidden');
                 if (drawer) drawer.classList.add('translate-x-full');
                 this.resetAnchorSelection();
@@ -412,7 +391,7 @@
             if (!listContainer) return;
 
             const allContracts = windowPayload.contracts || [];
-            const orphans = allContracts.filter(c => !(c["Master Contract ID"] || "").toString().trim());
+            const orphans = allContracts.filter(c => !(c.masterId || "").toString().trim());
 
             if (badge) badge.textContent = orphans.length;
 
@@ -421,24 +400,24 @@
                 return;
             }
 
-            orphans.sort((a, b) => (parseFloat(b["Annual Value"]) || 0) - (parseFloat(a["Annual Value"]) || 0));
+            orphans.sort((a, b) => (parseFloat(b.annualValue) || 0) - (parseFloat(a.annualValue) || 0));
             listContainer.innerHTML = orphans.map(c => TimelineTemplates.getOrphanCardMarkup(c)).join('');
         },
 
         recalculateMasterInRAM: function (masterId) {
-            const master = (windowPayload.masterContracts || []).find(m => m["Master Contract ID"] === masterId);
+            const master = (windowPayload.masterContracts || []).find(m => m.masterId === masterId);
             if (!master) return;
 
-            const children = (windowPayload.contracts || []).filter(c => c["Master Contract ID"] === masterId);
+            const children = (windowPayload.contracts || []).filter(c => c.masterId === masterId);
             let newCommitment = 0; let newRunRate = 0;
 
             children.forEach(c => {
-                newCommitment += parseFloat(c["Total Commitment"] || c["TCV"]) || 0;
-                newRunRate += parseFloat(c["Annual Value"]) || 0;
+                newCommitment += parseFloat(c.totalCommitment || 0);
+                newRunRate += parseFloat(c.annualValue || 0);
             });
 
-            master["Total Commitment"] = newCommitment;
-            master["Run Rate"] = newRunRate;
+            master.totalCommitment = newCommitment;
+            master.runRate = newRunRate;
         },
 
         handleOrphanDragStart: function (event, contractId) {
@@ -449,14 +428,9 @@
             if (drawer) drawer.classList.add('translate-x-full');
         },
 
-        // --- MOTORE DI SELEZIONE CLICK-TO-LINK SMART ---
-        linkingSourceMasterId: null,
-        linkingSourceAsset: null,
-
         handleSourceAnchorClick: function (masterId, assetName, element) {
             if (!TimelineState.isTimelineEditable) return;
 
-            // Se riclicchi sullo stesso pallino, annulla l'operazione
             if (this.linkingSourceMasterId === masterId) {
                 this.resetAnchorSelection();
                 return;
@@ -465,7 +439,6 @@
             this.linkingSourceMasterId = masterId;
             this.linkingSourceAsset = assetName;
 
-            // 1. Spegni TUTTI i pallini sorgente, tranne quello cliccato che diventa arancione
             document.querySelectorAll('.timeline-source-dot').forEach(dot => {
                 if (dot.getAttribute('data-master') === masterId) {
                     dot.classList.remove('bg-emerald-500', 'border-white', 'hidden');
@@ -475,12 +448,10 @@
                 }
             });
 
-            // 2. Accendi i pallini destinazione (Teal) SOLO per le card dello STESSO Asset
             document.querySelectorAll('.timeline-target-dot').forEach(dot => {
                 const dotAsset = dot.getAttribute('data-asset');
                 const dotMaster = dot.getAttribute('data-master');
 
-                // Mostra destinazioni valide: stesso asset, ma NON se stesso
                 if (dotAsset === assetName && dotMaster !== masterId) {
                     dot.classList.remove('hidden');
                 } else {
@@ -497,11 +468,10 @@
             if (!TimelineState.isTimelineEditable) return;
             if (this.linkingSourceMasterId === null || this.linkingSourceMasterId === masterId) return;
 
-            const targetMaster = (windowPayload.masterContracts || []).find(m => m["Master Contract ID"] === masterId);
-            let prevs = targetMaster ? (targetMaster["Previous Master ID"] || "").toString().split(',').map(s => s.trim()).filter(s => s) : [];
+            const targetMaster = (windowPayload.masterContracts || []).find(m => m.masterId === masterId);
+            let prevs = targetMaster ? (targetMaster.previousMasterId || "").toString().split(',').map(s => s.trim()).filter(s => s) : [];
             const isAlreadyLinked = prevs.includes(this.linkingSourceMasterId);
 
-            // Spara la nostra modale centralizzata in inglese!
             this.openLinkConfirmationModal(this.linkingSourceMasterId, masterId, isAlreadyLinked);
         },
 
@@ -509,12 +479,10 @@
             this.linkingSourceMasterId = null;
             this.linkingSourceAsset = null;
 
-            // Ripristina e mostra tutti i pallini sorgente (se in edit mode)
             document.querySelectorAll('.timeline-source-dot').forEach(dot => {
                 dot.className = `timeline-source-dot absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full cursor-pointer hover:scale-125 transition-all shadow-md z-[60] ${TimelineState.isTimelineEditable ? '' : 'hidden'}`;
             });
 
-            // Nascondi tutti i pallini destinazione
             document.querySelectorAll('.timeline-target-dot').forEach(dot => {
                 dot.className = `timeline-target-dot absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-teal-500 border-2 border-white rounded-full cursor-pointer hover:scale-125 transition-all shadow-md z-[60] hidden`;
             });
@@ -531,12 +499,12 @@
         },
 
         confirmVisualLink: function (sourceId, targetId) {
-            const targetMaster = (windowPayload.masterContracts || []).find(m => m["Master Contract ID"] === targetId);
+            const targetMaster = (windowPayload.masterContracts || []).find(m => m.masterId === targetId);
             if (targetMaster) {
-                let currentPrevs = (targetMaster["Previous Master ID"] || "").toString().split(',').map(s => s.trim()).filter(s => s);
+                let currentPrevs = (targetMaster.previousMasterId || "").toString().split(',').map(s => s.trim()).filter(s => s);
                 if (!currentPrevs.includes(sourceId)) {
                     currentPrevs.push(sourceId);
-                    targetMaster["Previous Master ID"] = currentPrevs.join(', ');
+                    targetMaster.previousMasterId = currentPrevs.join(', ');
 
                     this.showCommitButton();
                     this.renderActiveTimelineCanvas();
@@ -547,14 +515,14 @@
         },
 
         confirmLinkRemoval: function (sourceId, targetId) {
-            const targetMaster = (windowPayload.masterContracts || []).find(m => m["Master Contract ID"] === targetId);
+            const targetMaster = (windowPayload.masterContracts || []).find(m => m.masterId === targetId);
             if (targetMaster) {
-                let currentPrevs = (targetMaster["Previous Master ID"] || "").toString().split(',').map(s => s.trim()).filter(s => s);
+                let currentPrevs = (targetMaster.previousMasterId || "").toString().split(',').map(s => s.trim()).filter(s => s);
                 currentPrevs = currentPrevs.filter(p => p !== sourceId);
-                targetMaster["Previous Master ID"] = currentPrevs.join(', ');
+                targetMaster.previousMasterId = currentPrevs.join(', ');
 
                 this.showCommitButton();
-                this.renderActiveTimelineCanvas(); // Cancella subito la linea dallo schermo
+                this.renderActiveTimelineCanvas();
             }
             this.resetAnchorSelection();
             this.closeMasterDetailsModal();
@@ -588,9 +556,9 @@
             try {
                 const data = JSON.parse(rawData);
                 if (data.type === 'ORPHAN') {
-                    const contract = (windowPayload.contracts || []).find(c => c["Contract ID"] === data.id);
+                    const contract = (windowPayload.contracts || []).find(c => c.contractId === data.id);
                     if (contract) {
-                        contract["Master Contract ID"] = targetMasterId;
+                        contract.masterId = targetMasterId;
                         this.recalculateMasterInRAM(targetMasterId);
                         this.showCommitButton();
                         this.renderActiveTimelineCanvas();
@@ -602,9 +570,9 @@
         },
 
         unlinkContract: function (contractId, masterId) {
-            const contract = (windowPayload.contracts || []).find(c => c["Contract ID"] === contractId);
+            const contract = (windowPayload.contracts || []).find(c => c.contractId === contractId);
             if (contract) {
-                contract["Master Contract ID"] = "";
+                contract.masterId = "";
                 this.recalculateMasterInRAM(masterId);
                 this.showCommitButton();
                 this.renderActiveTimelineCanvas();
@@ -619,13 +587,9 @@
         },
 
         showCommitButton: function () {
-            // 🌟 ACCENSIONE SEMAFORO IN TIMELINE
             if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
         },
 
-        showFloatingArrows: function () { },
-
-        // --- IL MOTORE DI SCRITTURA FINOPS SU DATABASE GOOGLE SHEETS ---
         commitTimelineChanges: function () {
             showLoading();
 
@@ -638,9 +602,6 @@
                 .withSuccessHandler((res) => {
                     hideLoading();
                     if (res === "SUCCESS") {
-                        const btn = document.getElementById('timeline-commit-btn');
-                        if (btn) btn.classList.replace('flex', 'hidden');
-
                         FinOpsUI.showNotificationBanner("Timeline architecture successfully synchronized and persisted to Google Sheets.", "success");
                         fetchLiveData();
                     } else {
@@ -652,16 +613,6 @@
                     FinOpsUI.showAlert("Cloud Sync Failed", err.message);
                 })
                 .processTimelineSync(payload);
-        },
-
-        closeMasterDetailsModal: function () {
-            this.resetAnchorSelection();
-            const mountPoint = document.getElementById('timeline-modal-mount-point');
-            if (!mountPoint) return;
-            mountPoint.classList.add('hidden');
-            mountPoint.classList.remove('flex');
-            mountPoint.innerHTML = '';
-            mountPoint.onclick = () => this.closeMasterDetailsModal();
         }
     };
 

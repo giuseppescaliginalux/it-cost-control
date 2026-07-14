@@ -2,6 +2,7 @@
     /**
      * js_timeline_state.html
      * MODEL: State management, dynamic bounding years, and horizontal spatial math.
+     * Allineato al 100% sui DTO camelCase nativi condivisi per la Timeline SPA.
      */
     const TimelineState = {
         searchKeyword: "",
@@ -20,7 +21,7 @@
             let masters = windowPayload.masterContracts || [];
             if (this.selectedAsset) {
                 masters = masters.filter(m =>
-                    String(m["Asset Name"]).trim().toLowerCase() === this.selectedAsset.toLowerCase()
+                    String(m.assetName || "").trim().toLowerCase() === this.selectedAsset.toLowerCase()
                 );
             }
             return masters;
@@ -35,8 +36,8 @@
                 let minD = new Date(2099, 0, 1);
                 let maxD = new Date(2000, 0, 1);
                 masters.forEach(m => {
-                    const start = new Date(m["Start Date"] || m["Master Start Date"] || new Date());
-                    const end = new Date(m["End Date"] || m["Master End Date"] || new Date());
+                    const start = m.masterStartDate ? new Date(m.masterStartDate) : new Date();
+                    const end = m.masterEndDate ? new Date(m.masterEndDate) : new Date();
                     if (!isNaN(start.getTime()) && start < minD) minD = start;
                     if (!isNaN(end.getTime()) && end > maxD) maxD = end;
                 });

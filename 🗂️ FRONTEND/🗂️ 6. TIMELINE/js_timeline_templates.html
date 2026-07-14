@@ -3,6 +3,7 @@
      * js_timeline_templates.html
      * VIEW: Layout engine. Risolve il bug delle linee di corsia tagliate (tramite min-w-max)
      * e posiziona la pillola dell'asset in modo fisso e sicuro a sinistra.
+     * Allineato interamente sui DTO camelCase puliti.
      */
     const TimelineTemplates = {
         getControlsShellMarkup: function (canvasWidth) {
@@ -133,18 +134,18 @@
         },
 
         getContractCardNodeMarkup: function (m, left, width, childCount, initiativeStripHtml) {
-            const intentStatus = (m["Status"] || "ACTIVE").toString().toUpperCase().trim();
+            const intentStatus = (m.status || "ACTIVE").toString().toUpperCase().trim();
             const isExpired = intentStatus === "EXPIRED" || intentStatus === "TERMINATED";
 
             const rightPaddingClass = initiativeStripHtml ? "pr-8" : "pr-2";
             const borderStyles = isExpired ? "border-slate-200 bg-slate-50/50 opacity-60 grayscale-[0.2]" : "border-slate-200 bg-white shadow-3xs hover:border-teal-400 hover:shadow-md ring-1 ring-transparent hover:ring-teal-400/20";
             const stripeColor = isExpired ? "bg-slate-400" : "bg-teal-600";
 
-            const cleanStart = safeFormatStringDate(m["Start Date"] || m["Master Start Date"]);
-            const cleanEnd = safeFormatStringDate(m["End Date"] || m["Master End Date"]);
-            const formattedVal = parseFloat(m["Total Commitment"] || 0).formatCurrency();
-            const masterId = m["Master Contract ID"] || "N/A";
-            const supplierStr = m["Supplier"] || 'Generic Supplier';
+            const cleanStart = safeFormatStringDate(m.masterStartDate || m.startDate);
+            const cleanEnd = safeFormatStringDate(m.masterEndDate || m.endDate);
+            const formattedVal = parseFloat(m.totalCommitment || 0).formatCurrency();
+            const masterId = m.masterId || "N/A";
+            const supplierStr = m.supplier || 'Generic Supplier';
 
             let statusBadge = '';
             if (intentStatus === "ACTIVE") statusBadge = `<span class="px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-widest border bg-emerald-50 text-emerald-700 border-emerald-200 shadow-3xs leading-none shrink-0">${intentStatus}</span>`;
@@ -173,7 +174,7 @@
                         </div>
                         <div class="text-[7px] text-slate-400 font-mono flex justify-between items-center uppercase leading-none px-2 tracking-tighter mt-auto border-t border-slate-100/60 pt-1 pb-1">
                             <span class="font-bold">${cleanStart}</span>
-                            <span class="text-teal-600 font-bold bg-teal-50 px-1 py-0.5 rounded border border-teal-100/40">${m["Contract Term (Months)"] || '-'}M</span>
+                            <span class="text-teal-600 font-bold bg-teal-50 px-1 py-0.5 rounded border border-teal-100/40">${m.contractTerm || '-'}M</span>
                             <span class="font-bold">${cleanEnd}</span>
                         </div>
                     </div>
@@ -195,13 +196,13 @@
                             </div>
                         </div>
 
-                        <div class="text-[10px] text-slate-500 font-medium px-2 truncate whitespace-nowrap block w-full border-t border-b border-slate-100/60 py-1" title="${m["Scope"] || ''}">
-                            ${m["Scope"] || '<span class="italic text-slate-400">Global Technological Coverage</span>'}
+                        <div class="text-[10px] text-slate-500 font-medium px-2 truncate whitespace-nowrap block w-full border-t border-b border-slate-100/60 py-1" title="${m.masterScope || ''}">
+                            ${m.masterScope || '<span class="italic text-slate-400">Global Technological Coverage</span>'}
                         </div>
 
                         <div class="text-[9px] text-slate-400 font-mono flex justify-between items-end uppercase leading-none px-2 tracking-tighter pb-0.5">
                             <span class="font-bold">${cleanStart}</span>
-                            <span class="text-teal-600 font-bold bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100/40 shadow-3xs">${m["Contract Term (Months)"] || '-'} M</span>
+                            <span class="text-teal-600 font-bold bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100/40 shadow-3xs">${m.contractTerm || '-'} M</span>
                             <span class="font-bold">${cleanEnd}</span>
                         </div>
                     </div>
@@ -209,7 +210,7 @@
                 `;
             }
 
-            const assetNameStr = (m["Asset Name"] || "Unassigned Asset").toString().replace(/'/g, "\\'");
+            const assetNameStr = (m.assetName || "Unassigned Asset").toString().replace(/'/g, "\\'");
 
             return `
             <div class="relative w-full shrink-0 select-none" style="height: ${TimelineState.rowHeight}px;">
@@ -248,31 +249,31 @@
         },
 
         getMasterModalMarkup: function (masterData, childContracts) {
-            const masterId = masterData["Master Contract ID"];
-            const supplier = masterData["Supplier"] || 'N/A';
-            const scope = masterData["Scope"] || 'N/A';
-            const runRate = parseFloat(masterData["Run Rate"] || 0).formatCurrency();
-            const totCommit = parseFloat(masterData["Total Commitment"] || 0).formatCurrency();
-            const expDateStr = masterData["Master End Date"] ? masterData["Master End Date"].toString().split('T')[0] : "N/A";
+            const masterId = masterData.masterId;
+            const supplier = masterData.supplier || 'N/A';
+            const scope = masterData.masterScope || 'N/A';
+            const runRate = parseFloat(masterData.runRate || 0).formatCurrency();
+            const totCommit = parseFloat(masterData.totalCommitment || 0).formatCurrency();
+            const expDateStr = masterData.masterEndDate ? masterData.masterEndDate.toString().split('T')[0] : "N/A";
 
             let listHtml = '';
             if (childContracts && childContracts.length > 0) {
                 listHtml = childContracts.map(c => {
-                    let desc = c["Scope"] || c["Description"] || "No scope provided";
-                    let cc = c["Cost Center"] || "N/A";
-                    let le = c["Legal Entity"] || "N/A";
-                    let expType = c["Expenditure Type"] || "OPEX";
-                    let cTotCommit = parseFloat(c["Total Commitment"] || c["TCV"] || 0).formatCurrency();
-                    let term = c["Contract Term (Months)"] || "N/A";
-                    let cRunRate = parseFloat(c["Annual Value"] || 0).formatCurrency();
+                    let desc = c.scope || c.description || "No scope provided";
+                    let cc = c.costCenter || "N/A";
+                    let le = c.legalEntity || "N/A";
+                    let expType = c.expenditureType || "OPEX";
+                    let cTotCommit = parseFloat(c.totalCommitment || 0).formatCurrency();
+                    let term = c.contractTerm || "N/A";
+                    let cRunRate = parseFloat(c.annualValue || 0).formatCurrency();
 
-                    let endDate = c["Expiration Date"] || c["End Date"] || c["Contract End Date"] || "N/A";
+                    let endDate = c.contractEndDate || c.endDate || "N/A";
                     if (endDate !== "N/A") {
                         let ed = new Date(endDate);
                         if (!isNaN(ed.getTime())) endDate = ed.toISOString().split('T')[0];
                     }
 
-                    const cId = c["Contract ID"] || "";
+                    const cId = c.contractId || "";
                     return `
                     <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors group/row">
                         <td class="p-2.5 font-bold text-slate-800 text-[10px]">${le}</td>
@@ -345,30 +346,30 @@
 
         getInitiativePopoverMarkup: function (initiatives) {
             let initsHtml = initiatives.map((init, idx) => {
-                const initName = init["Initiative Name"] || "Unnamed Initiative";
-                const status = (init["Initiative Status"] || "IDEA").toUpperCase();
-                const decision = (init["Decision"] || "OPTIMIZATION").toUpperCase();
+                const initName = init.name || "Unnamed Initiative";
+                const status = (init.status || "IDEA").toUpperCase();
+                const decision = (init.decision || "OPTIMIZATION").toUpperCase();
 
                 const isCompleted = status === "COMPLETED" || status === "REALIZED";
-                const baseline = parseFloat(init["Baseline Spend (Annualized)"]) || 0;
+                const baseline = parseFloat(init.baselineSpendAnnualized) || 0;
 
                 let savingVal = 0;
                 let pctVal = 0;
                 let savingLabel = "Target Annualized Saving";
 
                 if (isCompleted) {
-                    savingVal = parseFloat(init["Actual Saving (Annualized)"]) || 0;
+                    savingVal = parseFloat(init.actualSavingAnnualized) || 0;
                     pctVal = baseline > 0 ? (savingVal / baseline) * 100 : 0;
                     savingLabel = "Actual Annualized Saving";
                 } else {
-                    savingVal = parseFloat(init["Target Saving (Annualized)"]) || 0;
-                    pctVal = parseFloat(init["Target Saving %"] || 0) * 100;
+                    savingVal = parseFloat(init.targetSavingAnnualized) || 0;
+                    pctVal = parseFloat(init.targetSavingPct || 0) * 100;
                 }
 
                 const savingStr = savingVal.formatCurrency();
                 const pctStr = pctVal.toFixed(0);
-                const dateStr = init["Target Date"] ? ContractsUtils.formatToEnglishCustomDate(init["Target Date"]) : "TBD";
-                const desc = init["Description"] || '<span class="italic text-slate-400">No description provided.</span>';
+                const dateStr = init.targetDate ? ContractsUtils.formatToEnglishCustomDate(init.targetDate) : "TBD";
+                const desc = init.description || '<span class="italic text-slate-400">No description provided.</span>';
 
                 return `
                 <div class="${idx > 0 ? 'mt-4 pt-4 border-t border-slate-200' : ''}">
@@ -445,19 +446,19 @@
         },
 
         getOrphanCardMarkup: function (contract) {
-            const formattedVal = parseFloat(contract["Annual Value"] || 0).formatCurrency();
-            const supplierStr = contract["Supplier"] || 'Generic Supplier';
+            const formattedVal = parseFloat(contract.annualValue || 0).formatCurrency();
+            const supplierStr = contract.supplier || 'Generic Supplier';
 
             return `
-            <div draggable="true" ondragstart="TimelineController.handleOrphanDragStart(event, '${contract["Contract ID"]}')"
+            <div draggable="true" ondragstart="TimelineController.handleOrphanDragStart(event, '${contract.contractId}')"
                  class="bg-white border border-slate-200 hover:border-teal-400 p-3 rounded-xl shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md transition-all group">
                 <div class="flex justify-between items-start mb-2">
                     <span class="font-black text-[11px] text-slate-800 truncate pr-2 group-hover:text-teal-700" title="${supplierStr}">${supplierStr}</span>
-                    <span class="text-[9px] font-mono font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 shadow-3xs shrink-0">${contract["Contract ID"]}</span>
+                    <span class="text-[9px] font-mono font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 shadow-3xs shrink-0">${contract.contractId}</span>
                 </div>
-                <div class="text-[9px] text-slate-500 truncate mb-2">${contract["Legal Entity"] || 'N/A'}</div>
+                <div class="text-[9px] text-slate-500 truncate mb-2">${contract.legalEntity || 'N/A'}</div>
                 <div class="flex justify-between items-center text-[10px] border-t border-slate-50 pt-2 mt-1">
-                    <span class="font-bold text-slate-400 uppercase tracking-wider text-[8px]">${contract["Pricing Model"] || 'Flat'}</span>
+                    <span class="font-bold text-slate-400 uppercase tracking-wider text-[8px]">${contract.pricingModel || 'Flat'}</span>
                     <span class="font-mono font-black text-slate-700">€${formattedVal}</span>
                 </div>
             </div>`;
