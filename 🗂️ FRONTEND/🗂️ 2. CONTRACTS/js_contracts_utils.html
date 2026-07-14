@@ -15,12 +15,13 @@
         },
 
         validateContractData: function (data) {
+            // Usa le chiavi camelCase corrette del DTO
             const requiredFields = {
-                "Legal Entity": "Legal Entity",
-                "Scope": "Scope",
-                "Total Commitment": "Total Commitment",
-                "Start Date": "Start Date",
-                "Contract End Date": "Contract End Date"
+                "legalEntity": "Legal Entity",
+                "scope": "Scope",
+                "totalCommitment": "Total Commitment",
+                "startDate": "Start Date",
+                "contractEndDate": "Contract End Date"
             };
 
             for (let field in requiredFields) {
@@ -30,11 +31,11 @@
                 }
             }
 
-            if (parseFloat(data["Total Commitment"]) <= 0) {
+            if (parseFloat(data.totalCommitment) <= 0) {
                 throw new Error("Total Commitment must be greater than zero.");
             }
 
-            if (new Date(data["Start Date"]) >= new Date(data["Contract End Date"])) {
+            if (new Date(data.startDate) >= new Date(data.contractEndDate)) {
                 throw new Error("Start Date must be before Contract End Date.");
             }
             return true;
@@ -76,9 +77,14 @@
         },
 
         formatLedgerValue: function (inputEl) {
-            let val = inputEl.value.replace(/[^0-9]/g, '');
-            if (val === '') { inputEl.value = ''; return; }
-            inputEl.value = parseInt(val, 10).toLocaleString('it-IT');
+            let val = inputEl.value.replace(/[^0-9-]/g, '');
+            if (val === '' || val === '-') { inputEl.value = val; return; }
+            
+            const isNegative = val.startsWith('-');
+            const numVal = parseInt(val.replace(/-/g, ''), 10);
+            
+            if (isNaN(numVal)) { inputEl.value = isNegative ? '-' : ''; return; }
+            inputEl.value = (isNegative ? '-' : '') + numVal.toLocaleString('it-IT');
         },
 
         formatSplitValue: function (inputEl) {

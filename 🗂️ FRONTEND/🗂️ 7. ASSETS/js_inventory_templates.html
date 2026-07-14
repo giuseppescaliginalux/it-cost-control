@@ -198,7 +198,11 @@
             const mId = master["Master Contract ID"] || master.masterId || 'N/A';
             const supplier = master["Supplier"] || master.supplier || "GENERIC SUPPLIER";
 
-            const runRate = window.formatKM(parseFloat(master["Run Rate"] || master.runRate || 0));
+            const nomRunRate = parseFloat(master["Run Rate"] || master.runRate || 0);
+            const effRunRateNum = parseFloat(master.effectiveRunRate || master["Effective Run Rate"] || nomRunRate);
+            const runRate = window.formatKM(effRunRateNum);
+            const isDiscounted = effRunRateNum !== nomRunRate;
+
             const totCommit = window.formatKM(parseFloat(master["Total Commitment"] || master.totalCommitment || 0));
 
             const formatStrDate = (v) => v ? new Date(v).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A';
@@ -270,6 +274,7 @@
                         <div class="text-right pl-3 shrink-0">
                             <span class="text-[7px] text-slate-400 uppercase font-black tracking-widest block mb-0.5">RUN RATE</span>
                             <span class="font-mono font-black text-teal-800 text-xs">€ ${runRate}</span>
+                            ${isDiscounted ? `<span class="block text-[7px] text-slate-400 mt-0.5">Nom: €${window.formatKM(nomRunRate)}</span>` : ''}
                         </div>
                         ${docsIconHtml}
                         ${editActions}
@@ -294,7 +299,10 @@
             const term = contract["Contract Term (Months)"] || contract.contractTerm || '-';
 
             const totCommit = window.formatKM(parseFloat(contract["Total Commitment"] || contract.totalCommitment || 0));
-            const runRate = window.formatKM(parseFloat(contract["Annual Value"] || contract.annualValue || 0));
+            const nomRunRate = parseFloat(contract["Annual Value"] || contract.annualValue || 0);
+            const effRunRateNum = parseFloat(contract.effectiveRunRate || contract["Effective Run Rate"] || nomRunRate);
+            const runRate = window.formatKM(effRunRateNum);
+            const isDiscounted = effRunRateNum !== nomRunRate;
             const expType = contract["Expenditure Type"] || contract.expenditureType || 'OPEX';
 
             let statusBadge = "";
@@ -355,6 +363,7 @@
                     <div class="text-right pl-3 shrink-0">
                         <span class="text-[6px] text-slate-400 uppercase font-black tracking-widest block mb-0.5">RUN RATE</span>
                         <span class="text-[10px] font-mono font-black text-slate-700">€ ${runRate}</span>
+                        ${isDiscounted ? `<span class="block text-[6px] text-slate-400 mt-0.5">Nom: €${window.formatKM(nomRunRate)}</span>` : ''}
                     </div>
                     ${docsIconHtml}
                     ${editActions}

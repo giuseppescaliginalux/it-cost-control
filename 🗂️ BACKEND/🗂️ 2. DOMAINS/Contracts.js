@@ -94,15 +94,33 @@ class LedgerMovement {
   isForecast() { return this.type === "FORECAST" || this.type === "CALCULATED"; }
   isActual() { return this.type === "ACTUAL"; }
 
-  exportToData() {
+  exportToData(linkedInitiatives) {
+    const start = this.getMinStartDate();
+    const end = this.getMaxEndDate();
+    let termMonths = 0;
+    if (start && end && start <= end) termMonths = Math.round(this._getExactMonths(start, end));
+
+    // Estraiamo la differenza tra Nominale e Netto
+    const nominalCommitment = parseFloat(this.childContracts.reduce((sum, c) => sum + (c.totalCommitment || 0), 0).toFixed(2));
+
     return {
       ...this.extraProperties,
-      contractId: this.contractId,
-      startDate: formatServerDate(this.startDate),
-      endDate: formatServerDate(this.endDate),
-      type: this.type,
-      amount: this.amount,
-      notes: this.notes
+      masterId: this.id,
+      previousMasterId: this.previousMasterId,
+      assetName: this.assetName,
+      supplier: this.supplier,
+      masterScope: this.masterScope,
+      masterComments: this.masterComments,
+      contractLinks: this.contractLinks,
+      billingChannel: this.billingChannel,
+      masterStartDate: formatServerDate(start),
+      masterEndDate: formatServerDate(end),
+      contractTerm: termMonths,
+      totalCommitment: this.getTotalCommitment(), // Questo è l'Effective
+      nominalCommitment: nominalCommitment,       // Questo è il Nominale per la Card
+      runRate: this.getRunRate(),
+      effectiveRunRate: this.getEffectiveRunRate(),
+      status: this.deriveStatus(linkedInitiatives)
     };
   }
 }
@@ -556,7 +574,7 @@ class MasterContract {
   deriveStatus(linkedInitiatives) {
     let checkTerminated = 0;
     let checkNegotiation = 0;
-    
+
     // 🌟 FIX PUNTO 6: Estraiamo tutti gli stati reali dei figli vivi
     const childStatuses = this.childContracts.map(c => c.calculateStatus());
     const hasActiveChilds = childStatuses.includes("ACTIVE");
@@ -632,8 +650,8 @@ class ContractRepository {
     const ctx = FinOpsDatabase.getContext(CONFIG.SHEETS.CONTRACTS);
     const colIdx = ctx.headers.indexOf("Master Contract ID");
     const filteredData = [ctx.headers];
-    for(let i=1; i<ctx.data.length; i++) {
-       if (String(ctx.data[i][colIdx]).trim() !== String(masterId).trim()) filteredData.push(ctx.data[i]);
+    for (let i = 1; i < ctx.data.length; i++) {
+      if (String(ctx.data[i][colIdx]).trim() !== String(masterId).trim()) filteredData.push(ctx.data[i]);
     }
     ctx.data = filteredData;
     FinOpsDatabase.setObjects(CONFIG.SHEETS.CONTRACTS, detailsDtoArray, CONTRACT_FIELD_MAP, true);

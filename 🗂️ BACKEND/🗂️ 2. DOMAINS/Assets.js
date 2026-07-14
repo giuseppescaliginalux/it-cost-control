@@ -106,46 +106,54 @@ class Asset {
    * basandosi esclusivamente su DTO digeriti e normalizzati provenienti dagli altri domini.
    */
   injectContext(assetProjections, assetContracts, assetInits, assetVariances) {
-    // RUN RATE e BUDGET STATUS non sono più calcolati qui, ma dal Frontend a Latenza Zero.
+    // 🌟 FIX: Ritorna il calcolo del Run Rate dell'Asset per il salvataggio su DB!
+    let activeRunRate = 0;
+    assetContracts.forEach(c => {
+      const cStatus = String(c.status || c.Status || "ACTIVE").toUpperCase();
+      if (["ACTIVE", "UPCOMING", "INCOMING"].includes(cStatus)) {
+        activeRunRate += parseFloat(c.effectiveRunRate || c["Effective Run Rate"] || c.annualValue || c["Annual Value"] || 0);
+      }
+    });
+    this.runRate = parseFloat(activeRunRate.toFixed(2));
 
-    // B: LAST END DATE (Estrazione della massima scadenza contrattuale)
     let maxEndDate = null;
     assetContracts.forEach(c => {
-      const dEnd = c.adjustedEndDate ? new Date(c.adjustedEndDate) : (c.contractEndDate ? new Date(c.contractEndDate) : null);
+      const dEndRaw = c.adjustedEndDate || c["Adjusted End Date"] || c.contractEndDate || c["Contract End Date"] || c.endDate || c["End Date"];
+      const dEnd = dEndRaw ? new Date(dEndRaw) : null;
       if (dEnd && !isNaN(dEnd.getTime()) && (!maxEndDate || dEnd > maxEndDate)) {
         maxEndDate = dEnd;
       }
     });
     this.lastEndDate = maxEndDate ? formatServerDate(maxEndDate) : "";
 
-    // C: FINANCIAL INITIATIVES (Ciclo di vita dismissioni/ottimizzazioni)
     let costImprovementSum = 0;
     let strategy = "RETAIN";
     let exitDateStr = ""; let transferDateStr = ""; let initTargetDateStr = "";
     let hasTerminate = false; let hasTransfer = false; let hasOptimize = false;
 
     assetInits.forEach(init => {
-      const initStatus = String(init.status || "").toUpperCase();
-      const decision = String(init.decision || "").toUpperCase();
+      const initStatus = String(init.status || init["Initiative Status"] || "").toUpperCase();
+      const decision = String(init.decision || init["Decision"] || "").toUpperCase();
 
       if (["COMPLETED", "IN PROGRESS"].includes(initStatus)) {
-        costImprovementSum += parseFloat(init.actualSavingAnnualized || init.targetSavingAnnualized || 0);
+        costImprovementSum += parseFloat(init.actualSavingAnnualized || init["Actual Saving (Annualized)"] || init.targetSavingAnnualized || init["Target Saving (Annualized)"] || 0);
 
-        if (init.targetDate) {
-          const dTarget = new Date(init.targetDate);
+        const tDateRaw = init.targetDate || init["Target Date"];
+        if (tDateRaw) {
+          const dTarget = new Date(tDateRaw);
           if (!isNaN(dTarget.getTime())) initTargetDateStr = formatServerDate(dTarget);
         }
 
         if (["TERMINATE", "REPLACE"].includes(decision)) {
           hasTerminate = true; strategy = "EXIT";
-          const dEff = init.actualDate || init.targetDate;
+          const dEff = init.actualDate || init["Actual Date"] || init.targetDate || init["Target Date"];
           if (dEff) {
             const d = new Date(dEff);
             if (!isNaN(d.getTime())) exitDateStr = formatServerDate(d);
           }
         } else if (decision === "TRANSFER") {
           hasTransfer = true; strategy = "HANDOVER";
-          const dEff = init.actualDate || init.targetDate;
+          const dEff = init.actualDate || init["Actual Date"] || init.targetDate || init["Target Date"];
           if (dEff) {
             const d = new Date(dEff);
             if (!isNaN(d.getTime())) transferDateStr = formatServerDate(d);
@@ -162,7 +170,6 @@ class Asset {
     this.transferDate = transferDateStr;
     this.initiativeTargetDate = initTargetDateStr;
 
-    // D: MACCHINA A STATI FINITI
     let computedStatus = "RUNNING";
     const today = new Date(); today.setHours(0, 0, 0, 0);
 

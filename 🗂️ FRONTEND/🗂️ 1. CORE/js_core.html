@@ -63,7 +63,7 @@
         try {
             // 1. Fetch raw data (che ora arrivano purissimi come DTO dal PayloadBuilder)
             const payload = await apiFetchFullPayload();
-            
+
             // 2. Just-In-Time Hydration per gli stati "stantii"
             console.log("⚡ BOOT: Healing Temporale degli Status (JIT Hydration)...");
             const hydratedPayload = HydrationEngine.hydrateAllStatuses(payload);
@@ -98,8 +98,9 @@
                     String(c.assetName || "").toLowerCase().trim() === assetName &&
                     ["ACTIVE", "UPCOMING", "INCOMING"].includes(String(c.status || "").toUpperCase().trim())
                 );
-                const nominalRunRate = activeContracts.reduce((sum, c) => sum + (parseFloat(c.annualValue) || 0), 0);
-                asset.runRate = nominalRunRate;
+
+                const effectiveRunRate = activeContracts.reduce((sum, c) => sum + (parseFloat(c.effectiveRunRate || c.annualValue) || 0), 0);
+                asset.runRate = effectiveRunRate;
 
                 let effBudget = 0;
                 let variance = 0;
@@ -203,7 +204,7 @@
 
         // Ricarica la vista basandosi sul tab attivo
         if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined') {
-            InventoryController.initWorkspace(); 
+            InventoryController.initWorkspace();
             // ⚡ Se un accordion era aperto, forza il reload dei suoi dati figli dalla RAM appena pulita
             if (typeof InventoryState !== 'undefined' && InventoryState.expandedAssetId) {
                 const assetObj = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"] || a.assetName)).replace(/=/g, "") === InventoryState.expandedAssetId);
@@ -223,7 +224,7 @@
             TimelineState.isTimelineEditable = false;
             TimelineController.initTimelineWorkspace(windowPayload);
         }
-        
+
         FinOpsUI.showNotificationBanner("Changes discarded. Registry restored.", "success");
     };
 
