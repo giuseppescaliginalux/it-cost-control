@@ -2,6 +2,7 @@
     /**
      * js_dashboard_state.html
      * MODEL: Centralized FinOps analytical state engine for executive dashboarding.
+     * Allineato interamente sui DTO camelCase puri senza proprietà spure con spazi.
      */
     const DashboardState = {
         assets: [],
@@ -13,7 +14,7 @@
 
         loadCachePayload: function (payload) {
             this.assets = (payload.assets || []).filter(r => {
-                const name = (r["Asset Name"] || "").toString().trim();
+                const name = (r.name || "").toString().trim();
                 return name !== "" && name.toLowerCase() !== "total" && name.toLowerCase() !== "totale";
             });
             this.contracts = payload.contracts || [];
@@ -25,28 +26,27 @@
         computeExecutiveMetrics: function () {
             let totalBudget = 0;
             
-            // 🌟 FIX: Parsing corazzato. Il || 0 esterno protegge la somma da stringhe sporche o vuote
             (this.varianceReport || []).forEach(v => {
-                const fYear = String(v["Fiscal Year"] || v.fiscalYear || "").toUpperCase().trim();
+                const fYear = String(v.fiscalYear || "").toUpperCase().trim();
                 if (fYear === "FY27") {
-                    let bVal = parseFloat(v["Effective Budget"] || v.effectiveBudget);
+                    let bVal = parseFloat(v.effectiveBudget);
                     totalBudget += isNaN(bVal) ? 0 : bVal;
                 }
             });
 
             let totalProjection = 0;
             this.projections.forEach(p => {
-                let pVal = parseFloat(p["FY27 Optimized"] || p.fy27Optimized);
+                let pVal = parseFloat(p.fy27Optimized || p["FY27 Optimized"]);
                 totalProjection += isNaN(pVal) ? 0 : pVal;
             });
 
-            const activeContracts = this.contracts.filter(c => (c["Status"] || "").toString().trim().toUpperCase() === "ACTIVE");
+            const activeContracts = this.contracts.filter(c => (c.status || "").toString().trim().toUpperCase() === "ACTIVE");
 
             let totalActualSaving = 0;
             let totalTargetSaving = 0;
             this.initiatives.forEach(init => {
-                let actSaving = parseFloat(init["Actual Saving (Annualized)"] || init.actualSavingAnnualized);
-                let tgtSaving = parseFloat(init["Target Saving (Annualized)"] || init.targetSavingAnnualized);
+                let actSaving = parseFloat(init.actualSavingAnnualized);
+                let tgtSaving = parseFloat(init.targetSavingAnnualized);
                 totalActualSaving += isNaN(actSaving) ? 0 : actSaving;
                 totalTargetSaving += isNaN(tgtSaving) ? 0 : tgtSaving;
             });
@@ -54,9 +54,9 @@
             let realizedActual = 0;
             let realizedTarget = 0;
             this.initiatives.forEach(init => {
-                if ((init["Initiative Status"] || "").toString().toUpperCase().trim() === "COMPLETED") {
-                    let actSaving = parseFloat(init["Actual Saving (Annualized)"] || init.actualSavingAnnualized);
-                    let tgtSaving = parseFloat(init["Target Saving (Annualized)"] || init.targetSavingAnnualized);
+                if ((init.status || "").toString().toUpperCase().trim() === "COMPLETED") {
+                    let actSaving = parseFloat(init.actualSavingAnnualized);
+                    let tgtSaving = parseFloat(init.targetSavingAnnualized);
                     realizedActual += isNaN(actSaving) ? 0 : actSaving;
                     realizedTarget += isNaN(tgtSaving) ? 0 : tgtSaving;
                 }
@@ -67,7 +67,7 @@
             return {
                 totalBudget: totalBudget,
                 totalProjection: totalProjection,
-                netVariance: totalBudget - totalProjection, // Tornerà in positivo a mostrare il Surplus reale
+                netVariance: totalBudget - totalProjection, // In positivo mostra il Surplus reale
                 activeContractsCount: activeContracts.length,
                 securedSavings: totalActualSaving,
                 remainingToSecure: Math.max(0, totalTargetSaving - totalActualSaving),
@@ -79,7 +79,7 @@
 
         getTop10AssetsByRunRate: function () {
             return [...this.assets]
-                .sort((a, b) => (parseFloat(b["Run Rate"]) || 0) - (parseFloat(a["Run Rate"]) || 0))
+                .sort((a, b) => (parseFloat(b.runRate) || 0) - (parseFloat(a.runRate) || 0))
                 .slice(0, 10);
         }
     };

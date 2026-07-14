@@ -1,8 +1,8 @@
 <script>
     /**
      * js_dashboard_controller.html
-     * CONTROLLER: Execution engine and orchestration coordinator for the Dashboard Tab.
-     * Allineato al 100% al registro globale window.chartInstances per azzerare i crash di reuse dei canvas.
+     * CONTROLLER: Execution engine and orchestration coordinator for the Executive Dashboard.
+     * Allineato al 100% al registro globale window.chartInstances e basato su camelCase.
      */
 
     function updateExecutiveDashboard(payload) {
@@ -50,34 +50,34 @@
         },
 
         renderTabSpecificCharts: function (tabType) {
-            const activeContracts = DashboardState.contracts.filter(c => (c["Status"] || "").toString().trim().toUpperCase() === "ACTIVE");
+            const activeContracts = DashboardState.contracts.filter(c => (c.status || "").toString().trim().toUpperCase() === "ACTIVE");
 
             if (tabType === 'general') {
                 const top10 = DashboardState.getTop10AssetsByRunRate();
 
                 const budgets = top10.map(asset => {
-                    const assetNameLower = (asset["Asset Name"] || asset.name || "").toString().trim().toLowerCase();
+                    const assetNameLower = (asset.name || "").toString().trim().toLowerCase();
                     let bSum = 0;
                     (DashboardState.varianceReport || []).forEach(v => {
-                        if (String(v["Asset Name"] || "").trim().toLowerCase() === assetNameLower && String(v["Fiscal Year"] || "").toUpperCase().trim() === "FY27") {
-                            bSum += parseFloat(v["Effective Budget"] || 0);
+                        if (String(v.assetName || "").trim().toLowerCase() === assetNameLower && String(v.fiscalYear || "").toUpperCase().trim() === "FY27") {
+                            bSum += parseFloat(v.effectiveBudget || 0);
                         }
                     });
                     return bSum;
                 });
 
                 const costs = top10.map(asset => {
-                    const assetNameLower = (asset["Asset Name"] || asset.name || "").toString().trim().toLowerCase();
+                    const assetNameLower = (asset.name || "").toString().trim().toLowerCase();
                     let pSum = 0;
                     (DashboardState.projections || []).forEach(p => {
-                        if (String(p["Asset Name"] || "").trim().toLowerCase() === assetNameLower) {
-                            pSum += parseFloat(p["FY27 Optimized"] || 0);
+                        if (String(p.assetName || p["Asset Name"] || "").trim().toLowerCase() === assetNameLower) {
+                            pSum += parseFloat(p.fy27Optimized || p["FY27 Optimized"] || 0);
                         }
                     });
                     return pSum;
                 });
 
-                this.drawLiveChart(top10.map(r => r["Asset Name"] || r.name), budgets, costs);
+                this.drawLiveChart(top10.map(r => r.name), budgets, costs);
             }
             else if (tabType === 'savings') {
                 this.drawOfflineTrendChart(DashboardState.projections);
@@ -147,11 +147,26 @@
             parentDiv.innerHTML = DashboardTemplates.getDoughnutLayoutStructure(canvasId);
             canvas = document.getElementById(canvasId);
 
+            const propMap = {
+                'Cost Center': 'costCenter',
+                'Legal Entity': 'legalEntity',
+                'Expenditure Type': 'expenditureType',
+                'Supplier': 'supplier'
+            };
+
             const dataMap = {};
             contracts.forEach(c => {
-                let key = (c[columnKey] || "N/A").toString().trim();
+                let key = "";
+                if (columnKey === 'Business Driver') {
+                    const aNameLower = (c.assetName || "").toString().trim().toLowerCase();
+                    const assetObj = (windowPayload.assets || []).find(a => (a.name || "").toString().trim().toLowerCase() === aNameLower);
+                    key = assetObj ? (assetObj.businessDriver || "Technology") : "Technology";
+                } else {
+                    const prop = propMap[columnKey] || columnKey;
+                    key = (c[prop] || "N/A").toString().trim();
+                }
                 if (key === "") key = "N/A";
-                dataMap[key] = (dataMap[key] || 0) + (parseFloat(c["Annual Value"]) || 0);
+                dataMap[key] = (dataMap[key] || 0) + (parseFloat(c.annualValue) || 0);
             });
 
             const sortedData = Object.entries(dataMap).sort((a, b) => b[1] - a[1]);
@@ -196,7 +211,6 @@
             const pipelineData = [];
             let startDate = new Date(2025, 6, 1); // 01 Luglio 2025
 
-            // 🌟 1. VARIABILE PER IL TRAGUARDO FISSO DEL REALIZZATO (COMPLETED)
             let totalAnnualizedRealized = 0;
 
             for (let i = 0; i < 36; i++) {
@@ -207,21 +221,20 @@
             }
 
             (initiatives || []).forEach(row => {
-                let rawDateStr = row["Target Date"] || row.targetDate || row["Actual Date"] || row.actualDate;
+                let rawDateStr = row.targetDate || row.actualDate;
                 let targetDate = typeof FinOpsDate !== 'undefined' ? FinOpsDate.parse(rawDateStr) : new Date(rawDateStr);
                 if (!targetDate || isNaN(targetDate.getTime())) return;
 
-                let status = String(row["Initiative Status"] || row.status || "").toUpperCase().trim();
+                let status = String(row.status || "").toUpperCase().trim();
                 let isCompleted = (status === "COMPLETED" || status === "REALIZED");
 
                 let saving = isCompleted
-                    ? (parseFloat(row["Actual Saving (Annualized)"]) || parseFloat(row.actualSavingAnnualized) || 0)
-                    : (parseFloat(row["Target Saving (Annualized)"]) || parseFloat(row.targetSavingAnnualized) || 0);
+                    ? (parseFloat(row.actualSavingAnnualized) || 0)
+                    : (parseFloat(row.targetSavingAnnualized) || 0);
 
                 saving = Math.abs(saving);
                 if (saving === 0) return;
 
-                // 🌟 2. SE L'INIZIATIVA È COMPLETATA, ALIMENTA IL TRAGUARDO FISSO
                 if (isCompleted) {
                     totalAnnualizedRealized += saving;
                 }
@@ -237,7 +250,6 @@
                 }
             });
 
-            // 🌟 3. RIPRISTINO LINEA CUMULATIVA GLOBALE (RISPARMI TOTALI ACCUMULATI)
             const cumulativeTotalData = [];
             let runTotal = 0;
             for (let i = 0; i < 36; i++) {
@@ -245,7 +257,6 @@
                 cumulativeTotalData.push(parseFloat(runTotal.toFixed(2)));
             }
 
-            // 🌟 4. CREAZIONE VETTORE ORIZZONTALE PER IL REALIZZATO ATTUALE
             const realizedBaselineCeiling = Array(36).fill(parseFloat(totalAnnualizedRealized.toFixed(2)));
 
             const canvas = document.getElementById('cumulativeSavingsChart');
@@ -261,9 +272,7 @@
                     datasets: [
                         { type: 'bar', label: 'Realized Run-Rate (Completed)', data: realizedData, backgroundColor: '#0d9488', borderRadius: 2, yAxisID: 'y', barPercentage: 0.5 },
                         { type: 'bar', label: 'Pipeline Run-Rate (To Realize)', data: pipelineData, backgroundColor: '#94a3b8', borderRadius: 2, yAxisID: 'y', barPercentage: 0.5 },
-                        // Linea Cumulativa Totale (Verde)
                         { type: 'line', label: 'Cumulative Total Savings', data: cumulativeTotalData, borderColor: '#10B981', backgroundColor: '#10B981', fill: false, tension: 0.3, yAxisID: 'y1', pointRadius: 1 },
-                        // 🌟 5. INIEZIONE DELLA LINEA ORIZZONTALE DI CONFRONTO (Tratteggiata Arancione/Ambra)
                         { type: 'line', label: 'Current Realized Savings Baseline', data: realizedBaselineCeiling, borderColor: '#f59e0b', borderDash: [6, 4], fill: false, pointRadius: 0, yAxisID: 'y1', borderWidth: 2 }
                     ]
                 },
@@ -303,13 +312,12 @@
             const trend = { FY26: { g: 0, o: 0 }, FY27: { g: 0, o: 0 }, FY28: { g: 0, o: 0 } };
 
             projections.forEach(row => {
-                // 🌟 FIX CORAZZATO: Supporto cross-compatibile per le righe orizzontali del motore predittivo
-                trend.FY26.g += parseFloat(row["FY26 Baseline"] || row.fy26Baseline) || 0;
-                trend.FY26.o += parseFloat(row["FY26 Optimized"] || row.fy26Optimized) || 0;
-                trend.FY27.g += parseFloat(row["FY27 Baseline"] || row.fy27Baseline) || 0;
-                trend.FY27.o += parseFloat(row["FY27 Optimized"] || row.fy27Optimized) || 0;
-                trend.FY28.g += parseFloat(row["FY28 Baseline"] || row.fy28Baseline) || 0;
-                trend.FY28.o += parseFloat(row["FY28 Optimized"] || row.fy28Optimized) || 0;
+                trend.FY26.g += parseFloat(row.fy26Baseline || row["FY26 Baseline"]) || 0;
+                trend.FY26.o += parseFloat(row.fy26Optimized || row["FY26 Optimized"]) || 0;
+                trend.FY27.g += parseFloat(row.fy27Baseline || row["FY27 Baseline"]) || 0;
+                trend.FY27.o += parseFloat(row.fy27Optimized || row["FY27 Optimized"]) || 0;
+                trend.FY28.g += parseFloat(row.fy28Baseline || row["FY28 Baseline"]) || 0;
+                trend.FY28.o += parseFloat(row.fy28Optimized || row["FY28 Optimized"]) || 0;
             });
 
             window.chartInstances.trend = new Chart(canvas.getContext('2d'), {
@@ -334,12 +342,13 @@
             const now = new Date();
 
             activeContracts.forEach(c => {
-                if (!c["End Date"]) return;
-                const endDate = new Date(c["End Date"]);
-                if (isNaN(endDate) || endDate < new Date(now.getFullYear() - 1, 0, 1)) return;
+                const endDate = c.contractEndDate || c.endDate;
+                if (!endDate) return;
+                const d = new Date(endDate);
+                if (isNaN(d) || d < new Date(now.getFullYear() - 1, 0, 1)) return;
 
-                const label = `Q${Math.floor(endDate.getMonth() / 3) + 1} ${endDate.getFullYear()}`;
-                quarterMap[label] = (quarterMap[label] || 0) + (parseFloat(c["Annual Value"]) || 0);
+                const label = `Q${Math.floor(d.getMonth() / 3) + 1} ${d.getFullYear()}`;
+                quarterMap[label] = (quarterMap[label] || 0) + (parseFloat(c.annualValue) || 0);
             });
 
             const sortedQuarters = Object.entries(quarterMap).sort((a, b) => {
