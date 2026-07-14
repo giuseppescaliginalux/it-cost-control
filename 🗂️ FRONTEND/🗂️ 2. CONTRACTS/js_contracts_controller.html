@@ -405,11 +405,17 @@
             const sDate = row.querySelector('.ledger-start').value || "";
             const eDate = row.querySelector('.ledger-end').value || "";
             if (sDate && eDate && new Date(sDate) > new Date(eDate)) { ledgerDateValidationError = true; }
-            // 🌟 FIX: Adesso recepisce il segno negativo dal DOM
-            const rawAmtStr = row.querySelector('.ledger-amount').value.replace(/[^0-9-]/g, ''); 
+
+            const rawAmtStr = row.querySelector('.ledger-amount').value.replace(/[^0-9-]/g, '');
+
+            // FIX 4: Estrazione sicura del tipo forzando la stringa in maiuscolo
+            const typeEl = row.querySelector('.ledger-type');
+            const rawType = typeEl ? typeEl.value : "ACTUAL";
+            const safeType = String(rawType).toUpperCase().trim();
+
             return {
                 contractId: item.data.contractId || "", startDate: sDate, endDate: eDate,
-                type: row.querySelector('.ledger-type').value || "ACTUAL", amount: parseInt(rawAmtStr, 10) || 0, notes: row.querySelector('.ledger-notes').value || ""
+                type: safeType, amount: parseInt(rawAmtStr, 10) || 0, notes: row.querySelector('.ledger-notes').value || ""
             };
         });
 
@@ -425,7 +431,7 @@
 
         try {
             ContractsUtils.validateContractData(item.data);
-            item.data.contractLinks = baseLinks; // Ometto l'upload per brevity del codice
+            item.data.contractLinks = baseLinks;
             finalizeRowSave(item, id);
         } catch (e) {
             FinOpsUI.showAlert("Validation Error", e.message);
@@ -449,12 +455,12 @@
 
         const dto = ContractMapper.toDto(item.data, CONTRACT_FIELD_MAP);
         const contract = new Contract(dto);
-        
+
         // 🌟 FIX: Iniettiamo i ledger per permettere il calcolo dell'Effective Run Rate (Crediti)
         item.ledger.forEach(l => contract.ledger.push(new LedgerMovement(l)));
         item.splits.forEach(s => contract.splits.push(new AllocationSplit(s)));
 
-        item.data = contract.exportToData(); 
+        item.data = contract.exportToData();
 
         item.isEditing = false;
         ContractsState.hasUnsavedChanges = true;
@@ -483,7 +489,7 @@
                 if (childDto.startDate) childDto.startDate = new Date(childDto.startDate);
                 if (childDto.contractEndDate) childDto.contractEndDate = new Date(childDto.contractEndDate);
                 if (childDto.adjustedEndDate) childDto.adjustedEndDate = new Date(childDto.adjustedEndDate);
-                
+
                 const childContract = new Contract(childDto);
                 childItem.ledger.forEach(l => childContract.ledger.push(new LedgerMovement(l)));
                 master.addChild(childContract);
@@ -491,10 +497,10 @@
 
             const linkedInits = (windowPayload.initiatives || []).filter(i => String(i.masterId).trim() === String(master.id).trim());
             ContractsState.currentMasterData = master.exportToData(linkedInits);
-            
+
             const mId = ContractsState.currentMasterData.masterId;
             const mIndex = windowPayload.masterContracts.findIndex(m => m.masterId === mId);
-            
+
             if (mIndex > -1) windowPayload.masterContracts[mIndex] = ContractsState.currentMasterData;
             else windowPayload.masterContracts.push(ContractsState.currentMasterData);
         }
@@ -613,7 +619,7 @@
 
                     if (typeof DashboardState !== 'undefined') DashboardState.loadCachePayload(windowPayload);
                     if (typeof ProjectionsState !== 'undefined') ProjectionsState.loadPayload(windowPayload);
-                    
+
                     if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined') {
                         InventoryController.initWorkspace();
                         if (InventoryState.expandedAssetId) {
@@ -849,11 +855,20 @@
             const contractData = { pricingModel: model, billingTerms: terms, startDate: startDate, contractEndDate: endDate, totalCommitment: parseInt(totCommit, 10) || 0 };
             const ledgerRows = document.querySelectorAll(`#ledger-container-${detailId} .ledger-row-item`);
             const currentLedger = [];
+
             Array.from(ledgerRows).forEach(row => {
-                const type = row.querySelector('.ledger-type').value;
-                if (type === "ACTUAL" || type === "FORECAST") {
-                    const rawAmt = row.querySelector('.ledger-amount').value.replace(/[^0-9]/g, '');
-                    currentLedger.push({ type: type, startDate: row.querySelector('.ledger-start').value, endDate: row.querySelector('.ledger-end').value, amount: parseInt(rawAmt, 10) || 0, notes: row.querySelector('.ledger-notes').value });
+                const typeEl = row.querySelector('.ledger-type');
+                const safeType = typeEl ? String(typeEl.value).toUpperCase().trim() : "ACTUAL";
+
+                if (safeType === "ACTUAL" || safeType === "FORECAST" || safeType === "CREDIT") {
+                    const rawAmt = row.querySelector('.ledger-amount').value.replace(/[^0-9-]/g, '');
+                    currentLedger.push({
+                        type: safeType,
+                        startDate: row.querySelector('.ledger-start').value,
+                        endDate: row.querySelector('.ledger-end').value,
+                        amount: parseInt(rawAmt, 10) || 0,
+                        notes: row.querySelector('.ledger-notes').value
+                    });
                 }
             });
 

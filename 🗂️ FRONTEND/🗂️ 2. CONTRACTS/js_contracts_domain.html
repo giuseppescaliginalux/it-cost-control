@@ -534,9 +534,11 @@
       const start = this.getMinStartDate();
       const end = this.getMaxEndDate();
       let termMonths = 0;
-      if (start && end && start <= end) termMonths = Math.round(this._getExactMonths(start, end));
+      if (start && end && start <= end) {
+        termMonths = Math.round(this._getExactMonths(start, end));
+      }
 
-      // Estraiamo la differenza tra Nominale e Netto
+      // Estraiamo il valore Nominale Lordo originario sommando i contratti
       const nominalCommitment = parseFloat(this.childContracts.reduce((sum, c) => sum + (c.totalCommitment || 0), 0).toFixed(2));
 
       return {
@@ -552,8 +554,8 @@
         masterStartDate: formatServerDate(start),
         masterEndDate: formatServerDate(end),
         contractTerm: termMonths,
-        totalCommitment: this.getTotalCommitment(), // Questo è l'Effective
-        nominalCommitment: nominalCommitment,       // Questo è il Nominale per la Card
+        totalCommitment: this.getTotalCommitment(), // Effective (al netto dei crediti)
+        nominalCommitment: nominalCommitment,       // Nominal (listino lordo per la UI)
         runRate: this.getRunRate(),
         effectiveRunRate: this.getEffectiveRunRate(),
         status: this.deriveStatus(linkedInitiatives)

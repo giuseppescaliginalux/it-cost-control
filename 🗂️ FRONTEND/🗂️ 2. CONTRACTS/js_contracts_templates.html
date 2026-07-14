@@ -277,7 +277,7 @@
             let splitsReadOnlyHtml = '';
             if (item.splits && item.splits.length > 0) {
                 splitsReadOnlyHtml = `
-                <div id="read-splits-${item.id}" class="hidden p-3 bg-indigo-50/40 rounded-xl border border-indigo-100 text-[10px] w-full mt-3 animate-fade-in" onclick="event.stopPropagation()">
+                <div id="read-splits-${item.id}" class="hidden p-3 bg-indigo-50/40 rounded-xl border border-indigo-100 text-[10px] w-full mt-3 animate-fade-in pointer-events-auto" onclick="event.stopPropagation()">
                     <span class="block font-black text-indigo-500 uppercase tracking-widest text-[8px] mb-2">Active Financial Splits</span>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">${item.splits.map(s => {
                     let rule = s.allocationRule || "Percentage";
@@ -292,10 +292,11 @@
 
             let ledgerReadOnlyHtml = '';
             if (item.ledger && item.ledger.length > 0) {
+                // FIX 2: Aggiunto "pointer-events-auto" al contenitore scrollabile
                 ledgerReadOnlyHtml = `
-                <div id="read-ledger-${item.id}" class="hidden p-3 bg-amber-50/40 rounded-xl border border-amber-100 text-[10px] w-full mt-3 animate-fade-in" onclick="event.stopPropagation()">
+                <div id="read-ledger-${item.id}" class="hidden p-3 bg-amber-50/40 rounded-xl border border-amber-100 text-[10px] w-full mt-3 animate-fade-in pointer-events-auto" onclick="event.stopPropagation()">
                     <span class="block font-black text-amber-500 uppercase tracking-widest text-[8px] mb-2">Logged Invoices / Milestones</span>
-                    <div class="space-y-1.5 max-h-40 overflow-y-auto pr-1 custom-scrollbar">${item.ledger.map(l => {
+                    <div class="space-y-1.5 max-h-40 overflow-y-auto pr-1 custom-scrollbar pointer-events-auto">${item.ledger.map(l => {
                     const lStart = l.startDate ? ContractsUtils.formatToEnglishCustomDate(l.startDate) : "—";
                     const lEnd = l.endDate ? ContractsUtils.formatToEnglishCustomDate(l.endDate) : "—";
                     const isCalc = l.type === "CALCULATED";
@@ -342,12 +343,12 @@
                     ${scope || '<span class="text-slate-300 italic">No description provided</span>'}
                 </div>
 
-                <div class="flex items-center justify-between w-full mt-auto pt-3 border-t border-slate-50 relative z-10">
+                <div class="flex items-center justify-between w-full mt-auto pt-3 border-t border-slate-50 relative z-10 pointer-events-auto">
                     <div class="flex items-center gap-1.5 shrink-0">
                         <span class="px-2 py-0.5 bg-slate-50 border border-slate-200 shadow-3xs rounded text-[9px] font-mono font-black text-slate-500">${expType}</span>
                         <span class="px-2 py-0.5 bg-slate-50 border border-slate-200 shadow-3xs rounded text-[9px] font-bold text-slate-600">${recurrence}</span>
                     </div>
-                    <div class="flex flex-wrap items-center justify-end gap-1.5 shrink-0 ml-auto" onclick="event.stopPropagation();">
+                    <div class="flex flex-wrap items-center justify-end gap-1.5 shrink-0 ml-auto">
                         ${warningBadgeHTML}${docsHtml}
                         ${splitBadge}${ledgerBadge} 
                     </div>
@@ -413,7 +414,7 @@
             return `
         <div class="bg-white rounded-2xl border border-slate-200 p-5 w-full max-w-4xl shadow-2xl relative animate-fade-in text-xs flex flex-col h-[85vh] min-h-[600px] ${disableClicks}" onclick="if(typeof FinOpsSelect !== 'undefined') FinOpsSelect.closeAll(event); event.stopPropagation();">
             
-            <div class="flex justify-between items-center border-b border-slate-100 pb-2 mb-3 shrink-0 pointer-events-auto">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-2 mb-4 shrink-0 pointer-events-auto">
                 <div>
                     <h3 class="text-xs font-black text-slate-700 uppercase tracking-widest">Line Allocation Setup & Configuration</h3>
                     <p class="text-slate-400 text-[10px] font-medium mt-0.5">Configure compliance scopes, corporate mappings, and custom accounting structures.</p>
@@ -421,16 +422,6 @@
                 <button onclick="ContractsController.closeContractModalWindow()" class="text-slate-400 hover:text-rose-500 transition-colors text-lg font-bold cursor-pointer">×</button>
             </div>
             
-            <div class="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3 px-4 py-2.5 bg-indigo-50/50 border border-indigo-100 rounded-lg shrink-0 pointer-events-auto">
-                <div class="flex items-center gap-1.5"><span class="text-[9px] font-black text-indigo-800 uppercase tracking-widest">Master Link:</span><span class="text-[10px] font-bold text-slate-700">${masterIdStr}</span></div>
-                <div class="w-px h-3 bg-indigo-200 hidden sm:block"></div>
-                <div class="flex items-center gap-1.5"><span class="text-[9px] font-black text-indigo-800 uppercase tracking-widest">Master Start:</span><span class="text-[10px] font-bold text-slate-700">${masterStartStr}</span></div>
-                <div class="w-px h-3 bg-indigo-200 hidden sm:block"></div>
-                <div class="flex items-center gap-1.5"><span class="text-[9px] font-black text-indigo-800 uppercase tracking-widest">Master End:</span><span class="text-[10px] font-bold text-slate-700">${masterEndStr}</span></div>
-                <div class="w-px h-3 bg-indigo-200 hidden md:block"></div>
-                <div class="flex items-center gap-1.5"><span class="text-[9px] font-black text-indigo-800 uppercase tracking-widest">Master Commitment:</span><span class="text-[10px] font-black text-slate-900 font-mono">€ ${masterCommitment}</span></div>
-            </div>
-
             <div class="flex gap-4 border-b border-slate-200 mb-4 shrink-0 overflow-x-auto custom-scrollbar pointer-events-auto">
                 <button type="button" id="modal-tab-btn-general-${id}" onclick="ContractsController.switchContractModalTab('general', ${id})" class="pb-2 font-black text-[10px] uppercase tracking-wider border-b-2 border-teal-600 text-teal-700 whitespace-nowrap transition-colors cursor-pointer">1. General & Financials</button>
                 <button type="button" id="modal-tab-btn-ledger-${id}" onclick="ContractsController.switchContractModalTab('ledger', ${id})" class="pb-2 font-black text-[10px] uppercase tracking-wider border-b-2 border-transparent text-slate-400 hover:text-slate-600 whitespace-nowrap transition-colors cursor-pointer">2. Ledger & Forecast</button>
@@ -618,7 +609,17 @@
 
             </div>
 
-            <div class="flex justify-between items-center pt-3 mt-1 border-t border-slate-100 shrink-0 bg-white z-10 pointer-events-auto">
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3 mb-3 px-4 py-2.5 bg-indigo-50/50 border border-indigo-100 rounded-lg shrink-0 pointer-events-auto shadow-inner">
+                <div class="flex items-center gap-1.5"><span class="text-[9px] font-black text-indigo-800 uppercase tracking-widest">Master Link:</span><span class="text-[10px] font-bold text-slate-700">${masterIdStr}</span></div>
+                <div class="w-px h-3 bg-indigo-200 hidden sm:block"></div>
+                <div class="flex items-center gap-1.5"><span class="text-[9px] font-black text-indigo-800 uppercase tracking-widest">Master Start:</span><span class="text-[10px] font-bold text-slate-700">${masterStartStr}</span></div>
+                <div class="w-px h-3 bg-indigo-200 hidden sm:block"></div>
+                <div class="flex items-center gap-1.5"><span class="text-[9px] font-black text-indigo-800 uppercase tracking-widest">Master End:</span><span class="text-[10px] font-bold text-slate-700">${masterEndStr}</span></div>
+                <div class="w-px h-3 bg-indigo-200 hidden md:block"></div>
+                <div class="flex items-center gap-1.5"><span class="text-[9px] font-black text-indigo-800 uppercase tracking-widest">Master Commitment:</span><span class="text-[10px] font-black text-slate-900 font-mono">€ ${masterCommitment}</span></div>
+            </div>
+
+            <div class="flex justify-between items-center pt-3 border-t border-slate-100 shrink-0 bg-white z-10 pointer-events-auto">
                 <div class="${hiddenBtns}">
                     <button onclick="ContractsController.removeRowFromLocalArchitecture(${id}); ContractsController.closeContractModalWindow()" class="px-3 py-1.5 bg-rose-50 border border-rose-200 text-rose-600 font-black uppercase tracking-wider text-[10px] rounded-xl hover:bg-rose-100 transition-colors cursor-pointer">Delete Line</button>
                 </div>

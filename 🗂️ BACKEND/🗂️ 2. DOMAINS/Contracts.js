@@ -94,33 +94,15 @@ class LedgerMovement {
   isForecast() { return this.type === "FORECAST" || this.type === "CALCULATED"; }
   isActual() { return this.type === "ACTUAL"; }
 
-  exportToData(linkedInitiatives) {
-    const start = this.getMinStartDate();
-    const end = this.getMaxEndDate();
-    let termMonths = 0;
-    if (start && end && start <= end) termMonths = Math.round(this._getExactMonths(start, end));
-
-    // Estraiamo la differenza tra Nominale e Netto
-    const nominalCommitment = parseFloat(this.childContracts.reduce((sum, c) => sum + (c.totalCommitment || 0), 0).toFixed(2));
-
+  exportToData() {
     return {
       ...this.extraProperties,
-      masterId: this.id,
-      previousMasterId: this.previousMasterId,
-      assetName: this.assetName,
-      supplier: this.supplier,
-      masterScope: this.masterScope,
-      masterComments: this.masterComments,
-      contractLinks: this.contractLinks,
-      billingChannel: this.billingChannel,
-      masterStartDate: formatServerDate(start),
-      masterEndDate: formatServerDate(end),
-      contractTerm: termMonths,
-      totalCommitment: this.getTotalCommitment(), // Questo è l'Effective
-      nominalCommitment: nominalCommitment,       // Questo è il Nominale per la Card
-      runRate: this.getRunRate(),
-      effectiveRunRate: this.getEffectiveRunRate(),
-      status: this.deriveStatus(linkedInitiatives)
+      contractId: this.contractId,
+      startDate: formatServerDate(this.startDate),
+      endDate: formatServerDate(this.endDate),
+      type: this.type,
+      amount: this.amount,
+      notes: this.notes
     };
   }
 }
@@ -599,9 +581,11 @@ class MasterContract {
     const end = this.getMaxEndDate();
     let termMonths = 0;
     if (start && end && start <= end) {
-      // 🌟 FIX: Arrotonda anche il termine del Master Contract
       termMonths = Math.round(this._getExactMonths(start, end));
     }
+
+    // Estraiamo il valore Nominale Lordo originario sommando i contratti
+    const nominalCommitment = parseFloat(this.childContracts.reduce((sum, c) => sum + (c.totalCommitment || 0), 0).toFixed(2));
 
     return {
       ...this.extraProperties,
@@ -615,9 +599,11 @@ class MasterContract {
       billingChannel: this.billingChannel,
       masterStartDate: formatServerDate(start),
       masterEndDate: formatServerDate(end),
-      contractTerm: termMonths, // <--- FIX: Ora viene valorizzato correttamente!
-      totalCommitment: this.getTotalCommitment(),
+      contractTerm: termMonths,
+      totalCommitment: this.getTotalCommitment(), // Effective (al netto dei crediti)
+      nominalCommitment: nominalCommitment,       // Nominal (listino lordo per la UI)
       runRate: this.getRunRate(),
+      effectiveRunRate: this.getEffectiveRunRate(),
       status: this.deriveStatus(linkedInitiatives)
     };
   }
