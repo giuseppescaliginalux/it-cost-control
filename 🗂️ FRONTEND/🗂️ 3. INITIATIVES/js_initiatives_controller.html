@@ -750,13 +750,13 @@
                                 ProjectionsController.applyEngine();
                             }
                         }
-                        if (typeof ContractsState !== 'undefined') {
-                            ContractsState.loadPayload(windowPayload);
-                        }
-                        if (typeof initInventoryTab === 'function') {
-                            initInventoryTab();
-                        }
 
+                        // 🌟 FIX CRITICO: Rimosso il codice che causava il crash. 
+                        // Ora scattiamo una nuova foto della memoria e SPEGNIAMO LE LINGUETTE!
+                        if (typeof window.originalPayloadSnapshot !== 'undefined') {
+                            window.originalPayloadSnapshot = JSON.parse(JSON.stringify(windowPayload));
+                        }
+                        setPendingChanges(false);
                         FinOpsUI.showNotificationBanner("All interconnected domains updated successfully.", "success");
 
                     } else {

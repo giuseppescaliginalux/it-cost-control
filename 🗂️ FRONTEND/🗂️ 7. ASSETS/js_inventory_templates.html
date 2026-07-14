@@ -201,7 +201,8 @@
             // Run Rate Logic
             const nomRunRate = parseFloat(master["Run Rate"] || master.runRate || 0);
             const effRunRateNum = parseFloat(master.effectiveRunRate || master["Effective Run Rate"] || nomRunRate);
-            const runRate = window.formatKM(effRunRateNum);
+            const effRunRateStr = window.formatKM(effRunRateNum);
+            const nomRunRateStr = window.formatKM(nomRunRate);
             const isDiscounted = effRunRateNum !== nomRunRate;
 
             // Commitment Logic (Credit extraction)
@@ -213,7 +214,6 @@
             const effCommitStr = window.formatKM(effCommitNum);
             const nomCommitStr = window.formatKM(nomCommitNum);
             const creditStr = hasCredit ? `-€${window.formatKM(Math.abs(creditDiff))}` : '';
-            const nomRunRateStr = window.formatKM(nomRunRate);
 
             const formatStrDate = (v) => v ? new Date(v).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A';
             const startStr = (master["Master Start Date"] || master.masterStartDate) ? formatStrDate(master["Master Start Date"] || master.masterStartDate) : "N/A";
@@ -236,13 +236,13 @@
             const docsIconHtml = this.getDocsIconHtml(mId, linksStr);
 
             const actionBtnIcon = globalEditMode
-                ? `<svg class="w-4 h-4 shrink-0 group-hover:scale-110 transition-transform" style="width:16px; height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg>`
-                : `<svg class="w-4 h-4 shrink-0" style="width:16px; height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>`;
+                ? `<svg class="w-4 h-4 shrink-0 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg>`
+                : `<svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>`;
 
             const actionBtnTooltip = globalEditMode ? "Edit master agreement" : "View master details";
             const actionBtnStyle = globalEditMode ? "hover:text-teal-600 hover:bg-teal-50" : "hover:text-indigo-600 hover:bg-indigo-50";
 
-            const addLineBtn = globalEditMode ? `<button onclick="InventoryController.triggerAddContractLine('${mId}')" class="w-6 h-6 shrink-0 aspect-square flex items-center justify-center bg-slate-50 text-slate-400 hover:text-teal-600 hover:bg-teal-50 border border-slate-200 rounded-md transition-all shadow-3xs group cursor-pointer" title="Add new contract line"><svg class="w-4 h-4 shrink-0 group-hover:scale-110 transition-transform" style="width:16px; height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg></button>` : '';
+            const addLineBtn = globalEditMode ? `<button onclick="InventoryController.triggerAddContractLine('${mId}')" class="w-6 h-6 shrink-0 aspect-square flex items-center justify-center bg-slate-50 text-slate-400 hover:text-teal-600 hover:bg-teal-50 border border-slate-200 rounded-md transition-all shadow-3xs group cursor-pointer" title="Add new contract line"><svg class="w-4 h-4 shrink-0 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg></button>` : '';
 
             const editActions = `
                 <div class="flex items-center gap-1.5 ml-3 pl-3 border-l border-slate-200 shrink-0" onclick="event.stopPropagation()">
@@ -259,35 +259,35 @@
                     
                     <div class="flex items-center gap-2.5 w-[35%] min-w-0">
                         <svg id="master-chevron-${mId}" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-90 text-teal-600' : ''} shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
-                        <div class="min-w-0">
-                            <div class="flex items-center gap-2 flex-wrap">
-                                <span class="font-black text-slate-800 text-xs tracking-wide uppercase truncate" title="${supplier}">${supplier}</span>
-                                ${statusBadge}
-                                ${scopeTooltipHtml}
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2 flex-nowrap w-full">
+                                <span class="font-black text-slate-800 text-xs tracking-wide uppercase truncate block flex-1 min-w-0" title="${supplier}">${supplier}</span>
+                                <div class="flex items-center gap-1.5 shrink-0">
+                                    ${statusBadge}
+                                    ${scopeTooltipHtml}
+                                </div>
                             </div>
                             <div class="text-[8px] font-mono text-slate-400 mt-0.5 uppercase tracking-wider">Master ID: <span class="font-bold text-slate-600">${mId}</span></div>
                         </div>
                     </div>
                     
-                    <div class="w-[20%] flex items-center justify-center border-x border-slate-100/70 px-2 shrink-0">
+                    <div class="w-[25%] flex items-center justify-center border-x border-slate-100/70 px-2 shrink-0">
                         <div class="text-center">
                             <span class="text-[7px] text-slate-400 uppercase font-black tracking-widest block mb-0.5">VALIDITY SCOPE</span>
                             <span class="font-mono font-bold text-slate-600 text-[10px] whitespace-nowrap">${startStr} ➔ ${expDateStr} <span class="text-slate-400 ml-0.5">(${term}M)</span></span>
                         </div>
                     </div>
 
-                    <div class="flex items-center justify-end w-[45%] shrink-0">
-                        <div class="text-right px-4 border-r border-slate-100 shrink-0">
+                    <div class="flex items-center justify-end w-[40%] shrink-0">
+                        <div class="text-right px-3 border-r border-slate-100 shrink-0">
                             <span class="text-[7px] text-slate-400 uppercase font-black tracking-widest block mb-0.5">COMMITMENT</span>
-                            <div class="flex items-center justify-end gap-1.5">
-                                <span class="text-[13px] font-mono font-black text-slate-800">€ ${effCommitStr}</span>
-                                ${hasCredit ? `<span class="text-[10px] font-bold text-teal-600">(${creditStr})</span>` : ''}
-                            </div>
-                            ${hasCredit ? `<span class="block text-[8px] text-slate-400 mt-0.5">Nom: €${nomCommitStr}</span>` : ''}
+                            <span class="font-mono font-black text-slate-700 text-xs block">€ ${effCommitStr}</span>
+                            ${hasCredit ? `<span class="block text-[10px] font-bold text-slate-500 mt-0.5">Nom: €${nomCommitStr}</span>` : ''}
                         </div>
-                        <div class="text-right pl-4 pr-2 shrink-0" title="${isDiscounted ? `Nominal Run Rate: €${nomRunRateStr}` : ''}">
+                        <div class="text-right pl-3 shrink-0" title="${isDiscounted ? `Nominal Run Rate: €${nomRunRateStr}` : ''}">
                             <span class="text-[7px] text-slate-400 uppercase font-black tracking-widest block mb-0.5">RUN RATE</span>
-                            <span class="text-[13px] font-mono font-black ${isDiscounted ? 'text-teal-700' : 'text-slate-800'}">€ ${runRate}</span>
+                            <span class="font-mono font-black ${isDiscounted ? 'text-teal-700' : 'text-slate-800'} text-xs block">€ ${effRunRateStr}</span>
+                            ${isDiscounted ? `<span class="block text-[10px] font-bold text-slate-500 mt-0.5">Nom: €${nomRunRateStr}</span>` : ''}
                         </div>
                         ${docsIconHtml}
                         ${editActions}
@@ -306,17 +306,19 @@
             const entity = contract["Legal Entity"] || contract.legalEntity || 'UNMAPPED ENTITY';
             const status = (contract["Status"] || contract.status || "ACTIVE").toUpperCase().trim();
 
-            // FIX 1: Aggiunto year: 'numeric' per far apparire l'anno sulla card
             const formatStrDate = (v) => v ? new Date(v).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A';
             const start = formatStrDate(contract["Start Date"] || contract.startDate);
             const end = formatStrDate(contract["Contract End Date"] || contract.contractEndDate || contract["End Date"] || contract.endDate);
             const term = contract["Contract Term (Months)"] || contract.contractTerm || '-';
 
+            // Run Rate Logic
             const nomRunRate = parseFloat(contract["Annual Value"] || contract.annualValue || 0);
             const effRunRateNum = parseFloat(contract.effectiveRunRate || contract["Effective Run Rate"] || nomRunRate);
-            const runRate = window.formatKM(effRunRateNum);
+            const effRunRateStr = window.formatKM(effRunRateNum);
+            const nomRunRateStr = window.formatKM(nomRunRate);
             const isDiscounted = effRunRateNum !== nomRunRate;
 
+            // Commitment Logic (Credit extraction)
             const nomCommitNum = parseFloat(contract["Total Commitment"] || contract.totalCommitment || 0);
             const effCommitNum = parseFloat(contract.effectiveCommitment || nomCommitNum);
             const creditDiff = effCommitNum - nomCommitNum;
@@ -325,8 +327,7 @@
             const effCommitStr = window.formatKM(effCommitNum);
             const nomCommitStr = window.formatKM(nomCommitNum);
             const creditStr = hasCredit ? `-€${window.formatKM(Math.abs(creditDiff))}` : '';
-            const nomRunRateStr = window.formatKM(nomRunRate);
-            
+
             const expType = contract["Expenditure Type"] || contract.expenditureType || 'OPEX';
 
             let statusBadge = "";
@@ -340,12 +341,10 @@
             const linksStr = (contract["Contract Links"] || contract.contractLinks || "").toString().trim();
             const docsIconHtml = this.getDocsIconHtml(cId, linksStr);
 
-            // FIX ICONA: Sostituito SVG con il carattere Unicode indistruttibile ⧉
-            const cloneBtn = globalEditMode ? `<button onclick="event.stopPropagation(); InventoryController.triggerCloneContract('${cId}')" class="w-6 h-6 shrink-0 flex items-center justify-center bg-slate-50 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 rounded-md transition-all shadow-3xs" title="Clone contract line"><span class="text-[14px] leading-none mt-[1px]">⧉</span></button>` : '';
-            
+            const cloneBtn = globalEditMode ? `<button onclick="event.stopPropagation(); InventoryController.triggerCloneContract('${cId}')" class="w-6 h-6 shrink-0 aspect-square flex items-center justify-center bg-slate-50 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 rounded-md transition-all shadow-3xs group cursor-pointer" title="Clone contract line"><span class="text-[14px] leading-none mt-[1px]">⧉</span></button>` : '';
             const actionBtnIcon = globalEditMode
-                ? `<svg class="w-4 h-4 shrink-0 flex-none group-hover:scale-110 transition-transform" style="min-width: 16px; min-height: 16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg>`
-                : `<svg class="w-4 h-4 shrink-0 flex-none" style="min-width: 16px; min-height: 16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>`;
+                ? `<svg class="w-4 h-4 shrink-0 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg>`
+                : `<svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>`;
 
             const actionBtnTooltip = globalEditMode ? "Edit allocation" : "View contract details";
             const actionBtnStyle = globalEditMode ? "hover:text-teal-600 hover:bg-teal-50" : "hover:text-indigo-600 hover:bg-indigo-50";
@@ -353,7 +352,7 @@
             const editActions = `
                 <div class="flex items-center gap-1.5 ml-3 shrink-0" onclick="event.stopPropagation()">
                     ${cloneBtn}
-                    <button onclick="InventoryController.triggerEditContract('${cId}')" class="w-6 h-6 shrink-0 flex-none aspect-square flex items-center justify-center bg-slate-50 text-slate-400 border border-slate-200 rounded-md transition-all shadow-3xs group cursor-pointer ${actionBtnStyle}" title="${actionBtnTooltip}">
+                    <button onclick="InventoryController.triggerEditContract('${cId}')" class="w-6 h-6 shrink-0 aspect-square flex items-center justify-center bg-slate-50 text-slate-400 border border-slate-200 rounded-md transition-all shadow-3xs group cursor-pointer ${actionBtnStyle}" title="${actionBtnTooltip}">
                         ${actionBtnIcon}
                     </button>
                 </div>
@@ -364,11 +363,13 @@
                 
                 <div class="flex items-center gap-2.5 w-[35%] min-w-0">
                     <span class="px-1.5 py-0.5 bg-slate-100 text-slate-500 font-black text-[7px] uppercase tracking-widest rounded border border-slate-200/60 shrink-0">${expType}</span>
-                    <div class="min-w-0">
-                        <div class="flex items-center gap-1.5">
-                            <div class="font-black text-slate-700 text-[10px] uppercase tracking-wide truncate" title="${entity}">${entity}</div>
-                            ${statusBadge}
-                            ${scopeTooltipHtml}
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-1.5 flex-nowrap w-full">
+                            <div class="font-black text-slate-700 text-[10px] uppercase tracking-wide truncate flex-1 min-w-0" title="${entity}">${entity}</div>
+                            <div class="flex items-center gap-1 shrink-0">
+                                ${statusBadge}
+                                ${scopeTooltipHtml}
+                            </div>
                         </div>
                         <div class="text-[8px] font-mono text-slate-400 mt-0.5 truncate">ID: ${cId}</div>
                     </div>
@@ -388,11 +389,12 @@
                             <span class="text-[12px] font-mono font-black text-slate-700">€ ${effCommitStr}</span>
                             ${hasCredit ? `<span class="text-[9px] font-bold text-teal-600">(${creditStr})</span>` : ''}
                         </div>
-                        ${hasCredit ? `<span class="block text-[7px] text-slate-400 mt-0.5">Nom: €${nomCommitStr}</span>` : ''}
+                        ${hasCredit ? `<span class="block text-[9px] font-bold text-slate-500 mt-0.5">Nom: €${nomCommitStr}</span>` : ''}
                     </div>
                     <div class="text-right pl-4 pr-2 shrink-0" title="${isDiscounted ? `Nominal Run Rate: €${nomRunRateStr}` : ''}">
                         <span class="text-[6px] text-slate-400 uppercase font-black tracking-widest block mb-0.5">RUN RATE</span>
-                        <span class="text-[12px] font-mono font-black ${isDiscounted ? 'text-teal-700' : 'text-slate-700'}">€ ${runRate}</span>
+                        <span class="text-[12px] font-mono font-black ${isDiscounted ? 'text-teal-700' : 'text-slate-700'}">€ ${effRunRateStr}</span>
+                        ${isDiscounted ? `<span class="block text-[9px] font-bold text-slate-500 mt-0.5">Nom: €${nomRunRateStr}</span>` : ''}
                     </div>
                     ${docsIconHtml}
                     ${editActions}

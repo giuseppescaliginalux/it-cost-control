@@ -292,11 +292,12 @@
 
             let ledgerReadOnlyHtml = '';
             if (item.ledger && item.ledger.length > 0) {
-                // FIX 2: Aggiunto "pointer-events-auto" al contenitore scrollabile
+                // FIX: Aggiunti onwheel e cursor-auto per sbloccare lo scroll indipendente
                 ledgerReadOnlyHtml = `
-                <div id="read-ledger-${item.id}" class="hidden p-3 bg-amber-50/40 rounded-xl border border-amber-100 text-[10px] w-full mt-3 animate-fade-in pointer-events-auto" onclick="event.stopPropagation()">
+                <div id="read-ledger-${item.id}" class="hidden p-3 bg-amber-50/40 rounded-xl border border-amber-100 w-full mt-3 animate-fade-in" style="cursor: auto;" onclick="event.stopPropagation()">
                     <span class="block font-black text-amber-500 uppercase tracking-widest text-[8px] mb-2">Logged Invoices / Milestones</span>
-                    <div class="space-y-1.5 max-h-40 overflow-y-auto pr-1 custom-scrollbar pointer-events-auto">${item.ledger.map(l => {
+                    <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1 custom-scrollbar pointer-events-auto" onwheel="event.stopPropagation()" onscroll="event.stopPropagation()" ontouchmove="event.stopPropagation()">
+                    ${item.ledger.map(l => {
                     const lStart = l.startDate ? ContractsUtils.formatToEnglishCustomDate(l.startDate) : "—";
                     const lEnd = l.endDate ? ContractsUtils.formatToEnglishCustomDate(l.endDate) : "—";
                     const isCalc = l.type === "CALCULATED";
@@ -385,7 +386,7 @@
             const roWrapperClass = !isEditMode ? 'pointer-events-none opacity-60 grayscale-[0.2]' : '';
             const hiddenBtns = !isEditMode ? 'hidden' : 'flex';
             const hiddenBlock = !isEditMode ? 'hidden' : 'block';
-            const disableClicks = !isEditMode ? 'pointer-events-none' : '';
+            const disableClicks = '';
 
             const isNew = !d.contractId;
             const bTerms = d.billingTerms;
