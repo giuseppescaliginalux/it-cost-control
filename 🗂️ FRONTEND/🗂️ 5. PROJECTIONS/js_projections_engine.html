@@ -29,7 +29,8 @@
 
     class ContractProjection {
         constructor(contractDto, period, linkedInitiatives = [], successorStartDate = null, fullLedger = []) {
-            this.contract = contractDto;
+            // 🌟 TRASFORMAZIONE INTERNA: Convertiamo il DTO piatto nell'oggetto di dominio globale Contract
+            this.contract = contractDto instanceof Contract ? contractDto : new Contract(contractDto);
             this.period = period;
             this.linkedInitiatives = linkedInitiatives;
             this.fullLedger = fullLedger || [];
@@ -39,10 +40,10 @@
             this.monthlyOptimizedActual = {};
             this.monthlyOptimizedVirtual = {};
 
-            this.contractStart = contractDto.startDate ? new Date(contractDto.startDate) : null;
-            this.contractEnd = contractDto.contractEndDate || contractDto.endDate ? new Date(contractDto.contractEndDate || contractDto.endDate) : null;
+            this.contractStart = this.contract.startDate;
+            this.contractEnd = this.contract.getEndDate(); // 🌟 Sfrutta il metodo getEndDate() nativo isomorfico
 
-            const isRecurrent = String(contractDto.costRecurrence).toLowerCase() === "recurrent";
+            const isRecurrent = String(this.contract.costRecurrence).toLowerCase() === "recurrent";
             const today = new Date(); today.setHours(0, 0, 0, 0);
             const isHistoricallyExpired = this.contractEnd && this.contractEnd < today;
 

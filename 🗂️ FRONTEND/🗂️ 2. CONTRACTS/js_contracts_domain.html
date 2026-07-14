@@ -332,9 +332,59 @@ class Contract {
 
   exportFullLedger() {
     const fullLedger = [];
-    this.ledger.forEach(l => { if (l.type !== "CALCULATED") fullLedger.push(l.exportToData()); });
+    this.ledger.forEach(l => {
+      if (l.type !== "CALCULATED") {
+        // 🛡️ SCUDO ANTI-CRASH: Gestisce in modo sicuro sia istanze ricche che oggetti piatti inviati dai Test
+        if (typeof l.exportToData === 'function') {
+          fullLedger.push(l.exportToData());
+        } else {
+          fullLedger.push(new LedgerMovement(l).exportToData());
+        }
+      }
+    });
     this.generateForecastLedger(this.ledger).forEach(f => fullLedger.push(f.exportToData()));
     return fullLedger;
+  }
+
+  calculateYtdRoySplit(simulatedToday = new Date(), currentLedger = null) {
+    const bt = String(this.billingTerms).toUpperCase().trim();
+    let ytd = 0;
+    let roy = 0;
+
+    const ledgerToUse = currentLedger || this.ledger || [];
+
+    // Oracolo del tempo (Nessun Ledger) per i contratti Upfront Lineari
+    if (bt.includes("UPFRONT") || bt.includes("PREPAID")) {
+      if (this.costRecurrence === "One-Shot") {
+        if (this.startDate <= simulatedToday) ytd = this.totalCommitment;
+        else roy = this.totalCommitment;
+      } else {
+        const startMonth = this.startDate.getFullYear() * 12 + this.startDate.getMonth();
+        const endMonth = this.getEndDate().getFullYear() * 12 + this.getEndDate().getMonth();
+        const currentMonth = simulatedToday.getFullYear() * 12 + simulatedToday.getMonth();
+
+        let passedMonths = currentMonth - startMonth;
+        if (passedMonths < 0) passedMonths = 0;
+
+        const totalDurationMonths = endMonth - startMonth + 1;
+        if (passedMonths > totalDurationMonths) passedMonths = totalDurationMonths;
+
+        const monthlyRate = this.getAnnualValue() / 12;
+        ytd = passedMonths * monthlyRate;
+        roy = (totalDurationMonths - passedMonths) * monthlyRate;
+      }
+    }
+    // Lettura Cassa per tutti gli altri (Ledger Driven / Pay-As-You-Go)
+    else {
+      ledgerToUse.forEach(m => {
+        const type = String(m.type || m.Type || "ACTUAL").toUpperCase();
+        const amt = parseFloat(m.amount || m.Amount) || 0;
+        if (type === "ACTUAL") ytd += amt;
+        else roy += amt;
+      });
+    }
+
+    return { ytdActuals: ytd, royForecast: roy };
   }
 }
 
