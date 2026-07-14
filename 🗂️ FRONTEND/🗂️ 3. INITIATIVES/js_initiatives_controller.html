@@ -2,6 +2,7 @@
     /**
      * js_initiatives_controller.html
      * CONTROLLER: Gestione Dati Aggregati Contratti, Tag Library, e UX Avanzata Modale.
+     * Strutturato interamente su DTO camelCase puri senza duplicazioni o codice morto.
      */
 
     function renderOperationsHub(payload) {
@@ -16,6 +17,7 @@
         draggedCardId: null,
         currentLocalTagsArray: [],
         globalCustomTags: [],
+        currentDragType: null,
 
         toggleOperationsEditMode: function () {
             if (window.hasPendingChanges && InitiativesState.globalEditMode) {
@@ -30,12 +32,12 @@
             }
             InitiativesState.globalEditMode = !InitiativesState.globalEditMode;
             if (typeof setEditModeActive !== 'undefined') setEditModeActive(InitiativesState.globalEditMode);
-            this.renderKanbanBoard(true);
+            InitiativesController.renderKanbanBoard(true);
         },
 
         handleSearchInput: function (val) {
             InitiativesState.searchKeyword = val;
-            this.renderKanbanBoard(false);
+            InitiativesController.renderKanbanBoard(false);
         },
 
         renderKanbanBoard: function (forceFullLayout = false) {
@@ -75,14 +77,14 @@
 
             const sortKey = InitiativesState.globalSortKey || 'assetName';
             const sortedList = [...InitiativesState.rawInitiatives].sort((a, b) => {
-                if (sortKey === 'assetName') return (a["Asset Name"] || "").toString().localeCompare((b["Asset Name"] || "").toString());
+                if (sortKey === 'assetName') return (a.assetName || "").toString().localeCompare((b.assetName || "").toString());
                 else if (sortKey === 'targetDate') {
-                    const dA = a["Target Date"] ? new Date(a["Target Date"]) : new Date(2099, 11, 31);
-                    const dB = b["Target Date"] ? new Date(b["Target Date"]) : new Date(2099, 11, 31);
+                    const dA = a.targetDate ? new Date(a.targetDate) : new Date(2099, 11, 31);
+                    const dB = b.targetDate ? new Date(b.targetDate) : new Date(2099, 11, 31);
                     return dA - dB;
                 }
-                else if (sortKey === 'runRate') return (parseFloat(b["Baseline Spend (Annualized)"]) || 0) - (parseFloat(a["Baseline Spend (Annualized)"]) || 0);
-                else if (sortKey === 'targetSaving') return (parseFloat(b["Target Saving (Annualized)"]) || 0) - (parseFloat(a["Target Saving (Annualized)"]) || 0);
+                else if (sortKey === 'runRate') return (parseFloat(b.baselineSpendAnnualized) || 0) - (parseFloat(a.baselineSpendAnnualized) || 0);
+                else if (sortKey === 'targetSaving') return (parseFloat(b.targetSavingAnnualized) || 0) - (parseFloat(a.targetSavingAnnualized) || 0);
                 return 0;
             });
 
@@ -92,32 +94,29 @@
 
             sortedList.forEach((init, idx) => {
                 const originalIndex = InitiativesState.rawInitiatives.indexOf(init);
-                let status = (init["Initiative Status"] || "IDEA").toUpperCase().trim();
+                let status = (init.status || "IDEA").toUpperCase().trim();
                 let targetLane = "";
 
-                const currentItemTags = (init["Tags"] || "").split(',').map(t => t.trim()).filter(t => t);
+                const currentItemTags = (init.tags || "").split(',').map(t => t.trim()).filter(t => t);
                 if (InitiativesState.selectedTagsFilter.length > 0 && !InitiativesState.selectedTagsFilter.some(t => currentItemTags.includes(t))) return;
 
-                const initiativeName = (init["Initiative Name"] || "").toString().trim() || "Unnamed Initiative";
-                const assetName = (init["Asset Name"] || "").toString().trim();
-                const relatedAsset = assets.find(a => (a["Asset Name"] || "").toString().trim().toLowerCase() === assetName.toLowerCase()) || {};
-                const manufacturer = relatedAsset["Manufacturer"] || "Generic";
+                const initiativeName = (init.name || "").toString().trim() || "Unnamed Initiative";
+                const assetName = (init.assetName || "").toString().trim();
+                const relatedAsset = assets.find(a => (a.name || "").toString().trim().toLowerCase() === assetName.toLowerCase()) || {};
+                const manufacturer = relatedAsset.manufacturer || "Generic";
 
-                const relatedContract = contracts.find(c => c["Contract ID"] === init["Contract ID"] || c["Group ID"] === init["Contracts Group ID"]) || {};
-                const supplierName = init["Supplier"] || relatedContract["Supplier"] || "Generic Supplier";
-                const description = init["Description"] || "";
+                const relatedContract = contracts.find(c => c.contractId === init.contractId) || {};
+                const supplierName = init.supplier || relatedContract.supplier || "Generic Supplier";
 
-                const ownerRaw = init["Service Owner"] ? init["Service Owner"].toString().trim() : "";
-                const procurementRaw = init["Procurement Point Focal"] || init["Procurement Point"] ? (init["Procurement Point Focal"] || init["Procurement Point"]).toString().trim() : "";
-                const owner = ownerRaw || "TBD";
-                const procurement = procurementRaw || "TBD";
+                const owner = init.serviceOwner || "TBD";
+                const procurement = init.procurementPointFocal || init.procurementPoint || "TBD";
 
                 if (searchQ) {
-                    const searchStr = `${initiativeName} ${assetName} ${description} ${manufacturer} ${supplierName}`.toLowerCase();
+                    const searchStr = `${initiativeName} ${assetName} ${init.description || ''} ${manufacturer} ${supplierName}`.toLowerCase();
                     if (!searchStr.includes(searchQ)) return;
                 }
 
-                const tDateStr = init["Target Date"] ? init["Target Date"].toString().trim() : "";
+                const tDateStr = init.targetDate ? init.targetDate.toString().trim() : "";
                 const tDate = tDateStr ? new Date(tDateStr) : new Date(2099, 11, 31);
                 if (tDateStr) tDate.setHours(0, 0, 0, 0);
 
@@ -134,22 +133,20 @@
 
                 const isOverdue = (targetLane !== "REALIZED" && tDate < today && tDateStr !== "");
 
-                const targetSaving = parseFloat(init["Target Saving (Annualized)"]) || 0;
-                const actualSaving = parseFloat(init["Actual Saving (Annualized)"]) || 0;
-                const baselineSpend = parseFloat(init["Baseline Spend (Annualized)"]) || 0;
+                const targetSaving = parseFloat(init.targetSavingAnnualized) || 0;
+                const actualSaving = parseFloat(init.actualSavingAnnualized) || 0;
+                const baselineSpend = parseFloat(init.baselineSpendAnnualized) || 0;
 
                 const appliedSaving = targetLane === "REALIZED" ? actualSaving : targetSaving;
-                const appliedTargetCost = targetLane === "REALIZED" && (parseFloat(init["New Actual"]) >= 0 && init["New Actual"] !== "")
-                    ? parseFloat(init["New Actual"])
-                    : parseFloat(init["Target Cost (Annualized)"]) || 0;
+                const appliedTargetCost = targetLane === "REALIZED" && (parseFloat(init.newActual) >= 0 && init.newActual !== "")
+                    ? parseFloat(init.newActual)
+                    : parseFloat(init.targetCostAnnualized) || 0;
                 const costLabel = targetLane === "REALIZED" ? "Actual" : "Target";
                 const dateLabel = targetLane === "REALIZED" ? "Actual Date" : "Target Date";
 
-                // 🌟 FIX CRITICO: Re-introduzione delle variabili di strategia e decisione per la UI
-                const strategy = (init["Initial Strategy"] || "OPTIMIZATION").toUpperCase().trim();
-                const decision = (init["Decision"] || strategy).toUpperCase().trim();
+                const strategy = (init.initialStrategy || "OPTIMIZATION").toUpperCase().trim();
+                const decision = (init.decision || strategy).toUpperCase().trim();
 
-                // Calcolo percentuale bidirezionale reale (+ per aumento spesa, - per risparmio)
                 let savingPercentText = "0%";
                 if (baselineSpend > 0) {
                     const pct = Math.round((appliedSaving / baselineSpend) * 100);
@@ -169,7 +166,7 @@
                     fmtTargetCost = '€0k';
                 }
 
-                const finalDateStr = init["Target Date"] ? ContractsUtils.formatToEnglishCustomDate(init["Target Date"]) : "NO DATE";
+                const finalDateStr = init.targetDate ? ContractsUtils.formatToEnglishCustomDate(init.targetDate) : "NO DATE";
 
                 let strategyBadge = (strategy && decision && strategy !== decision)
                     ? `<span class="text-[7px] font-black uppercase bg-rose-50 border border-rose-200 text-rose-700 px-1.5 py-0.5 rounded flex items-center gap-1 shadow-sm">SHIFT: <span class="line-through opacity-60">${strategy}</span> ➔ ${decision}</span>`
@@ -237,18 +234,18 @@
 
         handleGlobalSortChange: function (val) {
             InitiativesState.globalSortKey = val;
-            this.renderKanbanBoard(false);
+            InitiativesController.renderKanbanBoard(false);
         },
 
         handlePipelineFilterChange: function (type, val) {
             if (type === 'horizon') InitiativesState.pipelineHorizon = val;
             if (type === 'status') InitiativesState.pipelineStatus = val;
-            this.renderKanbanBoard(false);
+            InitiativesController.renderKanbanBoard(false);
         },
 
         handleRealizedFilterChange: function (val) {
             InitiativesState.realizedHistory = val;
-            this.renderKanbanBoard(false);
+            InitiativesController.renderKanbanBoard(false);
         },
 
         toggleColumnFilterDropdown: function (event, id) {
@@ -257,7 +254,6 @@
             if (target) target.classList.toggle('hidden');
         },
 
-        // 1. Estensione Cascading Dropdown per passare il preSelectedContractId
         handleAssetCascadeDropdownChange: function (selectedAssetName, preSelectedMasterId = null, preSelectedContractId = null) {
             const container = document.getElementById('modal-init-group-list-container');
             const hiddenInput = document.getElementById('modal-init-selected-master-id');
@@ -272,9 +268,8 @@
             }
 
             const allContracts = windowPayload.contracts || [];
-
             const filteredMasters = (windowPayload.masterContracts || []).filter(m =>
-                String(m["Asset Name"]).trim().toLowerCase() === String(selectedAssetName).trim().toLowerCase()
+                String(m.assetName).trim().toLowerCase() === String(selectedAssetName).trim().toLowerCase()
             );
 
             if (filteredMasters.length === 0) {
@@ -285,43 +280,40 @@
             }
 
             filteredMasters.forEach(m => {
-                m.childContracts = allContracts.filter(c => c["Master Contract ID"] === m["Master Contract ID"]);
+                m.childContracts = allContracts.filter(c => c.masterId === m.masterId);
                 m.childContracts.sort((a, b) => {
-                    const timeA = a["End Date"] ? new Date(a["End Date"]).getTime() : 0;
-                    const timeB = b["End Date"] ? new Date(b["End Date"]).getTime() : 0;
+                    const timeA = a.endDate ? new Date(a.endDate).getTime() : 0;
+                    const timeB = b.endDate ? new Date(b.endDate).getTime() : 0;
                     return timeB - timeA;
                 });
             });
 
             filteredMasters.sort((a, b) => {
                 if (preSelectedMasterId) {
-                    if (a["Master Contract ID"] === preSelectedMasterId) return -1;
-                    if (b["Master Contract ID"] === preSelectedMasterId) return 1;
+                    if (a.masterId === preSelectedMasterId) return -1;
+                    if (b.masterId === preSelectedMasterId) return 1;
                 }
-                const dateA = a["Master End Date"] ? new Date(a["Master End Date"]).getTime() : 0;
-                const dateB = b["Master End Date"] ? new Date(b["Master End Date"]).getTime() : 0;
+                const dateA = a.masterEndDate ? new Date(a.masterEndDate).getTime() : 0;
+                const dateB = b.masterEndDate ? new Date(b.masterEndDate).getTime() : 0;
                 return dateB - dateA;
             });
 
-            // 🌟 Iniezione del terzo parametro verso la vista
             container.innerHTML = InitiativesTemplates.getMasterSmartCards(filteredMasters, preSelectedMasterId, preSelectedContractId);
 
             if (hiddenInput && !preSelectedMasterId) hiddenInput.value = "";
             if (hiddenContractInput && !preSelectedContractId) hiddenContractInput.value = "";
         },
 
-        // 2. Aggiornamento selezione Master Card (Global Scope)
         selectMasterCard: function (masterId) {
             const hiddenInput = document.getElementById('modal-init-selected-master-id');
             const hiddenContractInput = document.getElementById('modal-init-selected-contract-id');
             if (!hiddenInput) return;
 
             hiddenInput.value = masterId;
-            if (hiddenContractInput) hiddenContractInput.value = ""; // 🌟 Reset chirugico del target locale
+            if (hiddenContractInput) hiddenContractInput.value = ""; 
 
             document.querySelectorAll('.master-card').forEach(card => {
-                card.classList.remove('border-teal-500', 'bg-teal-50/20', 'ring-1', 'ring-teal-500', 'shadow-sm');
-                card.classList.add('border-slate-200', 'bg-white', 'hover:border-teal-300');
+                card.className = "border border-slate-200 bg-white hover:border-teal-300 rounded-xl p-2.5 transition-all cursor-pointer master-card pb-3";
             });
             document.querySelectorAll('[id^="master-check-"]').forEach(icon => {
                 icon.innerHTML = `<div class="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0"></div>`;
@@ -330,7 +322,6 @@
                 detailBox.classList.add('hidden');
             });
 
-            // Ripristina l'aspetto di tutte le righe dei contratti figli
             document.querySelectorAll('.contract-row-item').forEach(row => {
                 row.classList.remove('bg-amber-50/80', 'font-bold', 'border-l-4', 'border-l-amber-500');
             });
@@ -343,14 +334,13 @@
             const selectedDetails = document.getElementById(`master-details-${masterId}`);
 
             if (selectedCard && selectedIcon) {
-                selectedCard.classList.remove('border-slate-200', 'bg-white', 'hover:border-teal-300');
-                selectedCard.classList.add('border-teal-500', 'bg-teal-50/20', 'ring-1', 'ring-teal-500', 'shadow-sm');
+                selectedCard.className = "border border-teal-500 bg-teal-50/20 ring-1 ring-teal-500 shadow-sm rounded-xl p-2.5 transition-all cursor-pointer master-card pb-3";
                 selectedIcon.innerHTML = `<svg class="w-4 h-4 text-teal-600 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>`;
                 if (selectedDetails) selectedDetails.classList.remove('hidden');
             }
 
-            const targetMaster = (windowPayload.masterContracts || []).find(m => String(m["Master Contract ID"]).trim() === String(masterId).trim());
-            const baselineSpend = targetMaster ? (parseFloat(targetMaster["Run Rate"] || targetMaster.runRate) || 0) : 0;
+            const targetMaster = (windowPayload.masterContracts || []).find(m => String(m.masterId).trim() === String(masterId).trim());
+            const baselineSpend = targetMaster ? (parseFloat(targetMaster.runRate) || 0) : 0;
 
             const bDisplay = document.getElementById('modal-init-baseline-display');
             const bHidden = document.getElementById('modal-init-baseline-display-val');
@@ -359,11 +349,10 @@
 
             const costInput = document.getElementById('modal-init-target-cost');
             if (costInput && costInput.value.trim() !== "") {
-                this.handleTargetCostInputChange(costInput);
+                InitiativesController.handleTargetCostInputChange(costInput);
             }
         },
 
-        // 🌟 3. NUOVO METODO: Gestione dell'ancoraggio mirato al singolo Contratto (Local Scope)
         selectContractCard: function (masterId, contractId) {
             const hiddenInput = document.getElementById('modal-init-selected-master-id');
             const hiddenContractInput = document.getElementById('modal-init-selected-contract-id');
@@ -372,10 +361,8 @@
             hiddenInput.value = masterId;
             hiddenContractInput.value = contractId;
 
-            // Attivazione grafica del Master Agreement padre
             document.querySelectorAll('.master-card').forEach(card => {
-                card.classList.remove('border-teal-500', 'bg-teal-50/20', 'ring-1', 'ring-teal-500', 'shadow-sm');
-                card.classList.add('border-slate-200', 'bg-white', 'hover:border-teal-300');
+                card.className = "border border-slate-200 bg-white hover:border-teal-300 rounded-xl p-2.5 transition-all cursor-pointer master-card pb-3";
             });
             document.querySelectorAll('[id^="master-check-"]').forEach(icon => {
                 icon.innerHTML = `<div class="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0"></div>`;
@@ -383,11 +370,9 @@
 
             const selectedCard = document.getElementById(`master-card-${masterId}`);
             if (selectedCard) {
-                selectedCard.classList.remove('border-slate-200', 'bg-white', 'hover:border-teal-300');
-                selectedCard.classList.add('border-teal-500', 'bg-teal-50/20', 'ring-1', 'ring-teal-500', 'shadow-sm');
+                selectedCard.className = "border border-teal-500 bg-teal-50/20 ring-1 ring-teal-500 shadow-sm rounded-xl p-2.5 transition-all cursor-pointer master-card pb-3";
             }
 
-            // Ripristina l'aspetto visivo di tutte le righe dei contratti dello stesso blocco
             document.querySelectorAll('.contract-row-item').forEach(row => {
                 row.classList.remove('bg-amber-50/80', 'font-bold', 'border-l-4', 'border-l-amber-500');
             });
@@ -395,15 +380,13 @@
                 btn.className = "contract-target-btn p-1 rounded text-[9px] font-black leading-none transition-all bg-slate-100 text-slate-400 hover:bg-amber-500 hover:text-white";
             });
 
-            // Evidenzia chirugicamente la riga e l'icona del contratto locale bersaglio
             const selectedRow = document.getElementById(`contract-row-${contractId}`);
             const selectedBtn = document.getElementById(`contract-target-btn-${contractId}`);
             if (selectedRow) selectedRow.className = "contract-row-item border-b border-slate-100 hover:bg-slate-100 transition-colors bg-amber-50/80 font-bold border-l-4 border-l-amber-500";
             if (selectedBtn) selectedBtn.className = "contract-target-btn p-1 rounded text-[9px] font-black leading-none transition-all bg-amber-500 text-white shadow-3xs scale-105";
 
-            // 🌟 AGGIORNAMENTO DINAMICO DELLA BASELINE CON STRUTTURA LOCALE
-            const targetContract = (windowPayload.contracts || []).find(c => String(c["Contract ID"]).trim() === String(contractId).trim());
-            const baselineSpend = targetContract ? (parseFloat(targetContract["Annual Value"] || targetContract.annualValue) || 0) : 0;
+            const targetContract = (windowPayload.contracts || []).find(c => String(c.contractId).trim() === String(contractId).trim());
+            const baselineSpend = targetContract ? (parseFloat(targetContract.annualValue) || 0) : 0;
 
             const bDisplay = document.getElementById('modal-init-baseline-display');
             const bHidden = document.getElementById('modal-init-baseline-display-val');
@@ -412,68 +395,7 @@
 
             const costInput = document.getElementById('modal-init-target-cost');
             if (costInput && costInput.value.trim() !== "") {
-                this.handleTargetCostInputChange(costInput);
-            }
-        },
-
-        /*
-        // PROCEDURA DI SELEZIONE DELLA SMART CARD MASTER
-        selectMasterCard: function (masterId) {
-            const hiddenInput = document.getElementById('modal-init-selected-master-id');
-            if (!hiddenInput) return;
-            hiddenInput.value = masterId;
-
-            document.querySelectorAll('.master-card').forEach(card => {
-                card.classList.remove('border-teal-500', 'bg-teal-50/20', 'ring-1', 'ring-teal-500', 'shadow-sm');
-                card.classList.add('border-slate-200', 'bg-white', 'hover:border-teal-300');
-            });
-            document.querySelectorAll('[id^="master-check-"]').forEach(icon => {
-                icon.innerHTML = `<div class="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0"></div>`;
-            });
-
-            const selectedCard = document.getElementById(`master-card-${masterId}`);
-            const selectedIcon = document.getElementById(`master-check-${masterId}`);
-
-            if (selectedCard && selectedIcon) {
-                selectedCard.classList.remove('border-slate-200', 'bg-white', 'hover:border-teal-300');
-                selectedCard.classList.add('border-teal-500', 'bg-teal-50/20', 'ring-1', 'ring-teal-500', 'shadow-sm');
-                selectedIcon.innerHTML = `<svg class="w-4 h-4 text-teal-600 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>`;
-            }
-        },*/
-
-        // PROCEDURA DI SELEZIONE DELLA SMART CARD CON TOGGLE ACCORDION AUTOMATICO
-        selectGroup: function (groupId) {
-            const hiddenInput = document.getElementById('modal-init-selected-group-id');
-            if (!hiddenInput) return;
-
-            hiddenInput.value = groupId;
-
-            // 1. Reset visivo di tutte le altre card della lista
-            document.querySelectorAll('.group-card').forEach(card => {
-                card.classList.remove('border-teal-500', 'bg-teal-50/20', 'ring-1', 'ring-teal-500', 'shadow-sm');
-                card.classList.add('border-slate-200', 'bg-white', 'hover:border-teal-300');
-            });
-            document.querySelectorAll('[id^="group-check-"]').forEach(icon => {
-                icon.innerHTML = `<div class="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0"></div>`;
-            });
-
-            // 2. Nasconde i dettagli di tutti gli altri gruppi aperti per compattare la vista
-            document.querySelectorAll('[id^="group-details-"]').forEach(detailBox => {
-                detailBox.classList.add('hidden');
-            });
-
-            // 3. Attiva lo stato selezionato ed espande la tabella dei contratti del gruppo cliccato
-            const selectedCard = document.getElementById(`group-card-${groupId}`);
-            const selectedIcon = document.getElementById(`group-check-${groupId}`);
-            const selectedDetails = document.getElementById(`group-details-${groupId}`);
-
-            if (selectedCard && selectedIcon && selectedDetails) {
-                selectedCard.classList.remove('border-slate-200', 'bg-white', 'hover:border-teal-300');
-                selectedCard.classList.add('border-teal-500', 'bg-teal-50/20', 'ring-1', 'ring-teal-500', 'shadow-sm');
-                selectedIcon.innerHTML = `<svg class="w-4 h-4 text-teal-600 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>`;
-
-                // Espansione automatica istantanea
-                selectedDetails.classList.remove('hidden');
+                InitiativesController.handleTargetCostInputChange(costInput);
             }
         },
 
@@ -513,10 +435,9 @@
                 const cost = parseInt(rawCostStr, 10);
                 el.value = cost.toLocaleString('it-IT');
                 if (pctInput && baseline > 0) {
-                    // Calcola il saving % rispetto alla baseline spend
                     const pct = ((baseline - cost) / baseline) * 100;
                     pctInput.value = Math.round(pct) + '%';
-                    pctInput.dataset.lastClean = Math.round(pct).toString(); // Allinea la cache
+                    pctInput.dataset.lastClean = Math.round(pct).toString();
                 }
             } else {
                 el.value = "";
@@ -541,7 +462,6 @@
                 return;
             }
 
-            // 🌟 LOGICA ANTI-BLOCCO BACKSPACE: Se cancella il simbolo %, rimuove forzatamente l'ultimo numero digitato
             if (currentClean === lastClean && el.value.indexOf('%') === -1) {
                 currentClean = currentClean.slice(0, -1);
             }
@@ -549,7 +469,7 @@
             if (currentClean !== "" && currentClean !== "-") {
                 const pct = parseInt(currentClean, 10);
                 el.value = pct + '%';
-                el.dataset.lastClean = currentClean; // Aggiorna la memoria di posizione della stringa
+                el.dataset.lastClean = currentClean;
 
                 if (costInput && baseline > 0) {
                     const saving = (pct / 100) * baseline;
@@ -563,77 +483,26 @@
             }
         },
 
-        handleTargetSavingPctChange: function (el) {
-            let valStr = el.value.replace(/[^0-9.]/g, '');
-            const costInput = document.getElementById('modal-init-target-cost');
-            const baseline = parseFloat(document.getElementById('modal-init-baseline-display-val').value) || 0;
-
-            if (valStr !== "") {
-                let pct = parseFloat(valStr) || 0;
-                el.value = pct + '%';
-                if (costInput) {
-                    costInput.disabled = true;
-                    const saving = (pct / 100) * baseline;
-                    const cost = Math.max(0, Math.round(baseline - saving));
-                    costInput.value = cost.toLocaleString('it-IT');
-                }
-            } else {
-                if (costInput) {
-                    costInput.disabled = false;
-                    costInput.value = "";
-                }
-            }
-        },
-
-        clearFinancialInputs: function () {
-            const costInput = document.getElementById('modal-init-target-cost');
-            const pctInput = document.getElementById('modal-init-target-saving-pct');
-            if (costInput) {
-                costInput.value = "";
-                costInput.disabled = false;
-            }
-            if (pctInput) {
-                pctInput.value = "";
-                pctInput.disabled = false;
-            }
-        },
-
         closeInitiativeModalWindow: function () {
             const mountPoint = document.getElementById('initiatives-modal-mount-point');
-            mountPoint.classList.remove('flex');
-            mountPoint.classList.add('hidden');
-            mountPoint.innerHTML = '';
+            if (mountPoint) {
+                mountPoint.classList.remove('flex');
+                mountPoint.classList.add('hidden');
+                mountPoint.innerHTML = '';
+            }
         },
 
-        rebuildModalTagsBadgesContainer: function () {
-            const wrapper = document.getElementById('modal-init-tags-wrapper');
-            if (!wrapper) return;
-            wrapper.innerHTML = this.currentLocalTagsArray.map((t, idx) => `
-            <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-teal-50 border border-teal-200 text-teal-700 rounded-md text-[9px] font-black uppercase tracking-wider shadow-3xs">
-                ${t}
-                <button type="button" onclick="InitiativesController.removeTagFromLocalInstance(${idx})" class="hover:text-rose-600 font-bold ml-0.5 text-[10px]">×</button>
-            </span>
-        `).join('');
-        },
-
-        removeTagFromLocalInstance: function (idx) {
-            this.currentLocalTagsArray.splice(idx, 1);
-            this.rebuildModalTagsBadgesContainer();
-            this.renderAvailableTagsInModal();
-        },
-
-        // 4. Aggiornamento iniezione dati in fase di Form Open
         openInitiativeModalForm: function (id) {
             const isNew = id === null;
             InitiativesState.currentEditingInitiative = id;
 
-            let initData = { "Initiative Name": "", "Initiative Status": "IDEA", "Initial Strategy": "OPTIMIZATION", "Decision": "OPTIMIZATION", "Tags": "", "Optimization Levers": "", "Target Cost (Annualized)": 0, "Target Saving %": 0, "Baseline Spend (Annualized)": 0, "Description": "", "Service Owner": "", "Procurement Point Focal": "", "Master Contract ID": "", "Contract ID": "" };
+            let initData = { name: "", status: "IDEA", initialStrategy: "OPTIMIZATION", decision: "OPTIMIZATION", tags: "", optimizationLevers: "", targetCostAnnualized: 0, targetSavingPct: 0, baselineSpendAnnualized: 0, description: "", serviceOwner: "", procurementPointFocal: "", masterId: "", contractId: "" };
 
             if (!isNew) {
                 initData = InitiativesState.getInitiativeById(id);
             }
 
-            const attachedLevers = (initData["Optimization Levers"] || "").split(',').map(l => l.trim());
+            const attachedLevers = (initData.optimizationLevers || "").split(',').map(l => l.trim());
             const leversHtml = InitiativesState.optimizationLevers.map(lever => `
             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-100 rounded cursor-pointer font-bold text-slate-700">
                 <input type="checkbox" value="${lever}" ${attachedLevers.includes(lever) ? 'checked' : ''} class="split-lever-checkbox w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600">
@@ -644,31 +513,29 @@
             const mountPoint = document.getElementById('initiatives-modal-mount-point');
             mountPoint.innerHTML = InitiativesTemplates.getModalFormStructure(isNew, "", "", leversHtml);
 
-            document.getElementById('modal-init-asset-search').value = initData["Asset Name"] || "";
-            document.getElementById('modal-init-asset-select').value = initData["Asset Name"] || "";
+            document.getElementById('modal-init-asset-search').value = initData.assetName || "";
+            document.getElementById('modal-init-asset-select').value = initData.assetName || "";
 
-            const baselineSpend = parseFloat(initData["Baseline Spend (Annualized)"]) || 0;
+            const baselineSpend = parseFloat(initData.baselineSpendAnnualized) || 0;
             document.getElementById('modal-init-baseline-display').innerHTML = baselineSpend > 0 ? '€ ' + Math.round(baselineSpend).toLocaleString('it-IT') : '€ 0';
             document.getElementById('modal-init-baseline-display-val').value = baselineSpend;
 
             if (!isNew) {
-                document.getElementById('modal-init-name').value = initData["Initiative Name"] || "";
+                document.getElementById('modal-init-name').value = initData.name || "";
+                document.getElementById('modal-init-description').value = initData.description || "";
+                document.getElementById('modal-init-owner').value = initData.serviceOwner || "";
+                document.getElementById('modal-init-procurement').value = initData.procurementPointFocal || initData.procurementPoint || "";
 
-                // 🌟 FIX: Popolamento campi anagrafici mancanti
-                document.getElementById('modal-init-description').value = initData["Description"] || "";
-                document.getElementById('modal-init-owner').value = initData["Service Owner"] || initData.serviceOwner || "";
-                document.getElementById('modal-init-procurement').value = initData["Procurement Point Focal"] || initData["Procurement Point"] || initData.procurementPoint || "";
-
-                const readStrategy = (initData["Initial Strategy"] || initData["Strategy"] || "OPTIMIZATION").toUpperCase().trim();
-                const readDecision = (initData["Decision"] || readStrategy).toUpperCase().trim();
+                const readStrategy = (initData.initialStrategy || "OPTIMIZATION").toUpperCase().trim();
+                const readDecision = (initData.decision || readStrategy).toUpperCase().trim();
                 document.getElementById('modal-init-strategy').value = readStrategy;
                 document.getElementById('modal-init-decision').value = readDecision;
-                document.getElementById('modal-init-status').value = (initData["Initiative Status"] || "IDEA").toUpperCase().trim();
+                document.getElementById('modal-init-status').value = (initData.status || "IDEA").toUpperCase().trim();
 
-                document.getElementById('modal-init-target-date').value = FinOpsDate.toIso(initData["Target Date"]);
+                document.getElementById('modal-init-target-date').value = FinOpsDate.toIso(initData.targetDate);
 
-                const targetCost = parseFloat(initData["Target Cost (Annualized)"]) || 0;
-                let targetSavingPct = parseFloat(initData["Target Saving %"]) || 0;
+                const targetCost = parseFloat(initData.targetCostAnnualized) || 0;
+                let targetSavingPct = parseFloat(initData.targetSavingPct) || 0;
                 if (targetSavingPct > 0 && targetSavingPct <= 1) targetSavingPct = targetSavingPct * 100;
                 else if (targetSavingPct === 0 && baselineSpend > 0) {
                     targetSavingPct = ((baselineSpend - targetCost) / baselineSpend) * 100;
@@ -683,23 +550,22 @@
                     pctInput.dataset.lastClean = Math.round(targetSavingPct).toString();
                 }
 
-                this.handleDecisionChange(readDecision);
+                InitiativesController.handleDecisionChange(readDecision);
 
-                if (initData["Asset Name"]) {
-                    // Passaggio del terzo parametro locale al rinfresco cascata
-                    this.handleAssetCascadeDropdownChange(initData["Asset Name"], initData["Master Contract ID"], initData["Contract ID"]);
+                if (initData.assetName) {
+                    InitiativesController.handleAssetCascadeDropdownChange(initData.assetName, initData.masterId, initData.contractId);
 
                     const hInput = document.getElementById('modal-init-selected-master-id');
-                    if (hInput) hInput.value = initData["Master Contract ID"] || "";
+                    if (hInput) hInput.value = initData.masterId || "";
                     const hContractInput = document.getElementById('modal-init-selected-contract-id');
-                    if (hContractInput) hContractInput.value = initData["Contract ID"] || "";
+                    if (hContractInput) hContractInput.value = initData.contractId || "";
 
-                    if (initData["Master Contract ID"]) {
+                    if (initData.masterId) {
                         setTimeout(() => {
-                            if (initData["Contract ID"]) {
-                                this.selectContractCard(initData["Master Contract ID"], initData["Contract ID"]);
+                            if (initData.contractId) {
+                                InitiativesController.selectContractCard(initData.masterId, initData.contractId);
                             } else {
-                                this.selectMasterCard(initData["Master Contract ID"]);
+                                InitiativesController.selectMasterCard(initData.masterId);
                             }
                         }, 50);
                     }
@@ -711,7 +577,6 @@
             mountPoint.querySelector('.bg-white').setAttribute('onclick', 'event.stopPropagation()');
         },
 
-        // 5. Aggiornamento raccolta e persistenza in cache locale dei due ID (Master + Contract)
         commitInitiativeFormToLocalState: function () {
             const initName = document.getElementById('modal-init-name').value.trim();
             const assetName = document.getElementById('modal-init-asset-select').value;
@@ -733,47 +598,46 @@
             const activeId = InitiativesState.currentEditingInitiative;
             let instance = activeId !== null ? InitiativesState.getInitiativeById(activeId) : {};
 
-            instance["Initiative Name"] = initName;
-            instance["Asset Name"] = assetName;
-            instance["Master Contract ID"] = masterId;
-            instance["Contract ID"] = contractId;
+            instance.name = initName;
+            instance.assetName = assetName;
+            instance.masterId = masterId;
+            instance.contractId = contractId;
 
-            const targetMaster = (windowPayload.masterContracts || []).find(m => String(m["Master Contract ID"]).trim() === masterId.trim());
+            const targetMaster = (windowPayload.masterContracts || []).find(m => String(m.masterId).trim() === masterId.trim());
             if (targetMaster) {
-                instance["Supplier"] = targetMaster["Supplier"] || "";
-                instance["Contract Term (Months)"] = targetMaster["Contract Term (Months)"] || "";
-                instance["Baseline Spend (Annualized)"] = baselineSpend;
-                instance["Last Expiration"] = targetMaster["Master End Date"] ? FinOpsDate.toIso(targetMaster["Master End Date"]) : "";
+                instance.supplier = targetMaster.supplier || "";
+                instance.contractTermMonths = targetMaster.contractTerm || "";
+                instance.baselineSpendAnnualized = baselineSpend;
+                instance.lastExpiration = targetMaster.masterEndDate ? FinOpsDate.toIso(targetMaster.masterEndDate) : "";
             }
 
-            instance["Initial Strategy"] = document.getElementById('modal-init-strategy').value;
-            instance["Decision"] = document.getElementById('modal-init-decision').value;
-            instance["Initiative Status"] = document.getElementById('modal-init-status').value;
-            instance["Target Date"] = FinOpsDate.toIso(tDate);
-            instance["Target Cost (Annualized)"] = tCostVal;
-            instance["Target Saving %"] = tSavingPctVal;
+            instance.initialStrategy = document.getElementById('modal-init-strategy').value;
+            instance.decision = document.getElementById('modal-init-decision').value;
+            instance.status = document.getElementById('modal-init-status').value;
+            instance.targetDate = FinOpsDate.toIso(tDate);
+            instance.targetCostAnnualized = tCostVal;
+            instance.targetSavingPct = tSavingPctVal;
 
-            instance["Service Owner"] = document.getElementById('modal-init-owner').value.trim();
-            instance["Procurement Point Focal"] = document.getElementById('modal-init-procurement').value.trim();
-            instance["Procurement Point"] = document.getElementById('modal-init-procurement').value.trim();
-            instance["Description"] = document.getElementById('modal-init-description').value.trim();
+            instance.serviceOwner = document.getElementById('modal-init-owner').value.trim();
+            instance.procurementPointFocal = document.getElementById('modal-init-procurement').value.trim();
+            instance.procurementPoint = document.getElementById('modal-init-procurement').value.trim();
+            instance.description = document.getElementById('modal-init-description').value.trim();
 
             const checkedLevers = Array.from(document.querySelectorAll('.split-lever-checkbox:checked')).map(cb => cb.value);
-            instance["Optimization Levers"] = checkedLevers.join(', ');
+            instance.optimizationLevers = checkedLevers.join(', ');
 
-            if (instance["Initiative Status"] === "COMPLETED") {
-                instance["Actual Date"] = instance["Target Date"];
+            if (instance.status === "COMPLETED") {
+                instance.actualDate = instance.targetDate;
             } else {
-                instance["Actual Date"] = "";
+                instance.actualDate = "";
             }
 
             InitiativesState.saveInitiativeInstance(activeId, instance);
             InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || []);
 
-            this.closeInitiativeModalWindow();
-            this.renderKanbanBoard(false);
+            InitiativesController.closeInitiativeModalWindow();
+            InitiativesController.renderKanbanBoard(false);
 
-            // 🌟 ACCENSIONE SEMAFORO GLOBALE
             if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
         },
 
@@ -781,7 +645,7 @@
             const listContainer = document.getElementById('modal-asset-options-list');
             if (!listContainer) return;
             const q = query.toLowerCase().trim();
-            const assetsList = ContractsUtils.extractUniqueField(windowPayload.assets, "Asset Name");
+            const assetsList = ContractsUtils.extractUniqueField(windowPayload.assets, "name");
 
             const matched = assetsList.filter(a => a.toLowerCase().includes(q));
             if (matched.length === 0) {
@@ -801,11 +665,10 @@
                 listContainer.classList.remove('hidden');
                 const searchInput = document.getElementById('modal-init-asset-search');
                 if (searchInput) {
-                    // 🌟 Se forceAll è vero ignora la stringa scritta e mostra l'intero anagrafico
                     if (forceAll) {
-                        this.filterModalAssetOptions("");
+                        InitiativesController.filterModalAssetOptions("");
                     } else {
-                        this.filterModalAssetOptions(searchInput.value);
+                        InitiativesController.filterModalAssetOptions(searchInput.value);
                     }
                 }
             } else {
@@ -817,56 +680,38 @@
             document.getElementById('modal-init-asset-search').value = assetName;
             document.getElementById('modal-init-asset-select').value = assetName;
             document.getElementById('modal-asset-options-list').classList.add('hidden');
-            this.handleAssetCascadeDropdownChange(assetName);
-        },
-
-        handleTargetCostInputLiveFormatting: function (input) {
-            let val = input.value.trim();
-            if (val.endsWith('%')) {
-                let num = val.replace(/[^0-9]/g, '');
-                input.value = num ? num + '%' : '';
-            } else {
-                let clean = val.replace(/[^0-9]/g, '');
-                input.value = clean ? parseInt(clean, 10).toLocaleString('it-IT') : '';
-            }
+            InitiativesController.handleAssetCascadeDropdownChange(assetName);
         },
 
         deleteInitiativeFromArchitecture: function () {
-            // Sostituito con il nostro nuovo Confirm Centralizzato
             FinOpsUI.showConfirm(
                 "Delete Initiative?",
                 "Are you entirely sure you want to completely erase this initiative from the FinOps registry? This action cannot be undone once committed.",
                 () => {
                     InitiativesState.deleteInitiativeInstance(InitiativesState.currentEditingInitiative);
-                    this.closeInitiativeModalWindow();
-                    this.renderKanbanBoard(false);
+                    InitiativesController.closeInitiativeModalWindow();
+                    InitiativesController.renderKanbanBoard(false);
                     FinOpsUI.showNotificationBanner("Initiative purged from memory. Commit to propagate deletion.", "warning");
                 }
             );
         },
 
         pushKanbanArchitectureToGoogleSheets: function () {
-            showLoading(); // Mostra il micro-spinner
+            showLoading();
 
-            // Chiamata all'API backend passando le iniziative locali
             InitiativesAPI.syncInitiativesToGoogleSheets(
                 InitiativesState.rawInitiatives,
                 (deltaPayload) => {
                     hideLoading();
 
-                    // Verifichiamo che il backend abbia risposto con il nuovo Delta Payload
                     if (deltaPayload && deltaPayload.status === "SUCCESS") {
-
-                        // 1. STATE RECONCILIATION: Aggiorniamo la RAM con i dati freschi dal DB
                         windowPayload.initiatives = deltaPayload.initiatives || [];
                         windowPayload.masterContracts = deltaPayload.masterContracts || [];
                         windowPayload.assets = deltaPayload.assets || [];
 
-                        // Allineiamo anche lo stato locale del modulo Iniziative
                         InitiativesState.loadPayload(windowPayload);
                         InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || []);
 
-                        // 2. IL MOTORE IN-MEMORY: Ricalcoliamo le proiezioni istantaneamente
                         console.log("⚡ REACTIVE UPDATE: Ricalcolo Proiezioni...");
                         windowPayload.projections = ProjectionsEngine.calculateAll(
                             windowPayload.contracts || [],
@@ -875,29 +720,26 @@
                             windowPayload.ledger || []
                         );
 
-                        // 3. IL MOTORE VARIANZE: Aggiorniamo l'Asset Variance Report
                         console.log("⚡ REACTIVE UPDATE: Ricalcolo Varianze...");
                         const varianceMap = new Map();
-                        // 🌟 FIX: Legge correttamente la variabile 'bridge' passata dal Server
                         (windowPayload.bridge || []).forEach(alloc => {
-                            const key = `${String(alloc["Asset Name"] || "").trim()}---${String(alloc["Fiscal Year"] || "").trim().toUpperCase()}`;
-                            if (!varianceMap.has(key)) varianceMap.set(key, { "Asset Name": alloc["Asset Name"], "Fiscal Year": alloc["Fiscal Year"], "Effective Budget": 0, "Fiscal Projection": 0, "Variance": 0 });
-                            varianceMap.get(key)["Effective Budget"] += parseFloat(alloc["Effective Budget"]) || 0;
+                            const key = `${String(alloc.assetName || "").trim()}---${String(alloc.fiscalYear || "").trim().toUpperCase()}`;
+                            if (!varianceMap.has(key)) varianceMap.set(key, { assetName: alloc.assetName, fiscalYear: alloc.fiscalYear, effectiveBudget: 0, fiscalProjection: 0, variance: 0 });
+                            varianceMap.get(key).effectiveBudget += parseFloat(alloc.effectiveBudget) || 0;
                         });
                         (windowPayload.projections || []).forEach(proj => {
-                            const asset = String(proj["Asset Name"] || "").trim();
+                            const asset = String(proj["Asset Name"] || proj.assetName || "").trim();
                             ["FY26", "FY27", "FY28"].forEach(fy => {
                                 const key = `${asset}---${fy}`;
-                                if (varianceMap.has(key)) varianceMap.get(key)["Fiscal Projection"] += parseFloat(proj[`${fy} Optimized`]) || 0;
+                                if (varianceMap.has(key)) varianceMap.get(key).fiscalProjection += parseFloat(proj[`${fy} Optimized`]) || 0;
                             });
                         });
                         windowPayload.varianceReport = Array.from(varianceMap.values()).map(row => {
-                            row["Variance"] = row["Effective Budget"] - row["Fiscal Projection"];
+                            row.variance = row.effectiveBudget - row.fiscalProjection;
                             return row;
                         });
 
-                        // 4. SVEGLIAMO I COMPONENTI UI (Aggiornamento silenzioso a cascata)
-                        this.renderKanbanBoard(false); // Ridisegna il Kanban
+                        InitiativesController.renderKanbanBoard(false);
 
                         if (typeof DashboardState !== 'undefined') {
                             DashboardState.loadCachePayload(windowPayload);
@@ -905,15 +747,13 @@
                         if (typeof ProjectionsState !== 'undefined') {
                             ProjectionsState.loadPayload(windowPayload);
                             if (typeof ProjectionsController !== 'undefined' && document.getElementById('tab-projections') && !document.getElementById('tab-projections').classList.contains('hidden')) {
-                                ProjectionsController.applyEngine(); // Ridisegna la matrice se è il tab attivo
+                                ProjectionsController.applyEngine();
                             }
                         }
                         if (typeof ContractsState !== 'undefined') {
                             ContractsState.loadPayload(windowPayload);
-                            // Non forziamo il render immediato se non siamo nel tab per risparmiare DOM repaints
                         }
                         if (typeof initInventoryTab === 'function') {
-                            // Aggiorna la tabella inventory in background
                             initInventoryTab();
                         }
 
@@ -930,29 +770,23 @@
             );
         },
 
-        // --- MOTORE DRAG & DROP FLUIDO E BLINDATO ---
-        currentDragType: null,
-
         handleCardDragStart: function (event, id) {
-            this.currentDragType = 'CARD';
+            InitiativesController.currentDragType = 'CARD';
             event.dataTransfer.setData('text/plain', JSON.stringify({ type: 'CARD', id: id }));
             event.dataTransfer.effectAllowed = 'move';
 
-            // Pulisce la UI per evitare glitch
             document.querySelectorAll('[id^="group-details-"]').forEach(el => el.classList.add('hidden'));
             document.querySelectorAll('.group-hover\\:opacity-100').forEach(el => el.classList.remove('group-hover:opacity-100'));
         },
 
         handleTagDragStart: function (event, tag, sourceCardId = null) {
             event.stopPropagation();
-            this.currentDragType = 'TAG';
+            InitiativesController.currentDragType = 'TAG';
             event.dataTransfer.setData('text/plain', JSON.stringify({ type: 'TAG', tag: tag, sourceCardId: sourceCardId }));
             event.dataTransfer.effectAllowed = 'copyMove';
 
-            // Disattiva i pointer-events sui figli interni di tutte le card per evitare lag e sfarfallii
             document.body.classList.add('dragging-tag-active');
 
-            // Il tuo Drag Ghost personalizzato (senza modifiche)
             const ghost = document.createElement('div');
             ghost.id = 'drag-ghost-' + tag;
             ghost.className = 'px-3 py-1 bg-teal-600 text-white font-black text-[10px] uppercase tracking-wider rounded-full fixed -top-20 left-0 z-[9999]';
@@ -966,12 +800,9 @@
             }, 10);
         },
 
-        // EVENTO CHIAVE CHE AZZERA IL LAG: Continua a spegnere le altre colonne e accende solo quella corrente
         handleColumnDragOver: function (event, element) {
             event.preventDefault();
-
-            if (this.currentDragType === 'CARD') {
-                // Anti-Lag: Modifica il DOM solo se la classe non è già presente
+            if (InitiativesController.currentDragType === 'CARD') {
                 if (!element.classList.contains('bg-slate-200/80')) {
                     document.querySelectorAll('.kanban-lane-container').forEach(col => {
                         if (col !== element) col.classList.remove('bg-slate-200/80', 'border-teal-500/50', 'ring-2', 'ring-teal-500/20');
@@ -983,9 +814,7 @@
 
         handleCardDragOver: function (event, element) {
             event.preventDefault();
-
-            if (this.currentDragType === 'TAG') {
-                // Impedisce ai figli interni (testo, numeri) di attivare eventi e far sfarfallare la card
+            if (InitiativesController.currentDragType === 'TAG') {
                 if (event.target !== element && !element.contains(event.target)) return;
 
                 const overlay = element.querySelector('[id^="drop-overlay-"]');
@@ -1003,8 +832,7 @@
         },
 
         handleCardDragLeave: function (event, element) {
-            if (this.currentDragType === 'TAG') {
-                // TRUCCO CRITICO: Se il mouse si sta solo spostando su un testo interno alla card, NON spegnere nulla!
+            if (InitiativesController.currentDragType === 'TAG') {
                 const nextElement = event.relatedTarget;
                 if (element.contains(nextElement)) return;
 
@@ -1022,10 +850,8 @@
             }
         },
 
-        // EVENTO DI PULIZIA GLOBALE: Alla fine del Drag, spegne l'illuminazione di TUTTO. Niente più dragleave rotti.
         handleDragEnd: function (event) {
-            this.currentDragType = null;
-            // Rimuove il blocco dei pointer events
+            InitiativesController.currentDragType = null;
             document.body.classList.remove('dragging-tag-active');
 
             document.querySelectorAll('.kanban-lane-container').forEach(col => {
@@ -1039,7 +865,7 @@
 
         handleColumnDrop: function (event, targetColumn, element) {
             event.preventDefault();
-            this.handleDragEnd(); // Spegne immediatamente le colonne
+            InitiativesController.handleDragEnd();
 
             const rawData = event.dataTransfer.getData('text/plain');
             if (!rawData) return;
@@ -1047,9 +873,9 @@
             try {
                 const data = JSON.parse(rawData);
                 if (data.type === 'CARD') {
-                    this.processCardMove(data, targetColumn);
+                    InitiativesController.processCardMove(data, targetColumn);
                 } else if (data.type === 'TAG') {
-                    this.removeTagFromSource(data.tag, data.sourceCardId);
+                    InitiativesController.removeTagFromSource(data.tag, data.sourceCardId);
                 }
             } catch (e) { }
         },
@@ -1057,7 +883,7 @@
         handleCardDrop: function (event, id, element) {
             event.preventDefault();
             event.stopPropagation();
-            this.handleDragEnd(); // Spegne i filtri grafici globali
+            InitiativesController.handleDragEnd();
 
             const rawData = event.dataTransfer.getData('text/plain');
             if (!rawData) return;
@@ -1071,7 +897,7 @@
                         const lane = targetColumnDiv.querySelector('[id^="kanban-target-lane-"]');
                         if (lane) {
                             const colKey = lane.id.replace('kanban-target-lane-', '');
-                            this.processCardMove(data, colKey);
+                            InitiativesController.processCardMove(data, colKey);
                         }
                     }
                     return;
@@ -1082,23 +908,21 @@
 
                     const init = InitiativesState.rawInitiatives[id];
                     if (init) {
-                        let currentTags = (init["Tags"] || "").split(',').map(t => t.trim()).filter(t => t);
+                        let currentTags = (init.tags || "").split(',').map(t => t.trim()).filter(t => t);
                         if (!currentTags.includes(data.tag)) {
                             currentTags.push(data.tag);
-                            init["Tags"] = currentTags.join(', ');
+                            init.tags = currentTags.join(', ');
 
                             if (data.sourceCardId !== null && data.sourceCardId !== undefined) {
                                 const oldInit = InitiativesState.rawInitiatives[data.sourceCardId];
                                 if (oldInit) {
-                                    oldInit["Tags"] = (oldInit["Tags"] || "").split(',').map(t => t.trim()).filter(t => t !== data.tag).join(', ');
+                                    oldInit.tags = (oldInit.tags || "").split(',').map(t => t.trim()).filter(t => t !== data.tag).join(', ');
                                 }
                             }
 
-                            // Renderizza e aggiorna la board
-                            this.renderKanbanBoard(false);
-                            this.renderGlobalTagsFilterSelectionRow();
+                            InitiativesController.renderKanbanBoard(false);
+                            InitiativesController.renderGlobalTagsFilterSelectionRow();
 
-                            // Recupera la card appena renderizzata per non perdere il focus visivo dell'utente
                             const newCardEl = document.getElementById('ops-card-parent-' + id);
                             if (newCardEl) {
                                 const container = newCardEl.querySelector('.absolute.top-full');
@@ -1120,9 +944,9 @@
 
             try {
                 const data = JSON.parse(rawData);
-                if (data.type === 'TAG') this.removeTagFromSource(data.tag, data.sourceCardId);
+                if (data.type === 'TAG') InitiativesController.removeTagFromSource(data.tag, data.sourceCardId);
             } catch (e) { }
-            this.currentDragType = null;
+            InitiativesController.currentDragType = null;
         },
 
         processCardMove: function (data, targetColumn) {
@@ -1133,13 +957,12 @@
 
             const initiative = InitiativesState.updateInitiativeStatus(data.id, newStatus);
             if (initiative) {
-                if (newStatus === "COMPLETED") initiative["Actual Date"] = initiative["Target Date"] || new Date().toISOString().split('T')[0];
-                else initiative["Actual Date"] = "";
+                if (newStatus === "COMPLETED") initiative.actualDate = initiative.targetDate || new Date().toISOString().split('T')[0];
+                else initiative.actualDate = "";
 
                 InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || []);
-                this.renderKanbanBoard(false);
+                InitiativesController.renderKanbanBoard(false);
 
-                // 🌟 ACCENSIONE SEMAFORO AL DRAG & DROP
                 if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
             }
         },
@@ -1148,18 +971,14 @@
             if (sourceCardId !== null && sourceCardId !== undefined) {
                 const init = InitiativesState.rawInitiatives[sourceCardId];
                 if (init) {
-                    let currentTags = (init["Tags"] || "").split(',').map(t => t.trim()).filter(t => t);
+                    let currentTags = (init.tags || "").split(',').map(t => t.trim()).filter(t => t);
                     currentTags = currentTags.filter(t => t !== tag);
-                    init["Tags"] = currentTags.join(', ');
-                    this.renderKanbanBoard(false);
-                    this.renderGlobalTagsFilterSelectionRow();
+                    init.tags = currentTags.join(', ');
+                    InitiativesController.renderKanbanBoard(false);
+                    InitiativesController.renderGlobalTagsFilterSelectionRow();
                 }
             }
         },
-
-        // --- GESTIONE LIBRERIA TAG IN ALTO ---
-
-        // --- GESTIONE LIBRERIA TAG IN ALTO ---
 
         handleGlobalNewTagCreation: function (event) {
             if (event.key === 'Enter' || event.keyCode === 13) {
@@ -1172,16 +991,16 @@
                 const newTag = input.value.trim().toUpperCase();
 
                 if (newTag) {
-                    if (!this.globalCustomTags) {
-                        this.globalCustomTags = [];
+                    if (!InitiativesController.globalCustomTags) {
+                        InitiativesController.globalCustomTags = [];
                     }
 
-                    if (!this.globalCustomTags.includes(newTag)) {
-                        this.globalCustomTags.push(newTag);
+                    if (!InitiativesController.globalCustomTags.includes(newTag)) {
+                        InitiativesController.globalCustomTags.push(newTag);
                     }
 
                     input.value = '';
-                    this.renderGlobalTagsFilterSelectionRow();
+                    InitiativesController.renderGlobalTagsFilterSelectionRow();
 
                     setTimeout(() => {
                         const newInput = document.getElementById('global-new-tag-input');
@@ -1200,7 +1019,7 @@
 
             if (InitiativesState.rawInitiatives) {
                 Object.values(InitiativesState.rawInitiatives).forEach(init => {
-                    const tagsStr = init["Tags"] || init["tags"] || "";
+                    const tagsStr = init.tags || "";
                     tagsStr.split(',').forEach(t => {
                         const cleaned = t.trim().toUpperCase();
                         if (cleaned) {
@@ -1211,13 +1030,12 @@
                 });
             }
 
-            if (this.globalCustomTags) {
-                this.globalCustomTags.forEach(t => totalTagSet.add(t));
+            if (InitiativesController.globalCustomTags) {
+                InitiativesController.globalCustomTags.forEach(t => totalTagSet.add(t));
             }
 
             const allTags = Array.from(totalTagSet).sort();
 
-            // Delegate presentation exclusively to the view layer
             lane.innerHTML = allTags.map(tag => {
                 const isSelected = InitiativesState.selectedTagsFilter && InitiativesState.selectedTagsFilter.includes(tag);
                 const isUsed = usedTagsSet.has(tag);
@@ -1228,52 +1046,17 @@
 
         deleteGlobalTag: function (event, tag) {
             event.stopPropagation();
-            this.globalCustomTags = this.globalCustomTags.filter(t => t !== tag);
-            this.renderGlobalTagsFilterSelectionRow();
+            InitiativesController.globalCustomTags = InitiativesController.globalCustomTags.filter(t => t !== tag);
+            InitiativesController.renderGlobalTagsFilterSelectionRow();
         },
 
         handleGlobalTagFilterToggle: function (tag) {
             InitiativesState.toggleTagFilter(tag);
-            this.renderKanbanBoard(false);
-            this.renderGlobalTagsFilterSelectionRow();
-        },
-
-        handleGlobalTagInputKeydown: function (event) {
-            if (event.key === 'Enter' || event.keyCode === 13) {
-                event.preventDefault();
-                event.stopPropagation();
-
-                const input = document.getElementById('new-tag-input-field');
-                if (!input) return;
-
-                const tagValue = input.value.trim().toUpperCase();
-                if (tagValue) {
-                    // Sincronizzazione con le strutture dati reali del tuo js_initiatives_state.html
-                    if (!InitiativesState.globalTags) {
-                        InitiativesState.globalTags = [];
-                    }
-
-                    if (!InitiativesState.globalTags.includes(tagValue)) {
-                        InitiativesState.globalTags.push(tagValue);
-                    }
-
-                    // Svuota il campo di testo
-                    input.value = '';
-
-                    // Rinfresca solo la riga dei tag richiamando la vista aggiornata
-                    this.renderGlobalTagsFilterSelectionRow();
-
-                    // Ripristina il focus immediato sul box
-                    setTimeout(() => {
-                        const rInp = document.getElementById('new-tag-input-field');
-                        if (rInp) rInp.focus();
-                    }, 20);
-                }
-            }
-        },
+            InitiativesController.renderKanbanBoard(false);
+            InitiativesController.renderGlobalTagsFilterSelectionRow();
+        }
     };
 
-    // 🌟 UNICA FUNZIONE DI ASCOLTO CLIC GLOBALE (Accorpata per evitare debito tecnico)
     document.addEventListener('click', function (e) {
         const pipelineDrop = document.getElementById('dropdown-pipeline');
         const realizedDrop = document.getElementById('dropdown-realized');
@@ -1286,7 +1069,6 @@
         if (realizedDrop && !realizedDrop.classList.contains('hidden') && !realizedDrop.contains(e.target) && !e.target.closest('button')) {
             realizedDrop.classList.add('hidden');
         }
-        // 🔒 Integrazione pulita: chiude la tendina dei risultati Asset se clicchi fuori dal box di ricerca
         if (assetDrop && comboContainer && !assetDrop.classList.contains('hidden') && !comboContainer.contains(e.target)) {
             assetDrop.classList.add('hidden');
         }

@@ -12,12 +12,12 @@
         getFilteredAndSortedAssets: function() {
             const f = this.filters;
             let filteredData = globalCachedData.filter(row => {
-                const name = (row["Asset Name"] || row.assetName || "").toLowerCase();
-                const manufacturer = (row["Manufacturer"] || row.manufacturer || "").toLowerCase();
-                const runRate = parseFloat(row["Run Rate"] || row.runRate) || 0;
-                const currentStatus = (row["Current Status"] || row.currentStatus || "").toUpperCase().trim();
-                const budgetStatus = (row["Budget Status (FY27)"] || row.budgetStatusFY27 || row["Budget Status"] || "").toUpperCase().trim();
-                const currentDriver = (row["Business Driver"] || row.businessDriver || "").toUpperCase().trim();
+                const name = (row.name || "").toLowerCase();
+                const manufacturer = (row.manufacturer || "").toLowerCase();
+                const runRate = parseFloat(row.runRate) || 0;
+                const currentStatus = (row.currentStatus || "").toUpperCase().trim();
+                const budgetStatus = (row.budgetStatusFY27 || "").toUpperCase().trim();
+                const currentDriver = (row.businessDriver || "").toUpperCase().trim();
                 
                 const matchesSearch = !f.search || name.includes(f.search) || manufacturer.includes(f.search);
                 const matchesRunRate = runRate >= f.minRunRate;
@@ -29,17 +29,17 @@
                 let matchesSupplier = true; let matchesCostCenter = true; let matchesLocation = true;
 
                 if (f.channel.length > 0 || f.expType.length > 0 || f.legalEntity.length > 0 || f.supplier.length > 0 || f.costCenter.length > 0 || f.location.length > 0) {
-                    const normalizedRowAsset = (row["Asset Name"] || row.assetName || "").toString().trim().toLowerCase();
+                    const normalizedRowAsset = (row.name || "").toString().trim().toLowerCase();
                     const relatedContracts = windowPayload.contracts.filter(c => 
-                        (c["Asset Name"] || c.assetName || "").toString().trim().toLowerCase() === normalizedRowAsset
+                        (c.assetName || "").toString().trim().toLowerCase() === normalizedRowAsset
                     );
 
-                    if (f.channel.length > 0) matchesChannel = relatedContracts.some(c => f.channel.includes((c["Billing Channel"] || c.billingChannel || "").toString().trim()));
-                    if (f.expType.length > 0) matchesExp = relatedContracts.some(c => f.expType.includes((c["Expenditure Type"] || c.expenditureType || "").toString().trim()));
-                    if (f.legalEntity.length > 0) matchesLegal = relatedContracts.some(c => f.legalEntity.includes((c["Legal Entity"] || c.legalEntity || "").toString().trim()));
-                    if (f.supplier.length > 0) matchesSupplier = relatedContracts.some(c => f.supplier.includes((c["Supplier"] || c.supplier || "").toString().trim()));
-                    if (f.costCenter.length > 0) matchesCostCenter = relatedContracts.some(c => f.costCenter.includes((c["Cost Center"] || c.costCenter || "").toString().trim()));
-                    if (f.location.length > 0) matchesLocation = relatedContracts.some(c => f.location.includes((c["Location"] || c.location || "").toString().trim()));
+                    if (f.channel.length > 0) matchesChannel = relatedContracts.some(c => f.channel.includes((c.billingChannel || "").toString().trim()));
+                    if (f.expType.length > 0) matchesExp = relatedContracts.some(c => f.expType.includes((c.expenditureType || "").toString().trim()));
+                    if (f.legalEntity.length > 0) matchesLegal = relatedContracts.some(c => f.legalEntity.includes((c.legalEntity || "").toString().trim()));
+                    if (f.supplier.length > 0) matchesSupplier = relatedContracts.some(c => f.supplier.includes((c.supplier || "").toString().trim()));
+                    if (f.costCenter.length > 0) matchesCostCenter = relatedContracts.some(c => f.costCenter.includes((c.costCenter || "").toString().trim()));
+                    if (f.location.length > 0) matchesLocation = relatedContracts.some(c => f.location.includes((c.location || "").toString().trim()));
                 }
 
                 return matchesSearch && matchesRunRate && matchesStatus && matchesBudgetStatus && matchesDriver && 
@@ -47,11 +47,11 @@
             });
 
             filteredData.sort((a, b) => {
-                if (this.sort.by === 'runrate-desc') return (parseFloat(b["Run Rate"] || b.runRate) || 0) - (parseFloat(a["Run Rate"] || a.runRate) || 0);
-                if (this.sort.by === 'assetname-asc') return (a["Asset Name"] || a.assetName || "").toString().localeCompare((b["Asset Name"] || b.assetName || "").toString(), 'it');
+                if (this.sort.by === 'runrate-desc') return (parseFloat(b.runRate) || 0) - (parseFloat(a.runRate) || 0);
+                if (this.sort.by === 'assetname-asc') return (a.name || "").toString().localeCompare((b.name || "").toString(), 'it');
                 if (this.sort.by === 'expiry-asc') {
-                    const dA = (a["Last End Date"] || a.lastEndDate) ? new Date(a["Last End Date"] || a.lastEndDate) : new Date(2099, 11, 31);
-                    const dB = (b["Last End Date"] || b.lastEndDate) ? new Date(b["Last End Date"] || b.lastEndDate) : new Date(2099, 11, 31);
+                    const dA = a.lastEndDate ? new Date(a.lastEndDate) : new Date(2099, 11, 31);
+                    const dB = b.lastEndDate ? new Date(b.lastEndDate) : new Date(2099, 11, 31);
                     return dA - dB;
                 }
                 return 0;
@@ -65,17 +65,17 @@
             const aliasMap = new Map();
             
             bridge.forEach(r => {
-                if (!r["Allocation Alias"]) return;
-                if (!aliasMap.has(r["Allocation Alias"])) aliasMap.set(r["Allocation Alias"], []);
-                aliasMap.get(r["Allocation Alias"]).push({ asset_name: r["Asset Name"], split_pct: r["Allocation Split %"] || 0 });
+                if (!r.allocationAlias) return;
+                if (!aliasMap.has(r.allocationAlias)) aliasMap.set(r.allocationAlias, []);
+                aliasMap.get(r.allocationAlias).push({ asset_name: r.assetName, split_pct: r.allocationSplitPct || 0 });
             });
 
-            const offlineAllocations = bridge.filter(r => (r["Asset Name"] || r.assetName || "").toString().trim().toLowerCase() === targetName)
-                .map(r => ({ ...r, co_allocated_assets: (aliasMap.get(r["Allocation Alias"]) || []).filter(a => (a.asset_name || "").toString().trim().toLowerCase() !== targetName) }));
+            const offlineAllocations = bridge.filter(r => (r.assetName || "").toString().trim().toLowerCase() === targetName)
+                .map(r => ({ ...r, co_allocated_assets: (aliasMap.get(r.allocationAlias) || []).filter(a => (a.asset_name || "").toString().trim().toLowerCase() !== targetName) }));
 
             this.currentDrillDownData = {
-                contracts: (windowPayload.contracts || []).filter(c => (c["Asset Name"] || c.assetName || "").toString().trim().toLowerCase() === targetName),
-                initiatives: (windowPayload.initiatives || []).filter(i => (i["Asset Name"] || i.assetName || "").toString().trim().toLowerCase() === targetName),
+                contracts: (windowPayload.contracts || []).filter(c => (c.assetName || "").toString().trim().toLowerCase() === targetName),
+                initiatives: (windowPayload.initiatives || []).filter(i => (i.assetName || "").toString().trim().toLowerCase() === targetName),
                 allocations: offlineAllocations
             };
         },

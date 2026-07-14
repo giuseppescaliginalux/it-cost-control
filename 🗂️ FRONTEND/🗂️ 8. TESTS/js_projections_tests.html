@@ -3,7 +3,8 @@
      * ============================================================================
      * FINOPS UNIT TESTING (CLIENT-SIDE): PROJECTIONS DOMAIN
      * ============================================================================
-     * Tutti i 19 test della Triade FinOps tradotti per il browser.
+     * Suite estesa a 18 test per convalidare i DTO camelCase puri, 
+     * il calcolo YTD vs ROY, l'Invoice Clearing e l'oracolo del tempo.
      */
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -45,8 +46,7 @@
         });
 
         projSuite.add("4. Engine Orchestrator - Deve preservare le colonne descrittive", (assert) => {
-            // 🌟 FIX: Aggiunto Status: "ACTIVE" altrimenti l'engine lo filtra via
-            const dto = { "Contract ID": "CTR-PROJ-PRESERVE", Status: "ACTIVE", Supplier: "Amazon", "Cost Center": "CC-01", "Start Date": "2026-01-01", "Contract End Date": "2026-12-31", "Annual Value": 365000, "Extra": "Dato" };
+            const dto = { contractId: "CTR-PROJ-PRESERVE", status: "ACTIVE", supplier: "Amazon", costCenter: "CC-01", startDate: "2026-01-01", contractEndDate: "2026-12-31", annualValue: 365000, extra: "Dato" };
             const output = ProjectionsEngine.calculateAll([dto], [], []);
 
             assert.equal(output.length, 1);
@@ -88,7 +88,6 @@
             const contractA = { contractId: "CTR-A", masterId: "MCT-SHARED", costRecurrence: "Recurrent", annualValue: 50000, startDate: "2025-07-01", contractEndDate: "2026-06-30" };
             const contractB = { contractId: "CTR-B", masterId: "MCT-SHARED", costRecurrence: "Recurrent", annualValue: 50000, startDate: "2025-07-01", contractEndDate: "2026-06-30" };
 
-            // 🌟 FIX: Aggiunto targetSavingPct: 0.3 (Sconto del 30% da 100k a 70k totali)
             const sharedInit = { masterId: "MCT-SHARED", contractId: "", status: "COMPLETED", decision: "OPTIMIZE", targetDate: "2026-01-01", targetCostAnnualized: 70000, targetSavingPct: 0.3 };
 
             const projA = new ContractProjection(contractA, targetPeriod, [sharedInit]);
@@ -112,7 +111,7 @@
         });
 
         projSuite.add("10. CAPEX Full Upfront carica 100% nel primo anno fiscale e 0 successivi", (assert) => {
-            const dtoCapex = { contractId: "CTR-CAPEX", expenditureType: "CAPEX", billingTerms: "Full Upfront", costRecurrence: "Recurrent", startDate: "2026-01-01", contractEndDate: "2027-12-31", totalCommitment: 120000 };
+            const dtoCapex = { contractId: "CTR-CAPEX", expenditureType: "CAPEX", billingTerms: "Full Upfront / Prepaid", costRecurrence: "Recurrent", startDate: "2026-01-01", contractEndDate: "2027-12-31", totalCommitment: 120000 };
             const fy26 = new TimePeriod("FY26", "2025-07-01", "2026-06-30");
             const fy27 = new TimePeriod("FY27", "2026-07-01", "2027-06-30");
 
@@ -120,9 +119,6 @@
             assert.equal(new ContractProjection(dtoCapex, fy27, []).calculateBaseline(), 0);
         });
 
-        // =========================================================================
-        // I 3 TEST DEL REVERSE ENGINEERING ORA DIVENTANO TEST SUI BUCKET IN RAM
-        // =========================================================================
         projSuite.add("11. Forward Generation - Creazione corretta dei Bucket Actual vs Virtual", (assert) => {
             const dto = { contractId: "CTR-FWD", startDate: "2026-01-01", contractEndDate: "2027-03-31", costRecurrence: "Recurrent", annualValue: 120000 };
             const fy26 = new TimePeriod("FY26", "2025-07-01", "2026-06-30");
@@ -137,12 +133,11 @@
             const combinedActual = { ...p26.monthlyOptimizedActual, ...p27.monthlyOptimizedActual };
             const combinedVirtual = { ...p26.monthlyOptimizedVirtual, ...p27.monthlyOptimizedVirtual };
 
-            assert.equal(Math.round(combinedActual["2026-07"]), 10000, "Luglio '26 è vivo (Actual)");
-            assert.equal(Math.round(combinedActual["2027-03"]), 10000, "Marzo '27 è vivo (Actual)");
+            assert.equal(Math.round(combinedActual["2026-07"]), 10000);
+            assert.equal(Math.round(combinedActual["2027-03"]), 10000);
 
-            // 🌟 FIX: assert.isTrue invece di assert.true
-            assert.isTrue(combinedActual["2027-04"] === undefined, "Aprile '27 il contratto è scaduto, NON deve avere Actual");
-            assert.equal(Math.round(combinedVirtual["2027-04"]), 10000, "Aprile '27 scatta il Rollover Virtuale");
+            assert.isTrue(combinedActual["2027-04"] === undefined);
+            assert.equal(Math.round(combinedVirtual["2027-04"]), 10000);
         });
 
         projSuite.add("12. Forward Generation - Iniziativa Infra-Annuale sui Bucket", (assert) => {
@@ -153,53 +148,110 @@
             const p27 = new ContractProjection(dto, fy27, [init]);
             p27.calculateOptimized();
 
-            assert.equal(Math.round(p27.monthlyOptimizedActual["2026-12"]), 10000, "Dic '26: Run rate pieno prima dell'iniziativa");
-            assert.equal(Math.round(p27.monthlyOptimizedActual["2027-01"]), 5000, "Gen '27: Iniziativa abbassa l'Actual a 5k");
-            assert.equal(Math.round(p27.monthlyOptimizedVirtual["2027-04"]), 5000, "Apr '27: Il Rollover Virtuale eredita il costo scontato di 5k");
+            assert.equal(Math.round(p27.monthlyOptimizedActual["2026-12"]), 10000);
+            assert.equal(Math.round(p27.monthlyOptimizedActual["2027-01"]), 5000);
+            assert.equal(Math.round(p27.monthlyOptimizedVirtual["2027-04"]), 5000);
         });
 
         projSuite.add("13. Prevenzione Double Invocation - I secchielli mensili non devono raddoppiare", (assert) => {
-            // Contratto OPEX da 791.000€ annui (circa 65.916€ al mese)
             const dto = { contractId: "CTR-DOUBLE-TEST", startDate: "2025-07-01", contractEndDate: "2026-06-30", costRecurrence: "Recurrent", annualValue: 791000 };
             const fy26 = new TimePeriod("FY26", "2025-07-01", "2026-06-30");
 
             const projection = new ContractProjection(dto, fy26, []);
 
-            // L'engine chiama prima la baseline (per popolare la colonna totale)
             projection.calculateBaseline();
-            // Poi chiama l'optimized (che essendo senza iniziative, invoca di nuovo la baseline)
             projection.calculateOptimized();
 
-            // Verifica del singolo mese di Luglio 2025
             const julyActual = projection.monthlyOptimizedActual["2025-07"];
-
-            // Se il bug esiste, questo valore sarà ~131.833. Noi pretendiamo ~65.916!
             assert.closeTo(julyActual, 65916.66, 1);
         });
 
         projSuite.add("14. Engine Orchestrator - Contratti UPCOMING devono generare proiezioni future", (assert) => {
-            // ARRANGE: Un contratto non ancora partito (Status: UPCOMING) 
-            // Inizia a Gennaio 2026 (metà esatta del FY26) per 120.000€ annui
             const dtoUpcoming = {
-                "Contract ID": "CTR-FUTURO",
-                "Status": "UPCOMING",
-                "Start Date": "2026-01-01",
-                "Contract End Date": "2026-12-31",
-                "Cost Recurrence": "Recurrent",
-                "Annual Value": 120000,
-                "Billing Terms": "Fixed Recurring"
+                contractId: "CTR-FUTURO",
+                status: "UPCOMING",
+                startDate: "2026-01-01",
+                contractEndDate: "2026-12-31",
+                costRecurrence: "Recurrent",
+                annualValue: 120000,
+                billingTerms: "Fixed Recurring"
             };
 
-            // ACT: Diamo in pasto il contratto all'Engine
             const output = ProjectionsEngine.calculateAll([dtoUpcoming], [], []);
 
-            // ASSERT
-            assert.equal(output.length, 1, "Il contratto UPCOMING non deve essere filtrato via dall'Engine");
-            assert.equal(output[0]["FY26 Baseline"], 60000, "FY26 deve assorbire i primi 6 mesi del contratto (60k)");
-
-            // 🌟 FIX DEL TEST: Essendo "Recurrent", al 31/12/2026 scatta il rinnovo virtuale. 
-            // Quindi il FY27 prenderà i restanti 6 mesi del contratto + 6 mesi di rinnovo = 120.000€
-            assert.equal(output[0]["FY27 Baseline"], 120000, "FY27 deve assorbire 12 mesi interi grazie al Rollover Virtuale (120k)");
+            assert.equal(output.length, 1);
+            assert.equal(output[0]["FY26 Baseline"], 60000);
+            assert.equal(output[0]["FY27 Baseline"], 120000);
         });
+
+        // ============================================================================
+        // 🌟 NUOVI TEST FINOPS ARCHITECTURAL (Fase 15 - 18)
+        // ============================================================================
+
+        projSuite.add("15. YTD vs ROY - Contratti Flat lineari tagliati rispetto all'oracolo del tempo", (assert) => {
+            const dto = { contractId: "CTR-FLAT-TIME", billingTerms: "Full Upfront / Prepaid", pricingModel: "Flat", totalCommitment: 12000, startDate: "2026-01-01", contractEndDate: "2026-12-31" };
+
+            // Simula data odierna fissa a fine Aprile 2026 (4 mesi passati consolidati, 8 futuri)
+            const simulatedToday = new Date("2026-05-01T00:00:00Z");
+            const contractInstance = new Contract(dto);
+            const split = contractInstance.calculateYtdRoySplit(simulatedToday);
+
+            assert.equal(split.ytdActuals, 4000);
+            assert.equal(split.royForecast, 8000);
+        });
+
+        projSuite.add("16. YTD vs ROY - Contratti con Ledger (I movimenti ACTUAL alimentano YTD, CALCULATED alimentano ROY)", (assert) => {
+            const dto = { contractId: "CTR-LEDGER-SPLIT", billingTerms: "Custom / Ledger Driven", pricingModel: "Flat", totalCommitment: 12000, startDate: "2026-01-01", contractEndDate: "2026-12-31" };
+            const contractInstance = new Contract(dto);
+
+            const mockLedger = [
+                { type: "ACTUAL", amount: 3000 },
+                { type: "ACTUAL", amount: 3000 },
+                { type: "CALCULATED", amount: 6000 }
+            ];
+
+            const split = contractInstance.calculateYtdRoySplit(new Date(), mockLedger);
+
+            assert.equal(split.ytdActuals, 6000);
+            assert.equal(split.royForecast, 6000);
+        });
+
+        projSuite.add("17. Invoice Clearing - Le fatture ACTUAL stornano i ratei teorici CALCULATED nel mese per evitare double-counting", (assert) => {
+            const contractInstance = new Contract({
+                id: "CTR-CLEAR-TEST", pricingModel: "Flat", billingTerms: "Fixed Recurring", billingFrequency: "Monthly",
+                startDate: "2026-01-01", contractEndDate: "2026-12-31", totalCommitment: 12000
+            });
+
+            // L'utente approva la fattura di Gennaio (ACTUAL)
+            contractInstance.ledger.push({ type: "ACTUAL", amount: 1000, startDate: "2026-01-01", endDate: "2026-01-31" });
+
+            // Forziamo il recupero dell'intero scadenziario
+            const fullLedger = contractInstance.exportFullLedger();
+
+            const actualCount = fullLedger.filter(l => l.type === "ACTUAL").length;
+            const calculatedCount = fullLedger.filter(l => l.type === "CALCULATED").length;
+
+            assert.equal(actualCount, 1);
+            // Gennaio è coperto dall'ACTUAL, l'engine deve generare solo gli 11 mesi rimanenti stornando il CALCULATED di Gennaio!
+            assert.equal(calculatedCount, 11);
+        });
+
+        projSuite.add("18. Ricalcolo Predittivo Pay-As-You-Go - Inserimento di ACTUAL rimodula i mesi residui a protezione del budget", (assert) => {
+            const contractInstance = new Contract({
+                id: "CTR-PAYG-TEST", pricingModel: "Capped Consumption", billingTerms: "Pay-As-You-Go",
+                totalCommitment: 1000, startDate: "2026-01-01", contractEndDate: "2026-12-31"
+            });
+
+            // A Marzo registriamo un consumo reale extra di 200€
+            contractInstance.ledger.push({ type: "ACTUAL", amount: 200, startDate: "2026-03-01", endDate: "2026-03-31" });
+
+            // L'engine calcola i mesi rimanenti (da Aprile a Dicembre = 9 mesi)
+            const autoLedger = contractInstance.generateForecastLedger(contractInstance.ledger);
+
+            assert.equal(autoLedger.length, 9);
+            // Formula: (1000 TCV - 200 ACTUAL) / 9 mesi rimanenti = 88.88€ a mese
+            assert.closeTo(autoLedger[0].amount, 88.88, 0.1);
+        });
+
     });
 </script>

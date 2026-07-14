@@ -2,6 +2,7 @@
     /**
      * js_initiatives_templates.html
      * VIEW TEMPLATES: Layout Kanban, Card Dinamica, e Modale con Anteprima Contratti e Tag Library.
+     * Strutturato interamente su DTO camelCase puliti.
      */
 
     const InitiativesTemplates = {
@@ -21,7 +22,6 @@
                             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                             New Initiative
                         </button>` : ''}
-                        
                     </div>
                 </div>
 
@@ -65,7 +65,7 @@
                      ondrop="InitiativesController.handleBoardDrop(event)"></div>
             </div>
             
-            <div id="initiatives-modal-mount-point" onclick="InitiativesController.closeInitiativeModalWindow()" class="hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4"></div>
+            <div id="initiatives-modal-mount-point" onclick="InitiativesController.closeAlternativeModalWindow()" class="hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4"></div>
         `;
         },
 
@@ -92,13 +92,11 @@
                     ${cardsHtml}
                 </div>
             </div>
-        `;
+            `;
         },
 
         getInitiativeCard: function (data, id, fmtSaving, savingPercentText, finalDateStr, strategyBadge, initiativeName, assetName, fmtRunRate, fmtTargetCost, costLabel, supplier, isOverdue, dateLabel = "Target Date", owner = "TBD", procurement = "TBD") {
             const cardBorderClass = isOverdue ? "border-rose-300 shadow-sm shadow-rose-100/50" : "border-slate-200";
-
-            // 🌟 CHIRURGICO: Identifica se l'impatto economico è una sovraspesa (+) o un risparmio reale (-)
             const isNegSaving = savingPercentText.includes('+');
             const textColorClass = isNegSaving ? 'text-rose-600' : 'text-teal-600';
             const badgeColorClass = isNegSaving ? 'border-rose-100 bg-rose-50/50 text-rose-700' : 'border-teal-100 bg-teal-50/50 text-teal-700';
@@ -108,7 +106,7 @@
             const safeDateLabel = dateLabel && dateLabel.trim() !== "undefined" ? dateLabel : "Target Date";
             const safeSupplier = supplier && supplier.trim() !== "undefined" && supplier.trim() !== "" ? supplier : "Generic Supplier";
 
-            const tags = (data["Tags"] || "").split(',').map(t => t.trim()).filter(t => t);
+            const tags = (data.tags || "").split(',').map(t => t.trim()).filter(t => t);
             const tagsHtml = tags.map(t => `
             <div class="relative flex items-center px-2 py-0.5 bg-slate-50 hover:bg-rose-50 border border-slate-200/80 hover:border-rose-200 rounded-full shadow-3xs group/tag transition-all duration-150 cursor-default h-4.5">
                 <span class="text-slate-600 group-hover/tag:text-rose-700 text-[8px] font-black uppercase tracking-wider select-none"><span class="text-teal-500/80 group-hover/tag:text-rose-400">#</span>${t}</span>
@@ -157,7 +155,7 @@
                 </div>
 
                 <div class="text-[11px] text-slate-600 font-medium leading-relaxed mt-2.5 border-b border-slate-50 pb-2.5 relative z-10">
-                    ${data["Description"] || "No specific technical scope defined."}
+                    ${data.description || "No specific technical scope defined."}
                 </div>
 
                 <div class="flex items-end justify-between w-full mt-2.5 relative z-10">
@@ -191,7 +189,7 @@
                 
                 <div class="absolute inset-0 bg-teal-500/5 border border-teal-500/30 rounded-xl opacity-0 pointer-events-none transition-opacity z-20" id="drop-overlay-${id}"></div>
             </div>
-        `;
+            `;
         },
 
         getModalFormStructure: function (isNew, assetDropdownHtml, contractDropdownHtml, leversHtml) {
@@ -251,7 +249,6 @@
                         <svg class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
                     </summary>
                     <div class="p-3 pt-2 border-t border-slate-200/60 space-y-3">
-                        
                         <div class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl flex justify-between items-center shadow-3xs select-none">
                             <div>
                                 <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Current Selected Scope Baseline</span>
@@ -293,7 +290,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
                             <div>
                                 <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 required-label">Target Execution Date</label>
-                                <input type="date" id="modal-init-target-date" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-700">
+                                <input type="date" id="modal-init-target-date" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-700 text-xs">
                             </div>
                             <div>
                                 <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Target Cost (€)</label>
@@ -356,19 +353,18 @@
             let html = '<div class="space-y-2">';
 
             mastersArray.forEach(m => {
-                const expDateStr = m["Master End Date"] ? m["Master End Date"].toString().split('T')[0] : "N/A";
-                const isSelected = preSelectedMasterId === m["Master Contract ID"];
-                const runRate = parseFloat(m["Run Rate"]) || 0;
+                const expDateStr = m.masterEndDate ? m.masterEndDate.toString().split('T')[0] : "N/A";
+                const isSelected = preSelectedMasterId === m.masterId;
+                const runRate = parseFloat(m.runRate) || 0;
 
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
-                const maxDate = m["Master End Date"] ? new Date(m["Master End Date"]) : null;
+                const maxDate = m.masterEndDate ? new Date(m.masterEndDate) : null;
                 const isFullyExpired = maxDate && (maxDate < today);
 
                 const expiredOpacityClass = isFullyExpired && !isSelected ? 'opacity-40 grayscale hover:opacity-100 hover:grayscale-0' : '';
                 const borderClass = isSelected ? 'border-teal-500 bg-teal-50/20 ring-1 ring-teal-500 shadow-sm' : 'border-slate-200 bg-white hover:border-teal-300';
                 
-                // Se è selezionato il contratto specifico, spegniamo la spunta globale del master padre
                 const checkIcon = isSelected && !preSelectedContractId
                     ? `<svg class="w-4 h-4 text-teal-600 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>`
                     : `<div class="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0"></div>`;
@@ -376,22 +372,20 @@
                 let listHtml = '';
                 if (m.childContracts && m.childContracts.length > 0) {
                     listHtml = m.childContracts.map(c => {
-                        let desc = c["Scope"] || c["Description"] || "No scope provided";
+                        let desc = c.scope || "No scope provided";
                         let safeScope = String(desc).replace(/"/g, '&quot;');
-                        let cc = c["Cost Center"] || "N/A";
-                        let tcv = parseFloat(c["Total Commitment"] || c["TCV"] || 0);
-                        let term = c["Contract Term (Months)"] || "N/A";
+                        let cc = c.costCenter || "N/A";
+                        let tcv = parseFloat(c.totalCommitment || 0);
+                        let term = c.contractTerm || "N/A";
 
-                        let endDate = c["Expiration Date"] || c["End Date"] || c["Contract End Date"] || "N/A";
+                        let endDate = c.endDate || "N/A";
                         if (endDate !== "N/A") {
                             let ed = new Date(endDate);
                             if (!isNaN(ed.getTime())) endDate = ed.toISOString().split('T')[0];
                         }
-                        let cRunRate = parseFloat(c["Annual Value"] || 0);
-
-                        const cId = c["Contract ID"] || "";
+                        let cRunRate = parseFloat(c.annualValue || 0);
+                        const cId = c.contractId || "";
                         
-                        // 🌟 IDENTIFICAZIONE SELEZIONE TARGET LOCALE CON TRACCIAMENTO GRAFICO AMBRA
                         const isContractSelected = preSelectedContractId === cId;
                         const rowSelectedClass = isContractSelected ? "bg-amber-50/80 font-bold border-l-4 border-l-amber-500" : "";
                         const targetBtnClass = isContractSelected ? "bg-amber-500 text-white shadow-3xs scale-105" : "bg-slate-100 text-slate-400 hover:bg-amber-500 hover:text-white";
@@ -399,7 +393,7 @@
                         return `
                         <tr id="contract-row-${cId}" class="contract-row-item border-b border-slate-100 hover:bg-slate-100 transition-colors ${rowSelectedClass}">
                             <td class="p-1.5 text-center align-middle w-10">
-                                <button type="button" onclick="event.stopPropagation(); InitiativesController.selectContractCard('${m["Master Contract ID"]}', '${cId}')" 
+                                <button type="button" onclick="event.stopPropagation(); InitiativesController.selectContractCard('${m.masterId}', '${cId}')" 
                                         id="contract-target-btn-${cId}"
                                         class="contract-target-btn p-1 rounded text-[9px] font-black leading-none transition-all ${targetBtnClass}" 
                                         title="Target this specific contract scope">
@@ -420,17 +414,17 @@
                 }
 
                 html += `
-                <div class="border ${borderClass} ${expiredOpacityClass} rounded-xl p-2.5 transition-all cursor-pointer master-card pb-3" onclick="InitiativesController.selectMasterCard('${m["Master Contract ID"]}')" id="master-card-${m["Master Contract ID"]}">
+                <div class="border ${borderClass} ${expiredOpacityClass} rounded-xl p-2.5 transition-all cursor-pointer master-card pb-3" onclick="InitiativesController.selectMasterCard('${m.masterId}')" id="master-card-${m.masterId}">
                     
                     <div class="flex items-center justify-between gap-3">
                         <div class="flex items-center gap-2.5 min-w-0 flex-1">
-                            <div id="master-check-${m["Master Contract ID"]}" class="shrink-0">${checkIcon}</div>
+                            <div id="master-check-${m.masterId}" class="shrink-0">${checkIcon}</div>
                             <div class="min-w-0 flex-1">
-                                <div class="font-black text-[11px] text-slate-800">Master ID: <span class="text-indigo-600">${m["Master Contract ID"]}</span></div>
+                                <div class="font-black text-[11px] text-slate-800">Master ID: <span class="text-indigo-600">${m.masterId}</span></div>
                                 <div class="flex flex-wrap gap-x-2 gap-y-0.5 text-[9px] font-bold text-slate-500 mt-0.5">
-                                    <div class="truncate shrink-0">Supplier: <span class="text-slate-700">${m["Supplier"] || 'N/A'}</span></div>
+                                    <div class="truncate shrink-0">Supplier: <span class="text-slate-700">${m.supplier || 'N/A'}</span></div>
                                     <div class="text-slate-300 shrink-0">•</div>
-                                    <div class="truncate flex-1 min-w-[150px]" title="${m["Scope"] || ''}">Scope: ${m["Scope"] || 'N/A'}</div>
+                                    <div class="truncate flex-1 min-w-[150px]" title="${m.masterScope || ''}">Scope: ${m.masterScope || 'N/A'}</div>
                                 </div>
                             </div>
                         </div>
@@ -440,7 +434,7 @@
                         </div>
                     </div>
 
-                    <div id="master-details-${m["Master Contract ID"]}" class="${isSelected ? '' : 'hidden'} mt-3 bg-slate-50 border border-slate-200/60 rounded-lg overflow-x-auto custom-scrollbar p-1 shadow-inner" onclick="event.stopPropagation()">
+                    <div id="master-details-${m.masterId}" class="${isSelected ? '' : 'hidden'} mt-3 bg-slate-50 border border-slate-200/60 rounded-lg overflow-x-auto custom-scrollbar p-1 shadow-inner" onclick="event.stopPropagation()">
                         <table class="w-full text-[8px] text-left text-slate-600 whitespace-nowrap table-fixed">
                             <thead>
                                 <tr class="text-slate-400 uppercase tracking-widest border-b border-slate-200 text-[7px]">
@@ -459,7 +453,7 @@
                         </table>
                     </div>
                 </div>
-            `;
+                `;
             });
             html += '</div>';
             return html;

@@ -1,6 +1,7 @@
 <script>
     /**
      * js_contracts_controller.html
+     * CONTROLLER: Gestione logica del modulo contratti basata su DTO puliti.
      */
 
     if (typeof window.isContractsLayoutRendered === 'undefined') {
@@ -23,8 +24,6 @@
         }
     };
 
-    function updateCommitButtonVisibility() { } // Deprecata, gestita globalmente da js_core
-
     function renderAssetSearchList() {
         const query = document.getElementById('mgmt-asset-search-input').value.toLowerCase().trim();
         const container = document.getElementById('mgmt-asset-results-list');
@@ -34,14 +33,14 @@
         const allMasters = windowPayload.masterContracts || [];
 
         const matchedAssets = (windowPayload.assets || []).filter(a => {
-            const assetName = (a["Asset Name"] || "").toLowerCase();
-            const manufacturer = (a["Manufacturer"] || "").toLowerCase();
+            const assetName = (a.name || "").toLowerCase();
+            const manufacturer = (a.manufacturer || "").toLowerCase();
             if (assetName.includes(query) || manufacturer.includes(query)) return true;
 
-            const matchInMaster = allMasters.some(m => (m["Asset Name"] || "").toLowerCase() === assetName && (m["Supplier"] || "").toLowerCase().includes(query));
+            const matchInMaster = allMasters.some(m => (m.assetName || "").toLowerCase() === assetName && (m.supplier || "").toLowerCase().includes(query));
             if (matchInMaster) return true;
 
-            const matchInContract = allContracts.some(c => (c["Asset Name"] || "").toLowerCase() === assetName && (c["Supplier"] || "").toLowerCase().includes(query));
+            const matchInContract = allContracts.some(c => (c.assetName || "").toLowerCase() === assetName && (c.supplier || "").toLowerCase().includes(query));
             return matchInContract;
         });
 
@@ -51,7 +50,7 @@
         }
 
         container.innerHTML = matchedAssets.map(asset =>
-            ContractsTemplates.getAssetSearchResult(asset["Asset Name"], asset["Asset ID"], asset["Manufacturer"])
+            ContractsTemplates.getAssetSearchResult(asset.name, asset.id, asset.manufacturer)
         ).join('');
     }
 
@@ -73,8 +72,8 @@
             `;
 
             const allContracts = windowPayload.contracts || [];
-            const filteredGroupIds = allContracts.filter(c => (c["Asset Name"] || "").toString().toLowerCase() === assetName.toLowerCase())
-                .map(c => (c["Group ID"] || "").toString().trim())
+            const filteredGroupIds = allContracts.filter(c => (c.assetName || "").toString().toLowerCase() === assetName.toLowerCase())
+                .map(c => (c.groupId || "").toString().trim())
                 .filter(g => g !== "");
             ContractsState.currentAssetGroupIds = [...new Set(filteredGroupIds)].sort();
 
@@ -82,7 +81,7 @@
             document.getElementById('mgmt-detailRowsContainer').innerHTML = '';
 
             const allMasterContracts = windowPayload.masterContracts || [];
-            const assetMasters = allMasterContracts.filter(m => (m["Asset Name"] || "").toString().toLowerCase().trim() === assetName.toLowerCase().trim());
+            const assetMasters = allMasterContracts.filter(m => (m.assetName || "").toString().toLowerCase().trim() === assetName.toLowerCase().trim());
 
             renderMasterContractsList(assetMasters);
         });
@@ -102,17 +101,17 @@
         }
 
         list.sort((a, b) => {
-            const dateA = a["Master End Date"] ? new Date(a["Master End Date"]).getTime() : 0;
-            const dateB = b["Master End Date"] ? new Date(b["Master End Date"]).getTime() : 0;
+            const dateA = a.masterEndDate ? new Date(a.masterEndDate).getTime() : 0;
+            const dateB = b.masterEndDate ? new Date(b.masterEndDate).getTime() : 0;
             return dateB - dateA;
         });
 
         html += `<div class="space-y-2 max-h-64 overflow-y-auto pr-1">`;
         list.forEach(m => {
-            const mId = m["Master Contract ID"];
-            const supplier = m["Supplier"] || "No Supplier";
-            const status = (m["Status"] || "ACTIVE").toUpperCase().trim();
-            const totalCommitment = parseFloat(m["Total Commitment"]) || 0;
+            const mId = m.masterId;
+            const supplier = m.supplier || "No Supplier";
+            const status = (m.status || "ACTIVE").toUpperCase().trim();
+            const totalCommitment = parseFloat(m.totalCommitment) || 0;
 
             let statusClass = "bg-slate-50 text-slate-500 border-slate-200";
             if (status === "ACTIVE") statusClass = "bg-emerald-50 text-emerald-700 border-emerald-200/50";
@@ -127,7 +126,7 @@
     }
 
     function loadFullMasterDetailArchitecture(masterId) {
-        if (ContractsState.currentMasterData && ContractsState.currentMasterData["Master Contract ID"] === masterId) return;
+        if (ContractsState.currentMasterData && ContractsState.currentMasterData.masterId === masterId) return;
 
         window.executeWithGlobalGuard(() => {
             ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts || [], windowPayload.contracts || [], windowPayload.allocationSplits || [], windowPayload.ledger || []);
@@ -154,15 +153,15 @@
 
         const data = ContractsState.currentMasterData;
         const isEditable = ContractsState.isMasterEditable;
-        const masterLinks = (data["Contract Links"] || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
+        const masterLinks = (data.contractLinks || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
 
         if (!isEditable) {
-            const status = (data["Status"] || "ACTIVE").toUpperCase().trim();
-            const rawStart = data["Master Start Date"] || data.masterStartDate;
-            const rawEnd = data["Master End Date"] || data.masterEndDate;
+            const status = (data.status || "ACTIVE").toUpperCase().trim();
+            const rawStart = data.masterStartDate;
+            const rawEnd = data.masterEndDate;
             const cleanStart = rawStart ? ContractsUtils.formatToEnglishCustomDate(rawStart) : '—';
             const cleanEnd = rawEnd ? ContractsUtils.formatToEnglishCustomDate(rawEnd) : '—';
-            let rawTerm = data["contractTerm"] !== undefined ? data["contractTerm"] : (data["Contract Term (Months)"] !== undefined ? data["Contract Term (Months)"] : '—');
+            let rawTerm = data.contractTerm !== undefined ? data.contractTerm : '—';
             let termMonths = (typeof rawTerm === 'number' || !isNaN(parseFloat(rawTerm))) ? Math.round(parseFloat(rawTerm)) : rawTerm;
 
             let statusClass = "bg-slate-50 text-slate-500 border-slate-200";
@@ -172,8 +171,8 @@
 
             container.innerHTML = ContractsTemplates.getMasterReadOnly(data, masterLinks, cleanStart, cleanEnd, termMonths, status, statusClass, ContractsState.globalEditMode);
         } else {
-            const suppliersList = ContractsUtils.extractUniqueField(windowPayload.masterContracts || windowPayload.contracts, "Supplier");
-            const isNew = data["Master Contract ID"] === "";
+            const suppliersList = ContractsUtils.extractUniqueField(windowPayload.masterContracts || windowPayload.contracts, "supplier");
+            const isNew = data.masterId === "";
             container.innerHTML = ContractsTemplates.getMasterEditCard(data, isNew, suppliersList, masterLinks);
         }
 
@@ -195,37 +194,29 @@
         const supplierInput = document.getElementById('ins-masterSupplier').value.trim();
         const scopeInput = document.getElementById('ins-masterScope').value.trim();
 
-        // ⚡ FIX: Hard-stop per validazione campi obbligatori
         if (!supplierInput || !scopeInput) {
             FinOpsUI.showAlert("Validation Error", "Supplier Context and Master Scope are strictly mandatory to create or modify an agreement.");
             return;
         }
 
-        data["Supplier"] = supplierInput;
-        data["Scope"] = scopeInput;
-        data["Comments"] = document.getElementById('ins-masterComments').value.trim();
+        data.supplier = supplierInput;
+        data.masterScope = scopeInput;
+        data.masterComments = document.getElementById('ins-masterComments').value.trim();
         const baseLinks = document.getElementById('ins-masterDocumentLink').value.trim();
         const fileInput = document.getElementById('upload-files');
         const hasFiles = fileInput && fileInput.files.length > 0;
 
         if (ContractsState.currentSelectedAsset && ContractsState.currentSelectedAsset.name) {
-            data["Asset Name"] = ContractsState.currentSelectedAsset.name;
-            if (typeof MASTER_FIELD_MAP !== 'undefined' && MASTER_FIELD_MAP["Asset Name"]) {
-                data[MASTER_FIELD_MAP["Asset Name"]] = ContractsState.currentSelectedAsset.name;
-            }
+            data.assetName = ContractsState.currentSelectedAsset.name;
         }
 
         const wrapUpMasterSave = () => {
             ContractsState.updateMasterEditState(false);
-
-            // Segnaliamo le modifiche alla UI (Accensione tasto Commit)
             ContractsState.hasUnsavedChanges = true;
             if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
 
-            const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
-            const mId = data["Master Contract ID"] || data[mIdProp];
-
-            const mIndex = windowPayload.masterContracts.findIndex(m => (m["Master Contract ID"] || m[mIdProp]) === mId);
+            const mId = data.masterId;
+            const mIndex = windowPayload.masterContracts.findIndex(m => m.masterId === mId);
             if (mIndex > -1) windowPayload.masterContracts[mIndex] = data;
             else windowPayload.masterContracts.push(data);
 
@@ -243,9 +234,9 @@
         if (hasFiles) {
             showLoading();
             let filesData = []; let filesProcessed = 0;
-            const supplier = data["Supplier"] || "Unknown_Supplier";
+            const supplier = data.supplier || "Unknown_Supplier";
             const assetName = ContractsState.currentSelectedAsset.name || "Unknown_Asset";
-            let dateStr = data["Master Start Date"];
+            let dateStr = data.masterStartDate;
             let year = dateStr ? dateStr.split('-')[0] : new Date().getFullYear().toString();
 
             Array.from(fileInput.files).forEach(file => {
@@ -258,7 +249,7 @@
                             (urls) => {
                                 let currentLinks = baseLinks ? baseLinks.split(',').map(s => s.trim()).filter(s => s) : [];
                                 urls.forEach(u => { if (!currentLinks.includes(u)) currentLinks.push(u); });
-                                data["Contract Links"] = currentLinks.join(', ');
+                                data.contractLinks = currentLinks.join(', ');
                                 hideLoading(); wrapUpMasterSave();
                             },
                             (err) => { hideLoading(); alert("Upload Error: " + err.message); }
@@ -268,7 +259,7 @@
                 reader.readAsDataURL(file);
             });
         } else {
-            data["Contract Links"] = baseLinks;
+            data.contractLinks = baseLinks;
             wrapUpMasterSave();
         }
     }
@@ -288,16 +279,16 @@
         let cardsHtml = '';
         ContractsState.currentDetailItems.forEach((item) => {
             const d = item.data;
-            const docLinks = (d["Contract Links"] || d.contractLinks || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
+            const docLinks = (d.contractLinks || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
             const formatFinance = (val) => (val || 0).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
-            const ledgerTotalSum = (item.ledger || []).reduce((acc, curr) => acc + (ContractsUtils.parseFinancialValue(curr["Amount"] || curr.amount)), 0);
-            const rawCommitment = ContractsUtils.parseFinancialValue(d["Total Commitment"] || d.totalCommitment);
-            const effCommitNum = ContractsUtils.parseFinancialValue(d["Effective Commitment"] || d.effectiveCommitment);
-            const annValNum = ContractsUtils.parseFinancialValue(d["Annual Value"] || d.annualValue);
+            const ledgerTotalSum = (item.ledger || []).reduce((acc, curr) => acc + (ContractsUtils.parseFinancialValue(curr.amount)), 0);
+            const rawCommitment = ContractsUtils.parseFinancialValue(d.totalCommitment);
+            const effCommitNum = ContractsUtils.parseFinancialValue(d.effectiveCommitment);
+            const annValNum = ContractsUtils.parseFinancialValue(d.annualValue);
 
-            const pricingModel = d["Pricing Model"] || d.pricingModel || "Flat";
-            const billingTerms = d["Billing Terms"] || d.billingTerms || "Linear";
+            const pricingModel = d.pricingModel || "Flat";
+            const billingTerms = d.billingTerms || "Linear";
 
             let warningBadgeHTML = '';
             const tolerance = 100;
@@ -324,10 +315,10 @@
             const effCommit = formatFinance(effCommitNum);
             const annVal = formatFinance(annValNum);
             const totCommit = formatFinance(rawCommitment);
-            const cleanStart = (d["Start Date"] || d.startDate) ? ContractsUtils.formatToEnglishCustomDate(d["Start Date"] || d.startDate) : '—';
-            const cleanEnd = (d["End Date"] || d.endDate) ? ContractsUtils.formatToEnglishCustomDate(d["End Date"] || d.endDate) : '—';
-            const contractEnd = (d["Contract End Date"] || d.contractEndDate) ? ContractsUtils.formatToEnglishCustomDate(d["Contract End Date"] || d.contractEndDate) : '—';
-            const adjEnd = (d["Adjusted End Date"] || d.adjustedEndDate) ? ContractsUtils.formatToEnglishCustomDate(d["Adjusted End Date"] || d.adjustedEndDate) : '—';
+            const cleanStart = d.startDate ? ContractsUtils.formatToEnglishCustomDate(d.startDate) : '—';
+            const cleanEnd = d.endDate ? ContractsUtils.formatToEnglishCustomDate(d.endDate) : '—';
+            const contractEnd = d.contractEndDate ? ContractsUtils.formatToEnglishCustomDate(d.contractEndDate) : '—';
+            const adjEnd = d.adjustedEndDate ? ContractsUtils.formatToEnglishCustomDate(d.adjustedEndDate) : '—';
 
             cardsHtml += ContractsTemplates.getDetailReadOnlyCard(item, warningBadgeHTML, effCommit, annVal, totCommit, cleanStart, cleanEnd, contractEnd, adjEnd, docLinks, ContractsState.globalEditMode);
         });
@@ -372,27 +363,27 @@
         if (!item) return;
 
         const safeVal = (elementId) => document.getElementById(elementId) ? document.getElementById(elementId).value : "";
-        item.data["Legal Entity"] = safeVal(`edit-legalEntity-${id}`);
-        item.data["Location"] = safeVal(`edit-location-${id}`);
-        item.data["Service Owner"] = safeVal(`edit-serviceOwner-${id}`).trim();
-        item.data["Scope"] = safeVal(`edit-scope-${id}`).trim();
+        item.data.legalEntity = safeVal(`edit-legalEntity-${id}`);
+        item.data.location = safeVal(`edit-location-${id}`);
+        item.data.serviceOwner = safeVal(`edit-serviceOwner-${id}`).trim();
+        item.data.scope = safeVal(`edit-scope-${id}`).trim();
         const isOneShotCheckbox = document.getElementById(`edit-isOneShot-${id}`);
-        item.data["Cost Recurrence"] = isOneShotCheckbox && isOneShotCheckbox.checked ? "One-Shot" : "Recurrent";
-        item.data["Pricing Model"] = safeVal(`edit-pricingModel-${id}`);
-        item.data["Billing Terms"] = safeVal(`edit-billingTerms-${id}`);
-        item.data["Billing Frequency"] = safeVal(`edit-billingFrequency-${id}`);
+        item.data.costRecurrence = isOneShotCheckbox && isOneShotCheckbox.checked ? "One-Shot" : "Recurrent";
+        item.data.pricingModel = safeVal(`edit-pricingModel-${id}`);
+        item.data.billingTerms = safeVal(`edit-billingTerms-${id}`);
+        item.data.billingFrequency = safeVal(`edit-billingFrequency-${id}`);
         const cleanCommitmentStr = safeVal(`edit-totalCommitment-${id}`).replace(/\./g, '').trim();
-        item.data["Total Commitment"] = parseInt(cleanCommitmentStr, 10) || 0;
-        item.data["Expenditure Type"] = safeVal(`edit-expenditureType-${id}`);
-        item.data["Cost Center"] = safeVal(`edit-costCenter-${id}`);
-        item.data["Start Date"] = safeVal(`edit-startDate-${id}`);
-        item.data["Contract End Date"] = safeVal(`edit-contractEndDate-${id}`);
-        item.data["Adjusted End Date"] = safeVal(`edit-adjustedEndDate-${id}`);
-        item.data["Notice Period (Days)"] = safeVal(`edit-noticePeriod-${id}`).trim();
-        item.data["Auto-Renewal"] = safeVal(`edit-autoRenewal-${id}`);
-        item.data["BL ID"] = safeVal(`edit-blId-${id}`).trim();
-        item.data["Request Code"] = safeVal(`edit-requestCode-${id}`).trim();
-        item.data["Comments"] = safeVal(`edit-comments-${id}`).trim();
+        item.data.totalCommitment = parseInt(cleanCommitmentStr, 10) || 0;
+        item.data.expenditureType = safeVal(`edit-expenditureType-${id}`);
+        item.data.costCenter = safeVal(`edit-costCenter-${id}`);
+        item.data.startDate = safeVal(`edit-startDate-${id}`);
+        item.data.contractEndDate = safeVal(`edit-contractEndDate-${id}`);
+        item.data.adjustedEndDate = safeVal(`edit-adjustedEndDate-${id}`);
+        item.data.noticePeriod = safeVal(`edit-noticePeriod-${id}`).trim();
+        item.data.autoRenewal = safeVal(`edit-autoRenewal-${id}`);
+        item.data.blId = safeVal(`edit-blId-${id}`).trim();
+        item.data.requestCode = safeVal(`edit-requestCode-${id}`).trim();
+        item.data.comments = safeVal(`edit-comments-${id}`).trim();
         const baseLinks = safeVal(`edit-contractLinks-${id}`).trim();
 
         const splitRows = document.querySelectorAll(`#splits-container-${id} .split-row-item`);
@@ -401,9 +392,9 @@
             const rawValStr = row.querySelector('.split-val').value.replace(/[^0-9]/g, '');
             const val = parseInt(rawValStr, 10) || 0;
             return {
-                "Contract ID": item.data["Contract ID"] || "", "Target Legal Entity": row.querySelector('.split-le').value || "", "Target Cost Center": row.querySelector('.split-cc').value || "",
-                "Allocation Rule": rule, "Percentage Share": rule === "Percentage" ? val : "", "Fixed Amount": rule === "Fixed Amount" ? val : "", "Units Assigned": rule === "Units" ? val : "",
-                "Valid From": row.querySelector('.split-from').value || "", "Valid To": row.querySelector('.split-to').value || "", "Notes": row.querySelector('.split-notes').value || ""
+                contractId: item.data.contractId || "", targetLegalEntity: row.querySelector('.split-le').value || "", targetCostCenter: row.querySelector('.split-cc').value || "",
+                allocationRule: rule, percentageShare: rule === "Percentage" ? val : "", fixedAmount: rule === "Fixed Amount" ? val : "", unitsAssigned: rule === "Units" ? val : "",
+                validFrom: row.querySelector('.split-from').value || "", validTo: row.querySelector('.split-to').value || "", notes: row.querySelector('.split-notes').value || ""
             };
         });
 
@@ -416,12 +407,12 @@
             if (sDate && eDate && new Date(sDate) > new Date(eDate)) { ledgerDateValidationError = true; }
             const rawAmtStr = row.querySelector('.ledger-amount').value.replace(/[^0-9]/g, '');
             return {
-                "Contract ID": item.data["Contract ID"] || "", "Start Date": sDate, "End Date": eDate,
-                "Type": row.querySelector('.ledger-type').value || "ACTUAL", "Amount": parseInt(rawAmtStr, 10) || 0, "Notes": row.querySelector('.ledger-notes').value || ""
+                contractId: item.data.contractId || "", startDate: sDate, endDate: eDate,
+                type: row.querySelector('.ledger-type').value || "ACTUAL", amount: parseInt(rawAmtStr, 10) || 0, notes: row.querySelector('.ledger-notes').value || ""
             };
         });
 
-        if (item.data["Expenditure Type"] === "CAPEX" && (item.data["Billing Terms"] === "Linear" || item.data["Billing Terms"] === "Quarterly")) {
+        if (item.data.expenditureType === "CAPEX" && (item.data.billingTerms === "Linear" || item.data.billingTerms === "Quarterly")) {
             FinOpsUI.showAlert("Governance Restriction", "Un asset registrato come CAPEX non può essere vincolato a scadenze temporali fisse (Linear/Quarterly). Seleziona 'Full Upfront' o 'Ledger-Driven'.");
             return;
         }
@@ -440,9 +431,9 @@
                 let filesData = [];
                 let filesProcessed = 0;
                 const supplierSelect = document.getElementById('ins-masterSupplier');
-                const supplier = (supplierSelect ? supplierSelect.value : ContractsState.currentMasterData["Supplier"]) || "Unknown_Supplier";
+                const supplier = (supplierSelect ? supplierSelect.value : ContractsState.currentMasterData.supplier) || "Unknown_Supplier";
                 const assetName = ContractsState.currentSelectedAsset.name || "Unknown_Asset";
-                let year = item.data["Start Date"] ? item.data["Start Date"].split('-')[0] : new Date().getFullYear().toString();
+                let year = item.data.startDate ? item.data.startDate.split('-')[0] : new Date().getFullYear().toString();
 
                 Array.from(fileInput.files).forEach(file => {
                     const reader = new FileReader();
@@ -454,7 +445,7 @@
                                 (urls) => {
                                     let currentLinks = baseLinks ? baseLinks.split(',').map(s => s.trim()).filter(s => s) : [];
                                     urls.forEach(u => { if (!currentLinks.includes(u)) currentLinks.push(u); });
-                                    item.data["Contract Links"] = currentLinks.join(', ');
+                                    item.data.contractLinks = currentLinks.join(', ');
                                     finalizeRowSave(item, id);
                                 },
                                 (err) => { hideLoading(); FinOpsUI.showAlert("Upload Error", err.message); }
@@ -464,7 +455,7 @@
                     reader.readAsDataURL(file);
                 });
             } else {
-                item.data["Contract Links"] = baseLinks;
+                item.data.contractLinks = baseLinks;
                 finalizeRowSave(item, id);
             }
         } catch (e) {
@@ -472,39 +463,23 @@
         }
     }
 
-    // ⚡ FIX: Iniezione forzata di Asset Name, Supplier e Contract ID prima del salvataggio
     function finalizeRowSave(item, id) {
         hideLoading();
 
-        // 1. Generazione ID temporaneo se mancante
-        const cIdProp = typeof CONTRACT_FIELD_MAP !== 'undefined' && CONTRACT_FIELD_MAP["Contract ID"] ? CONTRACT_FIELD_MAP["Contract ID"] : "contractId";
-        let cId = item.data["Contract ID"] || item.data[cIdProp];
+        let cId = item.data.contractId;
         if (!cId || cId.trim() === "") {
             cId = "TMP-CTR-" + Date.now() + Math.floor(Math.random() * 1000);
-            item.data["Contract ID"] = cId;
-            if (cIdProp !== "Contract ID") item.data[cIdProp] = cId;
+            item.data.contractId = cId;
         }
 
-        // 2. ⚡ FIX CRITICO: Ereditarietà di Master ID, Asset Name e Supplier
         if (ContractsState.currentMasterData) {
-            const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' && MASTER_FIELD_MAP["Master Contract ID"] ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
-            const mId = ContractsState.currentMasterData["Master Contract ID"] || ContractsState.currentMasterData[mIdProp];
-            
-            // Trova l'Asset Name attivo
-            const assetName = ContractsState.currentSelectedAsset ? ContractsState.currentSelectedAsset.name : (ContractsState.currentMasterData["Asset Name"] || "");
-            const supplier = ContractsState.currentMasterData["Supplier"] || "";
+            const mId = ContractsState.currentMasterData.masterId;
+            const assetName = ContractsState.currentSelectedAsset ? ContractsState.currentSelectedAsset.name : (ContractsState.currentMasterData.assetName || "");
+            const supplier = ContractsState.currentMasterData.supplier || "";
 
-            // Inietta i valori nell'oggetto JavaScript base
-            item.data["Master Contract ID"] = mId;
-            item.data["Asset Name"] = assetName;
-            item.data["Supplier"] = supplier;
-
-            // Inietta i valori anche nel mapped DTO per sicurezza
-            if (typeof CONTRACT_FIELD_MAP !== 'undefined') {
-                if (CONTRACT_FIELD_MAP["Master Contract ID"]) item.data[CONTRACT_FIELD_MAP["Master Contract ID"]] = mId;
-                if (CONTRACT_FIELD_MAP["Asset Name"]) item.data[CONTRACT_FIELD_MAP["Asset Name"]] = assetName;
-                if (CONTRACT_FIELD_MAP["Supplier"]) item.data[CONTRACT_FIELD_MAP["Supplier"]] = supplier;
-            }
+            item.data.masterId = mId;
+            item.data.assetName = assetName;
+            item.data.supplier = supplier;
         }
 
         const dto = ContractMapper.toDto(item.data, CONTRACT_FIELD_MAP);
@@ -515,7 +490,7 @@
         ContractsState.hasUnsavedChanges = true;
         if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
 
-        const cIndex = windowPayload.contracts.findIndex(c => (c["Contract ID"] || c[cIdProp]) === cId);
+        const cIndex = windowPayload.contracts.findIndex(c => c.contractId === cId);
         if (cIndex > -1) windowPayload.contracts[cIndex] = item.data;
         else windowPayload.contracts.push(item.data);
 
@@ -531,12 +506,11 @@
                 master.addChild(new Contract(childDto));
             });
 
-            const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
-            const linkedInits = (windowPayload.initiatives || []).filter(i => String(i["Master Contract ID"] || i.masterId).trim() === String(master.id).trim());
+            const linkedInits = (windowPayload.initiatives || []).filter(i => String(i.masterId).trim() === String(master.id).trim());
             ContractsState.currentMasterData = master.exportToData(linkedInits);
             
-            const mId = ContractsState.currentMasterData["Master Contract ID"] || ContractsState.currentMasterData[mIdProp];
-            const mIndex = windowPayload.masterContracts.findIndex(m => (m["Master Contract ID"] || m[mIdProp]) === mId);
+            const mId = ContractsState.currentMasterData.masterId;
+            const mIndex = windowPayload.masterContracts.findIndex(m => m.masterId === mId);
             
             if (mIndex > -1) windowPayload.masterContracts[mIndex] = ContractsState.currentMasterData;
             else windowPayload.masterContracts.push(ContractsState.currentMasterData);
@@ -560,20 +534,14 @@
         ContractsState.addNewDetailRow();
         const latestItem = ContractsState.currentDetailItems[ContractsState.currentDetailItems.length - 1];
 
-        if (!latestItem.data["Contract ID"] && !latestItem.data.contractId) {
+        if (!latestItem.data.contractId) {
             const tempId = "TMP-CTR-" + Date.now();
-            latestItem.data["Contract ID"] = tempId;
-            if (typeof CONTRACT_FIELD_MAP !== 'undefined' && CONTRACT_FIELD_MAP["Contract ID"]) {
-                latestItem.data[CONTRACT_FIELD_MAP["Contract ID"]] = tempId;
-            }
+            latestItem.data.contractId = tempId;
         }
 
         const mData = ContractsState.currentMasterData;
-        const mId = mData["Master Contract ID"] || mData.masterId;
-        latestItem.data["Master Contract ID"] = mId;
-        if (typeof CONTRACT_FIELD_MAP !== 'undefined' && CONTRACT_FIELD_MAP["Master Contract ID"]) {
-            latestItem.data[CONTRACT_FIELD_MAP["Master Contract ID"]] = mId;
-        }
+        const mId = mData.masterId;
+        latestItem.data.masterId = mId;
 
         window.ContractsController.openContractModalWindow(latestItem.id);
     }
@@ -586,7 +554,7 @@
     function saveCurrentContract() {
         if (!ContractsState.currentSelectedAsset) return;
 
-        const isEditingExistingMaster = ContractsState.isMasterEditable && ContractsState.currentMasterData["Master Contract ID"] !== "";
+        const isEditingExistingMaster = ContractsState.isMasterEditable && ContractsState.currentMasterData.masterId !== "";
         const hasOpenEdits = isEditingExistingMaster || ContractsState.currentDetailItems.some(item => item.isEditing);
         if (hasOpenEdits) {
             FinOpsUI.showNotificationBanner("There are active forms still in edit mode. Please click 'Apply' or 'Confirm Master Changes' before performing the global push.", "warning");
@@ -594,17 +562,17 @@
         }
 
         if (ContractsState.isMasterEditable) {
-            ContractsState.currentMasterData["Supplier"] = document.getElementById('ins-masterSupplier').value;
-            ContractsState.currentMasterData["Scope"] = document.getElementById('ins-masterScope').value.trim();
-            ContractsState.currentMasterData["Comments"] = document.getElementById('ins-masterComments').value.trim();
+            ContractsState.currentMasterData.supplier = document.getElementById('ins-masterSupplier').value;
+            ContractsState.currentMasterData.masterScope = document.getElementById('ins-masterScope').value.trim();
+            ContractsState.currentMasterData.masterComments = document.getElementById('ins-masterComments').value.trim();
             if (document.getElementById('ins-previousMasterId')) {
-                ContractsState.currentMasterData["Previous Master ID"] = document.getElementById('ins-previousMasterId').value.trim();
+                ContractsState.currentMasterData.previousMasterId = document.getElementById('ins-previousMasterId').value.trim();
             }
         }
 
-        const mId = ContractsState.currentMasterData["Master Contract ID"] || (document.getElementById('ins-masterId') ? document.getElementById('ins-masterId').value.trim() : "");
-        const prevMId = ContractsState.currentMasterData["Previous Master ID"] || "";
-        const spl = ContractsState.currentMasterData["Supplier"];
+        const mId = ContractsState.currentMasterData.masterId || (document.getElementById('ins-masterId') ? document.getElementById('ins-masterId').value.trim() : "");
+        const prevMId = ContractsState.currentMasterData.previousMasterId || "";
+        const spl = ContractsState.currentMasterData.supplier;
 
         const payload = {
             assetName: ContractsState.currentSelectedAsset.name,
@@ -612,12 +580,12 @@
             masterId: mId,
             previousMasterId: prevMId,
             supplier: spl,
-            masterScope: ContractsState.currentMasterData["Scope"],
-            masterComments: ContractsState.currentMasterData["Comments"],
-            contractLinks: ContractsState.currentMasterData["Contract Links"],
-            billingChannel: ContractsState.currentMasterData["Billing Channel"] || "",
-            suppliers: (windowPayload.suppliers || []).filter(s => String(s["Supplier"]).trim().toLowerCase() === String(spl).trim().toLowerCase()),
-            initiatives: mId && mId.trim() !== "" ? (windowPayload.initiatives || []).filter(i => String(i["Master Contract ID"]).trim().toLowerCase() === mId.trim().toLowerCase()) : [],
+            masterScope: ContractsState.currentMasterData.masterScope,
+            masterComments: ContractsState.currentMasterData.masterComments,
+            contractLinks: ContractsState.currentMasterData.contractLinks,
+            billingChannel: ContractsState.currentMasterData.billingChannel || "",
+            suppliers: (windowPayload.suppliers || []).filter(s => String(s.supplier).trim().toLowerCase() === String(spl).trim().toLowerCase()),
+            initiatives: mId && mId.trim() !== "" ? (windowPayload.initiatives || []).filter(i => String(i.masterId).trim().toLowerCase() === mId.trim().toLowerCase()) : [],
 
             details: ContractsState.currentDetailItems.map(item => {
                 const dto = ContractMapper.toDto(item.data, CONTRACT_FIELD_MAP);
@@ -654,7 +622,6 @@
                         windowPayload.ledger
                     );
 
-                    // ⚡ AGGIORNAMENTO SNAPSHOT GLOBALE: Questo fissa il nuovo "Punto di Ripristino"
                     if (typeof window.originalPayloadSnapshot !== 'undefined') {
                         window.originalPayloadSnapshot = JSON.parse(JSON.stringify(windowPayload));
                     }
@@ -677,8 +644,6 @@
     }
 
     window.ContractsController = {
-
-        // ⚡ GESTIONE ELIMINAZIONE MASTER
         deleteCurrentMaster: function () {
             if (ContractsState.currentDetailItems.length > 0) {
                 FinOpsUI.showAlert("Warning", "Cannot delete a Master Agreement that contains active contract lines. Please remove the lines first.");
@@ -686,32 +651,27 @@
             }
 
             FinOpsUI.showConfirm("Delete Master", "Are you sure you want to permanently remove this Master Agreement?", () => {
-                const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
-                const mId = ContractsState.currentMasterData["Master Contract ID"] || ContractsState.currentMasterData[mIdProp];
+                const mId = ContractsState.currentMasterData.masterId;
 
-                // Rimuovi fisicamente dalla memoria locale
-                windowPayload.masterContracts = windowPayload.masterContracts.filter(m => (m["Master Contract ID"] || m[mIdProp]) !== mId);
+                windowPayload.masterContracts = windowPayload.masterContracts.filter(m => m.masterId !== mId);
 
                 ContractsState.currentMasterData = null;
                 ContractsState.currentDetailItems = [];
 
-                // Ripulisci la UI della modale
                 const mountPoint = document.getElementById('contracts-modal-mount-point');
                 if (mountPoint) { mountPoint.classList.add('hidden'); mountPoint.classList.remove('flex'); mountPoint.innerHTML = ''; }
 
                 const formContainer = document.getElementById('mgmt-master-form-container');
                 if (formContainer) formContainer.classList.add('hidden');
 
-                // Notifica UI che ci sono cambiamenti in attesa di push
                 ContractsState.hasUnsavedChanges = true;
                 if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
 
-                // Ridisegna in base al tab svuotando la cache
                 if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined') {
                     if (InventoryState.expandedAssetId) {
-                        const assetObj = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"] || a.assetName)).replace(/=/g, "") === InventoryState.expandedAssetId);
+                        const assetObj = globalCachedData.find(a => btoa(encodeURIComponent(a.name)).replace(/=/g, "") === InventoryState.expandedAssetId);
                         if (assetObj) {
-                            InventoryState.loadAssetDrillDownData(assetObj["Asset Name"] || assetObj.assetName);
+                            InventoryState.loadAssetDrillDownData(assetObj.name);
                         }
                     }
                     InventoryController.renderContractsTabContent(InventoryState.expandedAssetId);
@@ -719,37 +679,30 @@
                 } else {
                     if (typeof renderMasterFormBox === 'function') renderMasterFormBox();
                     if (typeof renderMasterContractsList === 'function' && ContractsState.currentSelectedAsset) {
-                        const assetMasters = windowPayload.masterContracts.filter(m => (m["Asset Name"] || "").toString().toLowerCase() === ContractsState.currentSelectedAsset.name.toLowerCase());
+                        const assetMasters = windowPayload.masterContracts.filter(m => (m.assetName || "").toString().toLowerCase() === ContractsState.currentSelectedAsset.name.toLowerCase());
                         renderMasterContractsList(assetMasters);
                     }
                 }
             });
         },
 
-        // ⚡ GESTIONE DISCARD CHANGES CON SVUOTAMENTO CACHE INVENTORY
         discardLocalChanges: function () {
             FinOpsUI.showConfirm("Discard Changes", "Are you sure you want to revert all local modifications? All new uncommitted items will be permanently lost.", () => {
-
-                // 1. Chiudiamo tutte le modali di Contratto per evitare glitch visivi
                 const mountPoint = document.getElementById('contracts-modal-mount-point');
                 if (mountPoint) { mountPoint.classList.add('hidden'); mountPoint.classList.remove('flex'); mountPoint.innerHTML = ''; }
 
                 const formContainer = document.getElementById('mgmt-master-form-container');
                 if (formContainer) formContainer.classList.add('hidden');
 
-                // 2. Chiamata alla funzione Core globale che fa il ripristino del windowPayload
                 if (typeof window.revertLocalChanges === 'function') {
                     window.revertLocalChanges();
                 }
 
-                // 3. FIX CRITICO: Pulizia della cache specifica dell'Inventory Tab
-                // Senza questo, il tab Inventory continua a mostrare i cloni appena "cancellati"
                 if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined' && typeof InventoryState !== 'undefined') {
                     if (InventoryState.expandedAssetId) {
-                        const assetObj = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"] || a.assetName)).replace(/=/g, "") === InventoryState.expandedAssetId);
+                        const assetObj = globalCachedData.find(a => btoa(encodeURIComponent(a.name)).replace(/=/g, "") === InventoryState.expandedAssetId);
                         if (assetObj) {
-                            // Ricarica i dati freschi dal windowPayload appena ripristinato dal Core
-                            InventoryState.loadAssetDrillDownData(assetObj["Asset Name"] || assetObj.assetName);
+                            InventoryState.loadAssetDrillDownData(assetObj.name);
                             InventoryController.renderContractsTabContent(InventoryState.expandedAssetId);
                         }
                     }
@@ -947,7 +900,7 @@
                 const now = new Date();
                 const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
                 const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-                movData = { "Start Date": FinOpsDate.toIso(firstDay), "End Date": FinOpsDate.toIso(lastDay), "Type": "ACTUAL", "Amount": "", "Notes": "" };
+                movData = { startDate: FinOpsDate.toIso(firstDay), endDate: FinOpsDate.toIso(lastDay), type: "ACTUAL", amount: "", notes: "" };
             }
 
             container.insertAdjacentHTML('beforeend', ContractsTemplates.getLedgerRow(detailId, movData));
@@ -971,8 +924,8 @@
             const defStart = startDateInput ? startDateInput.value : "";
             const defEnd = endDateInput ? endDateInput.value : "";
 
-            const leOptions = ContractsUtils.extractUniqueField(windowPayload.legalEntities, "Legal Entity").map(le => '<option value="' + le + '">' + le + '</option>').join('');
-            const ccOptions = ContractsUtils.extractUniqueField(windowPayload.costCenters, "Cost Center").map(cc => '<option value="' + cc + '">' + cc + '</option>').join('');
+            const leOptions = ContractsUtils.extractUniqueField(windowPayload.legalEntities, "legalEntity").map(le => '<option value="' + le + '">' + le + '</option>').join('');
+            const ccOptions = ContractsUtils.extractUniqueField(windowPayload.costCenters, "costCenter").map(cc => '<option value="' + cc + '">' + cc + '</option>').join('');
 
             container.insertAdjacentHTML('beforeend', ContractsTemplates.getSplitRow(detailId, {}, defStart, defEnd, leOptions, ccOptions));
         },
@@ -982,8 +935,8 @@
             if (!row) return;
             const rawAmtStr = row.querySelector('.ledger-amount').value.replace(/[^0-9]/g, '');
             const currentMovementData = {
-                "Start Date": row.querySelector('.ledger-start').value || "", "End Date": row.querySelector('.ledger-end').value || "",
-                "Type": row.querySelector('.ledger-type').value || "ACTUAL", "Amount": parseInt(rawAmtStr, 10) || 0, "Notes": row.querySelector('.ledger-notes').value || ""
+                startDate: row.querySelector('.ledger-start').value || "", endDate: row.querySelector('.ledger-end').value || "",
+                type: row.querySelector('.ledger-type').value || "ACTUAL", amount: parseInt(rawAmtStr, 10) || 0, notes: row.querySelector('.ledger-notes').value || ""
             };
             this.addLedgerRowToUI(detailId, currentMovementData);
         },
@@ -1004,10 +957,8 @@
             if (panel) panel.classList.toggle('hidden');
         },
 
-        // ⚡ Spostamento modale sul document.body (visibile ovunque)
         openContractModalWindow: function (id) {
             let mountPoint = document.getElementById('contracts-modal-mount-point');
-            // Assicuriamoci che stia sempre nel body, anche se il tab-contracts lo aveva generato lì dentro
             if (mountPoint && mountPoint.parentElement !== document.body) document.body.appendChild(mountPoint);
 
             if (!mountPoint) {
@@ -1023,19 +974,19 @@
             item.isEditing = true;
 
             const d = item.data;
-            const docLinks = (d["Contract Links"] || d.contractLinks || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
+            const docLinks = (d.contractLinks || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
 
-            const leList = ContractsUtils.extractUniqueField(windowPayload.legalEntities, "Legal Entity");
-            const locList = ContractsUtils.extractUniqueField(windowPayload.locations, "Location");
-            const ccList = ContractsUtils.extractUniqueField(windowPayload.costCenters, "Cost Center");
-            const soList = ContractsUtils.extractUniqueField(windowPayload.contracts, "Service Owner");
-            const tgOptions = ContractsState.currentAssetGroupIds.map(g => `<option value="${g}" ${g === d["Target Group ID"] ? 'selected' : ''}>${g}</option>`).join('');
+            const leList = ContractsUtils.extractUniqueField(windowPayload.legalEntities, "legalEntity");
+            const locList = ContractsUtils.extractUniqueField(windowPayload.locations, "location");
+            const ccList = ContractsUtils.extractUniqueField(windowPayload.costCenters, "costCenter");
+            const soList = ContractsUtils.extractUniqueField(windowPayload.contracts, "serviceOwner");
+            const tgOptions = ContractsState.currentAssetGroupIds.map(g => `<option value="${g}" ${g === d.targetGroupId ? 'selected' : ''}>${g}</option>`).join('');
 
             const baseLeOptions = leList.map(le => `<option value="${le}">${le}</option>`).join('');
             const baseCcOptions = ccList.map(cc => `<option value="${cc}">${cc}</option>`).join('');
 
             let splitsHtml = item.splits && item.splits.length > 0
-                ? item.splits.map(s => ContractsTemplates.getSplitRow(item.id, s, d["Start Date"]?.split('T')[0] || "", d["Contract End Date"]?.split('T')[0] || "", baseLeOptions, baseCcOptions)).join('')
+                ? item.splits.map(s => ContractsTemplates.getSplitRow(item.id, s, d.startDate?.split('T')[0] || "", d.contractEndDate?.split('T')[0] || "", baseLeOptions, baseCcOptions)).join('')
                 : `<p class="text-[9px] text-emerald-600 font-medium text-center py-2 empty-split-msg bg-emerald-50/50 rounded-md">➔ Standard Allocation Active (100% to main entity).</p>`;
 
             let ledgerHtml = item.ledger && item.ledger.length > 0
@@ -1043,9 +994,9 @@
                 : `<p class="text-[9px] text-slate-400 italic text-center py-2 empty-ledger-msg bg-slate-50 rounded-md">No manual ledger movements yet.</p>`;
 
             const mData = ContractsState.currentMasterData || {};
-            const masterStartStr = mData["Master Start Date"] ? ContractsUtils.formatToEnglishCustomDate(mData["Master Start Date"]) : 'N/A';
-            const masterEndStr = mData["Master End Date"] ? ContractsUtils.formatToEnglishCustomDate(mData["Master End Date"]) : 'N/A';
-            const masterCommitment = (parseFloat(mData["Total Commitment"] || mData.totalCommitment) || 0).toLocaleString('it-IT');
+            const masterStartStr = mData.masterStartDate ? ContractsUtils.formatToEnglishCustomDate(mData.masterStartDate) : 'N/A';
+            const masterEndStr = mData.masterEndDate ? ContractsUtils.formatToEnglishCustomDate(mData.masterEndDate) : 'N/A';
+            const masterCommitment = (parseFloat(mData.totalCommitment) || 0).toLocaleString('it-IT');
 
             const isEditActive = typeof ContractsState !== 'undefined' && ContractsState.globalEditMode;
 
@@ -1056,7 +1007,6 @@
 
             this.toggleLedgerVisibility(id);
 
-            // API Asincrona Documenti
             if (docLinks.length > 0 && typeof ContractsAPI !== 'undefined') {
                 const targetLinks = mountPoint.querySelectorAll('.live-doc-link');
                 if (targetLinks.length > 0) {
@@ -1067,7 +1017,6 @@
             }
         },
 
-        // ⚡ Modale Master Globale con Read-Only dinamico
         openMasterModalWindow: function (masterId) {
             let mountPoint = document.getElementById('contracts-modal-mount-point');
             if (mountPoint && mountPoint.parentElement !== document.body) document.body.appendChild(mountPoint);
@@ -1084,29 +1033,27 @@
 
             if (masterId) {
                 ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
-                const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
-                const mAssetProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Asset Name"] : "assetName";
-                const masterObj = windowPayload.masterContracts.find(m => (m["Master Contract ID"] || m[mIdProp]) === masterId);
-                const assetName = masterObj ? (masterObj["Asset Name"] || masterObj[mAssetProp]) : null;
-                const assetMatch = windowPayload.assets.find(a => (a["Asset Name"] || a.assetName) === assetName);
-                if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"] || assetMatch.assetName, id: assetMatch["Asset ID"] || assetMatch.assetId };
+                const masterObj = windowPayload.masterContracts.find(m => m.masterId === masterId);
+                const assetName = masterObj ? masterObj.assetName : null;
+                const assetMatch = windowPayload.assets.find(a => a.name === assetName);
+                if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch.name, id: assetMatch.id };
             }
 
             const data = ContractsState.currentMasterData;
-            const isNew = !data["Master Contract ID"] && !data.masterId;
-            const suppliersList = ContractsUtils.extractUniqueField(windowPayload.masterContracts || windowPayload.contracts, "Supplier");
-            const masterLinks = (data["Contract Links"] || data.contractLinks || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
+            const isNew = !data.masterId;
+            const suppliersList = ContractsUtils.extractUniqueField(windowPayload.masterContracts || windowPayload.contracts, "supplier");
+            const masterLinks = (data.contractLinks || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
 
             let formHtml = '';
             if (isEditActive) {
                 formHtml = ContractsTemplates.getMasterEditCard(data, isNew, suppliersList, masterLinks);
             } else {
-                const status = (data["Status"] || "ACTIVE").toUpperCase().trim();
-                const rawStart = data["Master Start Date"] || data.masterStartDate;
-                const rawEnd = data["Master End Date"] || data.masterEndDate;
+                const status = (data.status || "ACTIVE").toUpperCase().trim();
+                const rawStart = data.masterStartDate;
+                const rawEnd = data.masterEndDate;
                 const cleanStart = rawStart ? ContractsUtils.formatToEnglishCustomDate(rawStart) : '—';
                 const cleanEnd = rawEnd ? ContractsUtils.formatToEnglishCustomDate(rawEnd) : '—';
-                let rawTerm = data["contractTerm"] !== undefined ? data["contractTerm"] : (data["Contract Term (Months)"] !== undefined ? data["Contract Term (Months)"] : '—');
+                let rawTerm = data.contractTerm !== undefined ? data.contractTerm : '—';
                 let termMonths = (typeof rawTerm === 'number' || !isNaN(parseFloat(rawTerm))) ? Math.round(parseFloat(rawTerm)) : rawTerm;
 
                 let statusClass = "bg-slate-50 text-slate-500 border-slate-200";
@@ -1125,7 +1072,6 @@
             mountPoint.classList.remove('hidden');
             mountPoint.classList.add('flex');
 
-            // API Asincrona Documenti (se in readonly)
             if (!isEditActive && masterLinks.length > 0 && typeof ContractsAPI !== 'undefined') {
                 const targetLinks = mountPoint.querySelectorAll('.live-doc-link');
                 if (targetLinks.length > 0) {
@@ -1136,7 +1082,6 @@
             }
         },
 
-        // Export fondamentale per permettere l'innesco dal tab Inventory
         addNewDetailRowItem: function () { addNewDetailRowItem(); },
 
         cancelMasterFormEditState: function (isNew) {
@@ -1164,7 +1109,7 @@
             }
 
             ContractsState.currentDetailItems = ContractsState.currentDetailItems.filter(i => {
-                if (i.isEditing && (!i.data["Contract ID"] && !i.data.contractId && (!i.data["Start Date"] && !i.data.startDate))) {
+                if (i.isEditing && (!i.data.contractId && !i.data.startDate)) {
                     return false;
                 }
                 i.isEditing = false;
@@ -1180,7 +1125,7 @@
             const listContainer = document.getElementById('ins-supplier-options-list');
             if (!listContainer) return;
             const q = query.toLowerCase().trim();
-            const suppliersList = ContractsUtils.extractUniqueField(windowPayload.masterContracts || windowPayload.contracts, "Supplier");
+            const suppliersList = ContractsUtils.extractUniqueField(windowPayload.masterContracts || windowPayload.contracts, "supplier");
 
             const matched = suppliersList.filter(s => s.toLowerCase().includes(q));
             if (matched.length === 0) {
@@ -1211,8 +1156,8 @@
             document.getElementById('ins-supplier-options-list').classList.add('hidden');
 
             const suppliers = windowPayload.suppliers || [];
-            const supObj = suppliers.find(s => String(s["Supplier"]).trim().toLowerCase() === supplierName.toLowerCase());
-            const channel = supObj ? (supObj["Billing Channel"] || 'Direct Vendor') : 'Direct Vendor';
+            const supObj = suppliers.find(s => String(s.supplier).trim().toLowerCase() === supplierName.toLowerCase());
+            const channel = supObj ? (supObj.billingChannel || 'Direct Vendor') : 'Direct Vendor';
 
             const channelDisplay = document.getElementById('ins-masterBillingChannel-display');
             const channelInput = document.getElementById('ins-masterBillingChannel');
@@ -1223,8 +1168,8 @@
 
         handleSupplierAutoChannel: function (supplierName) {
             const suppliers = windowPayload.suppliers || [];
-            const supObj = suppliers.find(s => String(s["Supplier"]).trim().toLowerCase() === String(supplierName).toLowerCase());
-            const channel = supObj ? (supObj["Billing Channel"] || 'Direct Vendor') : 'Direct Vendor';
+            const supObj = suppliers.find(s => String(s.supplier).trim().toLowerCase() === String(supplierName).toLowerCase());
+            const channel = supObj ? (supObj.billingChannel || 'Direct Vendor') : 'Direct Vendor';
 
             const channelDisplay = document.getElementById('ins-masterBillingChannel-display');
             const channelInput = document.getElementById('ins-masterBillingChannel');
@@ -1237,7 +1182,6 @@
         saveRowLocalChanges: function (id) { saveRowLocalChanges(id); }
     };
 
-    // Chiudi tendina se clicchi fuori
     document.addEventListener('click', function (e) {
         const assetDrop = document.getElementById('modal-asset-options-list');
         const comboContainer = document.getElementById('modal-asset-combo-container');

@@ -2,6 +2,7 @@
     /**
      * js_contracts_state.html
      * MODEL: Centralized state management for the Contracts Center.
+     * Ragiona esclusivamente in formato DTO camelCase puro.
      */
     const ContractsState = {
         currentSelectedAsset: null,
@@ -13,35 +14,23 @@
         globalEditMode: false,
 
         resetMaster: function () {
-            this.currentMasterData = { "Master Contract ID": "", "Supplier": "", "Scope": "", "Comments": "" };
+            this.currentMasterData = { masterId: "", supplier: "", scope: "", comments: "" };
             this.currentDetailItems = [];
             this.isMasterEditable = true;
             this.hasUnsavedChanges = true;
-            // RIMOSSO: this.globalEditMode = true; (Il flag di UI non deve mai essere forzato dai dati)
         },
 
         loadMasterDetails: function (masterId, allMasterContracts, allContracts, allocationSplits, ledger) {
             const cleanId = String(masterId).trim();
-            
-            // ⚡ TRADUTTORI DAL DOMINIO
-            const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
-            const cMIdProp = typeof CONTRACT_FIELD_MAP !== 'undefined' ? CONTRACT_FIELD_MAP["Master Contract ID"] : "masterId";
-            const cIdProp = typeof CONTRACT_FIELD_MAP !== 'undefined' ? CONTRACT_FIELD_MAP["Contract ID"] : "contractId";
 
-            this.currentMasterData = allMasterContracts.find(m => {
-                const currentMId = String(m["Master Contract ID"] || m[mIdProp] || "").trim();
-                return currentMId === cleanId;
-            });
+            this.currentMasterData = allMasterContracts.find(m => String(m.masterId || "").trim() === cleanId);
 
-            const rawDetails = allContracts.filter(c => {
-                const currentMId = String(c["Master Contract ID"] || c[cMIdProp] || "").trim();
-                return currentMId === cleanId;
-            });
+            const rawDetails = allContracts.filter(c => String(c.masterId || "").trim() === cleanId);
 
             this.currentDetailItems = rawDetails.map((row, index) => {
-                const cId = String(row["Contract ID"] || row[cIdProp] || "").trim();
-                const linkedSplits = allocationSplits.filter(s => String(s["Contract ID"] || s.contractId || "").trim() === cId);
-                const linkedLedger = ledger.filter(l => String(l["Contract ID"] || l.contractId || "").trim() === cId);
+                const cId = String(row.contractId || "").trim();
+                const linkedSplits = allocationSplits.filter(s => String(s.contractId || "").trim() === cId);
+                const linkedLedger = ledger.filter(l => String(l.contractId || "").trim() === cId);
 
                 return { id: index, isEditing: false, data: row, splits: linkedSplits, ledger: linkedLedger };
             });
@@ -54,7 +43,7 @@
             const newId = this.currentDetailItems.length > 0 ? Math.max(...this.currentDetailItems.map(i => i.id)) + 1 : 0;
             this.currentDetailItems.push({
                 id: newId, isEditing: true, splits: [], ledger: [],
-                data: { "Status": "ACTIVE", "Cost Recurrence": "Recurrent", "Total Commitment": 0, "Contract ID": "", "Contract Ref": "" }
+                data: { status: "ACTIVE", costRecurrence: "Recurrent", totalCommitment: 0, contractId: "", contractRef: "" }
             });
             this.hasUnsavedChanges = true;
         },
@@ -64,7 +53,7 @@
             if (!itemToClone) return false;
             const newId = this.currentDetailItems.length > 0 ? Math.max(...this.currentDetailItems.map(i => i.id)) + 1 : 0;
             const clonedData = JSON.parse(JSON.stringify(itemToClone.data));
-            clonedData["Scope"] = ""; clonedData["Contract ID"] = ""; clonedData["Status"] = "ACTIVE"; clonedData["Contract Links"] = "";
+            clonedData.scope = ""; clonedData.contractId = ""; clonedData.status = "ACTIVE"; clonedData.contractLinks = "";
             this.currentDetailItems.push({ id: newId, isEditing: true, data: clonedData, splits: [], ledger: [] });
             this.hasUnsavedChanges = true;
             return true;

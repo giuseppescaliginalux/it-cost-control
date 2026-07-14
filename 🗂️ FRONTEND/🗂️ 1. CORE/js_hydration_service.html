@@ -1,9 +1,9 @@
 <script>
     /**
-         * js_hydration_service.html
-         * ENGINE: Just-In-Time (JIT) Hydration Service.
-         * Cura l'inconsistenza temporale (Stale State) correggendo la memoria RAM al volo.
-         */
+     * js_hydration_service.html
+     * ENGINE: Just-In-Time (JIT) Hydration Service.
+     * Cura l'inconsistenza temporale (Stale State) leggendo i DTO puliti in camelCase.
+     */
     const HydrationEngine = {
         hydrateAllStatuses: function (payload) {
             const today = new Date();
@@ -11,45 +11,44 @@
 
             // 1. Contratti Locali
             (payload.contracts || []).forEach(c => {
-                const sDate = c["Start Date"] ? new Date(c["Start Date"]) : null;
-                const eRaw = c["Adjusted End Date"] || c["Contract End Date"] || c["End Date"];
+                const sDate = c.startDate ? new Date(c.startDate) : null;
+                const eRaw = c.adjustedEndDate || c.contractEndDate || c.endDate;
                 const eDate = eRaw ? new Date(eRaw) : null;
 
                 if (sDate) sDate.setHours(0, 0, 0, 0);
                 if (eDate) eDate.setHours(0, 0, 0, 0);
 
-                if (eDate && eDate < today) c["Status"] = "EXPIRED";
-                else if (sDate && sDate > today) c["Status"] = "UPCOMING";
-                else c["Status"] = "ACTIVE";
+                if (eDate && eDate < today) c.status = "EXPIRED";
+                else if (sDate && sDate > today) c.status = "UPCOMING";
+                else c.status = "ACTIVE";
             });
 
             // 2. Master Contracts
             (payload.masterContracts || []).forEach(m => {
-                const mId = m["Master Contract ID"];
-                const children = (payload.contracts || []).filter(c => c["Master Contract ID"] === mId);
-                const inits = (payload.initiatives || []).filter(i => i["Master Contract ID"] === mId);
+                const mId = m.masterId;
+                const children = (payload.contracts || []).filter(c => c.masterId === mId);
+                const inits = (payload.initiatives || []).filter(i => i.masterId === mId);
 
                 let checkTerminated = 0; let checkNegotiation = 0;
                 let hasActive = false; let hasUpcoming = false;
 
                 children.forEach(c => {
-                    if (c["Status"] === "ACTIVE") hasActive = true;
-                    if (c["Status"] === "UPCOMING") hasUpcoming = true;
+                    if (c.status === "ACTIVE") hasActive = true;
+                    if (c.status === "UPCOMING") hasUpcoming = true;
                 });
 
                 inits.forEach(init => {
-                    const initStatus = String(init["Initiative Status"] || "").toUpperCase().trim();
-                    const decision = String(init["Decision"] || "").toUpperCase().trim();
+                    const initStatus = String(init.status || "").toUpperCase().trim();
+                    const decision = String(init.decision || "").toUpperCase().trim();
 
                     if (initStatus === "COMPLETED" && ["TERMINATE", "REPLACE", "TRANSFER"].includes(decision)) {
-                        // ⚡ FIX: Verifica temporale ripristinata. Il master muore solo se la Target Date è passata!
                         let isPastTargetDate = true;
-                        const tDateRaw = init["Actual Date"] || init["Target Date"];
+                        const tDateRaw = init.actualDate || init.targetDate;
                         if (tDateRaw) {
                             const tDate = new Date(tDateRaw);
                             tDate.setHours(0, 0, 0, 0);
                             if (!isNaN(tDate.getTime()) && tDate > today) {
-                                isPastTargetDate = false; // L'azione avverrà nel futuro
+                                isPastTargetDate = false;
                             }
                         }
                         if (isPastTargetDate) checkTerminated++;
@@ -57,21 +56,21 @@
                     if (initStatus === "IN PROGRESS") checkNegotiation++;
                 });
 
-                if (checkTerminated > 0) m["Status"] = "TERMINATED";
-                else if (hasActive) m["Status"] = "ACTIVE";
-                else if (hasUpcoming) m["Status"] = "UPCOMING";
-                else if (checkNegotiation > 0) m["Status"] = "IN NEGOTIATION";
-                else m["Status"] = "EXPIRED";
+                if (checkTerminated > 0) m.status = "TERMINATED";
+                else if (hasActive) m.status = "ACTIVE";
+                else if (hasUpcoming) m.status = "UPCOMING";
+                else if (checkNegotiation > 0) m.status = "IN NEGOTIATION";
+                else m.status = "EXPIRED";
             });
 
             // 3. Asset (Macchina a Stati Finiti)
             payload.assets = (payload.assets || []).map(rawAsset => {
-                const dto = AssetMapper.toDto(rawAsset);
-                const asset = new Asset(dto);
+                // Il rawAsset è GIA' UN DTO pulito, lo passiamo direttamente alla classe
+                const asset = new Asset(rawAsset);
+                const assetNameLower = (asset.name || "").trim().toLowerCase();
 
-                const assetNameLower = asset.name.trim().toLowerCase();
-                const assetContracts = (payload.contracts || []).filter(c => String(c["Asset Name"] || "").trim().toLowerCase() === assetNameLower);
-                const assetInits = (payload.initiatives || []).filter(i => String(i["Asset Name"] || "").trim().toLowerCase() === assetNameLower);
+                const assetContracts = (payload.contracts || []).filter(c => String(c.assetName || "").trim().toLowerCase() === assetNameLower);
+                const assetInits = (payload.initiatives || []).filter(i => String(i.assetName || "").trim().toLowerCase() === assetNameLower);
 
                 asset.injectContext([], assetContracts, assetInits, []);
                 return asset.exportToData();

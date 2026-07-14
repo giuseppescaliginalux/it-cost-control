@@ -265,26 +265,8 @@ function getFullPayload_Internal() {
     console.log("ROUTER: Richiesta bulk dati iniziali dal client...");
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // Leggiamo tutto tranne le proiezioni fisiche (non ci servono più, le calcola il Client al volo)
-    return {
-      masterContracts: getSheetDataAsObjects(ss, CONFIG.SHEETS.MASTER_CONTRACTS),
-      contracts: getSheetDataAsObjects(ss, CONFIG.SHEETS.CONTRACTS),
-      initiatives: getSheetDataAsObjects(ss, CONFIG.SHEETS.INITIATIVES),
-      ledger: getSheetDataAsObjects(ss, CONFIG.SHEETS.LEDGER),
-      allocationSplits: getSheetDataAsObjects(ss, CONFIG.SHEETS.ALLOCATION_SPLITS),
-      assets: getSheetDataAsObjects(ss, CONFIG.SHEETS.ASSETS),
-      varianceReport: getSheetDataAsObjects(ss, CONFIG.SHEETS.VARIANCE),
-      bridge: getSheetDataAsObjects(ss, CONFIG.SHEETS.ASSET_ALLOCATION_BRIDGE),
-
-      // 🌟 IL CAMBIO DI PARADIGMA: Passiamo un array vuoto. 
-      // Sarà il js_core.html a generare la matrice finanziaria In-Memory!
-      projections: [],
-
-      suppliers: getSheetDataAsObjects(ss, CONFIG.SHEETS.SUPPLIERS),
-      locations: getSheetDataAsObjects(ss, CONFIG.SHEETS.LOCATIONS),
-      costCenters: getSheetDataAsObjects(ss, CONFIG.SHEETS.COST_CENTERS),
-      legalEntities: getSheetDataAsObjects(ss, CONFIG.SHEETS.LEGAL_ENTITIES)
-    };
+    // 🌟 DELEGAZIONE (SRP): Il Router gestisce la rete, il Builder formatta i DTO
+    return PayloadBuilder.buildFullPayload(ss);
 
   } catch (error) {
     console.error("ROUTER ERROR [getFullPayload_Internal]:", error.message);

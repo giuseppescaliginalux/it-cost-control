@@ -40,7 +40,7 @@
             this.targetStatus = dto.targetStatus || "RETAIN"; this.costImprovement = parseFloat(dto.costImprovement) || 0;
             this.exitDate = dto.exitDate || ""; this.transferDate = dto.transferDate || "";
             this.initiativeTargetDate = dto.initiativeTargetDate || ""; this.lastEndDate = dto.lastEndDate || "";
-            
+
             this.extraProperties = {};
             const knownProperties = Object.values(ASSET_FIELD_MAP);
             for (let key in dto) if (!knownProperties.includes(key)) this.extraProperties[key] = dto[key];
@@ -101,13 +101,10 @@
         }
 
         exportToData() {
+            // Esporta lo stato nativo camelCase puro in un Plain Object JSON
             return {
-                ...this.extraProperties, "Asset ID": this.id, "Asset Name": this.name, "Manufacturer": this.manufacturer,
-                "Business Driver": this.businessDriver, "Asset Category": this.category, "Asset Type": this.assetType,
-                "Description": this.description, "Budget Status (FY27)": this.budgetStatusFY27, "Run Rate": this.runRate,
-                "Current Status": this.currentStatus, "Target Status": this.targetStatus, "Cost Improvement": this.costImprovement,
-                "Exit Date": this.exitDate, "Transfer Date": this.transferDate, "Initiative Target Date": this.initiativeTargetDate,
-                "Last End Date": this.lastEndDate
+                ...this.extraProperties,
+                ...this
             };
         }
     }

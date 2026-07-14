@@ -2,6 +2,7 @@
     /**
      * js_initiatives_state.html
      * MODEL: Centralized State Management for the 3-Column Initiatives Hub.
+     * Gestisce lo stato e la matematica delle iniziative usando DTO camelCase puri.
      */
 
     const InitiativesState = {
@@ -25,34 +26,34 @@
             ];
 
             this.rawInitiatives.forEach(init => {
-                if (String(init["Initiative Status"]).toUpperCase().trim() === "INCOMING") {
-                    init["Initiative Status"] = "PLANNED";
+                if (String(init.status).toUpperCase().trim() === "INCOMING") {
+                    init.status = "PLANNED";
                 }
             });
         },
 
         recalculateMetrics: function (initiatives, contracts) {
             const sortedInits = [...initiatives].sort((a, b) => {
-                const dA = new Date(a["Target Date"] || "2099-12-31");
-                const dB = new Date(b["Target Date"] || "2099-12-31");
+                const dA = new Date(a.targetDate || "2099-12-31");
+                const dB = new Date(b.targetDate || "2099-12-31");
                 return dA - dB;
             });
 
             sortedInits.forEach(init => {
-                const masterId = (init["Master Contract ID"] || init.masterId || "").toString().trim();
-                const contractId = (init["Contract ID"] || init.contractId || "").toString().trim();
-                const targetDate = init["Target Date"] ? new Date(init["Target Date"]) : null;
+                const masterId = (init.masterId || "").toString().trim();
+                const contractId = (init.contractId || "").toString().trim();
+                const targetDate = init.targetDate ? new Date(init.targetDate) : null;
 
                 let originalBaseline = 0;
                 if (contractId !== "") {
-                    // 🌟 TARGET LOCALE: Isoliamo il singolo contratto selezionato
-                    const c = contracts.find(x => String(x["Contract ID"] || x.contractId).trim() === contractId);
-                    originalBaseline = c ? (parseFloat(c["Annual Value"] || c.annualValue) || 0) : 0;
+                    // TARGET LOCALE: Isoliamo il singolo contratto selezionato
+                    const c = contracts.find(x => String(x.contractId).trim() === contractId);
+                    originalBaseline = c ? (parseFloat(c.annualValue) || 0) : 0;
                 } else {
-                    // 🌟 TARGET GLOBALE: Sommiamo l'intero Run Rate dei contratti del Master
+                    // TARGET GLOBALE: Sommiamo l'intero Run Rate dei contratti del Master
                     contracts.forEach(c => {
-                        if (String(c["Master Contract ID"] || c.masterId).trim() === masterId && masterId !== "") {
-                            originalBaseline += (parseFloat(c["Annual Value"] || c.annualValue) || 0);
+                        if (String(c.masterId).trim() === masterId && masterId !== "") {
+                            originalBaseline += (parseFloat(c.annualValue) || 0);
                         }
                     });
                 }
@@ -60,22 +61,23 @@
                 let startingCost = originalBaseline;
                 if (originalBaseline !== 0 && targetDate) {
                     const priorInits = sortedInits.filter(i => {
-                        const iMaster = String(i["Master Contract ID"] || i.masterId || "").trim();
-                        const iContract = String(i["Contract ID"] || i.contractId || "").trim();
+                        const iMaster = String(i.masterId || "").trim();
+                        const iContract = String(i.contractId || "").trim();
                         return iMaster === masterId && iContract === contractId &&
-                               new Date(i["Target Date"]) < targetDate &&
-                               !isNaN(parseFloat(i["Target Cost (Annualized)"]));
+                               new Date(i.targetDate) < targetDate &&
+                               !isNaN(parseFloat(i.targetCostAnnualized));
                     });
 
+                    // 🌟 FIX: Allineato il nome della variabile a priorInits
                     if (priorInits.length > 0) {
-                        priorInits.sort((a, b) => new Date(b["Target Date"]) - new Date(a["Target Date"]));
-                        startingCost = parseFloat(priorInits[0]["Target Cost (Annualized)"]);
+                        priorInits.sort((a, b) => new Date(b.targetDate) - new Date(a.targetDate));
+                        startingCost = parseFloat(priorInits[0].targetCostAnnualized);
                     }
                 }
-                init["Baseline Spend (Annualized)"] = startingCost;
+                init.baselineSpendAnnualized = startingCost;
 
-                const targetCost = parseFloat(init["Target Cost (Annualized)"]);
-                const strategy = (init["Decision"] || init["Strategy"] || "").toString().trim().toLowerCase();
+                const targetCost = parseFloat(init.targetCostAnnualized);
+                const strategy = (init.decision || "").toString().trim().toLowerCase();
 
                 let targetSaving = 0;
                 if (!isNaN(targetCost) && targetCost >= 0) {
@@ -83,16 +85,16 @@
                 } else if (["terminate", "replace", "transfer"].includes(strategy)) {
                     targetSaving = startingCost;
                 }
-                init["Target Saving (Annualized)"] = targetSaving;
-                init["Target Saving %"] = startingCost > 0 ? (targetSaving / startingCost) : 0;
+                init.targetSavingAnnualized = targetSaving;
+                init.targetSavingPct = startingCost > 0 ? (targetSaving / startingCost) : 0;
 
-                const status = (init["Initiative Status"] || "").toString().trim().toLowerCase();
+                const status = (init.status || "").toString().trim().toLowerCase();
 
                 if (status === "completed") {
-                    init["Actual Saving (Annualized)"] = targetSaving;
+                    init.actualSavingAnnualized = targetSaving;
                 } else {
-                    init["Actual Saving (Annualized)"] = 0;
-                    init["New Actual"] = "";
+                    init.actualSavingAnnualized = 0;
+                    init.newActual = "";
                 }
             });
 
@@ -101,7 +103,7 @@
 
         updateInitiativeStatus: function (id, newStatus) {
             if (this.rawInitiatives[id]) {
-                this.rawInitiatives[id]["Initiative Status"] = newStatus;
+                this.rawInitiatives[id].status = newStatus;
                 return this.rawInitiatives[id];
             }
             return null;

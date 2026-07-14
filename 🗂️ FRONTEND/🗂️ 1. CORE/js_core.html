@@ -61,7 +61,7 @@
         document.getElementById('dashboard-content').classList.add('hidden');
 
         try {
-            // 1. Fetch raw data
+            // 1. Fetch raw data (che ora arrivano purissimi come DTO dal PayloadBuilder)
             const payload = await apiFetchFullPayload();
             
             // 2. Just-In-Time Hydration per gli stati "stantii"
@@ -83,41 +83,39 @@
             window.originalPayloadSnapshot = JSON.parse(JSON.stringify(hydratedPayload));
             setPendingChanges(false);
 
-            globalCachedData = (hydratedPayload.assets || []).filter(r => (r["Asset Name"] || "").toString().trim() !== "");
+            // Costruiamo la cache filtrando per "name" invece che "Asset Name"
+            globalCachedData = (hydratedPayload.assets || []).filter(r => (r.name || "").toString().trim() !== "");
 
-            // ... Il resto della funzione per calcolare i KPI Inventory rimane identico
+            // Calcolo Aggregato Asset
             globalCachedData.forEach(asset => {
-                const assetName = (asset["Asset Name"] || "").toString().toLowerCase().trim();
-                const projForAsset = windowPayload.projections.filter(p => (p["Asset Name"] || "").toLowerCase().trim() === assetName);
+                const assetName = (asset.name || "").toString().toLowerCase().trim();
+                const projForAsset = windowPayload.projections.filter(p => (p["Asset Name"] || p.assetName || "").toLowerCase().trim() === assetName);
 
-                const sumFY27 = projForAsset.reduce((acc, p) => acc + (parseFloat(p["FY27 Optimized"]) || 0), 0);
-                asset["Fiscal Projection (FY27)"] = sumFY27;
+                const sumFY27 = projForAsset.reduce((acc, p) => acc + (parseFloat(p["FY27 Optimized"] || p.fy27Optimized) || 0), 0);
+                asset.fiscalProjectionFY27 = sumFY27;
 
                 const activeContracts = (windowPayload.contracts || []).filter(c =>
-                    String(c["Asset Name"] || "").toLowerCase().trim() === assetName &&
-                    ["ACTIVE", "UPCOMING", "INCOMING"].includes(String(c["Status"] || "").toUpperCase().trim())
+                    String(c.assetName || "").toLowerCase().trim() === assetName &&
+                    ["ACTIVE", "UPCOMING", "INCOMING"].includes(String(c.status || "").toUpperCase().trim())
                 );
-                const nominalRunRate = activeContracts.reduce((sum, c) => sum + (parseFloat(c["Annual Value"] || c.annualValue) || 0), 0);
-                asset["Run Rate"] = nominalRunRate;
+                const nominalRunRate = activeContracts.reduce((sum, c) => sum + (parseFloat(c.annualValue) || 0), 0);
+                asset.runRate = nominalRunRate;
 
                 let effBudget = 0;
                 let variance = 0;
                 (windowPayload.varianceReport || []).forEach(v => {
-                    if (String(v["Asset Name"] || "").toLowerCase().trim() === assetName && String(v["Fiscal Year"] || "").toUpperCase().trim() === "FY27") {
-                        effBudget += parseFloat(v["Effective Budget"]) || 0;
-                        variance += parseFloat(v["Variance"]) || 0;
+                    if (String(v.assetName || "").toLowerCase().trim() === assetName && String(v.fiscalYear || "").toUpperCase().trim() === "FY27") {
+                        effBudget += parseFloat(v.effectiveBudget) || 0;
+                        variance += parseFloat(v.variance) || 0;
                     }
                 });
 
                 if (effBudget === 0) {
-                    asset["Budget Status (FY27)"] = "Not Budgeted";
-                    asset["Budget Status"] = "Not Budgeted";
+                    asset.budgetStatusFY27 = "Not Budgeted";
                 } else if (variance < 0) {
-                    asset["Budget Status (FY27)"] = "At Risk";
-                    asset["Budget Status"] = "At Risk";
+                    asset.budgetStatusFY27 = "At Risk";
                 } else {
-                    asset["Budget Status (FY27)"] = "Secured";
-                    asset["Budget Status"] = "Secured";
+                    asset.budgetStatusFY27 = "Secured";
                 }
             });
 

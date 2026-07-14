@@ -43,21 +43,21 @@ const AssetMapper = {
     const dto = {};
     const mappedKeys = Object.keys(ASSET_FIELD_MAP);
     const mappedCamelKeys = Object.values(ASSET_FIELD_MAP);
-    
+
     // Rete di sicurezza: le colonne custom non censite passano intatte nel DTO
     for (let key in rawRow) {
       if (!mappedKeys.includes(key) && !mappedCamelKeys.includes(key)) {
         dto[key] = rawRow[key];
       }
     }
-    
+
     // Traduzione esplicita delle colonne strutturate
     for (let sheetHeader in ASSET_FIELD_MAP) {
       const camelProp = ASSET_FIELD_MAP[sheetHeader];
       let val = rawRow[sheetHeader] !== undefined ? rawRow[sheetHeader] : rawRow[camelProp];
       dto[camelProp] = val !== undefined && val !== null ? val : "";
     }
-    
+
     return dto;
   }
 };
@@ -79,7 +79,7 @@ class Asset {
     this.category = dto.category || "";
     this.assetType = dto.assetType || "";
     this.description = dto.description || "";
-    
+
     // Stati e metriche finanziarie fluide calcolate in RAM
     this.budgetStatusFY27 = dto.budgetStatusFY27 || "Not Budgeted";
     this.runRate = parseFloat(dto.runRate) || 0;
@@ -90,7 +90,7 @@ class Asset {
     this.transferDate = dto.transferDate || "";
     this.initiativeTargetDate = dto.initiativeTargetDate || "";
     this.lastEndDate = dto.lastEndDate || "";
-    
+
     // Buffer isolato per l'invarianza del Bulk Round-Trip
     this.extraProperties = {};
     const knownProperties = Object.values(ASSET_FIELD_MAP);
@@ -107,7 +107,7 @@ class Asset {
    */
   injectContext(assetProjections, assetContracts, assetInits, assetVariances) {
     // RUN RATE e BUDGET STATUS non sono più calcolati qui, ma dal Frontend a Latenza Zero.
-    
+
     // B: LAST END DATE (Estrazione della massima scadenza contrattuale)
     let maxEndDate = null;
     assetContracts.forEach(c => {
@@ -130,7 +130,7 @@ class Asset {
 
       if (["COMPLETED", "IN PROGRESS"].includes(initStatus)) {
         costImprovementSum += parseFloat(init.actualSavingAnnualized || init.targetSavingAnnualized || 0);
-        
+
         if (init.targetDate) {
           const dTarget = new Date(init.targetDate);
           if (!isNaN(dTarget.getTime())) initTargetDateStr = formatServerDate(dTarget);
@@ -178,24 +178,10 @@ class Asset {
    * Compila il DTO in uscita preservando l'intera mappa delle proprietà dello scope originario.
    */
   exportToData() {
+    // Esporta lo stato nativo camelCase puro in un Plain Object JSON
     return {
       ...this.extraProperties,
-      id: this.id,
-      name: this.name,
-      manufacturer: this.manufacturer,
-      businessDriver: this.businessDriver,
-      category: this.category,
-      assetType: this.assetType,
-      description: this.description,
-      budgetStatusFY27: this.budgetStatusFY27,
-      runRate: this.runRate,
-      currentStatus: this.currentStatus,
-      targetStatus: this.targetStatus,
-      costImprovement: this.costImprovement,
-      exitDate: this.exitDate,
-      transferDate: this.transferDate,
-      initiativeTargetDate: this.initiativeTargetDate,
-      lastEndDate: this.lastEndDate
+      ...this
     };
   }
 }
@@ -231,19 +217,19 @@ class AssetService {
   consolidateBudgets() {
     console.log("ASSET SERVICE: Avvio della pipeline di consolidamento Lifecycle...");
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    
+
     const assets = this.repository.findAll();
     if (assets.length === 0) return;
 
     // 🌟 RISOLTO IL TIMEOUT: Rimosse le pesantissime letture di PROJECTIONS e VARIANCE!
     const dtosContracts = (getSheetDataAsObjects(ss, CONFIG.SHEETS.CONTRACTS) || []).map(c => ContractMapper.toDto(c, CONTRACT_FIELD_MAP));
     const dtosInitiatives = (getSheetDataAsObjects(ss, CONFIG.SHEETS.INITIATIVES) || []).map(i => ContractMapper.toDto(i, INITIATIVE_FIELD_MAP));
-    
+
     const updatedAssetsPayload = assets.map(asset => {
       const assetNameLower = asset.name.trim().toLowerCase();
       const assetContracts = dtosContracts.filter(c => String(c.assetName).trim().toLowerCase() === assetNameLower);
       const assetInits = dtosInitiatives.filter(i => String(i.assetName).trim().toLowerCase() === assetNameLower);
-      
+
       // I rami Projections e Variances vengono passati vuoti, ci penserà il Frontend
       asset.injectContext([], assetContracts, assetInits, []);
       return asset;

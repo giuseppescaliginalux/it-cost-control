@@ -27,7 +27,6 @@
                 if (budgetValDisplay) budgetValDisplay.textContent = InventoryState.filters.minRunRate.toLocaleString('it-IT');
             }
 
-            // ⚡ FIX: Lettura dinamica di tutti i checkbox selezionati nella UI
             const getCheckedValues = (containerId) => {
                 const container = document.getElementById(containerId);
                 if (!container) return [];
@@ -60,28 +59,28 @@
             alertThreshold.setDate(today.getDate() + 30);
 
             filteredAssets.forEach(row => {
-                const name = row["Asset Name"] || row.asset_name || row.assetName || "Unknown Asset";
-                const manufacturer = row["Manufacturer"] || row.manufacturer || "";
-                const businessDriver = row["Business Driver"] || row.businessDriver || "Technology";
-                const status = (row["Current Status"] || row.currentStatus || "Active").toUpperCase().trim();
-                const target = row["Target Status"] || row.targetStatus || "-";
-                const budgetStatus = row["Budget Status (FY27)"] || row.budgetStatusFY27 || row["Budget Status"] || "";
-                const exitDate = row["Exit Date"] || row.exitDate || "";
-                const lastEndDate = (row["Last End Date"] || row.lastEndDate) ? new Date(row["Last End Date"] || row.lastEndDate) : null;
+                const name = row.name || "Unknown Asset";
+                const manufacturer = row.manufacturer || "";
+                const businessDriver = row.businessDriver || "Technology";
+                const status = (row.currentStatus || "Active").toUpperCase().trim();
+                const target = row.targetStatus || "-";
+                const budgetStatus = row.budgetStatusFY27 || "";
+                const exitDate = row.exitDate || "";
+                const lastEndDate = row.lastEndDate ? new Date(row.lastEndDate) : null;
 
-                const runRate = parseFloat(row["Run Rate"] || row.runRate) || 0;
-                const costImprovement = parseFloat(row["Cost Improvement"] || row.costImprovement) || 0;
-                const fiscalProjection = parseFloat(row["Fiscal Projection (FY27)"] || row["Fiscal FY27"] || row.fiscalProjectionFY27 || 0);
+                const runRate = parseFloat(row.runRate) || 0;
+                const costImprovement = parseFloat(row.costImprovement) || 0;
+                const fiscalProjection = parseFloat(row.fiscalProjectionFY27 || 0);
 
-                const isActiveGroup = ["RUNNING", "EXPIRED", "OPTIMIZNG", "ACTIVE"].includes(status);
-                const isInactiveGroup = ["DISMISSED", "TRANSFERRED", "EXTNG", "EXITING"].includes(status);
+                const isActiveGroup = ["RUNNING", "EXPIRED", "OPTIMIZING", "ACTIVE"].includes(status);
+                const isInactiveGroup = ["DISMISSED", "TRANSFERRED", "EXITING"].includes(status);
                 const safeDOMId = btoa(encodeURIComponent(name)).replace(/=/g, "");
 
                 const showBudgetBadge = budgetStatus && budgetStatus.toUpperCase().trim() !== "NOT BUDGETED" && budgetStatus.trim() !== "-";
 
                 let alertClass = ""; let alertLabel = "";
                 if (lastEndDate) {
-                    if (lastEndDate <= today && ["RUNNING", "OPTIMIZNG", "ACTIVE"].includes(status)) {
+                    if (lastEndDate <= today && ["RUNNING", "OPTIMIZING", "ACTIVE"].includes(status)) {
                         alertClass = "border-l-4 border-l-rose-500 bg-rose-50/20";
                         alertLabel = `<span class="ml-2 text-[8px] font-black uppercase tracking-widest text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded">Overdue</span>`;
                     } else if (lastEndDate <= alertThreshold && lastEndDate > today) {
@@ -116,8 +115,8 @@
 
             let sumRunRate = 0; let sumOutlook = 0;
             filteredAssets.forEach(row => {
-                sumRunRate += parseFloat(row["Run Rate"] || row.runRate) || 0;
-                sumOutlook += parseFloat(row["Fiscal Projection (FY27)"] || row["Fiscal FY27"] || row.fiscalProjectionFY27) || 0;
+                sumRunRate += parseFloat(row.runRate) || 0;
+                sumOutlook += parseFloat(row.fiscalProjectionFY27) || 0;
             });
 
             if (document.getElementById('asset-count-badge')) document.getElementById('asset-count-badge').textContent = filteredAssets.length + " Assets";
@@ -195,10 +194,11 @@
                 let html = `<div class="overflow-hidden border border-slate-200 rounded-xl bg-white shadow-sm"><table class="w-full text-left text-[11px] border-collapse"><thead><tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-black uppercase tracking-widest"><th class="p-3 w-1/2">Budget Entry</th><th class="p-3 text-right w-1/4">Original Amount</th><th class="p-3 text-right w-1/4">Allocated Share</th></tr></thead><tbody class="divide-y divide-slate-100">`;
                 let sumOriginal = 0; let sumEffective = 0;
                 dataList.forEach(log => {
-                    const origBudget = parseFloat(log["Original Budget"]) || 0; const effBudget = parseFloat(log["Effective Budget"]) || 0;
+                    const origBudget = parseFloat(log.effectiveBudget || log.originalBudget || log["Original Budget"]) || 0; 
+                    const effBudget = parseFloat(log.effectiveBudget || log["Effective Budget"]) || 0;
                     const coAssets = log.co_allocated_assets || []; sumOriginal += origBudget; sumEffective += effBudget;
-                    let split = (parseFloat(log["Allocation Split %"]) || 0); if (split > 0 && split <= 1) split *= 100;
-                    html += `<tr class="text-slate-600 font-medium hover:bg-slate-50/30"><td class="p-3 align-top"><div class="font-bold text-slate-900 leading-tight">${log["Allocation Alias"] || "N/A"}</div><div class="text-[9px] text-slate-400 mt-1 uppercase font-bold">${safeFormatStringDate(log["Valid From"])} → ${safeFormatStringDate(log["Valid To"])}</div></td><td class="p-3 text-right align-top font-mono text-slate-400 italic">€ ${origBudget.formatCurrency()}</td><td class="p-3 text-right align-top"><div class="text-teal-900 font-black font-mono text-sm">€ ${effBudget.formatCurrency()}</div><div class="mt-1"><span class="px-2 py-0.5 rounded border text-[9px] font-black uppercase ${split >= 99.9 ? 'text-emerald-600 bg-emerald-50 border-emerald-100' : 'text-teal-600 bg-teal-50 border-teal-100'}">${split.toFixed(1)}%</span></div></td></tr>`;
+                    let split = (parseFloat(log.allocationSplitPct || log["Allocation Split %"]) || 0); if (split > 0 && split <= 1) split *= 100;
+                    html += `<tr class="text-slate-600 font-medium hover:bg-slate-50/30"><td class="p-3 align-top"><div class="font-bold text-slate-900 leading-tight">${log.allocationAlias || log["Allocation Alias"] || "N/A"}</div><div class="text-[9px] text-slate-400 mt-1 uppercase font-bold">${safeFormatStringDate(log.validFrom)} → ${safeFormatStringDate(log.validTo)}</div></td><td class="p-3 text-right align-top font-mono text-slate-400 italic">€ ${origBudget.formatCurrency()}</td><td class="p-3 text-right align-top"><div class="text-teal-900 font-black font-mono text-sm">€ ${effBudget.formatCurrency()}</div><div class="mt-1"><span class="px-2 py-0.5 rounded border text-[9px] font-black uppercase ${split >= 99.9 ? 'text-emerald-600 bg-emerald-50 border-emerald-100' : 'text-teal-600 bg-teal-50 border-teal-100'}">${split.toFixed(1)}%</span></div></td></tr>`;
                     if (split < 99.9 && coAssets.length > 0) {
                         const sharedList = coAssets.map(co => `<span class="text-slate-700 font-bold">${co.asset_name}</span> <span class="text-teal-600 font-mono">(${(parseFloat(co.split_pct) * 100).toFixed(0)}%)</span>`).join('<span class="mx-3 text-slate-300">|</span>');
                         html += `<tr class="bg-slate-50/50"><td colspan="3" class="px-4 py-2 border-b border-slate-100 text-left"><div class="text-[10px] leading-relaxed"><span class="font-black text-slate-400 uppercase tracking-widest mr-2">↳ Co-allocated with:</span>${sharedList}</div></td></tr>`;
@@ -211,19 +211,19 @@
             else if (tabType === 'initiatives') {
                 const dataList = InventoryState.currentDrillDownData.initiatives || [];
                 dataList.sort((a, b) => {
-                    const dA = (a["Target Date"] || a.targetDate) ? new Date(a["Target Date"] || a.targetDate).getTime() : new Date(2099, 11, 31).getTime();
-                    const dB = (b["Target Date"] || b.targetDate) ? new Date(b["Target Date"] || b.targetDate).getTime() : new Date(2099, 11, 31).getTime();
+                    const dA = a.targetDate ? new Date(a.targetDate).getTime() : new Date(2099, 11, 31).getTime();
+                    const dB = b.targetDate ? new Date(b.targetDate).getTime() : new Date(2099, 11, 31).getTime();
                     return dA - dB;
                 });
                 if (dataList.length === 0) { contentDiv.innerHTML = '<p class="text-slate-400 italic py-4 text-center text-xs">No initiatives linked to this asset.</p>'; return; }
                 let html = '<div class="flex flex-col gap-2">';
                 dataList.forEach(log => {
-                    const isActual = (parseFloat(log["Actual Saving (Annualized)"] || log.actualSavingAnnualized) || 0) > 0;
-                    const savingVal = isActual ? parseFloat(log["Actual Saving (Annualized)"] || log.actualSavingAnnualized) : parseFloat(log["Target Saving (Annualized)"] || log.targetSavingAnnualized);
-                    const baselineVal = parseFloat(log["Baseline Spend (Annualized)"] || log.baselineSpendAnnualized) || 0;
+                    const isActual = (parseFloat(log.actualSavingAnnualized) || 0) > 0;
+                    const savingVal = isActual ? parseFloat(log.actualSavingAnnualized) : parseFloat(log.targetSavingAnnualized);
+                    const baselineVal = parseFloat(log.baselineSpendAnnualized) || 0;
                     const savingPct = baselineVal > 0 ? Math.round((savingVal / baselineVal) * 100) : 0;
                     const borderClass = isActual ? "border-emerald-500 shadow-emerald-50" : "border-amber-500 shadow-amber-50";
-                    html += `<div class="bg-white p-3 rounded-xl border-l-4 ${borderClass} border-slate-100 shadow-sm flex justify-between items-center gap-4 hover:shadow-md transition-shadow"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1"><span class="font-black text-slate-900 text-[13px] uppercase truncate">${log["Decision"] || log.decision}</span><span class="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-widest">${log["Initiative Status"] || log.status}</span></div><p class="text-[10px] text-slate-500 italic truncate opacity-80">"${log["Description"] || log.description || "No description."}"</p></div><div class="flex gap-3 items-center shrink-0"><div class="text-center px-3 border-r border-slate-100"><p class="text-[8px] text-slate-400 font-black uppercase mb-0.5 tracking-tighter">Target Date</p><p class="font-mono font-bold text-slate-800 text-[10px]">${safeFormatStringDate(log["Target Date"] || log.targetDate || log["Actual Date"] || log.actualDate)}</p></div><div class="text-right px-3 border-r border-slate-100 hidden sm:block"><p class="text-[8px] text-slate-400 font-black uppercase mb-0.5 tracking-tighter">Baseline Spend</p><p class="font-mono font-bold text-slate-600 text-[10px]">€${baselineVal.formatCurrency()}</p></div><div class="text-right min-w-[85px]"><p class="text-[8px] text-emerald-500 font-black uppercase mb-0.5 tracking-tighter">${isActual ? 'Actual Saving' : 'Target Saving'}</p><div class="flex flex-col items-end gap-0.5"><p class="font-mono font-black text-emerald-700 text-xs">€${savingVal.formatCurrency()}</p>${savingPct > 0 ? `<span class="bg-emerald-100 text-emerald-700 text-[8px] font-bold px-1 py-0.5 rounded leading-none">-${savingPct}%</span>` : ''}</div></div></div></div>`;
+                    html += `<div class="bg-white p-3 rounded-xl border-l-4 ${borderClass} border-slate-100 shadow-sm flex justify-between items-center gap-4 hover:shadow-md transition-shadow"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1"><span class="font-black text-slate-900 text-[13px] uppercase truncate">${log.decision}</span><span class="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-widest">${log.status}</span></div><p class="text-[10px] text-slate-500 italic truncate opacity-80">"${log.description || "No description."}"</p></div><div class="flex gap-3 items-center shrink-0"><div class="text-center px-3 border-r border-slate-100"><p class="text-[8px] text-slate-400 font-black uppercase mb-0.5 tracking-tighter">Target Date</p><p class="font-mono font-bold text-slate-800 text-[10px]">${safeFormatStringDate(log.targetDate || log.actualDate)}</p></div><div class="text-right px-3 border-r border-slate-100 hidden sm:block"><p class="text-[8px] text-slate-400 font-black uppercase mb-0.5 tracking-tighter">Baseline Spend</p><p class="font-mono font-bold text-slate-600 text-[10px]">€${baselineVal.formatCurrency()}</p></div><div class="text-right min-w-[85px]"><p class="text-[8px] text-emerald-500 font-black uppercase mb-0.5 tracking-tighter">${isActual ? 'Actual Saving' : 'Target Saving'}</p><div class="flex flex-col items-end gap-0.5"><p class="font-mono font-black text-emerald-700 text-xs">€${savingVal.formatCurrency()}</p>${savingPct > 0 ? `<span class="bg-emerald-100 text-emerald-700 text-[8px] font-bold px-1 py-0.5 rounded leading-none">-${savingPct}%</span>` : ''}</div></div></div></div>`;
                 });
                 contentDiv.innerHTML = html + '</div>';
             }
@@ -234,15 +234,12 @@
             if (!contentDiv) return;
 
             const assetContracts = InventoryState.currentDrillDownData.contracts || [];
-
-            const targetAssetObj = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"] || a.assetName)).replace(/=/g, "") === safeDOMId);
-            const actualAssetName = targetAssetObj ? (targetAssetObj["Asset Name"] || targetAssetObj.assetName) : "";
-
+            const targetAssetObj = globalCachedData.find(a => btoa(encodeURIComponent(a.name)).replace(/=/g, "") === safeDOMId);
+            const actualAssetName = targetAssetObj ? (targetAssetObj.name || "") : "";
             const allMasters = windowPayload.masterContracts || [];
 
-            // ⚡ Filtro che include anche i master vuoti dell'asset selezionato
             const filteredMasters = allMasters.filter(m => {
-                const mAsset = (m["Asset Name"] || m.assetName || "").trim().toLowerCase();
+                const mAsset = (m.assetName || "").trim().toLowerCase();
                 return mAsset === actualAssetName.trim().toLowerCase();
             });
 
@@ -266,18 +263,16 @@
 
             let htmlBuffer = newMasterBtnHtml + `<div class="flex flex-col gap-0">`;
             filteredMasters.forEach(master => {
-                const mIdProp = typeof MASTER_FIELD_MAP !== 'undefined' ? MASTER_FIELD_MAP["Master Contract ID"] : "masterId";
-                const mId = master["Master Contract ID"] || master[mIdProp] || master.masterId;
+                const mId = master.masterId;
 
                 let childContracts = assetContracts.filter(c => {
-                    const childMId = c["Master Contract ID"] || c.masterId || "";
+                    const childMId = c.masterId || "";
                     return String(childMId).trim() === String(mId).trim();
                 });
 
-                // ⚡ Ordinamento per Data di Scadenza Decrescente
                 childContracts.sort((a, b) => {
-                    const dEndA = a["Adjusted End Date"] || a.adjustedEndDate || a["Contract End Date"] || a.contractEndDate || a["End Date"] || a.endDate;
-                    const dEndB = b["Adjusted End Date"] || b.adjustedEndDate || b["Contract End Date"] || b.contractEndDate || b["End Date"] || b.endDate;
+                    const dEndA = a.adjustedEndDate || a.contractEndDate || a.endDate;
+                    const dEndB = b.adjustedEndDate || b.contractEndDate || b.endDate;
                     const timeA = dEndA ? new Date(dEndA).getTime() : 0;
                     const timeB = dEndB ? new Date(dEndB).getTime() : 0;
                     return timeB - timeA;
@@ -293,7 +288,6 @@
             htmlBuffer += `</div>`;
             contentDiv.innerHTML = htmlBuffer;
 
-            // ⚡ Innesco API Documenti
             const targetLinks = contentDiv.querySelectorAll('.live-doc-link');
             if (targetLinks.length > 0 && typeof ContractsAPI !== 'undefined') {
                 const rawUrls = Array.from(targetLinks).map(el => el.getAttribute('data-raw'));
@@ -322,17 +316,17 @@
 
         triggerEditContract: function (contractId) {
             if (typeof window.ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
-                const contractObj = windowPayload.contracts.find(c => (c["Contract ID"] || c.contractId) === contractId);
-                const masterId = contractObj ? (contractObj["Master Contract ID"] || contractObj.masterId) : null;
+                const contractObj = windowPayload.contracts.find(c => c.contractId === contractId);
+                const masterId = contractObj ? contractObj.masterId : null;
 
                 if (masterId) {
                     ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
-                    const masterMatch = windowPayload.masterContracts.find(m => (m["Master Contract ID"] || m.masterId) === masterId);
-                    const assetName = masterMatch ? (masterMatch["Asset Name"] || masterMatch.assetName) : null;
-                    const assetMatch = windowPayload.assets.find(a => (a["Asset Name"] || a.assetName) === assetName);
-                    if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"] || assetMatch.assetName, id: assetMatch["Asset ID"] || assetMatch.assetId };
+                    const masterMatch = windowPayload.masterContracts.find(m => m.masterId === masterId);
+                    const assetName = masterMatch ? masterMatch.assetName : null;
+                    const assetMatch = windowPayload.assets.find(a => a.name === assetName);
+                    if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch.name, id: assetMatch.id };
 
-                    const item = ContractsState.currentDetailItems.find(i => (i.data["Contract ID"] || i.data.contractId) === contractId);
+                    const item = ContractsState.currentDetailItems.find(i => i.data.contractId === contractId);
                     if (item) window.ContractsController.openContractModalWindow(item.id);
                 }
             }
@@ -341,10 +335,10 @@
         triggerAddContractLine: function (masterId) {
             if (typeof window.ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
                 ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
-                const masterMatch = windowPayload.masterContracts.find(m => (m["Master Contract ID"] || m.masterId) === masterId);
-                const assetName = masterMatch ? (masterMatch["Asset Name"] || masterMatch.assetName) : null;
-                const assetMatch = windowPayload.assets.find(a => (a["Asset Name"] || a.assetName) === assetName);
-                if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch["Asset Name"] || assetMatch.assetName, id: assetMatch["Asset ID"] || assetMatch.assetId };
+                const masterMatch = windowPayload.masterContracts.find(m => m.masterId === masterId);
+                const assetName = masterMatch ? masterMatch.assetName : null;
+                const assetMatch = windowPayload.assets.find(a => a.name === assetName);
+                if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch.name, id: assetMatch.id };
 
                 window.ContractsController.addNewDetailRowItem();
             }
@@ -360,25 +354,15 @@
 
         triggerCreateNewMaster: function () {
             if (typeof window.ContractsController !== 'undefined' && InventoryState.expandedAssetId) {
-                const assetMatch = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"] || a.assetName)).replace(/=/g, "") === InventoryState.expandedAssetId);
+                const assetMatch = globalCachedData.find(a => btoa(encodeURIComponent(a.name)).replace(/=/g, "") === InventoryState.expandedAssetId);
 
                 if (assetMatch) {
-                    ContractsState.currentSelectedAsset = {
-                        name: assetMatch["Asset Name"] || assetMatch.assetName,
-                        id: assetMatch["Asset ID"] || assetMatch.assetId
-                    };
+                    ContractsState.currentSelectedAsset = { name: assetMatch.name, id: assetMatch.id };
                     ContractsState.resetMaster();
 
                     const tempId = "TMP-MCT-" + Date.now();
-                    ContractsState.currentMasterData["Master Contract ID"] = tempId;
-
-                    if (typeof MASTER_FIELD_MAP !== 'undefined' && MASTER_FIELD_MAP["Master Contract ID"]) {
-                        ContractsState.currentMasterData[MASTER_FIELD_MAP["Master Contract ID"]] = tempId;
-                    }
-                    ContractsState.currentMasterData["Asset Name"] = ContractsState.currentSelectedAsset.name;
-                    if (typeof MASTER_FIELD_MAP !== 'undefined' && MASTER_FIELD_MAP["Asset Name"]) {
-                        ContractsState.currentMasterData[MASTER_FIELD_MAP["Asset Name"]] = ContractsState.currentSelectedAsset.name;
-                    }
+                    ContractsState.currentMasterData.masterId = tempId;
+                    ContractsState.currentMasterData.assetName = ContractsState.currentSelectedAsset.name;
 
                     window.ContractsController.openMasterModalWindow("");
                 }
@@ -387,12 +371,12 @@
 
         triggerCloneContract: function (contractId) {
             if (typeof window.ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
-                const contractObj = windowPayload.contracts.find(c => (c["Contract ID"] || c.contractId) === contractId);
-                const masterId = contractObj ? (contractObj["Master Contract ID"] || contractObj.masterId) : null;
+                const contractObj = windowPayload.contracts.find(c => c.contractId === contractId);
+                const masterId = contractObj ? contractObj.masterId : null;
 
                 if (masterId) {
                     ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
-                    const item = ContractsState.currentDetailItems.find(i => (i.data["Contract ID"] || i.data.contractId) === contractId);
+                    const item = ContractsState.currentDetailItems.find(i => i.data.contractId === contractId);
 
                     if (item && ContractsState.cloneDetailRow(item.id)) {
                         const latestItem = ContractsState.currentDetailItems[ContractsState.currentDetailItems.length - 1];
@@ -416,7 +400,7 @@
 
         populateContractFilters: function () {
             const contracts = windowPayload.contracts || [];
-            const getUnique = (key1, key2) => [...new Set(contracts.map(c => (c[key1] || c[key2] || "").toString().trim()).filter(v => v !== ""))].sort();
+            const getUnique = (key) => [...new Set(contracts.map(c => (c[key] || "").toString().trim()).filter(v => v !== ""))].sort();
 
             const buildCheckboxes = (values, containerId) => {
                 const container = document.getElementById(containerId);
@@ -429,14 +413,14 @@
                 `).join('');
             };
 
-            buildCheckboxes(getUnique("Billing Channel", "billingChannel"), "filter-container-channel");
-            buildCheckboxes(getUnique("Expenditure Type", "expenditureType"), "filter-container-exp");
-            buildCheckboxes(getUnique("Legal Entity", "legalEntity"), "filter-container-legal");
-            buildCheckboxes(getUnique("Supplier", "supplier"), "filter-container-supplier");
-            buildCheckboxes(getUnique("Cost Center", "costCenter"), "filter-container-costcenter");
-            buildCheckboxes(getUnique("Location", "location"), "filter-container-location");
+            buildCheckboxes(getUnique("billingChannel"), "filter-container-channel");
+            buildCheckboxes(getUnique("expenditureType"), "filter-container-exp");
+            buildCheckboxes(getUnique("legalEntity"), "filter-container-legal");
+            buildCheckboxes(getUnique("supplier"), "filter-container-supplier");
+            buildCheckboxes(getUnique("costCenter"), "filter-container-costcenter");
+            buildCheckboxes(getUnique("location"), "filter-container-location");
 
-            const uniqueLocations = getUnique("Location", "location");
+            const uniqueLocations = getUnique("location");
             const countrySet = new Set();
             uniqueLocations.forEach(loc => {
                 const match = loc.match(/^\[([A-Z]{3})\]/);
@@ -469,11 +453,11 @@
 
         populateAssetFilters: function () {
             const assets = globalCachedData || [];
-            const getUnique = (key1, key2) => [...new Set(assets.map(a => (a[key1] || a[key2] || "").toString().trim()).filter(v => v !== "" && v !== "-"))].sort();
+            const getUnique = (key) => [...new Set(assets.map(a => (a[key] || "").toString().trim()).filter(v => v !== "" && v !== "-"))].sort();
 
             const container = document.getElementById("status-filter-container");
             if (container) {
-                container.innerHTML = getUnique("Current Status", "currentStatus").map(val => `
+                container.innerHTML = getUnique("currentStatus").map(val => `
                     <label class="flex items-center gap-2 cursor-pointer group/cb">
                         <input type="checkbox" value="${val.toUpperCase()}" onchange="InventoryController.applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
                         <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val.toUpperCase()}</span>
@@ -483,7 +467,7 @@
 
             const budgetContainer = document.getElementById("budget-status-filter-container");
             if (budgetContainer) {
-                budgetContainer.innerHTML = getUnique("Budget Status (FY27)", "budgetStatusFY27").map(val => `
+                budgetContainer.innerHTML = getUnique("budgetStatusFY27").map(val => `
                     <label class="flex items-center gap-2 cursor-pointer group/cb">
                         <input type="checkbox" value="${val.toUpperCase()}" onchange="InventoryController.applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
                         <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val.toUpperCase()}</span>
@@ -493,7 +477,7 @@
 
             const driverContainer = document.getElementById("driver-filter-container");
             if (driverContainer) {
-                driverContainer.innerHTML = getUnique("Business Driver", "businessDriver").map(val => `
+                driverContainer.innerHTML = getUnique("businessDriver").map(val => `
                     <label class="flex items-center gap-2 cursor-pointer group/cb">
                         <input type="checkbox" value="${val.toUpperCase()}" onchange="InventoryController.applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
                         <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val.toUpperCase()}</span>
@@ -505,7 +489,7 @@
         setupDynamicSlider: function (allRows) {
             let maxRunRate = 0;
             allRows.forEach(row => {
-                const rate = parseFloat(row["Run Rate"] || row.runRate) || 0;
+                const rate = parseFloat(row.runRate) || 0;
                 if (rate > maxRunRate) maxRunRate = rate;
             });
             if (maxRunRate === 0) maxRunRate = 1000000;
