@@ -1,59 +1,12 @@
 /**
  * ============================================================================
- * FINOPS ENTERPRISE ARCHITECTURE: INITIATIVES DOMAIN (PURE DTO PATTERN)
- * ============================================================================
- * Gestisce i risparmi, le rinegoziazioni e il lookup top-down dal Master Contract.
+ * FINOPS PURE DOMAIN: Initiatives
  * ============================================================================
  */
 
-// ============================================================================
-// 1. INFRASTRUCTURE & PERSISTENCE SCHEMA
-// ============================================================================
-const INITIATIVE_FIELD_MAP = {
-  "Initiative ID": "id", "Initiative Name": "name", "Initiative Status": "status",
-  "Initial Strategy": "initialStrategy", "Decision": "decision", "Asset Name": "assetName",
-  "Master Contract ID": "masterId", "Contract ID": "contractId", "Supplier": "supplier",
-  "Baseline (Annualized)": "baselineAnnualized",
-  "Contract Term": "contractTerm",
-  "Expenditure Type": "expenditureType", "Target Date": "targetDate", "Actual Date": "actualDate",
-  "Target Cost (Annualized)": "targetCostAnnualized", "Baseline Spend (Annualized)": "baselineSpendAnnualized",
-  "Target Saving (Annualized)": "targetSavingAnnualized", "Target Saving %": "targetSavingPct",
-  "New Actual": "newActual", "Actual Saving (Annualized)": "actualSavingAnnualized",
-  "Optimization Levers": "optimizationLevers", "Description": "description", "Service Owner": "serviceOwner",
-  "Procurement Point": "procurementPoint", "Procurement Point Focal": "procurementPointFocal",
-  "Contract Term (Months)": "contractTermMonths", "Last Expiration": "lastExpiration",
-  "Tags": "tags", "Notes": "notes", "Quality Check": "qualityCheck"
-};
-
-const InitiativeMapper = {
-  toDto: (rawRow) => {
-    const dto = {};
-    const mappedKeys = Object.keys(INITIATIVE_FIELD_MAP);
-    const mappedCamelKeys = Object.values(INITIATIVE_FIELD_MAP);
-
-    // Rete di sicurezza (Anti Data-Loss)
-    for (let key in rawRow) {
-      if (!mappedKeys.includes(key) && !mappedCamelKeys.includes(key)) {
-        dto[key] = rawRow[key];
-      }
-    }
-
-    // Mappatura esplicita
-    for (let sheetHeader in INITIATIVE_FIELD_MAP) {
-      const camelProp = INITIATIVE_FIELD_MAP[sheetHeader];
-      let val = rawRow[sheetHeader] !== undefined ? rawRow[sheetHeader] : rawRow[camelProp];
-      dto[camelProp] = val !== undefined && val !== null ? val : "";
-    }
-    return dto;
-  }
-};
-
-// ============================================================================
-// 2. PURE MODEL DOMAIN ENTITY
-// ============================================================================
 class Initiative {
-  constructor(dto = {}) {
-    Object.assign(this, dto);
+  constructor(data = {}) {
+    Object.assign(this, data);
     this.id = this.id || "";
     this.masterId = this.masterId || "";
     this.contractId = this.contractId || "";
@@ -100,40 +53,33 @@ class Initiative {
 
     let targetLocalContract = null;
     if (this.contractId && contractDetails && contractDetails.length > 0) {
-      targetLocalContract = contractDetails.find(c =>
-        String(c.contractId || c["Contract ID"]).trim() === String(this.contractId).trim()
-      );
+      targetLocalContract = contractDetails.find(c => String(c.contractId).trim() === String(this.contractId).trim());
     }
 
     if (targetLocalContract) {
-      this.supplier = targetLocalContract.supplier || targetLocalContract["Supplier"] || (masterContractData ? (masterContractData.supplier || masterContractData["Supplier"]) : this.supplier);
-      this.contractTermMonths = Math.round(parseFloat(targetLocalContract.contractTerm || targetLocalContract["Contract Term (Months)"])) || "";
+      this.supplier = targetLocalContract.supplier || this.supplier;
+      this.contractTermMonths = Math.round(parseFloat(targetLocalContract.contractTerm)) || "";
+      this.contractTerm = Math.round(parseFloat(targetLocalContract.contractTerm)) || 0;
+      this.baselineAnnualized = parseFinance(targetLocalContract.annualValue);
 
-      // 🌟 PURE LOOKUPS NOMINALE (Senza cascate, bloccata con arrotondamento rigido)
-      this.contractTerm = Math.round(parseFloat(targetLocalContract.contractTerm || targetLocalContract["Contract Term (Months)"])) || 0;
-      this.baselineAnnualized = parseFinance(targetLocalContract.annualValue || targetLocalContract["Annual Value"]);
-
-      const cEnd = targetLocalContract.adjustedEndDate || targetLocalContract["Adjusted End Date"] || targetLocalContract.contractEndDate || targetLocalContract["Contract End Date"] || targetLocalContract.endDate || targetLocalContract["End Date"];
+      const cEnd = targetLocalContract.adjustedEndDate || targetLocalContract.contractEndDate || targetLocalContract.endDate;
       this.lastExpiration = cEnd ? new Date(cEnd) : this.lastExpiration;
-      this.expenditureType = targetLocalContract.expenditureType || targetLocalContract["Expenditure Type"] || this.expenditureType;
+      this.expenditureType = targetLocalContract.expenditureType || this.expenditureType;
 
     } else if (masterContractData) {
-      this.supplier = masterContractData.supplier || masterContractData["Supplier"] || this.supplier;
-      this.contractTermMonths = Math.round(parseFloat(masterContractData.contractTerm || masterContractData["Contract Term (Months)"])) || "";
+      this.supplier = masterContractData.supplier || this.supplier;
+      this.contractTermMonths = Math.round(parseFloat(masterContractData.contractTerm)) || "";
+      this.contractTerm = Math.round(parseFloat(masterContractData.contractTerm)) || 0;
+      this.baselineAnnualized = parseFinance(masterContractData.runRate);
 
-      // 🌟 PURE LOOKUPS NOMINALE (Senza cascate, bloccata con arrotondamento rigido)
-      this.contractTerm = Math.round(parseFloat(masterContractData.contractTerm || masterContractData["Contract Term (Months)"])) || 0;
-      this.baselineAnnualized = parseFinance(masterContractData.runRate || masterContractData["Run Rate"]);
-
-      this.lastExpiration = masterContractData.masterEndDate || masterContractData["Master End Date"] ? new Date(masterContractData.masterEndDate || masterContractData["Master End Date"]) : this.lastExpiration;
+      this.lastExpiration = masterContractData.masterEndDate ? new Date(masterContractData.masterEndDate) : this.lastExpiration;
       if (contractDetails && contractDetails.length > 0) {
-        const child = contractDetails.find(c => c["Master Contract ID"] === this.masterId || c.masterId === this.masterId);
-        if (child) this.expenditureType = child.expenditureType || child["Expenditure Type"] || this.expenditureType;
+        const child = contractDetails.find(c => c.masterId === this.masterId);
+        if (child) this.expenditureType = child.expenditureType || this.expenditureType;
       }
     }
 
-    // Calcolo progressivo per l'altro campo ("Baseline Spend") che era già corretto
-    let originalBaseline = targetLocalContract ? parseFinance(targetLocalContract.annualValue || targetLocalContract["Annual Value"]) : (masterContractData ? parseFinance(masterContractData.runRate || masterContractData["Run Rate"]) : 0);
+    let originalBaseline = targetLocalContract ? parseFinance(targetLocalContract.annualValue) : (masterContractData ? parseFinance(masterContractData.runRate) : 0);
     let startingCost = originalBaseline;
     if (originalBaseline !== 0 && this.targetDate && !isNaN(this.targetDate.getTime())) {
       const validPriors = priorInits.filter(i => {
@@ -179,47 +125,3 @@ class Initiative {
     };
   }
 }
-
-// ============================================================================
-// 3. REPOSITORY & SERVICE
-// ============================================================================
-class InitiativeRepository {
-  constructor() { this.sheetName = CONFIG.SHEETS.INITIATIVES; }
-  saveAllBulk(initiativesDtoArray) {
-    FinOpsDatabase.setObjects(this.sheetName, initiativesDtoArray, INITIATIVE_FIELD_MAP, false);
-  }
-}
-
-class InitiativeService {
-  constructor() { this.repository = new InitiativeRepository(); }
-
-  processAndSync(rawInitiativesArray) {
-    if (!rawInitiativesArray || !Array.isArray(rawInitiativesArray)) return "SUCCESS";
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const activeMasters = getSheetDataAsObjects(ss, CONFIG.SHEETS.MASTER_CONTRACTS) || [];
-    const activeContracts = getSheetDataAsObjects(ss, CONFIG.SHEETS.CONTRACTS) || [];
-
-    const finalExportedPayloads = rawInitiativesArray.map((rawInit, idx) => {
-      const dto = InitiativeMapper.toDto(rawInit);
-      const initiative = new Initiative(dto);
-
-      const parentMaster = activeMasters.find(m => String(m.masterId || m["Master Contract ID"]).trim() === String(initiative.masterId).trim());
-      const childContracts = activeContracts.filter(c => String(c.masterId || c["Master Contract ID"]).trim() === String(initiative.masterId).trim());
-
-      initiative.injectContext(parentMaster, childContracts);
-      if (!initiative.id) initiative.id = `INC-FIN-${new Date().getFullYear()}-${String(idx + 1).padStart(2, '0')}`;
-
-      return initiative.exportToData();
-    });
-
-    this.repository.saveAllBulk(finalExportedPayloads);
-    return "SUCCESS";
-  }
-
-  forceRecalculateAll() {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const allInits = getSheetDataAsObjects(ss, CONFIG.SHEETS.INITIATIVES) || [];
-    this.processAndSync(allInits);
-  }
-}
-const InitiativeDomain = new InitiativeService();

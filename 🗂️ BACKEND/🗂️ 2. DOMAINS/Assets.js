@@ -1,78 +1,14 @@
 /**
  * ============================================================================
- * FINOPS ENTERPRISE ARCHITECTURE: ASSETS & BUDGETS DOMAIN (PURE DTO PATTERN)
+ * FINOPS PURE DOMAIN: Assets
  * ============================================================================
- * Gestisce l'anagrafe degli Asset tecnologici, l'analisi dei driver di business
- * e la riconciliazione automatica degli indicatori finanziari (Varianze e Status).
- * ============================================================================
+ * Entità di dominio isomorfica. Ignora totalmente
+ * l'esistenza di Google Sheets o dei Services.
  */
 
-// ============================================================================
-// 1. INFRASTRUCTURE & PERSISTENCE SCHEMA (Alta Coesione Locale)
-// ============================================================================
-
-const ASSET_FIELD_MAP = {
-  "Asset ID": "id",
-  "Asset Name": "name",
-  "Manufacturer": "manufacturer",
-  "Business Driver": "businessDriver",
-  "Asset Category": "category",
-  "Asset Type": "assetType",
-  "Description": "description",
-  "Budget Status (FY27)": "budgetStatusFY27",
-  "Run Rate": "runRate",
-  "Current Status": "currentStatus",
-  "Target Status": "targetStatus",
-  "Cost Improvement": "costImprovement",
-  "Exit Date": "exitDate",
-  "Transfer Date": "transferDate",
-  "Initiative Target Date": "initiativeTargetDate",
-  "Last End Date": "lastEndDate"
-};
-
-/**
- * @object AssetMapper
- * @description Isola il Modello di Dominio dalle strutture fisiche delle righe di Google Sheets.
- */
-const AssetMapper = {
-  /**
-   * Trasforma una riga grezza letta dal foglio in un DTO standardizzato in camelCase.
-   * Garantisce l'invarianza e la protezione totale da perdita dati per le colonne extra.
-   */
-  toDto: (rawRow) => {
-    const dto = {};
-    const mappedKeys = Object.keys(ASSET_FIELD_MAP);
-    const mappedCamelKeys = Object.values(ASSET_FIELD_MAP);
-
-    // Rete di sicurezza: le colonne custom non censite passano intatte nel DTO
-    for (let key in rawRow) {
-      if (!mappedKeys.includes(key) && !mappedCamelKeys.includes(key)) {
-        dto[key] = rawRow[key];
-      }
-    }
-
-    // Traduzione esplicita delle colonne strutturate
-    for (let sheetHeader in ASSET_FIELD_MAP) {
-      const camelProp = ASSET_FIELD_MAP[sheetHeader];
-      let val = rawRow[sheetHeader] !== undefined ? rawRow[sheetHeader] : rawRow[camelProp];
-      dto[camelProp] = val !== undefined && val !== null ? val : "";
-    }
-
-    return dto;
-  }
-};
-
-// ============================================================================
-// 2. PURE MODEL DOMAIN ENTITY (SOLID: Single Responsibility Principle)
-// ============================================================================
-
-/**
- * @class Asset
- * @description Entità di puro dominio. Interagisce unicamente con proprietà camelCase.
- */
 class Asset {
-  constructor(dto = {}) {
-    Object.assign(this, dto);
+  constructor(data = {}) {
+    Object.assign(this, data);
     this.id = this.id || "";
     this.name = this.name || "";
     this.manufacturer = this.manufacturer || "";
@@ -92,18 +28,13 @@ class Asset {
     this.lastEndDate = this.lastEndDate || "";
   }
 
-  /**
-   * @description Modulo logico relazionale puro. Esegue l'orchestrazione dei calcoli in RAM
-   * basandosi esclusivamente su DTO digeriti e normalizzati provenienti dagli altri domini.
-   */
   injectContext(assetProjections, assetContracts, assetInits, assetVariances) {
-    // 🌟 FIX: Run Rate Effettivo dell'Asset (Netto)
     let activeRunRate = 0;
     assetContracts.forEach(c => {
-      const cStatus = String(c.status || c.Status || "ACTIVE").toUpperCase();
+      const cStatus = String(c.status || "ACTIVE").toUpperCase();
       if (["ACTIVE", "UPCOMING", "INCOMING"].includes(cStatus)) {
-        let eff = c.effectiveRunRate !== undefined ? c.effectiveRunRate : (c["Effective Run Rate"] !== undefined ? c["Effective Run Rate"] : null);
-        let ann = c.annualValue !== undefined ? c.annualValue : (c["Annual Value"] || 0);
+        let eff = c.effectiveRunRate !== undefined ? c.effectiveRunRate : null;
+        let ann = c.annualValue !== undefined ? c.annualValue : 0;
         activeRunRate += parseFloat(eff !== null && eff !== "" ? eff : ann);
       }
     });
@@ -111,7 +42,7 @@ class Asset {
 
     let maxEndDate = null;
     assetContracts.forEach(c => {
-      const dEndRaw = c.adjustedEndDate || c["Adjusted End Date"] || c.contractEndDate || c["Contract End Date"] || c.endDate || c["End Date"];
+      const dEndRaw = c.adjustedEndDate || c.contractEndDate || c.endDate;
       const dEnd = dEndRaw ? new Date(dEndRaw) : null;
       if (dEnd && !isNaN(dEnd.getTime()) && (!maxEndDate || dEnd > maxEndDate)) {
         maxEndDate = dEnd;
@@ -125,13 +56,13 @@ class Asset {
     let hasTerminate = false; let hasTransfer = false; let hasOptimize = false;
 
     assetInits.forEach(init => {
-      const initStatus = String(init.status || init["Initiative Status"] || "").toUpperCase();
-      const decision = String(init.decision || init["Decision"] || "").toUpperCase();
+      const initStatus = String(init.status || "").toUpperCase();
+      const decision = String(init.decision || "").toUpperCase();
 
       if (["COMPLETED", "IN PROGRESS"].includes(initStatus)) {
-        costImprovementSum += parseFloat(init.actualSavingAnnualized || init["Actual Saving (Annualized)"] || init.targetSavingAnnualized || init["Target Saving (Annualized)"] || 0);
+        costImprovementSum += parseFloat(init.actualSavingAnnualized || init.targetSavingAnnualized || 0);
 
-        const tDateRaw = init.targetDate || init["Target Date"];
+        const tDateRaw = init.targetDate;
         if (tDateRaw) {
           const dTarget = new Date(tDateRaw);
           if (!isNaN(dTarget.getTime())) initTargetDateStr = formatServerDate(dTarget);
@@ -139,14 +70,14 @@ class Asset {
 
         if (["TERMINATE", "REPLACE"].includes(decision)) {
           hasTerminate = true; strategy = "EXIT";
-          const dEff = init.actualDate || init["Actual Date"] || init.targetDate || init["Target Date"];
+          const dEff = init.actualDate || init.targetDate;
           if (dEff) {
             const d = new Date(dEff);
             if (!isNaN(d.getTime())) exitDateStr = formatServerDate(d);
           }
         } else if (decision === "TRANSFER") {
           hasTransfer = true; strategy = "HANDOVER";
-          const dEff = init.actualDate || init["Actual Date"] || init.targetDate || init["Target Date"];
+          const dEff = init.actualDate || init.targetDate;
           if (dEff) {
             const d = new Date(dEff);
             if (!isNaN(d.getTime())) transferDateStr = formatServerDate(d);
@@ -173,12 +104,10 @@ class Asset {
 
     this.currentStatus = computedStatus;
 
-    // Calcolo Status Budget tramite Variance Report per il TDD
     if (assetVariances && assetVariances.length > 0) {
-      const v = assetVariances.find(vari => String(vari.fiscalYear || vari["Fiscal Year"] || "").includes("FY27")) || assetVariances[0];
-      
-      const budgetVal = parseFloat(String(v.effectiveBudget || v["Effective Budget"] || "0").replace(/[^0-9.-]/g, ''));
-      const varianceVal = parseFloat(String(v.variance || v["Variance"] || "0").replace(/[^0-9.-]/g, ''));
+      const v = assetVariances.find(vari => String(vari.fiscalYear || "").includes("FY27")) || assetVariances[0];
+      const budgetVal = parseFloat(String(v.effectiveBudget || "0").replace(/[^0-9.-]/g, ''));
+      const varianceVal = parseFloat(String(v.variance || "0").replace(/[^0-9.-]/g, ''));
 
       if (budgetVal > 0) {
         if (varianceVal < 0) {
@@ -192,67 +121,5 @@ class Asset {
     }
   }
 
-  /**
-   * Compila il DTO in uscita preservando l'intera mappa delle proprietà dello scope originario.
-   */
-  exportToData() {
-    return { ...this };
-  }
+  exportToData() { return { ...this }; }
 }
-
-// ============================================================================
-// 3. DATA ACCESS LAYER (REPOSITORY: Responsabile esclusivo delle scritture)
-// ============================================================================
-
-class AssetRepository {
-  constructor() { this.sheetName = CONFIG.SHEETS.ASSETS; }
-  findAll() {
-    const rawData = getSheetDataAsObjects(null, this.sheetName) || [];
-    return rawData.map(r => new Asset(AssetMapper.toDto(r)));
-  }
-  saveAll(assetsDomainCollection) {
-    const dtos = assetsDomainCollection.map(a => a.exportToData());
-    FinOpsDatabase.setObjects(this.sheetName, dtos, ASSET_FIELD_MAP, false);
-  }
-}
-
-// ============================================================================
-// 4. APPLICATION SERVICE LAYER (Orchestratore transazionale dei confini)
-// ============================================================================
-
-class AssetService {
-  constructor() {
-    this.repository = new AssetRepository();
-  }
-
-  /**
-   * Innesca la transazione di ricalcolo incrociando i flussi asincroni di cassa e scadenze.
-   */
-  consolidateBudgets() {
-    console.log("ASSET SERVICE: Avvio della pipeline di consolidamento Lifecycle...");
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-
-    const assets = this.repository.findAll();
-    if (assets.length === 0) return;
-
-    // 🌟 RISOLTO IL TIMEOUT: Rimosse le pesantissime letture di PROJECTIONS e VARIANCE!
-    const dtosContracts = (getSheetDataAsObjects(ss, CONFIG.SHEETS.CONTRACTS) || []).map(c => ContractMapper.toDto(c, CONTRACT_FIELD_MAP));
-    const dtosInitiatives = (getSheetDataAsObjects(ss, CONFIG.SHEETS.INITIATIVES) || []).map(i => ContractMapper.toDto(i, INITIATIVE_FIELD_MAP));
-
-    const updatedAssetsPayload = assets.map(asset => {
-      const assetNameLower = asset.name.trim().toLowerCase();
-      const assetContracts = dtosContracts.filter(c => String(c.assetName).trim().toLowerCase() === assetNameLower);
-      const assetInits = dtosInitiatives.filter(i => String(i.assetName).trim().toLowerCase() === assetNameLower);
-
-      // I rami Projections e Variances vengono passati vuoti, ci penserà il Frontend
-      asset.injectContext([], assetContracts, assetInits, []);
-      return asset;
-    });
-
-    this.repository.saveAll(updatedAssetsPayload);
-    console.log("ASSET SERVICE: Allineamento e riconciliazione portafoglio concluso (O(1) in RAM).");
-  }
-}
-
-// Global Singleton Export
-const AssetDomain = new AssetService();
