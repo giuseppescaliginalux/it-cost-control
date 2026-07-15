@@ -502,10 +502,24 @@
     }
 
     getEffectiveRunRate() {
-      const recurrentContracts = this.childContracts.filter(c => String(c.costRecurrence).toLowerCase() === "recurrent");
-      if (recurrentContracts.length === 0) return 0;
-      const sumRunRates = recurrentContracts.reduce((sum, c) => sum + c.getEffectiveRunRate(), 0);
-      return parseFloat(sumRunRates.toFixed(2));
+      // 1. Prende il Run Rate nominale del Master (che aggrega i getAnnualValue dei figli)
+      const nominalRunRate = this.getRunRate();
+      let totalCredits = 0;
+
+      // 2. Ispeziona il Ledger di tutti i contratti figli per sottrarre eventuali crediti
+      this.childContracts.forEach(c => {
+        if (c.ledger && Array.isArray(c.ledger)) {
+          c.ledger.forEach(l => {
+            if (String(l.type).toUpperCase().trim() === "CREDIT") {
+              // Usa Math.abs per gestire sia input positivi che negativi da parte dell'utente
+              totalCredits += Math.abs(parseFloat(l.amount) || 0);
+            }
+          });
+        }
+      });
+
+      // 3. Ritorna il valore effettivo, garantendo che non vada mai sotto zero
+      return parseFloat(Math.max(0, nominalRunRate - totalCredits).toFixed(2));
     }
 
     deriveStatus(linkedInitiatives) {

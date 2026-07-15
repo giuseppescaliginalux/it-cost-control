@@ -161,7 +161,7 @@
         getMasterEditCard: function (data, isNew, suppliersList, masterLinks) {
             const currentSupplier = data.supplier || '';
             const bChannel = data.billingChannel || 'Direct Vendor';
-            
+
             const childCount = (typeof ContractsState !== 'undefined' && ContractsState.currentDetailItems) ? ContractsState.currentDetailItems.length : 0;
             const deleteBtnHtml = `
                 <button onclick="ContractsController.deleteCurrentMaster()" class="px-2.5 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors flex items-center justify-center shrink-0 border border-rose-200 shadow-3xs cursor-pointer ${childCount > 0 ? 'opacity-50 cursor-not-allowed' : ''}" title="${childCount > 0 ? 'Cannot delete master with active contracts' : 'Delete temporary master'}">
@@ -549,7 +549,11 @@
                                 <button type="button" onclick="ContractsController.addLedgerRowToUI(${id})" class="text-[9px] font-black text-white bg-amber-600 hover:bg-amber-700 px-3 py-1.5 border border-amber-700 rounded-lg shadow-sm transition-colors cursor-pointer">+ Add Manual Row</button>
                             </div>
                         </div>
-                        <div id="ledger-container-${id}" class="space-y-1.5 flex-1 overflow-y-auto custom-scrollbar pr-2 pb-8 ${roWrapperClass}">${ledgerHtml}</div>
+                        <div id="ledger-container-${id}" class="space-y-1.5 flex-1 overflow-y-auto custom-scrollbar pr-2 pb-8">
+                            <div class="${roWrapperClass}">
+                                ${ledgerHtml}
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -562,7 +566,11 @@
                             </div>
                             <button type="button" onclick="ContractsController.addSplitRowToUI(${id})" class="${hiddenBlock} text-[9px] font-black text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 border border-indigo-700 rounded-lg shadow-sm transition-colors cursor-pointer">+ Add Split Row</button>
                         </div>
-                        <div id="splits-container-${id}" class="space-y-1.5 flex-1 overflow-y-auto custom-scrollbar pr-2 pb-8 ${roWrapperClass}">${splitsHtml}</div>
+                        <div id="splits-container-${id}" class="space-y-1.5 flex-1 overflow-y-auto custom-scrollbar pr-2 pb-8">
+                            <div class="${roWrapperClass}">
+                                ${splitsHtml}
+                            </div>
+                        </div>
                     </div>
                 </div>
 

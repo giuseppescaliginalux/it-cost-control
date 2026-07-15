@@ -78,26 +78,26 @@ const ContractMapper = {
 // ============================================================================
 
 class LedgerMovement {
-    constructor(dto = {}) {
-      this.contractId = dto.contractId || "";
-      this.startDate = dto.startDate ? new Date(dto.startDate) : null;
-      this.endDate = dto.endDate ? new Date(dto.endDate) : null;
-      this.type = String(dto.type || "ACTUAL").toUpperCase();
-      this.amount = parseFloat(dto.amount) || 0;
-      this.notes = dto.notes || "";
-      this.extraProperties = {};
-      const knownKeys = Object.values(LEDGER_FIELD_MAP);
-      for (let key in dto) if (!knownKeys.includes(key)) this.extraProperties[key] = dto[key];
-    }
-    isForecast() { return this.type === "FORECAST" || this.type === "CALCULATED"; }
-    isActual() { return this.type === "ACTUAL"; }
-    exportToData() {
-      return {
-        ...this.extraProperties, contractId: this.contractId, startDate: formatServerDate(this.startDate),
-        endDate: formatServerDate(this.endDate), type: this.type, amount: this.amount, notes: this.notes
-      };
-    }
+  constructor(dto = {}) {
+    this.contractId = dto.contractId || "";
+    this.startDate = dto.startDate ? new Date(dto.startDate) : null;
+    this.endDate = dto.endDate ? new Date(dto.endDate) : null;
+    this.type = String(dto.type || "ACTUAL").toUpperCase();
+    this.amount = parseFloat(dto.amount) || 0;
+    this.notes = dto.notes || "";
+    this.extraProperties = {};
+    const knownKeys = Object.values(LEDGER_FIELD_MAP);
+    for (let key in dto) if (!knownKeys.includes(key)) this.extraProperties[key] = dto[key];
   }
+  isForecast() { return this.type === "FORECAST" || this.type === "CALCULATED"; }
+  isActual() { return this.type === "ACTUAL"; }
+  exportToData() {
+    return {
+      ...this.extraProperties, contractId: this.contractId, startDate: formatServerDate(this.startDate),
+      endDate: formatServerDate(this.endDate), type: this.type, amount: this.amount, notes: this.notes
+    };
+  }
+}
 
 class AllocationSplit {
   constructor(dto = {}) {
@@ -543,6 +543,27 @@ class MasterContract {
     // Somma dei run rate (Valore Annualizzato) reali dei contratti figli
     const sumRunRates = recurrentContracts.reduce((sum, c) => sum + c.getAnnualValue(), 0);
     return parseFloat(sumRunRates.toFixed(2));
+  }
+
+  getEffectiveRunRate() {
+    // 1. Prende il Run Rate nominale del Master (che aggrega i getAnnualValue dei figli)
+    const nominalRunRate = this.getRunRate();
+    let totalCredits = 0;
+
+    // 2. Ispeziona il Ledger di tutti i contratti figli per sottrarre eventuali crediti
+    this.childContracts.forEach(c => {
+      if (c.ledger && Array.isArray(c.ledger)) {
+        c.ledger.forEach(l => {
+          if (String(l.type).toUpperCase().trim() === "CREDIT") {
+            // Usa Math.abs per gestire sia input positivi che negativi da parte dell'utente
+            totalCredits += Math.abs(parseFloat(l.amount) || 0);
+          }
+        });
+      }
+    });
+
+    // 3. Ritorna il valore effettivo, garantendo che non vada mai sotto zero
+    return parseFloat(Math.max(0, nominalRunRate - totalCredits).toFixed(2));
   }
 
   deriveStatus(linkedInitiatives) {
