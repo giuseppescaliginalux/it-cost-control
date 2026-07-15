@@ -6,8 +6,6 @@
  * l'esistenza di Google Sheets, Mappers o Services.
  */
 
-const formatServerDate = (d) => typeof FinOpsDate !== 'undefined' ? FinOpsDate.toIso(d) : d;
-
 class LedgerMovement {
   constructor(data = {}) {
     Object.assign(this, data);
