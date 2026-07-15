@@ -53,46 +53,41 @@ const InitiativeMapper = {
 // ============================================================================
 class Initiative {
   constructor(dto = {}) {
-    this.id = dto.id || "";
-    this.masterId = dto.masterId || "";
-    this.contractId = dto.contractId || "";
-    this.groupId = dto.groupId || "";
-    this.assetName = dto.assetName || "";
-    this.supplier = dto.supplier || "";
-    this.expenditureType = dto.expenditureType || "";
-    this.baselineAnnualized = parseFloat(dto.baselineAnnualized) || 0;
-    this.contractTerm = parseFloat(dto.contractTerm) || 0;
-    this.tags = dto.tags || "";
-    this.optimizationLevers = dto.optimizationLevers || "";
-    this.serviceOwner = dto.serviceOwner || "";
-    this.procurementPoint = dto.procurementPoint || dto.procurementPointFocal || "";
-    this.name = dto.name || "";
-    this.description = dto.description || "";
+    Object.assign(this, dto);
+    this.id = this.id || "";
+    this.masterId = this.masterId || "";
+    this.contractId = this.contractId || "";
+    this.groupId = this.groupId || "";
+    this.assetName = this.assetName || "";
+    this.supplier = this.supplier || "";
+    this.expenditureType = this.expenditureType || "";
+    this.baselineAnnualized = parseFloat(this.baselineAnnualized) || 0;
+    this.contractTerm = parseFloat(this.contractTerm) || 0;
+    this.tags = this.tags || "";
+    this.optimizationLevers = this.optimizationLevers || "";
+    this.serviceOwner = this.serviceOwner || "";
+    this.procurementPoint = this.procurementPoint || this.procurementPointFocal || "";
+    this.name = this.name || "";
+    this.description = this.description || "";
 
-    this.status = String(dto.status || "PLANNED").toUpperCase();
-    this.initialStrategy = dto.initialStrategy || "";
-    this.decision = String(dto.decision || "").toUpperCase();
+    this.status = String(this.status || "PLANNED").toUpperCase();
+    this.initialStrategy = this.initialStrategy || "";
+    this.decision = String(this.decision || "").toUpperCase();
 
-    this.targetDate = dto.targetDate ? new Date(dto.targetDate) : null;
-    this.actualDate = dto.actualDate ? new Date(dto.actualDate) : null;
-    this.contractTermMonths = dto.contractTermMonths || "";
-    this.lastExpiration = dto.lastExpiration ? new Date(dto.lastExpiration) : null;
+    this.targetDate = this.targetDate ? new Date(this.targetDate) : null;
+    this.actualDate = this.actualDate ? new Date(this.actualDate) : null;
+    this.contractTermMonths = this.contractTermMonths || "";
+    this.lastExpiration = this.lastExpiration ? new Date(this.lastExpiration) : null;
 
-    this.targetCostAnnualized = parseFloat(dto.targetCostAnnualized) || 0;
-    this.baselineSpendAnnualized = parseFloat(dto.baselineSpendAnnualized) || 0;
-    this.targetSavingAnnualized = parseFloat(dto.targetSavingAnnualized) || 0;
-    this.targetSavingPct = parseFloat(dto.targetSavingPct) || 0;
-    this.newActual = dto.newActual !== "" && dto.newActual !== undefined ? parseFloat(dto.newActual) : "";
-    this.actualSavingAnnualized = parseFloat(dto.actualSavingAnnualized) || 0;
+    this.targetCostAnnualized = parseFloat(this.targetCostAnnualized) || 0;
+    this.baselineSpendAnnualized = parseFloat(this.baselineSpendAnnualized) || 0;
+    this.targetSavingAnnualized = parseFloat(this.targetSavingAnnualized) || 0;
+    this.targetSavingPct = parseFloat(this.targetSavingPct) || 0;
+    this.newActual = this.newActual !== "" && this.newActual !== undefined ? parseFloat(this.newActual) : "";
+    this.actualSavingAnnualized = parseFloat(this.actualSavingAnnualized) || 0;
 
-    this.notes = dto.notes || "";
-    this.qualityCheck = dto.qualityCheck || "";
-
-    this.extraProperties = {};
-    const knownKeys = Object.values(INITIATIVE_FIELD_MAP);
-    for (let key in dto) {
-      if (!knownKeys.includes(key)) this.extraProperties[key] = dto[key];
-    }
+    this.notes = this.notes || "";
+    this.qualityCheck = this.qualityCheck || "";
   }
 
   injectContext(masterContractData, contractDetails, priorInits = []) {
@@ -177,21 +172,10 @@ class Initiative {
 
   exportToData() {
     return {
-      ...this.extraProperties,
-      id: this.id, masterId: this.masterId, contractId: this.contractId, assetName: this.assetName,
-      supplier: this.supplier, expenditureType: this.expenditureType, tags: this.tags,
-      optimizationLevers: this.optimizationLevers, serviceOwner: this.serviceOwner,
-      procurementPoint: this.procurementPoint, procurementPointFocal: this.procurementPoint,
-      name: this.name, description: this.description, status: this.status,
-      baselineAnnualized: this.baselineAnnualized,
-      contractTerm: this.contractTerm,
-      initialStrategy: this.initialStrategy, decision: this.decision,
-      targetDate: formatServerDate(this.targetDate), actualDate: formatServerDate(this.actualDate),
-      contractTermMonths: this.contractTermMonths, lastExpiration: formatServerDate(this.lastExpiration),
-      targetCostAnnualized: this.targetCostAnnualized, baselineSpendAnnualized: this.baselineSpendAnnualized,
-      targetSavingAnnualized: this.targetSavingAnnualized, targetSavingPct: this.targetSavingPct,
-      newActual: this.newActual, actualSavingAnnualized: this.actualSavingAnnualized,
-      notes: this.notes, qualityCheck: this.qualityCheck
+      ...this,
+      targetDate: formatServerDate(this.targetDate),
+      actualDate: formatServerDate(this.actualDate),
+      lastExpiration: formatServerDate(this.lastExpiration)
     };
   }
 }
