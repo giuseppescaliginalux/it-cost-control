@@ -1,6 +1,6 @@
 <script>
     /**
-     * MODULO 1: CORE & DATA FETCHING
+     * MODULO 1: CORE & DATA FETCHING (CON PROFILING ATTIVO)
      */
     let globalCachedData = [];
     let windowPayload = { assets: [], contracts: [], initiatives: [], bridge: [], projections: [] };
@@ -14,7 +14,6 @@
         return this.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
     }
 
-    // ⚡ FIX: Formattatore compatto globale estratto dalle proiezioni
     window.formatKM = function (num) {
         if (!num || isNaN(num) || num === 0) return "0";
         const absNum = Math.abs(num);
@@ -44,7 +43,11 @@
         return FinOpsDate.toVisualShort(rawDate);
     }
 
-    // Chiamata Server (Singola)
+    window.formatServerDate = function (d) {
+        return typeof FinOpsDate !== 'undefined' ? FinOpsDate.toIso(d) : d;
+    };
+
+    // Chiamata Server
     function apiFetchFullPayload() {
         return new Promise((resolve, reject) => {
             google.script.run
@@ -54,53 +57,57 @@
         });
     }
 
-    // Avvio Iniziale (Solo Orchestrazione)
+    // Avvio Iniziale (Con Radiografia)
     async function fetchLiveData() {
+        console.time("⏱️ TOTALE AVVIO CLIENT");
+
         document.getElementById('loading-state').classList.remove('hidden');
         document.getElementById('error-state').classList.add('hidden');
         document.getElementById('dashboard-content').classList.add('hidden');
 
         try {
-            // 1. Fetch raw data (che ora arrivano purissimi come DTO dal PayloadBuilder)
+            // 1. Rete (Chiamata e Download)
+            console.time("🌐 1. RETE: Download dati dal Server");
             const payload = await apiFetchFullPayload();
+            console.timeEnd("🌐 1. RETE: Download dati dal Server");
 
-            // 2. Just-In-Time Hydration per gli stati "stantii"
-            console.log("⚡ BOOT: Healing Temporale degli Status (JIT Hydration)...");
+            // 2. Idratazione Dati
+            console.time("💧 2. CPU: HydrationEngine (Stati contratti)");
             const hydratedPayload = HydrationEngine.hydrateAllStatuses(payload);
+            console.timeEnd("💧 2. CPU: HydrationEngine (Stati contratti)");
 
-            // 3. Generazione Finanziaria Dinamica in RAM
-            console.log("⚡ BOOT: Generazione Proiezioni In-Memory (Global Engine)...");
+            // 3. Proiezioni Finanziarie
+            console.time("🧮 3. CPU: ProjectionsEngine (Calcoli mesi)");
             hydratedPayload.projections = ProjectionsEngine.calculateAll(
                 hydratedPayload.contracts || [],
                 hydratedPayload.initiatives || [],
                 hydratedPayload.masterContracts || [],
                 hydratedPayload.ledger || []
             );
+            console.timeEnd("🧮 3. CPU: ProjectionsEngine (Calcoli mesi)");
 
             windowPayload = hydratedPayload;
 
-            // 🌟 MEMENTO PATTERN: Creazione Snapshot disconnesso!
+            console.time("💾 4. CPU: Clonazione Snapshot (Sicurezza)");
             window.originalPayloadSnapshot = JSON.parse(JSON.stringify(hydratedPayload));
+            console.timeEnd("💾 4. CPU: Clonazione Snapshot (Sicurezza)");
+
             setPendingChanges(false);
 
-            // Costruiamo la cache filtrando per "name" invece che "Asset Name"
+            // 4. Calcoli Aggregati
+            console.time("📊 5. CPU: Aggregazione Budget per Asset");
             globalCachedData = (hydratedPayload.assets || []).filter(r => (r.name || "").toString().trim() !== "");
-
-            // Calcolo Aggregato Asset
             globalCachedData.forEach(asset => {
                 const assetName = (asset.name || "").toString().toLowerCase().trim();
                 const projForAsset = windowPayload.projections.filter(p => (p["Asset Name"] || p.assetName || "").toLowerCase().trim() === assetName);
 
-                const sumFY27 = projForAsset.reduce((acc, p) => acc + (parseFloat(p["FY27 Optimized"] || p.fy27Optimized) || 0), 0);
-                asset.fiscalProjectionFY27 = sumFY27;
+                asset.fiscalProjectionFY27 = projForAsset.reduce((acc, p) => acc + (parseFloat(p["FY27 Optimized"] || p.fy27Optimized) || 0), 0);
 
                 const activeContracts = (windowPayload.contracts || []).filter(c =>
                     String(c.assetName || "").toLowerCase().trim() === assetName &&
                     ["ACTIVE", "UPCOMING", "INCOMING"].includes(String(c.status || "").toUpperCase().trim())
                 );
-
-                const effectiveRunRate = activeContracts.reduce((sum, c) => sum + (parseFloat(c.effectiveRunRate || c.annualValue) || 0), 0);
-                asset.runRate = effectiveRunRate;
+                asset.runRate = activeContracts.reduce((sum, c) => sum + (parseFloat(c.effectiveRunRate || c.annualValue) || 0), 0);
 
                 let effBudget = 0;
                 let variance = 0;
@@ -111,39 +118,36 @@
                     }
                 });
 
-                if (effBudget === 0) {
-                    asset.budgetStatusFY27 = "Not Budgeted";
-                } else if (variance < 0) {
-                    asset.budgetStatusFY27 = "At Risk";
-                } else {
-                    asset.budgetStatusFY27 = "Secured";
-                }
+                if (effBudget === 0) asset.budgetStatusFY27 = "Not Budgeted";
+                else if (variance < 0) asset.budgetStatusFY27 = "At Risk";
+                else asset.budgetStatusFY27 = "Secured";
             });
+            console.timeEnd("📊 5. CPU: Aggregazione Budget per Asset");
 
+            // 5. Rendering HTML
+            console.time("🎨 6. GPU/UI: Rendering HTML (Disegno su schermo)");
             if (typeof InventoryController !== "undefined") InventoryController.initWorkspace();
             if (typeof updateExecutiveDashboard === "function") updateExecutiveDashboard(hydratedPayload);
             if (typeof renderOperationsHub === "function") renderOperationsHub(hydratedPayload);
             if (typeof renderProjectionsHub === "function") renderProjectionsHub(hydratedPayload);
+            console.timeEnd("🎨 6. GPU/UI: Rendering HTML (Disegno su schermo)");
 
             document.getElementById('loading-state').classList.add('hidden');
             document.getElementById('dashboard-content').classList.remove('hidden');
+
             window.dispatchEvent(new Event('resize'));
 
         } catch (e) {
             document.getElementById('error-message').textContent = e.toString();
             document.getElementById('error-state').classList.remove('hidden');
         }
+
+        console.timeEnd("⏱️ TOTALE AVVIO CLIENT");
     }
 
-    function showLoading() {
-        document.getElementById('loading-overlay').style.display = 'flex';
-    }
+    function showLoading() { document.getElementById('loading-overlay').style.display = 'flex'; }
+    function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
 
-    function hideLoading() {
-        document.getElementById('loading-overlay').style.display = 'none';
-    }
-
-    // 🌟 GESTIONE STATO GLOBALE E MEMENTO PATTERN
     window.setPendingChanges = function (isDirty) {
         window.hasPendingChanges = isDirty;
         const pendingTabs = document.getElementById('global-pending-tabs');
@@ -153,20 +157,14 @@
             if (isDirty) {
                 pendingTabs.classList.remove('hidden');
                 pendingTabs.classList.add('flex');
-
-                // Nasconde il tasto SYNC se ci sono modifiche da committare
                 if (btnSync) btnSync.classList.add('hidden');
             } else {
                 pendingTabs.classList.add('hidden');
                 pendingTabs.classList.remove('flex');
-
                 const isEditActive = typeof ContractsState !== 'undefined' && ContractsState.globalEditMode;
                 if (btnSync) {
-                    if (isEditActive) {
-                        // Nasconde il tasto SYNC se siamo in Edit Mode (anche senza modifiche)
-                        btnSync.classList.add('hidden');
-                    } else {
-                        // Mostra il tasto SYNC solo se è tutto pulito e in Read-Only
+                    if (isEditActive) btnSync.classList.add('hidden');
+                    else {
                         btnSync.classList.remove('hidden');
                         btnSync.className = "h-9 w-24 bg-teal-950/45 hover:bg-teal-800/60 text-teal-100 border border-teal-800/80 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 shadow-3xs";
                         btnSync.querySelector('span').textContent = 'SYNC';
@@ -180,11 +178,8 @@
         if (window.hasPendingChanges) return;
         const btnSync = document.getElementById('btn-global-sync');
         if (btnSync) {
-            if (isActive) {
-                // Nasconde il tasto SYNC quando accendi la modalità Edit
-                btnSync.classList.add('hidden');
-            } else {
-                // Mostra il tasto SYNC quando spegni la modalità Edit
+            if (isActive) btnSync.classList.add('hidden');
+            else {
                 btnSync.classList.remove('hidden');
                 btnSync.className = "h-9 w-24 bg-teal-950/45 hover:bg-teal-800/60 text-teal-100 border border-teal-800/80 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 shadow-3xs";
                 btnSync.querySelector('span').textContent = 'SYNC';
@@ -192,26 +187,18 @@
         }
     };
 
-    // ⚡ FIX: Aggiornamento della cache locale per rimuovere i contratti "fantasma" nell'Inventory
     window.revertLocalChanges = function () {
         if (!window.originalPayloadSnapshot) return;
-        console.log("⏪ MEMENTO: Ripristino snapshot in memoria...");
-
-        // Restituisce la RAM allo stato di Snapshot a latenza zero
         windowPayload = JSON.parse(JSON.stringify(window.originalPayloadSnapshot));
 
-        // Pulisce stati locali dei Controller
         if (typeof ContractsState !== 'undefined') ContractsState.resetMaster();
         if (typeof InitiativesState !== 'undefined') InitiativesState.loadPayload(windowPayload);
 
-        // Rispegne la spia e triggera il ricalcolo visuale
         setPendingChanges(false);
         if (typeof setEditModeActive !== 'undefined') setEditModeActive(false);
 
-        // Ricarica la vista basandosi sul tab attivo
         if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined') {
             InventoryController.initWorkspace();
-            // ⚡ Se un accordion era aperto, forza il reload dei suoi dati figli dalla RAM appena pulita
             if (typeof InventoryState !== 'undefined' && InventoryState.expandedAssetId) {
                 const assetObj = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"] || a.assetName)).replace(/=/g, "") === InventoryState.expandedAssetId);
                 if (assetObj) {
@@ -235,7 +222,6 @@
     };
 
     window.triggerGlobalCommit = function () {
-        // ⚡ MODIFICATO: Se salvi mentre sei negli Assets, esegui il push dell'architettura contratti modificata
         if (window.currentActiveTabId === 'tab-contracts' || window.currentActiveTabId === 'tab-inventory') {
             if (typeof saveCurrentContract === 'function') saveCurrentContract();
         } else if (window.currentActiveTabId === 'tab-operations') {

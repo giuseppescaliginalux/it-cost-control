@@ -1,52 +1,37 @@
 <script>
-/**
- * js_contracts_api.html
- * API SERVICE: Handles all asynchronous communication with Google Apps Script backend.
- */
+    /**
+     * js_contracts_api.html
+     * API SERVICE: Handles all asynchronous communication with Google Apps Script backend.
+     */
 
-const ContractsAPI = {
-    
-    resolveLiveDocumentNames: function(uniqueUrlsString, targetLinks) {
-        google.script.run
-            .withSuccessHandler(function (resolvedFiles) {
-                targetLinks.forEach(el => {
-                    const currentRaw = el.getAttribute('data-raw');
-                    const match = resolvedFiles.find(r => r.raw === currentRaw);
-                    if (match) {
-                        el.href = match.url;
-                        el.title = `Live File Name: ${match.name}`;
-                    }
-                });
-            })
-            .apiGetLiveDriveFileNames(uniqueUrlsString);
-    },
+    const ContractsAPI = {
+        resolveLiveDocumentNames: function (uniqueUrlsString, targetLinks) {
+            google.script.run
+                .withSuccessHandler(function (resolvedFiles) {
+                    targetLinks.forEach(el => {
+                        const currentRaw = el.getAttribute('data-raw');
+                        const match = resolvedFiles.find(r => r.raw === currentRaw);
+                        if (match) {
+                            el.href = match.url;
+                            el.title = `Live File Name: ${match.name}`;
+                        }
+                    });
+                })
+                .apiGetLiveDriveFileNames(uniqueUrlsString);
+        },
 
-    uploadDocuments: function(filesData, year, supplier, assetName, onSuccess, onFailure) {
-        google.script.run
-            .withSuccessHandler(onSuccess)
-            .withFailureHandler(onFailure)
-            .uploadFilesToDrive(filesData, year, supplier, assetName);
-    },
+        uploadDocuments: function (filesData, year, supplier, assetName, onSuccess, onFailure) {
+            google.script.run
+                .withSuccessHandler(onSuccess)
+                .withFailureHandler(onFailure)
+                .uploadFilesToDrive(filesData, year, supplier, assetName);
+        },
 
-    calculateRowLogic: function(contractData, onSuccess, onFailure) {
-        google.script.run
-            .withSuccessHandler(onSuccess)
-            .withFailureHandler(onFailure)
-            .calculateContractLogic(contractData);
-    },
-
-    previewAutoForecast: function(contractData, currentLedger, onSuccess, onFailure) {
-        google.script.run
-            .withSuccessHandler(onSuccess)
-            .withFailureHandler(onFailure)
-            .apiPreviewLedgerAutoForecast(contractData, currentLedger);
-    },
-
-    syncArchitectureToBackend: function(payload, onSuccess, onFailure) {
-        google.script.run
-            .withSuccessHandler(onSuccess)
-            .withFailureHandler(onFailure)
-            .processMasterDetailSync(payload);
-    }
-};
+        syncArchitectureToBackend: function (payload, onSuccess, onFailure) {
+            google.script.run
+                .withSuccessHandler(onSuccess)
+                .withFailureHandler(onFailure)
+                .processMasterDetailSync(payload);
+        }
+    };
 </script>

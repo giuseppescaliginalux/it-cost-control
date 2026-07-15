@@ -5,14 +5,14 @@
  */
 
 class InitiativeService {
-  constructor() { 
-    this.repository = new InitiativeRepository(); 
+  constructor() {
+    this.repository = new InitiativeRepository();
     this.contractRepo = new ContractRepository();
   }
 
   processAndSync(dtosArray) {
     if (!dtosArray || !Array.isArray(dtosArray)) return "SUCCESS";
-    
+
     const activeMasters = this.contractRepo.findAllMasters();
     const activeContracts = this.contractRepo.findAllContracts();
 

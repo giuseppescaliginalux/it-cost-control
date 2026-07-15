@@ -1,22 +1,20 @@
 /**
  * ============================================================================
- * FINOPS ENTERPRISE ARCHITECTURE: API ROUTER / GATEWAY
- * ============================================================================
- * Gestisce il transito dei dati tra Client (UI) e Server (Domini).
- * Disaccoppia completamente il protocollo di rete dalla logica di business.
+ * FINOPS ENTERPRISE: API ROUTER & GATEWAY
  * ============================================================================
  */
 
-/**
- * ============================================================================
- * WEB APP WEB SERVICE ENTRY POINTS (L'INTERFACCIA DI CARICAMENTO UI)
- * ============================================================================
- */
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu("⚙️ FinOps App")
+    .addItem("🧹 Svuota Cache WebApp", "clearAppCache")
+    .addToUi();
+}
 
-/**
- * CORE ENTRY POINT: Intercetta la richiesta HTTP GET e compila il template index.html.
- * Inietta dinamicamente i fogli di stile e la logica JavaScript isolata.
- */
+function clearAppCache() {
+  FinOpsCache.clear("DASHBOARD_PAYLOAD");
+  SpreadsheetApp.getActiveSpreadsheet().toast("Cache svuotata. Al prossimo avvio la WebApp rileggerà i dati freschi.");
+}
+
 function doGet() {
   return HtmlService.createTemplateFromFile('index')
     .evaluate()
@@ -25,251 +23,152 @@ function doGet() {
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
-/**
- * TEMPLATE HELPER: Consente l'inclusione nativa dei file HTML secondari (CSS/JS)
- * all'interno del file principale per aggirare i limiti di struttura di GAS.
- */
 function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
-/**
- * ============================================================================
- * API ROUTER / GATEWAY 
- * ============================================================================
- */
+// ============================================================================
+// ENDPOINTS
+// ============================================================================
 
-/**
- * API ENDPOINT: Sincronizzazione ed elaborazione dei contratti da Timeline/Dashboard.
- */
-function processMasterDetailSync(payload) {
-  const lock = LockService.getScriptLock();
+function getFullPayload_Internal() {
   try {
-    lock.waitLock(20000); // 20 secondi di tolleranza concorrenza
-    
-    // 1. Modifica la RAM con i dati in arrivo
-    ContractDomain.processAndSync(payload);
-    
-    // 2. Ricalcoli a Cascata in RAM
-    InitiativeDomain.forceRecalculateAll();
-    AssetDomain.consolidateBudgets();
+    console.time("⏱️ TOTALE getFullPayload");
 
-    // 3. SCRITTURA SINGOLA DI TUTTO IL DB
-    FinOpsDatabase.commit();
+    console.time("1. Check Cache");
+    const cachedPayload = FinOpsCache.get("DASHBOARD_PAYLOAD");
+    console.timeEnd("1. Check Cache");
 
-    // 4. Ritorna il Delta aggiornato al browser
-    return {
-        status: "SUCCESS",
-        masterContracts: FinOpsDatabase.getObjects(CONFIG.SHEETS.MASTER_CONTRACTS),
-        contracts: FinOpsDatabase.getObjects(CONFIG.SHEETS.CONTRACTS),
-        allocationSplits: FinOpsDatabase.getObjects(CONFIG.SHEETS.ALLOCATION_SPLITS),
-        ledger: FinOpsDatabase.getObjects(CONFIG.SHEETS.LEDGER),
-        initiatives: FinOpsDatabase.getObjects(CONFIG.SHEETS.INITIATIVES),
-        assets: FinOpsDatabase.getObjects(CONFIG.SHEETS.ASSETS)
-    };
+    if (cachedPayload) {
+      console.log("Servito da Cache!");
+      console.timeEnd("⏱️ TOTALE getFullPayload");
+      return cachedPayload;
+    }
+
+    console.time("2. Build Payload (DB + Mapper)");
+    const rawPayload = PayloadBuilder.buildFullPayload();
+    console.timeEnd("2. Build Payload (DB + Mapper)");
+
+    console.time("3. Deep Purification (JSON)");
+    const cleanPayload = JSON.parse(JSON.stringify(rawPayload));
+    console.timeEnd("3. Deep Purification (JSON)");
+
+    console.time("4. Salva in Cache");
+    FinOpsCache.put("DASHBOARD_PAYLOAD", cleanPayload);
+    console.timeEnd("4. Salva in Cache");
+
+    console.timeEnd("⏱️ TOTALE getFullPayload");
+    return cleanPayload;
   } catch (error) {
-    throw new Error("Sync Failure: " + error.message);
-  } finally {
-    lock.releaseLock(); // Rilascia SEMPRE il blocco
+    throw new Error("Data Retrieval Failure: " + error.message);
   }
 }
 
-/**
- * API ENDPOINT: Sincronizzazione massiva delle iniziative di ottimizzazione.
- */
+function processMasterDetailSync(payload) {
+  const lock = LockService.getScriptLock();
+  try {
+    console.time("⏱️ TOTALE Sync");
+    lock.waitLock(20000);
+
+    ContractDomain.processAndSync(payload);
+    InitiativeDomain.forceRecalculateAll();
+    AssetDomain.consolidateBudgets();
+
+    console.time("A. DB Commit (Scrittura)");
+    FinOpsDatabase.commit();
+    console.timeEnd("A. DB Commit (Scrittura)");
+
+    console.time("B. Payload Rebuild & Purify");
+    const responsePayload = PayloadBuilder.buildFullPayload();
+    responsePayload.status = "SUCCESS";
+    const cleanResponse = JSON.parse(JSON.stringify(responsePayload));
+    console.timeEnd("B. Payload Rebuild & Purify");
+
+    FinOpsCache.put("DASHBOARD_PAYLOAD", cleanResponse);
+
+    console.timeEnd("⏱️ TOTALE Sync");
+    return cleanResponse;
+  } catch (error) {
+    throw new Error("Sync Failure: " + error.message);
+  } finally { lock.releaseLock(); }
+}
+
 function processInitiativesSync(payload) {
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(20000);
-    
     InitiativeDomain.processAndSync(payload);
-    
     ContractDomain.forceRecalculateAll();
     AssetDomain.consolidateBudgets();
-    
     FinOpsDatabase.commit();
 
-    return {
-        status: "SUCCESS",
-        initiatives: FinOpsDatabase.getObjects(CONFIG.SHEETS.INITIATIVES),
-        masterContracts: FinOpsDatabase.getObjects(CONFIG.SHEETS.MASTER_CONTRACTS),
-        contracts: FinOpsDatabase.getObjects(CONFIG.SHEETS.CONTRACTS),
-        assets: FinOpsDatabase.getObjects(CONFIG.SHEETS.ASSETS)
-    };
+    const responsePayload = PayloadBuilder.buildFullPayload();
+    responsePayload.status = "SUCCESS";
+    const cleanResponse = JSON.parse(JSON.stringify(responsePayload));
+
+    FinOpsCache.put("DASHBOARD_PAYLOAD", cleanResponse);
+    return cleanResponse;
   } catch (error) {
     throw new Error("Initiatives Sync Failure: " + error.message);
-  } finally {
-    lock.releaseLock();
-  }
+  } finally { lock.releaseLock(); }
 }
 
 function processTimelineSync(payload) {
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(20000);
-    
-    // Applica le modifiche ai soli Master e righe orfane spostate
-    FinOpsDatabase.setObjects(CONFIG.SHEETS.MASTER_CONTRACTS, payload.masterContracts, MASTER_FIELD_MAP, false);
-    FinOpsDatabase.setObjects(CONFIG.SHEETS.CONTRACTS, payload.contracts, CONTRACT_FIELD_MAP, false);
-    
+    FinOpsDatabase.setObjects(CONFIG.SHEETS.MASTER_CONTRACTS, payload.masterContracts, null, false);
+    FinOpsDatabase.setObjects(CONFIG.SHEETS.CONTRACTS, payload.contracts, null, false);
+
     ContractDomain.forceRecalculateAll();
     InitiativeDomain.forceRecalculateAll();
     AssetDomain.consolidateBudgets();
     FinOpsDatabase.commit();
 
+    FinOpsCache.clear("DASHBOARD_PAYLOAD");
     return "SUCCESS";
   } catch (error) {
     throw new Error("Timeline Sync Failure: " + error.message);
-  } finally {
-    lock.releaseLock();
-  }
+  } finally { lock.releaseLock(); }
 }
 
-/**
- * ============================================================================
- * CONTRACTS DOMAIN API ENDPOINTS (Esposte al Client)
- * ============================================================================
- */
+// ============================================================================
+// UTILITIES ESPOSTE
+// ============================================================================
 
-/**
- * Ricalcola la logica di business di un contratto (Date, Run Rate, Effective Commitment)
- * passando la palla al Domain Model puro senza sporcare il frontend.
- */
-function calculateContractLogic(contractData) {
-  try {
-    // Sfrutta il costruttore del Dominio per validare e calcolare i campi
-    const contract = new Contract(contractData);
-    return contract.exportToData();
-  } catch (error) {
-    console.error("API ERROR [calculateContractLogic]:", error.message);
-    throw new Error("Calculation engine error: " + error.message);
-  }
-}
-
-/**
- * Motore di simulazione del Ledger: Genera le proiezioni mensili in base ai Billing Terms
- */
-function apiPreviewLedgerAutoForecast(contractData, currentLedger) {
-  try {
-    const contract = new Contract(contractData);
-    const ledgerMovements = (currentLedger || []).map(l => new LedgerMovement(l));
-
-    // Genera la preview usando il motore matematico del Dominio
-    const forecast = contract.generateForecastLedger(ledgerMovements);
-
-    return forecast.map(f => f.exportToData());
-  } catch (error) {
-    console.error("API ERROR [apiPreviewLedgerAutoForecast]:", error.message);
-    throw new Error("Ledger simulation failed: " + error.message);
-  }
-}
-
-/**
- * API ENDPOINT: Resolves real-time live names of Google Drive files directly from their URLs.
- * This guarantees that manually renamed files on Drive are dynamically tracked.
- */
 function apiGetLiveDriveFileNames(urlsString) {
   if (!urlsString || urlsString.trim() === "") return [];
-  const urls = urlsString.split(',').map(s => s.trim()).filter(s => s);
-
-  return urls.map(rawUrl => {
-    // Backward compatibility: strip old 'Name||' prefix if it exists
+  return urlsString.split(',').map(s => s.trim()).filter(s => s).map(rawUrl => {
     let pureUrl = rawUrl.includes('||') ? rawUrl.split('||')[1].trim() : rawUrl;
     let resolvedName = "Attached Document";
-
     try {
       if (pureUrl.includes("drive.google.com")) {
-        let fileId = "";
-        if (pureUrl.includes("/d/")) {
-          fileId = pureUrl.split("/d/")[1].split("/")[0];
-        } else if (pureUrl.includes("id=")) {
-          fileId = pureUrl.split("id=")[1].split("&")[0];
-        }
-
-        if (fileId) {
-          // Live fetch from Google Drive core servers
-          resolvedName = DriveApp.getFileById(fileId).getName();
-        }
+        let fileId = pureUrl.includes("/d/") ? pureUrl.split("/d/")[1].split("/")[0] : (pureUrl.includes("id=") ? pureUrl.split("id=")[1].split("&")[0] : "");
+        if (fileId) resolvedName = DriveApp.getFileById(fileId).getName();
       } else {
-        // Fallback for standard external web links
         let filename = new URL(pureUrl).pathname.split('/').pop();
         resolvedName = filename ? decodeURIComponent(filename) : "External Link";
       }
-    } catch (e) {
-      console.error("Failed real-time Drive sync for URL: " + pureUrl, e);
-      resolvedName = "Accessible Attachment"; // Fallback if file is deleted or unshared
-    }
-
-    return {
-      raw: rawUrl,
-      url: pureUrl,
-      name: resolvedName
-    };
+    } catch (e) { resolvedName = "Accessible Attachment"; }
+    return { raw: rawUrl, url: pureUrl, name: resolvedName };
   });
 }
 
-/**
- * Helper per trovare o creare una cartella all'interno di un'altra.
- */
 function getOrCreateFolder(folderName, parentFolder) {
   const folders = parentFolder.getFoldersByName(folderName);
-  if (folders.hasNext()) {
-    return folders.next();
-  } else {
-    return parentFolder.createFolder(folderName);
-  }
+  return folders.hasNext() ? folders.next() : parentFolder.createFolder(folderName);
 }
 
-/**
- * Receives base64 files from frontend and saves them in the correct structure.
- * Prevents duplicates by checking filename existence.
- */
 function uploadFilesToDrive(filesData, year, supplier, assetName) {
   try {
     const rootItr = DriveApp.getFoldersByName("IT Cost Center");
     const rootFolder = rootItr.hasNext() ? rootItr.next() : DriveApp.createFolder("IT Cost Center");
+    const assetFolder = getOrCreateFolder(assetName, getOrCreateFolder(supplier, getOrCreateFolder(year.toString(), rootFolder)));
 
-    const contractsFolder = getOrCreateFolder("Contracts", rootFolder);
-    const yearFolder = getOrCreateFolder(year.toString(), contractsFolder);
-    const supplierFolder = getOrCreateFolder(supplier, yearFolder);
-    const assetFolder = getOrCreateFolder(assetName, supplierFolder);
-
-    const uploadedUrls = [];
-
-    filesData.forEach(file => {
+    return filesData.map(file => {
       const existingFiles = assetFolder.getFilesByName(file.filename);
-      if (existingFiles.hasNext()) {
-        // File already exists: get its URL instead of creating a duplicate
-        const existingFile = existingFiles.next();
-        uploadedUrls.push(existingFile.getUrl());
-      } else {
-        // New file: create it
-        const blob = Utilities.newBlob(Utilities.base64Decode(file.base64), file.mimeType, file.filename);
-        const newFile = assetFolder.createFile(blob);
-        uploadedUrls.push(newFile.getUrl());
-      }
+      if (existingFiles.hasNext()) return existingFiles.next().getUrl();
+      return assetFolder.createFile(Utilities.newBlob(Utilities.base64Decode(file.base64), file.mimeType, file.filename)).getUrl();
     });
-
-    return uploadedUrls;
-  } catch (error) {
-    throw new Error("Error during Drive upload: " + error.toString());
-  }
-}
-
-/**
- * API ENDPOINT: Caricamento asincrono iniziale di tutti i dati necessari al client.
- * Ottimizzato in un'unica chiamata bulk per azzerare la latenza di caricamento della UI.
- */
-function getFullPayload_Internal() {
-  try {
-    console.log("ROUTER: Richiesta bulk dati iniziali dal client...");
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-
-    // 🌟 DELEGAZIONE (SRP): Il Router gestisce la rete, il Builder formatta i DTO
-    return PayloadBuilder.buildFullPayload(ss);
-
-  } catch (error) {
-    console.error("ROUTER ERROR [getFullPayload_Internal]:", error.message);
-    throw new Error("Data Retrieval Failure: " + error.message);
-  }
+  } catch (error) { throw new Error("Drive upload error: " + error.toString()); }
 }
