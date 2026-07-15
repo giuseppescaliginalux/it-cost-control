@@ -5,45 +5,17 @@
      * Gestisce la Macchina a Stati Finiti in condivisione col Backend.
      */
 
-    const ASSET_FIELD_MAP = {
-        "Asset ID": "id", "Asset Name": "name", "Manufacturer": "manufacturer",
-        "Business Driver": "businessDriver", "Asset Category": "category", "Asset Type": "assetType",
-        "Description": "description", "Budget Status (FY27)": "budgetStatusFY27", "Run Rate": "runRate",
-        "Current Status": "currentStatus", "Target Status": "targetStatus", "Cost Improvement": "costImprovement",
-        "Exit Date": "exitDate", "Transfer Date": "transferDate", "Initiative Target Date": "initiativeTargetDate",
-        "Last End Date": "lastEndDate"
-    };
-
-    const AssetMapper = {
-        toDto: (rawRow) => {
-            const dto = {};
-            const mappedKeys = Object.keys(ASSET_FIELD_MAP);
-            const mappedCamelKeys = Object.values(ASSET_FIELD_MAP);
-            for (let key in rawRow) {
-                if (!mappedKeys.includes(key) && !mappedCamelKeys.includes(key)) dto[key] = rawRow[key];
-            }
-            for (let sheetHeader in ASSET_FIELD_MAP) {
-                const camelProp = ASSET_FIELD_MAP[sheetHeader];
-                let val = rawRow[sheetHeader] !== undefined ? rawRow[sheetHeader] : rawRow[camelProp];
-                dto[camelProp] = val !== undefined && val !== null ? val : "";
-            }
-            return dto;
-        }
-    };
 
     class Asset {
         constructor(dto = {}) {
-            this.id = dto.id || ""; this.name = dto.name || ""; this.manufacturer = dto.manufacturer || "";
-            this.businessDriver = dto.businessDriver || ""; this.category = dto.category || ""; this.assetType = dto.assetType || "";
-            this.description = dto.description || ""; this.budgetStatusFY27 = dto.budgetStatusFY27 || "Not Budgeted";
-            this.runRate = parseFloat(dto.runRate) || 0; this.currentStatus = dto.currentStatus || "RUNNING";
-            this.targetStatus = dto.targetStatus || "RETAIN"; this.costImprovement = parseFloat(dto.costImprovement) || 0;
-            this.exitDate = dto.exitDate || ""; this.transferDate = dto.transferDate || "";
-            this.initiativeTargetDate = dto.initiativeTargetDate || ""; this.lastEndDate = dto.lastEndDate || "";
-
-            this.extraProperties = {};
-            const knownProperties = Object.values(ASSET_FIELD_MAP);
-            for (let key in dto) if (!knownProperties.includes(key)) this.extraProperties[key] = dto[key];
+            Object.assign(this, dto);
+            this.id = this.id || ""; this.name = this.name || ""; this.manufacturer = this.manufacturer || "";
+            this.businessDriver = this.businessDriver || ""; this.category = this.category || ""; this.assetType = this.assetType || "";
+            this.description = this.description || ""; this.budgetStatusFY27 = this.budgetStatusFY27 || "Not Budgeted";
+            this.runRate = parseFloat(this.runRate) || 0; this.currentStatus = this.currentStatus || "RUNNING";
+            this.targetStatus = this.targetStatus || "RETAIN"; this.costImprovement = parseFloat(this.costImprovement) || 0;
+            this.exitDate = this.exitDate || ""; this.transferDate = this.transferDate || "";
+            this.initiativeTargetDate = this.initiativeTargetDate || ""; this.lastEndDate = this.lastEndDate || "";
         }
 
         injectContext(assetProjections, assetContracts, assetInits, assetVariances) {
@@ -125,11 +97,7 @@
         }
 
         exportToData() {
-            // Esporta lo stato nativo camelCase puro in un Plain Object JSON
-            return {
-                ...this.extraProperties,
-                ...this
-            };
+            return { ...this };
         }
     }
 </script>

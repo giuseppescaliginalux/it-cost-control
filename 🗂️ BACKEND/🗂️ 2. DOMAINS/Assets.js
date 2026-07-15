@@ -72,33 +72,24 @@ const AssetMapper = {
  */
 class Asset {
   constructor(dto = {}) {
-    this.id = dto.id || "";
-    this.name = dto.name || "";
-    this.manufacturer = dto.manufacturer || "";
-    this.businessDriver = dto.businessDriver || "";
-    this.category = dto.category || "";
-    this.assetType = dto.assetType || "";
-    this.description = dto.description || "";
+    Object.assign(this, dto);
+    this.id = this.id || "";
+    this.name = this.name || "";
+    this.manufacturer = this.manufacturer || "";
+    this.businessDriver = this.businessDriver || "";
+    this.category = this.category || "";
+    this.assetType = this.assetType || "";
+    this.description = this.description || "";
 
-    // Stati e metriche finanziarie fluide calcolate in RAM
-    this.budgetStatusFY27 = dto.budgetStatusFY27 || "Not Budgeted";
-    this.runRate = parseFloat(dto.runRate) || 0;
-    this.currentStatus = dto.currentStatus || "RUNNING";
-    this.targetStatus = dto.targetStatus || "RETAIN";
-    this.costImprovement = parseFloat(dto.costImprovement) || 0;
-    this.exitDate = dto.exitDate || "";
-    this.transferDate = dto.transferDate || "";
-    this.initiativeTargetDate = dto.initiativeTargetDate || "";
-    this.lastEndDate = dto.lastEndDate || "";
-
-    // Buffer isolato per l'invarianza del Bulk Round-Trip
-    this.extraProperties = {};
-    const knownProperties = Object.values(ASSET_FIELD_MAP);
-    for (let key in dto) {
-      if (!knownProperties.includes(key)) {
-        this.extraProperties[key] = dto[key];
-      }
-    }
+    this.budgetStatusFY27 = this.budgetStatusFY27 || "Not Budgeted";
+    this.runRate = parseFloat(this.runRate) || 0;
+    this.currentStatus = this.currentStatus || "RUNNING";
+    this.targetStatus = this.targetStatus || "RETAIN";
+    this.costImprovement = parseFloat(this.costImprovement) || 0;
+    this.exitDate = this.exitDate || "";
+    this.transferDate = this.transferDate || "";
+    this.initiativeTargetDate = this.initiativeTargetDate || "";
+    this.lastEndDate = this.lastEndDate || "";
   }
 
   /**
@@ -181,17 +172,31 @@ class Asset {
     else if (maxEndDate && maxEndDate < today) computedStatus = "EXPIRED";
 
     this.currentStatus = computedStatus;
+
+    // Calcolo Status Budget tramite Variance Report per il TDD
+    if (assetVariances && assetVariances.length > 0) {
+      const v = assetVariances.find(vari => String(vari.fiscalYear || vari["Fiscal Year"] || "").includes("FY27")) || assetVariances[0];
+      
+      const budgetVal = parseFloat(String(v.effectiveBudget || v["Effective Budget"] || "0").replace(/[^0-9.-]/g, ''));
+      const varianceVal = parseFloat(String(v.variance || v["Variance"] || "0").replace(/[^0-9.-]/g, ''));
+
+      if (budgetVal > 0) {
+        if (varianceVal < 0) {
+          this.budgetStatusFY27 = "At Risk";
+        } else {
+          this.budgetStatusFY27 = "Secured";
+        }
+      } else {
+        this.budgetStatusFY27 = "Not Budgeted";
+      }
+    }
   }
 
   /**
    * Compila il DTO in uscita preservando l'intera mappa delle proprietà dello scope originario.
    */
   exportToData() {
-    // Esporta lo stato nativo camelCase puro in un Plain Object JSON
-    return {
-      ...this.extraProperties,
-      ...this
-    };
+    return { ...this };
   }
 }
 

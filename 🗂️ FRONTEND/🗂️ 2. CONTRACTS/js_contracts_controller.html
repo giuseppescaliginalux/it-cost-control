@@ -453,8 +453,7 @@
             item.data.supplier = ContractsState.currentMasterData.supplier || "";
         }
 
-        const dto = ContractMapper.toDto(item.data, CONTRACT_FIELD_MAP);
-        const contract = new Contract(dto);
+        const contract = new Contract(item.data);
 
         // 🌟 FIX: Iniettiamo i ledger per permettere il calcolo dell'Effective Run Rate (Crediti)
         item.ledger.forEach(l => contract.ledger.push(new LedgerMovement(l)));
@@ -481,11 +480,10 @@
         }
 
         if (ContractsState.currentMasterData) {
-            const masterDto = ContractMapper.toDto(ContractsState.currentMasterData, MASTER_FIELD_MAP);
-            const master = new MasterContract(masterDto);
+            const master = new MasterContract(ContractsState.currentMasterData);
 
             ContractsState.currentDetailItems.forEach(childItem => {
-                const childDto = ContractMapper.toDto(childItem.data, CONTRACT_FIELD_MAP);
+                const childDto = childItem.data;
                 if (childDto.startDate) childDto.startDate = new Date(childDto.startDate);
                 if (childDto.contractEndDate) childDto.contractEndDate = new Date(childDto.contractEndDate);
                 if (childDto.adjustedEndDate) childDto.adjustedEndDate = new Date(childDto.adjustedEndDate);
@@ -577,8 +575,7 @@
             initiatives: mId && mId.trim() !== "" ? (windowPayload.initiatives || []).filter(i => String(i.masterId).trim().toLowerCase() === mId.trim().toLowerCase()) : [],
 
             details: ContractsState.currentDetailItems.map(item => {
-                const dto = ContractMapper.toDto(item.data, CONTRACT_FIELD_MAP);
-                const contract = new Contract(dto);
+                const contract = new Contract(item.data);
                 const cleanExport = contract.exportToData();
                 cleanExport.splits = item.splits || [];
                 cleanExport.ledger = item.ledger || [];
@@ -599,12 +596,12 @@
                 if (res && res.status === "SUCCESS") {
                     FinOpsUI.showNotificationBanner("Architecture synchronized successfully.", "success");
 
-                    // 🌟 RIPRISTINATO: Il tuo blocco completo per aggiornare la RAM all'istante
-                    windowPayload.masterContracts = (res.masterContracts || []).map(r => ContractMapper.toDto(r, MASTER_FIELD_MAP));
-                    windowPayload.contracts = (res.contracts || []).map(r => ContractMapper.toDto(r, CONTRACT_FIELD_MAP));
-                    windowPayload.allocationSplits = (res.allocationSplits || []).map(r => ContractMapper.toDto(r, SPLIT_FIELD_MAP));
-                    windowPayload.ledger = (res.ledger || []).map(r => ContractMapper.toDto(r, LEDGER_FIELD_MAP));
-
+                    // Il backend invia payload già tradotti in DTO puliti
+                    windowPayload.masterContracts = res.masterContracts || [];
+                    windowPayload.contracts = res.contracts || [];
+                    windowPayload.allocationSplits = res.allocationSplits || [];
+                    windowPayload.ledger = res.ledger || [];
+                    
                     windowPayload.projections = ProjectionsEngine.calculateAll(
                         windowPayload.contracts,
                         windowPayload.initiatives,

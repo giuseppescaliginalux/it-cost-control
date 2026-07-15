@@ -5,12 +5,11 @@
      * ============================================================================
      * Questo modulo esegue il calcolo delle proiezioni finanziarie a latenza zero
      * sfruttando la CPU del browser. Le classi TimePeriod e ContractProjection 
-     * sono copie perfette isomorfiche del dominio backend (per garantire 
-     * compatibilità al 100% con la suite TDD in ProjectionsTests.js).
+     * sono copie perfette isomorfiche del dominio backend.
      */
 
     // ============================================================================
-    // 1. CLASSI DI DOMINIO (PURE JS - TESTED VIA TDD)
+    // 1. CLASSI DI DOMINIO (PURE JS)
     // ============================================================================
     class TimePeriod {
         constructor(name, startDateStr, endDateStr) {
@@ -29,7 +28,6 @@
 
     class ContractProjection {
         constructor(contractDto, period, linkedInitiatives = [], successorStartDate = null, fullLedger = []) {
-            // 🌟 TRASFORMAZIONE INTERNA: Convertiamo il DTO piatto nell'oggetto di dominio globale Contract
             this.contract = contractDto instanceof Contract ? contractDto : new Contract(contractDto);
             this.period = period;
             this.linkedInitiatives = linkedInitiatives;
@@ -41,7 +39,7 @@
             this.monthlyOptimizedVirtual = {};
 
             this.contractStart = this.contract.startDate;
-            this.contractEnd = this.contract.getEndDate(); // 🌟 Sfrutta il metodo getEndDate() nativo isomorfico
+            this.contractEnd = this.contract.getEndDate();
 
             const isRecurrent = String(this.contract.costRecurrence).toLowerCase() === "recurrent";
             const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -67,27 +65,25 @@
             targetDict[mk] = (targetDict[mk] || 0) + amount;
         }
 
-        // 🌟 IL NUOVO METODO COMUNE (DRY)
-        // Centralizza la matematica di applicazione degli sconti e delle dismissioni
         _applyInitiativesToCost(dateToCheck, baseCost, activeInits) {
             let currentCost = baseCost;
             let isTerminated = false;
 
             for (let init of activeInits) {
-                const initEffDate = new Date(init["Target Date"] || init.targetDate);
+                const initEffDate = new Date(init.targetDate);
                 if (initEffDate) initEffDate.setHours(0, 0, 0, 0);
 
                 if (dateToCheck >= initEffDate) {
-                    if (["TERMINATE", "REPLACE", "TRANSFER"].includes(String(init.Decision || init.decision).toUpperCase())) {
+                    if (["TERMINATE", "REPLACE", "TRANSFER"].includes(String(init.decision).toUpperCase())) {
                         isTerminated = true;
                     } else {
-                        let globalSavingPct = parseFloat(init["Target Saving %"] || init.targetSavingPct) || 0;
+                        let globalSavingPct = parseFloat(init.targetSavingPct) || 0;
                         if (globalSavingPct > 1) globalSavingPct = globalSavingPct / 100;
 
                         if (globalSavingPct > 0) {
                             currentCost = currentCost * (1.0 - globalSavingPct);
                         } else {
-                            let targetCost = parseFloat(init["Target Cost (Annualized)"] || init.targetCostAnnualized);
+                            let targetCost = parseFloat(init.targetCostAnnualized);
                             if (!isNaN(targetCost) && targetCost >= 0) currentCost = targetCost;
                         }
                     }
@@ -97,7 +93,6 @@
         }
 
         calculateBaseline() {
-            // 🌟 FIX IDEMPOTENZA: Svuotiamo la memoria prima di ricalcolare!
             this.monthlyBaselineActual = {};
             this.monthlyBaselineVirtual = {};
 
@@ -107,18 +102,13 @@
             const expType = String(this.contract.expenditureType || "").toUpperCase().trim();
             const isUpfrontCapex = expType === "CAPEX" && (bt.includes("UPFRONT") || bt.includes("PREPAID"));
 
-            // 🌟 FIX LEDGER: Calcolo reale pro-rata dal Ledger + ROLLOVER VIRTUALE (Rinnovi Futuri)!
             if (bt.includes("PAY-AS-YOU-GO") || bt.includes("CUSTOM") || bt.includes("LEDGER")) {
                 let ledgerSum = 0;
 
-                // 1. ACTUALS (Fatture e Consuntivi caricati dal Ledger)
                 (this.fullLedger || []).forEach(mov => {
-                    let sRaw = mov["Start Date"] || mov.startDate;
-                    let eRaw = mov["End Date"] || mov.endDate;
-
-                    const movStart = sRaw ? new Date(sRaw) : null;
-                    const movEnd = eRaw ? new Date(eRaw) : movStart;
-                    const amt = parseFloat(mov.Amount || mov.amount) || 0;
+                    const movStart = mov.startDate ? new Date(mov.startDate) : null;
+                    const movEnd = mov.endDate ? new Date(mov.endDate) : movStart;
+                    const amt = parseFloat(mov.amount) || 0;
 
                     if (movStart && movEnd && !isNaN(movStart.getTime()) && !isNaN(movEnd.getTime())) {
                         const overlapStart = movStart < this.period.startDate ? this.period.startDate : movStart;
@@ -135,7 +125,6 @@
                     }
                 });
 
-                // 2. VIRTUALS (Generazione scadenziario ombra se il contratto è destinato a rinnovarsi)
                 if (this.contract.costRecurrence === "Recurrent" && this.contractEnd && this.effectiveEndDate > this.contractEnd) {
                     const monthlyFlatRate = (parseFloat(this.contract.annualValue) || 0) / 12;
                     let vStartCursor = new Date(this.contractEnd);
@@ -220,21 +209,19 @@
         }
 
         calculateOptimized() {
-            // 🌟 FIX MODAL VUOTA: Svuotiamo la memoria dei bucket OPTIMIZED
             this.monthlyOptimizedActual = {};
             this.monthlyOptimizedVirtual = {};
 
             if (this.daysOfCompetence <= 0) return 0;
 
             const activeInits = this.linkedInitiatives.filter(init =>
-                ["COMPLETED", "IN PROGRESS", "IDEA", "APPROVED", "PLANNED"].includes(String(init["Initiative Status"] || init.status).toUpperCase())
+                ["COMPLETED", "IN PROGRESS", "IDEA", "APPROVED", "PLANNED"].includes(String(init.status).toUpperCase())
             );
 
             const bt = String(this.contract.billingTerms || "").toUpperCase().trim();
             const expType = String(this.contract.expenditureType || "").toUpperCase().trim();
             const isUpfrontCapex = expType === "CAPEX" && (bt.includes("UPFRONT") || bt.includes("PREPAID"));
 
-            // Se non ci sono iniziative di ottimizzazione attive, clona e copia l'intera baseline generata al punto 1 (Rollover incluso!)
             if (activeInits.length === 0) {
                 const res = this.calculateBaseline();
                 Object.assign(this.monthlyOptimizedActual, this.monthlyBaselineActual);
@@ -242,22 +229,16 @@
                 return res;
             }
 
-            activeInits.sort((a, b) => new Date(a["Target Date"] || a.targetDate) - new Date(b["Target Date"] || b.targetDate));
+            activeInits.sort((a, b) => new Date(a.targetDate) - new Date(b.targetDate));
 
-            // =======================================================
-            // BLOCCO SPECIALE: LEDGER CON INIZIATIVE ATTIVE (Applica sconti)
-            // =======================================================
             if (bt.includes("PAY-AS-YOU-GO") || bt.includes("CUSTOM") || bt.includes("LEDGER")) {
                 let totalOptimized = 0;
-                const originalAnnualValue = parseFloat(this.contract.annualValue || this.contract["Annual Value"]) || 0;
+                const originalAnnualValue = parseFloat(this.contract.annualValue) || 0;
 
-                // 1. ACTUALS (dal Ledger) con sconti giorno per giorno applicati sopra
                 (this.fullLedger || []).forEach(mov => {
-                    let sRaw = mov["Start Date"] || mov.startDate;
-                    let eRaw = mov["End Date"] || mov.endDate;
-                    const movStart = sRaw ? new Date(sRaw) : null;
-                    const movEnd = eRaw ? new Date(eRaw) : movStart;
-                    const amt = parseFloat(mov.Amount || mov.amount) || 0;
+                    const movStart = mov.startDate ? new Date(mov.startDate) : null;
+                    const movEnd = mov.endDate ? new Date(mov.endDate) : movStart;
+                    const amt = parseFloat(mov.amount) || 0;
 
                     if (movStart && movEnd && !isNaN(movStart.getTime()) && !isNaN(movEnd.getTime())) {
                         const overlapStart = movStart < this.period.startDate ? this.period.startDate : movStart;
@@ -276,22 +257,21 @@
                             while (dayCursor <= loopEnd) {
                                 const testDay = new Date(dayCursor);
                                 testDay.setHours(0, 0, 0, 0);
-
                                 let currentAnnual = originalAnnualValue;
                                 let isTerminated = false;
 
                                 for (let init of activeInits) {
-                                    const initEffDate = new Date(init["Target Date"] || init.targetDate);
+                                    const initEffDate = new Date(init.targetDate);
                                     if (initEffDate) initEffDate.setHours(0, 0, 0, 0);
                                     if (testDay >= initEffDate) {
-                                        if (["TERMINATE", "REPLACE", "TRANSFER"].includes(String(init.Decision || init.decision).toUpperCase())) {
+                                        if (["TERMINATE", "REPLACE", "TRANSFER"].includes(String(init.decision).toUpperCase())) {
                                             isTerminated = true;
                                         } else {
-                                            let globalSavingPct = parseFloat(init["Target Saving %"] || init.targetSavingPct) || 0;
+                                            let globalSavingPct = parseFloat(init.targetSavingPct) || 0;
                                             if (globalSavingPct > 1) globalSavingPct = globalSavingPct / 100;
                                             if (globalSavingPct > 0) currentAnnual = currentAnnual * (1.0 - globalSavingPct);
                                             else {
-                                                let targetCost = parseFloat(init["Target Cost (Annualized)"] || init.targetCostAnnualized);
+                                                let targetCost = parseFloat(init.targetCostAnnualized);
                                                 if (!isNaN(targetCost) && targetCost >= 0) currentAnnual = targetCost;
                                             }
                                         }
@@ -310,7 +290,6 @@
                     }
                 });
 
-                // 2. VIRTUALS (Rollover se Recurrent) con sconti applicati ai mesi virtuali generati
                 if (this.contract.costRecurrence === "Recurrent" && this.contractEnd && this.effectiveEndDate > this.contractEnd) {
                     let vStartCursor = new Date(this.contractEnd);
                     vStartCursor.setDate(vStartCursor.getDate() + 1);
@@ -355,9 +334,6 @@
                 return parseFloat(totalOptimized.toFixed(2));
             }
 
-            // =======================================================
-            // BLOCCO STANDARD: ONE-SHOT & CAPEX
-            // =======================================================
             if (this.contract.costRecurrence === "One-Shot" || isUpfrontCapex) {
                 let totalOptimized = 0;
                 const baseCommitment = parseFloat(this.contract.totalCommitment) || 0;
@@ -388,10 +364,7 @@
                 return parseFloat(totalOptimized.toFixed(2));
             }
 
-            // =======================================================
-            // BLOCCO STANDARD: RECURRENT Mensile
-            // =======================================================
-            const originalAnnualValue = parseFloat(this.contract.annualValue || this.contract["Annual Value"]) || 0;
+            const originalAnnualValue = parseFloat(this.contract.annualValue) || 0;
             let totalOptimized = 0;
 
             const startCursor = new Date(Math.max(this.period.startDate, this.contractStart));
@@ -438,78 +411,60 @@
             }
             return parseFloat(totalOptimized.toFixed(2));
         }
-
     }
 
     // ============================================================================
     // 2. ORCHESTRATORE GLOBALE (L'ENGINE)
     // ============================================================================
     const ProjectionsEngine = {
-
-        // Definiamo i periodi di calcolo globali
         fy26: new TimePeriod("FY26", "2025-07-01", "2026-06-30"),
         fy27: new TimePeriod("FY27", "2026-07-01", "2027-06-30"),
         fy28: new TimePeriod("FY28", "2027-07-01", "2028-06-30"),
 
         calculateAll: function (contractsArray, initiativesArray, masterContractsArray, ledgerArray = []) {
             console.time("ProjectionsEngine Compute");
-
             const outputProjections = [];
 
             const initsByMaster = new Map();
             (initiativesArray || []).forEach(i => {
-                const status = String(i["Initiative Status"] || i.status || "").toUpperCase();
+                const status = String(i.status || "").toUpperCase();
                 if (["COMPLETED", "IN PROGRESS", "IDEA", "APPROVED", "PLANNED"].includes(status)) {
-                    const mid = String(i["Master Contract ID"] || i.masterId || "").trim();
+                    const mid = String(i.masterId || "").trim();
                     if (!initsByMaster.has(mid)) initsByMaster.set(mid, []);
                     initsByMaster.get(mid).push(i);
                 }
             });
 
-            // 🌟 FIX LEDGER: Indicizziamo anche il Ledger per accesso rapido
             const ledgerByContract = new Map();
             (ledgerArray || []).forEach(l => {
-                const cid = String(l["Contract ID"] || l.contractId || "").trim();
+                const cid = String(l.contractId || "").trim();
                 if (!ledgerByContract.has(cid)) ledgerByContract.set(cid, []);
                 ledgerByContract.get(cid).push(l);
             });
 
             (contractsArray || []).forEach(contract => {
-                const status = String(contract.Status || contract.status || "").toUpperCase();
+                const status = String(contract.status || "").toUpperCase();
                 if (!["ACTIVE", "EXPIRED", "UPCOMING", "INCOMING"].includes(status)) return;
 
-                const mId = String(contract["Master Contract ID"] || contract.masterId).trim();
-                const cId = String(contract["Contract ID"] || contract.contractId).trim();
+                const mId = String(contract.masterId).trim();
+                const cId = String(contract.contractId).trim();
 
                 const linkedInits = (initsByMaster.get(mId) || []).filter(init => {
-                    const initContract = String(init["Contract ID"] || init.contractId || "").trim();
+                    const initContract = String(init.contractId || "").trim();
                     return initContract === "" || initContract === cId;
                 });
 
-                // Estraiamo il ledger locale
                 const contractLedger = ledgerByContract.get(cId) || [];
 
                 const successorMaster = (masterContractsArray || []).find(m => {
-                    const prevs = String(m["Previous Master ID"] || m.previousMasterId || "").split(',').map(s => s.trim()).filter(s => s);
+                    const prevs = String(m.previousMasterId || "").split(',').map(s => s.trim()).filter(s => s);
                     return prevs.includes(mId);
                 });
                 let successorStart = null;
-                if (successorMaster && successorMaster["Master Start Date"]) successorStart = new Date(successorMaster["Master Start Date"]);
+                if (successorMaster && successorMaster.masterStartDate) successorStart = new Date(successorMaster.masterStartDate);
 
-                const contractDto = {
-                    ...contract,
-                    contractId: cId,
-                    startDate: contract["Start Date"] || contract.startDate,
-                    contractEndDate: contract["Contract End Date"] || contract.contractEndDate,
-                    costRecurrence: contract["Cost Recurrence"] || contract.costRecurrence,
-                    totalCommitment: contract["Total Commitment"] || contract.totalCommitment,
-                    annualValue: contract["Annual Value"] || contract.annualValue,
-                    contractTerm: contract["Contract Term (Months)"] || contract.contractTerm,
-                    billingTerms: contract["Billing Terms"] || contract.billingTerms,
-                    expenditureType: contract["Expenditure Type"] || contract.expenditureType
-                };
+                const contractDto = { ...contract };
 
-                // 🌟 Iniettiamo il Ledger nel Costruttore
                 const p26 = new ContractProjection(contractDto, this.fy26, linkedInits, successorStart, contractLedger);
                 const p27 = new ContractProjection(contractDto, this.fy27, linkedInits, successorStart, contractLedger);
                 const p28 = new ContractProjection(contractDto, this.fy28, linkedInits, successorStart, contractLedger);
@@ -522,12 +477,12 @@
 
                 const rowObj = {
                     "Contract ID": cId,
-                    "Asset Name": contract["Asset Name"] || contract.assetName,
-                    "Supplier": contract.Supplier || contract.supplier,
-                    "Cost Center": contract["Cost Center"] || contract.costCenter,
-                    "Legal Entity": contract["Legal Entity"] || contract.legalEntity,
-                    "Expenditure Type": contractDto.expenditureType,
-                    "Pricing Model": contract["Pricing Model"] || contract.pricingModel,
+                    "Asset Name": contract.assetName,
+                    "Supplier": contract.supplier,
+                    "Cost Center": contract.costCenter,
+                    "Legal Entity": contract.legalEntity,
+                    "Expenditure Type": contract.expenditureType,
+                    "Pricing Model": contract.pricingModel,
 
                     "FY26 Baseline": fy26B, "FY26 Optimized": fy26O,
                     "FY27 Baseline": fy27B, "FY27 Optimized": fy27O,

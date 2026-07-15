@@ -79,46 +79,40 @@ const ContractMapper = {
 
 class LedgerMovement {
   constructor(dto = {}) {
-    this.contractId = dto.contractId || "";
-    this.startDate = dto.startDate ? new Date(dto.startDate) : null;
-    this.endDate = dto.endDate ? new Date(dto.endDate) : null;
-    this.type = String(dto.type || "ACTUAL").toUpperCase();
-    this.amount = parseFloat(dto.amount) || 0;
-    this.notes = dto.notes || "";
-    this.extraProperties = {};
-    const knownKeys = Object.values(LEDGER_FIELD_MAP);
-    for (let key in dto) if (!knownKeys.includes(key)) this.extraProperties[key] = dto[key];
-  }
+      Object.assign(this, dto); // Assorbe dinamicamente tutto il DTO!
+      
+      // Corregge solo tipi e formati
+      this.contractId = this.contractId || "";
+      this.startDate = this.startDate ? new Date(this.startDate) : null;
+      this.endDate = this.endDate ? new Date(this.endDate) : null;
+      this.type = String(this.type || "ACTUAL").toUpperCase();
+      this.amount = parseFloat(this.amount) || 0;
+    }
+
   isForecast() { return this.type === "FORECAST" || this.type === "CALCULATED"; }
+
   isActual() { return this.type === "ACTUAL"; }
+
   exportToData() {
-    return {
-      ...this.extraProperties, contractId: this.contractId, startDate: formatServerDate(this.startDate),
-      endDate: formatServerDate(this.endDate), type: this.type, amount: this.amount, notes: this.notes
-    };
-  }
+      return {
+        ...this, // Riversa tutto
+        startDate: formatServerDate(this.startDate),
+        endDate: formatServerDate(this.endDate)
+      };
+    }
 }
 
 class AllocationSplit {
   constructor(dto = {}) {
-    this.splitId = dto.splitId || "SPL-" + Utilities.getUuid().substring(0, 8).toUpperCase();
-    this.contractId = dto.contractId || "";
-    this.targetLegalEntity = dto.targetLegalEntity || "";
-    this.targetCostCenter = dto.targetCostCenter || "";
-    this.allocationRule = dto.allocationRule || "Percentage";
-
-    this.percentageShare = dto.percentageShare !== undefined ? dto.percentageShare : "";
-    this.fixedAmount = parseFloat(dto.fixedAmount) || 0;
-    this.unitsAssigned = parseFloat(dto.unitsAssigned) || 0;
-
-    this.validFrom = dto.validFrom ? new Date(dto.validFrom) : null;
-    this.validTo = dto.validTo ? new Date(dto.validTo) : null;
-    this.notes = dto.notes || "";
-
-    this.extraProperties = {};
-    const knownKeys = Object.values(SPLIT_FIELD_MAP);
-    for (let key in dto) if (!knownKeys.includes(key)) this.extraProperties[key] = dto[key];
-  }
+      Object.assign(this, dto);
+      
+      this.splitId = this.splitId || "SPL-TMP-" + Math.floor(Math.random() * 10000);
+      this.allocationRule = this.allocationRule || "Percentage";
+      this.fixedAmount = parseFloat(this.fixedAmount) || 0;
+      this.unitsAssigned = parseFloat(this.unitsAssigned) || 0;
+      this.validFrom = this.validFrom ? new Date(this.validFrom) : null;
+      this.validTo = this.validTo ? new Date(this.validTo) : null;
+    }
 
   isPercentage() { return this.allocationRule === "Percentage"; }
 
@@ -129,104 +123,58 @@ class AllocationSplit {
   }
 
   exportToData() {
-    let outPct = "";
-    if (this.isPercentage() && this.percentageShare !== "") {
-      let val = parseFloat(this.percentageShare);
-      outPct = val > 1 ? val / 100 : val;
+      let outPct = "";
+      if (this.isPercentage() && this.percentageShare !== "") {
+        let val = parseFloat(this.percentageShare);
+        outPct = val > 1 ? val / 100 : val;
+      }
+      return {
+        ...this,
+        percentageShare: outPct,
+        fixedAmount: this.allocationRule === "Fixed Amount" ? this.fixedAmount : "",
+        unitsAssigned: this.allocationRule === "Units" ? this.unitsAssigned : "",
+        validFrom: formatServerDate(this.validFrom),
+        validTo: formatServerDate(this.validTo)
+      };
     }
-    return {
-      ...this.extraProperties,
-      splitId: this.splitId,
-      contractId: this.contractId,
-      targetLegalEntity: this.targetLegalEntity,
-      targetCostCenter: this.targetCostCenter,
-      allocationRule: this.allocationRule,
-      percentageShare: outPct,
-      fixedAmount: this.allocationRule === "Fixed Amount" ? this.fixedAmount : "",
-      unitsAssigned: this.allocationRule === "Units" ? this.unitsAssigned : "",
-      validFrom: formatServerDate(this.validFrom),
-      validTo: formatServerDate(this.validTo),
-      notes: this.notes
-    };
-  }
 }
 
 class Contract {
   constructor(dto = {}) {
-    this.id = dto.contractId || dto.id || "";
-    this.masterId = dto.masterId || "";
-    this.assetName = dto.assetName || "";
-    this.supplier = dto.supplier || "";
-    this.billingChannel = dto.billingChannel || "";
-    this.legalEntity = dto.legalEntity || "";
-    this.location = dto.location || "";
-    this.serviceOwner = dto.serviceOwner || "";
-    this.scope = dto.scope || "";
-    this.expenditureType = dto.expenditureType || "";
-    this.costCenter = dto.costCenter || "";
+      Object.assign(this, dto);
+      
+      this.id = this.contractId || this.id || "";
+      this.startDate = this.startDate ? new Date(this.startDate) : null;
+      this.contractEndDate = this.contractEndDate ? new Date(this.contractEndDate) : null;
+      this.adjustedEndDate = this.adjustedEndDate ? new Date(this.adjustedEndDate) : null;
 
-    this.startDate = dto.startDate ? new Date(dto.startDate) : null;
-    this.contractEndDate = dto.contractEndDate ? new Date(dto.contractEndDate) : null;
-    this.adjustedEndDate = dto.adjustedEndDate ? new Date(dto.adjustedEndDate) : null;
+      this.costRecurrence = this.costRecurrence || "Recurrent";
+      this.pricingModel = this.pricingModel || "Flat";
 
-    this.costRecurrence = dto.costRecurrence || "Recurrent";
-    this.pricingModel = dto.pricingModel || "Flat";
+      // SILENT MIGRATION
+      let rawBt = (this.billingTerms || "").trim();
+      let rawBf = (this.billingFrequency || "").trim();
+      const pm = (this.pricingModel || "").trim();
 
-
-    // --- SILENT MIGRATION (Retrocompatibilità Dati Storici) ---
-    let rawBt = (dto.billingTerms || "").trim();
-    let rawBf = (dto.billingFrequency || "").trim();
-    const pm = (dto.pricingModel || "").trim();
-
-    // FIX: Gestione della "mezza migrazione" (Termini cambiati ma Frequenza persa)
-    if (rawBt === "Fixed Recurring" && rawBf === "") {
-      rawBf = "Monthly"; // Ripristina il vecchio default del "Linear"
-    }
-    // Regole standard
-    else if (rawBt === "Linear") {
-      rawBt = "Fixed Recurring"; rawBf = "Monthly";
-    }
-    else if (rawBt === "Quarterly") {
-      rawBt = "Fixed Recurring"; rawBf = "Quarterly";
-    }
-    else if (rawBt === "Full Upfront") {
-      rawBt = "Full Upfront / Prepaid"; rawBf = "";
-    }
-    else if (rawBt === "Ledger-Driven") {
-      if (pm === "Minimum Consumption" || pm === "Capped Consumption") {
-        rawBt = "Pay-As-You-Go";
-      } else {
-        rawBt = "Custom / Ledger Driven";
+      if (rawBt === "Fixed Recurring" && rawBf === "") rawBf = "Monthly";
+      else if (rawBt === "Linear") { rawBt = "Fixed Recurring"; rawBf = "Monthly"; }
+      else if (rawBt === "Quarterly") { rawBt = "Fixed Recurring"; rawBf = "Quarterly"; }
+      else if (rawBt === "Full Upfront") { rawBt = "Full Upfront / Prepaid"; rawBf = ""; }
+      else if (rawBt === "Ledger-Driven") {
+        if (pm === "Minimum Consumption" || pm === "Capped Consumption") rawBt = "Pay-As-You-Go";
+        else rawBt = "Custom / Ledger Driven";
       }
+      else if (rawBt === "") { rawBt = "Fixed Recurring"; rawBf = "Monthly"; }
+
+      this.billingTerms = rawBt;
+      this.billingFrequency = rawBf;
+      this.totalCommitment = parseFloat(this.totalCommitment) || 0;
+      this.annualValue = parseFloat(this.annualValue) || 0;
+
+      // Azzera le liste child per evitare cache poisoning
+      this.ledger = [];
+      this.splits = [];
     }
-    else if (rawBt === "") {
-      rawBt = "Fixed Recurring"; rawBf = "Monthly";
-    }
-
-    this.billingTerms = rawBt;
-    this.billingFrequency = rawBf;
-    // -----------------------------------------------------------
-
-    //this.billingTerms = dto.billingTerms || "Linear";
-    //this.billingFrequency = dto.billingFrequency || "";
-
-    this.totalCommitment = parseFloat(dto.totalCommitment) || 0;
-    this.annualValue = parseFloat(dto.annualValue) || 0;
-
-    this.noticePeriod = dto.noticePeriod || "";
-    this.autoRenewal = dto.autoRenewal || "";
-    this.blId = dto.blId || "";
-    this.requestCode = dto.requestCode || "";
-    this.comments = dto.comments || "";
-    this.contractLinks = dto.contractLinks || "";
-
-    this.ledger = [];
-    this.splits = [];
-
-    this.extraProperties = {};
-    const knownKeys = Object.values(CONTRACT_FIELD_MAP);
-    for (let key in dto) if (!knownKeys.includes(key)) this.extraProperties[key] = dto[key];
-  }
 
   getEndDate() {
     return (this.adjustedEndDate && !isNaN(this.adjustedEndDate.getTime())) ? this.adjustedEndDate : this.contractEndDate;
@@ -293,40 +241,20 @@ class Contract {
   }
 
   exportToData() {
-    return {
-      ...this.extraProperties,
-      contractId: this.id,
-      masterId: this.masterId, // Riceve top-down lookup dal Master
-      assetName: this.assetName,
-      supplier: this.supplier,
-      billingChannel: this.billingChannel,
-      legalEntity: this.legalEntity,
-      location: this.location,
-      serviceOwner: this.serviceOwner,
-      scope: this.scope,
-      costRecurrence: this.costRecurrence,
-      pricingModel: this.pricingModel,
-      billingTerms: this.billingTerms,
-      billingFrequency: this.billingFrequency,
-      totalCommitment: this.totalCommitment,
-      expenditureType: this.expenditureType,
-      costCenter: this.costCenter,
-      startDate: formatServerDate(this.startDate),
-      contractEndDate: formatServerDate(this.contractEndDate),
-      adjustedEndDate: formatServerDate(this.adjustedEndDate),
-      endDate: formatServerDate(this.getEndDate()),
-      noticePeriod: this.noticePeriod,
-      autoRenewal: this.autoRenewal,
-      blId: this.blId,
-      requestCode: this.requestCode,
-      comments: this.comments,
-      contractLinks: this.contractLinks,
-      contractTerm: this.getDurationMonths(),
-      effectiveCommitment: this.getEffectiveCommitment(),
-      annualValue: this.getAnnualValue(),
-      status: this.calculateStatus()
-    };
-  }
+      return {
+        ...this, 
+        contractId: this.id,
+        startDate: formatServerDate(this.startDate),
+        contractEndDate: formatServerDate(this.contractEndDate),
+        adjustedEndDate: formatServerDate(this.adjustedEndDate),
+        endDate: formatServerDate(this.getEndDate()),
+        contractTerm: this.getDurationMonths(),
+        effectiveCommitment: this.getEffectiveCommitment(),
+        annualValue: this.getAnnualValue(),
+        effectiveRunRate: this.getEffectiveRunRate(),
+        status: this.calculateStatus()
+      };
+    }
 
   generateForecastLedger(currentLedger = []) {
     const bt = String(this.billingTerms).toUpperCase().trim();
@@ -490,20 +418,10 @@ class Contract {
 
 class MasterContract {
   constructor(dto = {}) {
-    this.id = dto.masterId || "";
-    this.previousMasterId = dto.previousMasterId || "";
-    this.supplier = dto.supplier || "";
-    this.assetName = dto.assetName || "";
-    this.billingChannel = dto.billingChannel || "";
-    this.masterScope = dto.masterScope || "";
-    this.masterComments = dto.masterComments || "";
-    this.contractLinks = dto.contractLinks || "";
-    this.childContracts = [];
-
-    this.extraProperties = {};
-    const knownKeys = Object.values(MASTER_FIELD_MAP);
-    for (let key in dto) if (!knownKeys.includes(key)) this.extraProperties[key] = dto[key];
-  }
+      Object.assign(this, dto);
+      this.id = this.masterId || "";
+      this.childContracts = [];
+    }
 
   addChild(contractInstance) {
     // Top-Down Lookup Injection
@@ -590,36 +508,27 @@ class MasterContract {
   }
 
   exportToData(linkedInitiatives) {
-    const start = this.getMinStartDate();
-    const end = this.getMaxEndDate();
-    let termMonths = 0;
-    if (start && end && start <= end) {
-      termMonths = Math.round(this._getExactMonths(start, end));
+      const start = this.getMinStartDate();
+      const end = this.getMaxEndDate();
+      let termMonths = 0;
+      if (start && end && start <= end) {
+        termMonths = Math.round(this._getExactMonths(start, end));
+      }
+      const nominalCommitment = parseFloat(this.childContracts.reduce((sum, c) => sum + (c.totalCommitment || 0), 0).toFixed(2));
+
+      return {
+        ...this,
+        masterId: this.id,
+        masterStartDate: formatServerDate(start),
+        masterEndDate: formatServerDate(end),
+        contractTerm: termMonths,
+        totalCommitment: this.getTotalCommitment(),
+        nominalCommitment: nominalCommitment,
+        runRate: this.getRunRate(),
+        effectiveRunRate: this.getEffectiveRunRate(),
+        status: this.deriveStatus(linkedInitiatives)
+      };
     }
-
-    // Estraiamo il valore Nominale Lordo originario sommando i contratti
-    const nominalCommitment = parseFloat(this.childContracts.reduce((sum, c) => sum + (c.totalCommitment || 0), 0).toFixed(2));
-
-    return {
-      ...this.extraProperties,
-      masterId: this.id,
-      previousMasterId: this.previousMasterId,
-      assetName: this.assetName,
-      supplier: this.supplier,
-      masterScope: this.masterScope,
-      masterComments: this.masterComments,
-      contractLinks: this.contractLinks,
-      billingChannel: this.billingChannel,
-      masterStartDate: formatServerDate(start),
-      masterEndDate: formatServerDate(end),
-      contractTerm: termMonths,
-      totalCommitment: this.getTotalCommitment(), // Effective (al netto dei crediti)
-      nominalCommitment: nominalCommitment,       // Nominal (listino lordo per la UI)
-      runRate: this.getRunRate(),
-      effectiveRunRate: this.getEffectiveRunRate(),
-      status: this.deriveStatus(linkedInitiatives)
-    };
-  }
 
   // Helper interno speculare a quello dei contratti singoli per mantenere consistenza matematica
   _getExactMonths(s, e) {
