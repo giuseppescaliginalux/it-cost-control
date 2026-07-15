@@ -599,7 +599,7 @@
                 if (res && res.status === "SUCCESS") {
                     FinOpsUI.showNotificationBanner("Architecture synchronized successfully.", "success");
 
-                    // 🌟 FIX CRITICO: Traduciamo i dati Raw dal DB in DTO puliti in RAM
+                    // 🌟 RIPRISTINATO: Il tuo blocco completo per aggiornare la RAM all'istante
                     windowPayload.masterContracts = (res.masterContracts || []).map(r => ContractMapper.toDto(r, MASTER_FIELD_MAP));
                     windowPayload.contracts = (res.contracts || []).map(r => ContractMapper.toDto(r, CONTRACT_FIELD_MAP));
                     windowPayload.allocationSplits = (res.allocationSplits || []).map(r => ContractMapper.toDto(r, SPLIT_FIELD_MAP));
@@ -615,11 +615,16 @@
                     if (typeof window.originalPayloadSnapshot !== 'undefined') {
                         window.originalPayloadSnapshot = JSON.parse(JSON.stringify(windowPayload));
                     }
+                    
+                    // 🌟 FIX: Chiudiamo la modale (se è aperta) e spegniamo l'allarme/linguette
+                    if (window.ContractsController && window.ContractsController.closeContractModalWindow) {
+                        window.ContractsController.closeContractModalWindow();
+                    }
                     setPendingChanges(false);
 
                     if (typeof DashboardState !== 'undefined') DashboardState.loadCachePayload(windowPayload);
                     if (typeof ProjectionsState !== 'undefined') ProjectionsState.loadPayload(windowPayload);
-
+                    
                     if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined') {
                         InventoryController.initWorkspace();
                         if (InventoryState.expandedAssetId) {

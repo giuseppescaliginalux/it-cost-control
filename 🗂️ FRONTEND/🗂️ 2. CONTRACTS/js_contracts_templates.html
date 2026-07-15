@@ -292,11 +292,11 @@
 
             let ledgerReadOnlyHtml = '';
             if (item.ledger && item.ledger.length > 0) {
-                // FIX: Aggiunti onwheel e cursor-auto per sbloccare lo scroll indipendente
+                // 🌟 FIX: Aggiunto overscroll-behavior e rimossi i blocchi
                 ledgerReadOnlyHtml = `
                 <div id="read-ledger-${item.id}" class="hidden p-3 bg-amber-50/40 rounded-xl border border-amber-100 w-full mt-3 animate-fade-in" style="cursor: auto;" onclick="event.stopPropagation()">
                     <span class="block font-black text-amber-500 uppercase tracking-widest text-[8px] mb-2">Logged Invoices / Milestones</span>
-                    <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1 custom-scrollbar pointer-events-auto" onwheel="event.stopPropagation()" onscroll="event.stopPropagation()" ontouchmove="event.stopPropagation()">
+                    <div class="space-y-1.5 max-h-48 overflow-y-auto pr-2 custom-scrollbar" style="pointer-events: auto; overscroll-behavior: contain;">
                     ${item.ledger.map(l => {
                     const lStart = l.startDate ? ContractsUtils.formatToEnglishCustomDate(l.startDate) : "—";
                     const lEnd = l.endDate ? ContractsUtils.formatToEnglishCustomDate(l.endDate) : "—";

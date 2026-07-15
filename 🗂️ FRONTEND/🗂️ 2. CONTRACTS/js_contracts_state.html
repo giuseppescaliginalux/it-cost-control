@@ -27,6 +27,13 @@
 
             const rawDetails = allContracts.filter(c => String(c.masterId || "").trim() === cleanId);
 
+            // 🌟 FIX: Ordinamento Contratti per End Date Desc
+            rawDetails.sort((a, b) => {
+                const dA = a.adjustedEndDate || a.contractEndDate || a.endDate;
+                const dB = b.adjustedEndDate || b.contractEndDate || b.endDate;
+                return (dB ? new Date(dB).getTime() : 0) - (dA ? new Date(dA).getTime() : 0);
+            });
+
             this.currentDetailItems = rawDetails.map((row, index) => {
                 const cId = String(row.contractId || "").trim();
                 const linkedSplits = allocationSplits.filter(s => String(s.contractId || "").trim() === cId);

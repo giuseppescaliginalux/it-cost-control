@@ -78,34 +78,26 @@ const ContractMapper = {
 // ============================================================================
 
 class LedgerMovement {
-  constructor(dto = {}) {
-    this.contractId = dto.contractId || "";
-    this.startDate = dto.startDate ? new Date(dto.startDate) : null;
-    this.endDate = dto.endDate ? new Date(dto.endDate) : null;
-    this.type = String(dto.type || "ACTUAL").toUpperCase();
-    this.amount = parseFloat(dto.amount) || 0;
-    this.notes = dto.notes || "";
-
-    this.extraProperties = {};
-    const knownKeys = Object.values(LEDGER_FIELD_MAP);
-    for (let key in dto) if (!knownKeys.includes(key)) this.extraProperties[key] = dto[key];
+    constructor(dto = {}) {
+      this.contractId = dto.contractId || "";
+      this.startDate = dto.startDate ? new Date(dto.startDate) : null;
+      this.endDate = dto.endDate ? new Date(dto.endDate) : null;
+      this.type = String(dto.type || "ACTUAL").toUpperCase();
+      this.amount = parseFloat(dto.amount) || 0;
+      this.notes = dto.notes || "";
+      this.extraProperties = {};
+      const knownKeys = Object.values(LEDGER_FIELD_MAP);
+      for (let key in dto) if (!knownKeys.includes(key)) this.extraProperties[key] = dto[key];
+    }
+    isForecast() { return this.type === "FORECAST" || this.type === "CALCULATED"; }
+    isActual() { return this.type === "ACTUAL"; }
+    exportToData() {
+      return {
+        ...this.extraProperties, contractId: this.contractId, startDate: formatServerDate(this.startDate),
+        endDate: formatServerDate(this.endDate), type: this.type, amount: this.amount, notes: this.notes
+      };
+    }
   }
-
-  isForecast() { return this.type === "FORECAST" || this.type === "CALCULATED"; }
-  isActual() { return this.type === "ACTUAL"; }
-
-  exportToData() {
-    return {
-      ...this.extraProperties,
-      contractId: this.contractId,
-      startDate: formatServerDate(this.startDate),
-      endDate: formatServerDate(this.endDate),
-      type: this.type,
-      amount: this.amount,
-      notes: this.notes
-    };
-  }
-}
 
 class AllocationSplit {
   constructor(dto = {}) {
