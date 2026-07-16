@@ -116,12 +116,27 @@
                         const overlapEnd = movEnd > this.period.endDate ? this.period.endDate : movEnd;
 
                         if (overlapStart <= overlapEnd) {
-                            const activeDays = Math.round((overlapEnd - overlapStart) / (1000 * 60 * 60 * 24)) + 1;
                             const totalDays = Math.round((movEnd - movStart) / (1000 * 60 * 60 * 24)) + 1;
-                            const share = totalDays > 0 ? amt * (activeDays / totalDays) : amt;
+                            const dailyRate = totalDays > 0 ? amt / totalDays : 0;
 
-                            ledgerSum += share;
-                            this._recordMonthlySplit(this.monthlyBaselineActual, this.monthlyBaselineVirtual, overlapStart, share);
+                            // ⚡ FIX: Ciclo di scomposizione mensile per ripartire il movimento del ledger pro-rata sui singoli mesi di competenza
+                            let current = new Date(overlapStart);
+                            current.setDate(1);
+                            while (current <= overlapEnd) {
+                                let monthStart = new Date(current.getFullYear(), current.getMonth(), 1);
+                                let monthEnd = new Date(current.getFullYear(), current.getMonth() + 1, 0);
+                                let subStart = monthStart < overlapStart ? overlapStart : monthStart;
+                                let subEnd = monthEnd > overlapEnd ? overlapEnd : monthEnd;
+
+                                if (subStart <= subEnd) {
+                                    let activeDays = Math.round((subEnd - subStart) / (1000 * 60 * 60 * 24)) + 1;
+                                    let share = dailyRate * activeDays;
+
+                                    ledgerSum += share;
+                                    this._recordMonthlySplit(this.monthlyBaselineActual, this.monthlyBaselineVirtual, subStart, share);
+                                }
+                                current.setMonth(current.getMonth() + 1);
+                            }
                         }
                     }
                 });
@@ -209,9 +224,6 @@
             return parseFloat(totalBaseline.toFixed(2));
         }
 
-        /**
-         * ⚡ VERSIONE OTTIMIZZATA ANALITICA: Calcola l'impatto delle iniziative senza loop "while (giorno++)"
-         */
         calculateOptimized() {
             this.monthlyOptimizedActual = {};
             this.monthlyOptimizedVirtual = {};
@@ -226,7 +238,6 @@
             const expType = String(this.contract.expenditureType || "").toUpperCase().trim();
             const isUpfrontCapex = expType === "CAPEX" && (bt.includes("UPFRONT") || bt.includes("PREPAID"));
 
-            // Se non ci sono iniziative attive, ottimizzato = baseline (evita calcoli inutili)
             if (activeInits.length === 0) {
                 const res = this.calculateBaseline();
                 Object.assign(this.monthlyOptimizedActual, this.monthlyBaselineActual);
@@ -236,7 +247,6 @@
 
             activeInits.sort((a, b) => new Date(a.targetDate) - new Date(b.targetDate));
 
-            // Gestione dei contratti basati su Ledger / Custom
             if (bt.includes("PAY-AS-YOU-GO") || bt.includes("CUSTOM") || bt.includes("LEDGER")) {
                 let totalOptimized = 0;
                 const originalAnnualValue = parseFloat(this.contract.annualValue) || 0;
@@ -254,10 +264,22 @@
                             const totalDays = Math.round((movEnd - movStart) / (1000 * 60 * 60 * 24)) + 1;
                             const dailyRate = amt / totalDays;
 
-                            // Calcolo analitico ad intervalli di date d'iniziativa
-                            const sliceValue = this._calculateIntervalValue(overlapStart, overlapEnd, originalAnnualValue, activeInits, dailyRate, true);
-                            totalOptimized += sliceValue;
-                            this._recordMonthlySplit(this.monthlyOptimizedActual, this.monthlyOptimizedVirtual, overlapStart, sliceValue);
+                            // ⚡ FIX: Suddivisione mensile pro-rata analitica del costo ottimizzato per il P&L Bridge
+                            let current = new Date(overlapStart);
+                            current.setDate(1);
+                            while (current <= overlapEnd) {
+                                let monthStart = new Date(current.getFullYear(), current.getMonth(), 1);
+                                let monthEnd = new Date(current.getFullYear(), current.getMonth() + 1, 0);
+                                let subStart = monthStart < overlapStart ? overlapStart : monthStart;
+                                let subEnd = monthEnd > overlapEnd ? overlapEnd : monthEnd;
+
+                                if (subStart <= subEnd) {
+                                    const sliceValue = this._calculateIntervalValue(subStart, subEnd, originalAnnualValue, activeInits, dailyRate, true);
+                                    totalOptimized += sliceValue;
+                                    this._recordMonthlySplit(this.monthlyOptimizedActual, this.monthlyOptimizedVirtual, subStart, sliceValue);
+                                }
+                                current.setMonth(current.getMonth() + 1);
+                            }
                         }
                     }
                 });
@@ -295,7 +317,6 @@
                 return parseFloat(totalOptimized.toFixed(2));
             }
 
-            // Gestione dei contratti "One-Shot" o Upfront
             if (this.contract.costRecurrence === "One-Shot" || isUpfrontCapex) {
                 let totalOptimized = 0;
                 const baseCommitment = parseFloat(this.contract.totalCommitment) || 0;
@@ -326,7 +347,6 @@
                 return parseFloat(totalOptimized.toFixed(2));
             }
 
-            // Standard Recurrent (Il caso più frequente)
             const originalAnnualValue = parseFloat(this.contract.annualValue) || 0;
             let totalOptimized = 0;
 
