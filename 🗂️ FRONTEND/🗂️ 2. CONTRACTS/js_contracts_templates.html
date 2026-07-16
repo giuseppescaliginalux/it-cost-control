@@ -398,18 +398,9 @@
             const freqList = ['Monthly', 'Quarterly', 'Every 4 Months', 'Bi-Annually', 'Annually'];
             const autoRenewList = ['No', 'Yes'];
 
-            const formatDate = (val) => {
-                if (!val) return '';
-                let s = String(val).trim();
-                if (s.includes('T')) return s.split('T')[0];
-                const match = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})/);
-                if (match) return `${match[1]}-${match[2]}-${match[3]}`;
-                return s;
-            };
-
-            const sDate = formatDate(d.startDate);
-            const eDate = formatDate(d.contractEndDate);
-            const aDate = formatDate(d.adjustedEndDate);
+            const sDate = FinOpsDate.toIso(d.startDate);
+            const eDate = FinOpsDate.toIso(d.contractEndDate);
+            const aDate = FinOpsDate.toIso(d.adjustedEndDate);
             const masterIdStr = d.masterId || 'N/A';
 
             return `
@@ -643,8 +634,8 @@
 
         getSplitRow: function (detailId, split, defaultStartDate, defaultEndDate, leOptions, ccOptions) {
             const rule = split.allocationRule || "Percentage";
-            const validFrom = split.validFrom ? split.validFrom.toString().split('T')[0] : defaultStartDate;
-            const validTo = split.validTo ? split.validTo.toString().split('T')[0] : defaultEndDate;
+            const validFrom = typeof FinOpsDate !== 'undefined' ? (FinOpsDate.toIso(split.validFrom) || defaultStartDate) : defaultStartDate;
+            const validTo = typeof FinOpsDate !== 'undefined' ? (FinOpsDate.toIso(split.validTo) || defaultEndDate) : defaultEndDate;
             const notes = split.notes || "";
 
             let rawVal = "";
@@ -704,8 +695,8 @@
 
         getLedgerRow: function (detailId, mov) {
             const type = (mov.type || "ACTUAL").toUpperCase();
-            const sDate = mov.startDate ? mov.startDate.toString().split('T')[0] : "";
-            const eDate = mov.endDate ? mov.endDate.toString().split('T')[0] : "";
+            const sDate = typeof FinOpsDate !== 'undefined' ? FinOpsDate.toIso(mov.startDate || mov.StartDate) : "";
+            const eDate = typeof FinOpsDate !== 'undefined' ? FinOpsDate.toIso(mov.endDate || mov.EndDate) : "";
             const amount = mov.amount != null ? parseInt(mov.amount, 10).toLocaleString('it-IT') : "";
             const notes = mov.notes || "";
 
