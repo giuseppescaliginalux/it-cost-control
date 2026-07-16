@@ -5,8 +5,8 @@
  */
 
 function onOpen() {
-  SpreadsheetApp.getUi().createMenu("⚙️ FinOps App")
-    .addItem("🧹 Svuota Cache WebApp", "clearAppCache")
+  SpreadsheetApp.getUi().createMenu("IT Cost Control Hub")
+    .addItem("🧹 Empty Cache", "clearAppCache")
     .addToUi();
 }
 
