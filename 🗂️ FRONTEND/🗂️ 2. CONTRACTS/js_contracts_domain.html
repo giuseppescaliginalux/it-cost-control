@@ -196,13 +196,14 @@
           const chunkStart = new Date(currentCursor.getTime());
           const chunkEnd = new Date(currentCursor.getFullYear(), currentCursor.getMonth() + stepMonths, 0);
 
-          const hasActual = currentLedger.some(l => {
-            if (l.type !== "ACTUAL" || !l.startDate) return false;
+          const hasCoverage = currentLedger.some(l => {
+            const type = String(l.type || "").toUpperCase().trim();
+            if ((type !== "ACTUAL" && type !== "FORECAST") || !l.startDate) return false;
             const d = new Date(l.startDate);
             return d.getFullYear() === chunkStart.getFullYear() && d.getMonth() === chunkStart.getMonth();
           });
 
-          if (!hasActual) {
+          if (!hasCoverage) {
             const actualEnd = chunkEnd > finalEnd ? finalEnd : chunkEnd;
             movements.push(new LedgerMovement({
               contractId: this.id,
@@ -219,12 +220,18 @@
       }
 
       if (bt.includes("PAY-AS-YOU-GO") && (pm.includes("MINIMUM") || pm.includes("CAPPED"))) {
-        const actualsSum = currentLedger.filter(l => l.type === "ACTUAL").reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
-        const remainingCommitment = Math.max(0, this.totalCommitment - actualsSum);
+        // Sottrae dal Total Commitment sia gli ACTUAL che i FORECAST manuali
+        const operationalSum = currentLedger
+          .filter(l => String(l.type).toUpperCase().trim() === "ACTUAL" || String(l.type).toUpperCase().trim() === "FORECAST")
+          .reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
 
+        const remainingCommitment = Math.max(0, this.totalCommitment - operationalSum);
+
+        // Ripristinato: Cerca la partenza basandosi solo sulle fatture reali (ACTUAL)
         let lastActualEnd = new Date(this.startDate.getTime() - 86400000);
         currentLedger.forEach(l => {
-          if (l.type === "ACTUAL" && l.endDate) {
+          const type = String(l.type || "").toUpperCase().trim();
+          if (type === "ACTUAL" && l.endDate) {
             const d = new Date(l.endDate);
             if (d > lastActualEnd) lastActualEnd = d;
           }
@@ -237,13 +244,25 @@
 
         let tempCursor = new Date(forecastStart.getTime());
         tempCursor.setDate(1);
+
+        // Calcola quanti mesi reali mancano escludendo quelli già coperti da FORECAST manuali
         let monthsRemaining = 0;
         while (tempCursor <= finalEnd) {
-          monthsRemaining++;
+          const chunkStart = new Date(tempCursor.getTime());
+          const hasForecastInMonth = currentLedger.some(l => {
+            const type = String(l.type || "").toUpperCase().trim();
+            if (type !== "FORECAST" || !l.startDate) return false;
+            const d = new Date(l.startDate);
+            return d.getFullYear() === chunkStart.getFullYear() && d.getMonth() === chunkStart.getMonth();
+          });
+
+          if (!hasForecastInMonth) {
+            monthsRemaining++;
+          }
           tempCursor.setMonth(tempCursor.getMonth() + 1);
         }
 
-        if (monthsRemaining <= 0) return [];
+        if (monthsRemaining <= 0 || remainingCommitment <= 0) return [];
         const monthlyForecast = remainingCommitment / monthsRemaining;
 
         let generateCursor = new Date(forecastStart.getTime());
@@ -254,14 +273,24 @@
           const chunkEnd = new Date(generateCursor.getFullYear(), generateCursor.getMonth() + 1, 0);
           const actualEnd = chunkEnd > finalEnd ? finalEnd : chunkEnd;
 
-          movements.push(new LedgerMovement({
-            contractId: this.id,
-            startDate: formatServerDate(chunkStart),
-            endDate: formatServerDate(actualEnd),
-            type: "CALCULATED",
-            amount: parseFloat(monthlyForecast.toFixed(2)),
-            notes: `Engine-generated forecast (Remaining Commitment)`
-          }));
+          // Salta la generazione del CALCULATED se quel mese specifico ha già una stima manuale FORECAST
+          const hasManualForecast = currentLedger.some(l => {
+            const type = String(l.type || "").toUpperCase().trim();
+            if (type !== "FORECAST" || !l.startDate) return false;
+            const d = new Date(l.startDate);
+            return d.getFullYear() === chunkStart.getFullYear() && d.getMonth() === chunkStart.getMonth();
+          });
+
+          if (!hasManualForecast) {
+            movements.push(new LedgerMovement({
+              contractId: this.id,
+              startDate: formatServerDate(chunkStart),
+              endDate: formatServerDate(actualEnd),
+              type: "CALCULATED",
+              amount: parseFloat(monthlyForecast.toFixed(2)),
+              notes: `Engine-generated forecast (Remaining Commitment)`
+            }));
+          }
           generateCursor = new Date(generateCursor.getFullYear(), generateCursor.getMonth() + 1, 1);
         }
         return movements;

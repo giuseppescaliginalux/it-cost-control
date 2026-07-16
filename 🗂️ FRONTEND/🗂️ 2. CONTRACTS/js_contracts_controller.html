@@ -596,11 +596,15 @@
                 if (res && res.status === "SUCCESS") {
                     FinOpsUI.showNotificationBanner("Architecture synchronized successfully.", "success");
 
-                    // Il backend invia payload già tradotti in DTO puliti
                     windowPayload.masterContracts = res.masterContracts || [];
                     windowPayload.contracts = res.contracts || [];
                     windowPayload.allocationSplits = res.allocationSplits || [];
                     windowPayload.ledger = res.ledger || [];
+
+                    // ⚡ FIX: Richiamiamo l'idratazione sul client subito dopo aver scaricato i dati aggiornati dal server
+                    if (typeof HydrationEngine !== 'undefined') {
+                        HydrationEngine.hydrateAllStatuses(windowPayload);
+                    }
 
                     windowPayload.projections = ProjectionsEngine.calculateAll(
                         windowPayload.contracts,
@@ -613,7 +617,6 @@
                         window.originalPayloadSnapshot = JSON.parse(JSON.stringify(windowPayload));
                     }
 
-                    // 🌟 FIX: Chiudiamo la modale (se è aperta) e spegniamo l'allarme/linguette
                     if (window.ContractsController && window.ContractsController.closeContractModalWindow) {
                         window.ContractsController.closeContractModalWindow();
                     }

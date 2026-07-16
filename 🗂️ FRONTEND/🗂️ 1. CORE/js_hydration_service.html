@@ -2,70 +2,49 @@
     /**
      * js_hydration_service.html
      * ENGINE: Just-In-Time (JIT) Hydration Service.
-     * Cura l'inconsistenza temporale (Stale State) leggendo i DTO puliti in camelCase.
+     * Cura l'inconsistenza temporale e ricalcola a freddo i valori finanziari (Crediti).
      */
     const HydrationEngine = {
         hydrateAllStatuses: function (payload) {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
-            // 1. Contratti Locali
+            // 1. Contratti Locali: Svegliamo le classi di dominio per calcolare i crediti reali all'avvio
             (payload.contracts || []).forEach(c => {
-                const sDate = c.startDate ? new Date(c.startDate) : null;
-                const eRaw = c.adjustedEndDate || c.contractEndDate || c.endDate;
-                const eDate = eRaw ? new Date(eRaw) : null;
+                const cid = c.contractId;
 
-                if (sDate) sDate.setHours(0, 0, 0, 0);
-                if (eDate) eDate.setHours(0, 0, 0, 0);
+                // Raccogliamo i movimenti del Ledger di questo contratto
+                const cLedger = (payload.ledger || []).filter(l => String(l.contractId).trim() === String(cid).trim());
 
-                if (eDate && eDate < today) c.status = "EXPIRED";
-                else if (sDate && sDate > today) c.status = "UPCOMING";
-                else c.status = "ACTIVE";
+                // Istanziamo la classe di dominio pura e gli iniettiamo il Ledger
+                const contractInstance = new Contract(c);
+                cLedger.forEach(l => contractInstance.ledger.push(new LedgerMovement(l)));
+
+                // Arricchiamo l'oggetto DTO con le proprietà calcolate (effectiveCommitment, effectiveRunRate, status)
+                Object.assign(c, contractInstance.exportToData());
             });
 
-            // 2. Master Contracts
+            // 2. Master Contracts: Ricalcoliamo l'aggregazione dei totali Master basandoci sui figli idratati
             (payload.masterContracts || []).forEach(m => {
                 const mId = m.masterId;
                 const children = (payload.contracts || []).filter(c => c.masterId === mId);
                 const inits = (payload.initiatives || []).filter(i => i.masterId === mId);
 
-                let checkTerminated = 0; let checkNegotiation = 0;
-                let hasActive = false; let hasUpcoming = false;
-
+                // Istanziamo la classe MasterContract per ricalcolare i totali corretti con i crediti attivi
+                const masterInstance = new MasterContract(m);
                 children.forEach(c => {
-                    if (c.status === "ACTIVE") hasActive = true;
-                    if (c.status === "UPCOMING") hasUpcoming = true;
+                    const childContract = new Contract(c);
+                    const cLedger = (payload.ledger || []).filter(l => String(l.contractId).trim() === String(c.contractId).trim());
+                    cLedger.forEach(l => childContract.ledger.push(new LedgerMovement(l)));
+                    masterInstance.addChild(childContract);
                 });
 
-                inits.forEach(init => {
-                    const initStatus = String(init.status || "").toUpperCase().trim();
-                    const decision = String(init.decision || "").toUpperCase().trim();
-
-                    if (initStatus === "COMPLETED" && ["TERMINATE", "REPLACE", "TRANSFER"].includes(decision)) {
-                        let isPastTargetDate = true;
-                        const tDateRaw = init.actualDate || init.targetDate;
-                        if (tDateRaw) {
-                            const tDate = new Date(tDateRaw);
-                            tDate.setHours(0, 0, 0, 0);
-                            if (!isNaN(tDate.getTime()) && tDate > today) {
-                                isPastTargetDate = false;
-                            }
-                        }
-                        if (isPastTargetDate) checkTerminated++;
-                    }
-                    if (initStatus === "IN PROGRESS") checkNegotiation++;
-                });
-
-                if (checkTerminated > 0) m.status = "TERMINATED";
-                else if (hasActive) m.status = "ACTIVE";
-                else if (hasUpcoming) m.status = "UPCOMING";
-                else if (checkNegotiation > 0) m.status = "IN NEGOTIATION";
-                else m.status = "EXPIRED";
+                // Sovrascriviamo le proprietà calcolate del Master (totalCommitment, runRate, effectiveRunRate, status)
+                Object.assign(m, masterInstance.exportToData(inits));
             });
 
             // 3. Asset (Macchina a Stati Finiti)
             payload.assets = (payload.assets || []).map(rawAsset => {
-                // Il rawAsset è GIA' UN DTO pulito, lo passiamo direttamente alla classe
                 const asset = new Asset(rawAsset);
                 const assetNameLower = (asset.name || "").trim().toLowerCase();
 
