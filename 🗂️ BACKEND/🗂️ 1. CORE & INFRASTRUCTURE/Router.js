@@ -113,16 +113,37 @@ function processTimelineSync(payload) {
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(20000);
-    FinOpsDatabase.setObjects(CONFIG.SHEETS.MASTER_CONTRACTS, payload.masterContracts, null, false);
-    FinOpsDatabase.setObjects(CONFIG.SHEETS.CONTRACTS, payload.contracts, null, false);
+
+    // Normalizziamo le strutture passandole dalle classi di dominio pure
+    const purifiedContracts = (payload.contracts || []).map(c => {
+      const contractInstance = new Contract(c);
+      return contractInstance.exportToData();
+    });
+
+    const purifiedMasters = (payload.masterContracts || []).map(m => {
+      const masterInstance = new MasterContract(m);
+      return masterInstance.exportToData([]);
+    });
+
+    // Scrittura protetta delle strutture pulite senza stringhe illegali spure
+    FinOpsDatabase.setObjects(CONFIG.SHEETS.MASTER_CONTRACTS, purifiedMasters, MASTER_FIELD_MAP, false);
+    FinOpsDatabase.setObjects(CONFIG.SHEETS.CONTRACTS, purifiedContracts, CONTRACT_FIELD_MAP, false);
 
     ContractDomain.forceRecalculateAll();
     InitiativeDomain.forceRecalculateAll();
     AssetDomain.consolidateBudgets();
+
     FinOpsDatabase.commit();
 
-    FinOpsCache.clear("DASHBOARD_PAYLOAD");
-    return "SUCCESS";
+    // ⚡ FIX: Invece di restituire "SUCCESS", ricostruiamo il payload specchio aggiornato
+    const responsePayload = PayloadBuilder.buildFullPayload();
+    responsePayload.status = "SUCCESS";
+    const cleanResponse = JSON.parse(JSON.stringify(responsePayload));
+
+    // Svuota e riaggiorna la cache globale del server
+    FinOpsCache.put("DASHBOARD_PAYLOAD", cleanResponse);
+
+    return cleanResponse;
   } catch (error) {
     throw new Error("Timeline Sync Failure: " + error.message);
   } finally { lock.releaseLock(); }

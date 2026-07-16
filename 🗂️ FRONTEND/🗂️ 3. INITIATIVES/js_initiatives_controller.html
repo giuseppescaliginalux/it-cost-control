@@ -230,6 +230,7 @@
             gridHtml += InitiativesTemplates.getKanbanColumnStructure("REALIZED", lanes.REALIZED.label, lanes.REALIZED.color, lanes.REALIZED.bgColor, lanes.REALIZED.icon, lanes.REALIZED.html, lanes.REALIZED.count, lanes.REALIZED.sum, realizedDropdownHtml);
 
             gridContainer.innerHTML = gridHtml;
+            this.renderGlobalTagsFilterSelectionRow();
         },
 
         handleGlobalSortChange: function (val) {
@@ -310,7 +311,7 @@
             if (!hiddenInput) return;
 
             hiddenInput.value = masterId;
-            if (hiddenContractInput) hiddenContractInput.value = ""; 
+            if (hiddenContractInput) hiddenContractInput.value = "";
 
             document.querySelectorAll('.master-card').forEach(card => {
                 card.className = "border border-slate-200 bg-white hover:border-teal-300 rounded-xl p-2.5 transition-all cursor-pointer master-card pb-3";

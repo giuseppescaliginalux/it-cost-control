@@ -31,7 +31,7 @@
                         <div class="flex-1 flex flex-col gap-2 pl-1 pr-2">
                             <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest shrink-0">Click to filter, Drag to attach to cards:</span>
                             <div class="flex flex-wrap gap-1.5 items-center w-full">
-                                <div class="relative w-36 shrink-0 flex items-center">
+                                <div class="relative w-36 shrink-0 flex items-center ${InitiativesState.globalEditMode ? '' : 'hidden'}">
                                     <input type="text" id="global-new-tag-input" 
                                         onkeydown="InitiativesController.handleGlobalNewTagCreation(event)" 
                                         placeholder="+ NEW TAG (ENTER)" 
@@ -193,6 +193,10 @@
         },
 
         getModalFormStructure: function (isNew, assetDropdownHtml, contractDropdownHtml, leversHtml) {
+            // ⚡ PALETTO DI GOVERNANCE: Se non siamo in edit mode, disabilitiamo tutti i campi alla radice
+            const ro = !InitiativesState.globalEditMode ? 'disabled' : '';
+            const roClass = !InitiativesState.globalEditMode ? 'opacity-75 bg-slate-50/60 cursor-not-allowed text-slate-500' : '';
+
             return `
         <div class="bg-white rounded-2xl border border-slate-200 p-5 w-full max-w-2xl shadow-2xl relative animate-fade-in text-xs flex flex-col h-[85vh] min-h-[600px]" onclick="event.stopPropagation()">
             
@@ -206,7 +210,7 @@
             <div class="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-2">
                 <div class="mb-4">
                     <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 required-label">Initiative Name</label>
-                    <input type="text" id="modal-init-name" placeholder="e.g. Cloud Migration Phase 1..." class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-1 focus:ring-teal-500 font-bold text-slate-900 text-sm">
+                    <input type="text" id="modal-init-name" ${ro} placeholder="e.g. Cloud Migration Phase 1..." class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-1 focus:ring-teal-500 font-bold text-slate-900 text-sm ${roClass}">
                 </div>
 
                 <details class="group border border-slate-200 rounded-xl mb-3 shadow-3xs" open>
@@ -220,8 +224,8 @@
                     <div class="p-3 pt-2 border-t border-slate-200/60 flex flex-col gap-3">
                         <div>
                             <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 required-label">Select Technology Asset</label>
-                            <div class="relative w-full" id="modal-asset-combo-container">
-                                <input type="text" id="modal-init-asset-search" oninput="InitiativesController.filterModalAssetOptions(this.value)" onclick="InitiativesController.toggleModalAssetDropdown(true, true)" onfocus="this.select()" placeholder="🔍 Type to filter technology assets..." class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-1 focus:ring-teal-500 font-bold text-slate-800 text-xs shadow-3xs" autocomplete="off">
+                            <div class="relative w-full ${!InitiativesState.globalEditMode ? 'pointer-events-none' : ''}" id="modal-asset-combo-container">
+                                <input type="text" id="modal-init-asset-search" ${ro} oninput="InitiativesController.filterModalAssetOptions(this.value)" onclick="InitiativesController.toggleModalAssetDropdown(true, true)" onfocus="this.select()" placeholder="🔍 Type to filter technology assets..." class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-1 focus:ring-teal-500 font-bold text-slate-800 text-xs shadow-3xs ${roClass}" autocomplete="off">
                                 <input type="hidden" id="modal-init-asset-select" value="">
                                 
                                 <input type="hidden" id="modal-init-selected-master-id" value="">
@@ -233,7 +237,7 @@
                         
                         <div>
                             <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 required-label">Select Mapped Master Agreement / Local Items Scope</label>
-                            <div id="modal-init-group-list-container" class="max-h-[300px] overflow-y-auto custom-scrollbar pr-1 border border-slate-100 p-1 rounded-xl bg-slate-50/50">
+                            <div id="modal-init-group-list-container" class="max-h-[300px] overflow-y-auto custom-scrollbar pr-1 border border-slate-100 p-1 rounded-xl bg-slate-50/50 ${!InitiativesState.globalEditMode ? 'pointer-events-none opacity-85' : ''}">
                                 <div class="text-center p-4 text-[10px] text-slate-400 italic border border-dashed border-slate-200 rounded-xl">Select an Asset above to view available agreements network.</div>
                             </div>
                         </div>
@@ -260,7 +264,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div>
                                 <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Initial Strategy</label>
-                                <select id="modal-init-strategy" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-slate-700">
+                                <select id="modal-init-strategy" ${ro} class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-slate-700 ${roClass}">
                                     <option value="OPTIMIZATION">OPTIMIZATION</option>
                                     <option value="TERMINATE">TERMINATE</option>
                                     <option value="REPLACE">REPLACE</option>
@@ -269,7 +273,7 @@
                             </div>
                             <div>
                                 <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Final Decision</label>
-                                <select id="modal-init-decision" onchange="InitiativesController.handleDecisionChange(this.value)" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-indigo-700">
+                                <select id="modal-init-decision" ${ro} onchange="InitiativesController.handleDecisionChange(this.value)" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-indigo-700 ${roClass}">
                                     <option value="OPTIMIZATION">OPTIMIZATION</option>
                                     <option value="TERMINATE">TERMINATE</option>
                                     <option value="REPLACE">REPLACE</option>
@@ -278,7 +282,7 @@
                             </div>
                             <div>
                                 <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Kanban Governance Lane</label>
-                                <select id="modal-init-status" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-slate-800">
+                                <select id="modal-init-status" ${ro} class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 ${roClass}">
                                     <option value="IDEA">IDEA</option>
                                     <option value="PLANNED">PLANNED</option>
                                     <option value="IN PROGRESS">IN PROGRESS</option>
@@ -290,15 +294,15 @@
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
                             <div>
                                 <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 required-label">Target Execution Date</label>
-                                <input type="date" id="modal-init-target-date" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-700 text-xs">
+                                <input type="date" id="modal-init-target-date" ${ro} class="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-700 text-xs ${roClass}">
                             </div>
                             <div>
                                 <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Target Cost (€)</label>
-                                <input type="text" id="modal-init-target-cost" oninput="InitiativesController.handleTargetCostInputChange(this)" placeholder="e.g. 15.000" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-black text-indigo-800 transition-colors">
+                                <input type="text" id="modal-init-target-cost" ${ro} oninput="InitiativesController.handleTargetCostInputChange(this)" placeholder="e.g. 15.000" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-black text-indigo-800 transition-colors ${roClass}">
                             </div>
                             <div>
                                 <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Target Saving %</label>
-                                <input type="text" id="modal-init-target-saving-pct" oninput="InitiativesController.handleTargetSavingPctChange(this)" placeholder="e.g. 30%" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-black text-teal-700 transition-colors">
+                                <input type="text" id="modal-init-target-saving-pct" ${ro} oninput="InitiativesController.handleTargetSavingPctChange(this)" placeholder="e.g. 30%" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-black text-teal-700 transition-colors ${roClass}">
                             </div>
                         </div>
                     </div>
@@ -316,20 +320,20 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Service Owner</label>
-                                <input type="text" id="modal-init-owner" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium text-slate-800">
+                                <input type="text" id="modal-init-owner" ${ro} class="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium text-slate-800 ${roClass}">
                             </div>
                             <div>
                                 <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Procurement Focal</label>
-                                <input type="text" id="modal-init-procurement" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium text-slate-800">
+                                <input type="text" id="modal-init-procurement" ${ro} class="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium text-slate-800 ${roClass}">
                             </div>
                         </div>
                         <div>
                             <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Technical Scope Description</label>
-                            <textarea id="modal-init-description" rows="2" class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-1 focus:ring-teal-500 font-medium text-slate-700" placeholder="Describe the structural modifications..."></textarea>
+                            <textarea id="modal-init-description" ${ro} rows="2" class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-1 focus:ring-teal-500 font-medium text-slate-700 text-xs ${roClass}" placeholder="Describe the structural modifications..."></textarea>
                         </div>
                         <div>
                             <label class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Optimization Levers</label>
-                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-white p-2.5 rounded-xl border border-slate-200 max-h-24 overflow-y-auto">
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-white p-2.5 rounded-xl border border-slate-200 max-h-24 overflow-y-auto ${!InitiativesState.globalEditMode ? 'pointer-events-none opacity-70 bg-slate-50' : ''}">
                                 ${leversHtml}
                             </div>
                         </div>
@@ -342,7 +346,7 @@
                 ${!isNew && InitiativesState.globalEditMode ? `<button onclick="InitiativesController.deleteInitiativeFromArchitecture()" class="px-4 py-2 bg-rose-50 border border-rose-200 hover:bg-rose-600 text-rose-600 hover:text-white font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer">Delete</button>` : '<div></div>'}
                 <div class="flex gap-2">
                     <button onclick="InitiativesController.closeInitiativeModalWindow()" class="px-4 py-2 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 cursor-pointer">${InitiativesState.globalEditMode ? 'Cancel' : 'Close'}</button>
-                    ${InitiativesState.globalEditMode ? `<button onclick="InitiativesController.commitInitiativeFormToLocalState()" class="px-6 py-2 bg-teal-700 hover:bg-teal-800 text-white font-black uppercase tracking-wider rounded-xl shadow-md transition-colors cursor-pointer">Apply Matrix Changes</button>` : ''}
+                    ${InitiativesState.globalEditMode ? `<button onclick="InitiativesController.commitInitiativeFormToLocalState()" class="px-6 py-2 bg-teal-700 hover:bg-teal-800 text-white font-black uppercase tracking-wider rounded-xl shadow-md transition-colors cursor-pointer">Commit Changes</button>` : ''}
                 </div>
             </div>
         </div>
@@ -364,7 +368,7 @@
 
                 const expiredOpacityClass = isFullyExpired && !isSelected ? 'opacity-40 grayscale hover:opacity-100 hover:grayscale-0' : '';
                 const borderClass = isSelected ? 'border-teal-500 bg-teal-50/20 ring-1 ring-teal-500 shadow-sm' : 'border-slate-200 bg-white hover:border-teal-300';
-                
+
                 const checkIcon = isSelected && !preSelectedContractId
                     ? `<svg class="w-4 h-4 text-teal-600 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>`
                     : `<div class="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0"></div>`;
@@ -385,7 +389,7 @@
                         }
                         let cRunRate = parseFloat(c.annualValue || 0);
                         const cId = c.contractId || "";
-                        
+
                         const isContractSelected = preSelectedContractId === cId;
                         const rowSelectedClass = isContractSelected ? "bg-amber-50/80 font-bold border-l-4 border-l-amber-500" : "";
                         const targetBtnClass = isContractSelected ? "bg-amber-500 text-white shadow-3xs scale-105" : "bg-slate-100 text-slate-400 hover:bg-amber-500 hover:text-white";

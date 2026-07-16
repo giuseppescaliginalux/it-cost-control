@@ -775,10 +775,10 @@
                 const model = pricingModelSelect.value;
                 const isLedgerDriven = terms === "Custom / Ledger Driven" || terms === "Ledger-Driven";
                 const isPayg = terms === "Pay-As-You-Go";
+                const isFixedRec = terms === "Fixed Recurring" || terms === "Linear" || terms === "Quarterly";
                 const isConsumption = ["Pure Consumption", "Minimum Consumption", "Capped Consumption"].includes(model);
 
                 if (freqContainer && freqSelect) {
-                    // ⚡ FIX: Pay-As-You-Go NON nasconde più la Billing Frequency, la rende obbligatoria
                     if (terms === "Full Upfront / Prepaid" || terms === "Full Upfront" || isLedgerDriven) {
                         freqContainer.classList.add('hidden');
                         freqSelect.value = "";
@@ -789,12 +789,12 @@
                 }
 
                 if (ledgerTabBtn) {
-                    if (isLedgerDriven || isPayg || isConsumption) {
+                    if (isLedgerDriven || isPayg || isFixedRec || isConsumption) {
                         ledgerTabBtn.classList.remove('opacity-40', 'cursor-not-allowed');
                         ledgerTabBtn.title = "";
                     } else {
                         ledgerTabBtn.classList.add('opacity-40', 'cursor-not-allowed');
-                        ledgerTabBtn.title = "Ledger disabled for Flat/Linear billing terms.";
+                        ledgerTabBtn.title = "Ledger disabled for current billing terms.";
                         const ledgerContent = document.getElementById(`modal-tab-content-ledger-${detailId}`);
                         if (ledgerContent && !ledgerContent.classList.contains('hidden')) {
                             this.switchContractModalTab('general', detailId);
@@ -803,7 +803,8 @@
                 }
 
                 if (autoForecastBtn) {
-                    const canAutoForecast = (isPayg || isLedgerDriven) && ["Minimum Consumption", "Capped Consumption"].includes(model);
+                    // ⚡ FIX: Abilitiamo il tasto di anteprima sia per PAYG che per Fixed Recurring
+                    const canAutoForecast = isPayg || isFixedRec;
                     if (canAutoForecast) autoForecastBtn.classList.remove('hidden');
                     else autoForecastBtn.classList.add('hidden');
                 }
@@ -847,9 +848,15 @@
             const startDate = document.getElementById(`edit-startDate-${detailId}`).value;
             const endDate = document.getElementById(`edit-contractEndDate-${detailId}`).value;
             const totCommit = document.getElementById(`edit-totalCommitment-${detailId}`).value.replace(/[^0-9]/g, '');
+            const freqSelect = document.getElementById(`edit-billingFrequency-${detailId}`);
+            const freq = freqSelect ? freqSelect.value : "Monthly";
 
-            if (!["Minimum Consumption", "Capped Consumption"].includes(model) || (terms !== "Custom / Ledger Driven" && terms !== "Pay-As-You-Go" && terms !== "Ledger Driven")) {
-                FinOpsUI.showAlert("Governance Restriction", "Automation calculations apply exclusively to 'Minimum/Capped Consumption' pricing models with 'Ledger-Driven' or 'Pay-As-You-Go' allocation terms.");
+            // ⚡ FIX: Modificata la guardia per includere le nuove regole concordate
+            const isPayg = terms === "Pay-As-You-Go";
+            const isFixedRec = terms === "Fixed Recurring" || terms === "Linear" || terms === "Quarterly";
+
+            if (!isPayg && !isFixedRec) {
+                FinOpsUI.showAlert("Governance Restriction", "Automation calculations apply exclusively to 'Fixed Recurring' or 'Pay-As-You-Go' allocation terms.");
                 return;
             }
 
@@ -858,7 +865,7 @@
                 return;
             }
 
-            const contractData = { pricingModel: model, billingTerms: terms, startDate: startDate, contractEndDate: endDate, totalCommitment: parseInt(totCommit, 10) || 0 };
+            const contractData = { pricingModel: model, billingTerms: terms, billingFrequency: freq, startDate: startDate, contractEndDate: endDate, totalCommitment: parseInt(totCommit, 10) || 0 };
             const ledgerRows = document.querySelectorAll(`#ledger-container-${detailId} .ledger-row-item`);
             const currentLedger = [];
 
@@ -866,7 +873,7 @@
                 const typeEl = row.querySelector('.ledger-type');
                 const safeType = typeEl ? String(typeEl.value).toUpperCase().trim() : "ACTUAL";
 
-                if (safeType === "ACTUAL" || safeType === "FORECAST" || safeType === "CREDIT") {
+                if (safeType === "ACTUAL" || safeType === "FORECAST" || safeType === "CREDIT" || safeType === "DEBIT") {
                     const rawAmt = row.querySelector('.ledger-amount').value.replace(/[^0-9-]/g, '');
                     currentLedger.push({
                         type: safeType,

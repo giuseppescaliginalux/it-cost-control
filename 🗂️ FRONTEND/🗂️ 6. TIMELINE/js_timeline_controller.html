@@ -459,8 +459,9 @@
                 }
             });
 
-            if (typeof ContractsUtils !== 'undefined') {
-                ContractsUtils.showMgmtBannerStatus("Predecessor locked. Valid successors within the same Asset are now highlighted in teal.", "warning");
+            // ⚡ FIX: Utilizzo di FinOpsUI per mostrare il banner informativo a schermo
+            if (typeof FinOpsUI !== 'undefined') {
+                FinOpsUI.showNotificationBanner("Predecessor locked. Valid successors within the same Asset are now highlighted in teal.", "warning");
             }
         },
 
@@ -526,7 +527,9 @@
             }
             this.resetAnchorSelection();
             this.closeMasterDetailsModal();
-            if (typeof ContractsUtils !== 'undefined') ContractsUtils.showMgmtBannerStatus("Link removed successfully.", "warning");
+
+            // ⚡ FIX: Utilizzo di FinOpsUI per il banner
+            if (typeof FinOpsUI !== 'undefined') FinOpsUI.showNotificationBanner("Link removed successfully.", "warning");
         },
 
         handleMasterDragOver: function (event, element) {
@@ -563,7 +566,9 @@
                         this.showCommitButton();
                         this.renderActiveTimelineCanvas();
                         this.renderOrphansList();
-                        if (typeof ContractsUtils !== 'undefined') ContractsUtils.showMgmtBannerStatus("Contract successfully linked to Master.", "success");
+
+                        // ⚡ FIX: Utilizzo di FinOpsUI per il banner
+                        if (typeof FinOpsUI !== 'undefined') FinOpsUI.showNotificationBanner("Contract successfully linked to Master.", "success");
                     }
                 }
             } catch (e) { console.error("Drop error", e); }
@@ -582,7 +587,8 @@
                 if (drawer) drawer.classList.remove('translate-x-full');
                 this.openMasterDetailsModal(masterId);
 
-                if (typeof ContractsUtils !== 'undefined') ContractsUtils.showMgmtBannerStatus("Contract unlinked.", "warning");
+                // ⚡ FIX: Utilizzo di FinOpsUI per il banner
+                if (typeof FinOpsUI !== 'undefined') FinOpsUI.showNotificationBanner("Contract unlinked.", "warning");
             }
         },
 
@@ -593,17 +599,33 @@
         commitTimelineChanges: function () {
             showLoading();
 
-            const payload = {
+            const rawPayload = {
                 masterContracts: windowPayload.masterContracts || [],
                 contracts: windowPayload.contracts || []
             };
 
+            const cleanPayload = JSON.parse(JSON.stringify(rawPayload));
+
             google.script.run
                 .withSuccessHandler((res) => {
                     hideLoading();
-                    if (res === "SUCCESS") {
+                    if (res && res.status === "SUCCESS") {
                         FinOpsUI.showNotificationBanner("Timeline architecture successfully synchronized and persisted to Google Sheets.", "success");
-                        fetchLiveData();
+
+                        // ⚡ FIX: Cambiamo lo stato locale per nascondere le linguette ed il tasto Commit
+                        if (typeof setPendingChanges !== 'undefined') {
+                            setPendingChanges(false);
+                        }
+
+                        // Sincronizziamo la RAM locale con l'anagrafica aggiornata dal server
+                        if (res.masterContracts) windowPayload.masterContracts = res.masterContracts;
+                        if (res.contracts) windowPayload.contracts = res.contracts;
+                        if (res.ledger) windowPayload.ledger = res.ledger;
+                        if (res.allocationSplits) windowPayload.allocationSplits = res.allocationSplits;
+                        if (res.assets) windowPayload.assets = res.assets;
+
+                        // Ridisegnamo la Timeline al volo in locale con i nuovi collegamenti stabili
+                        this.renderActiveTimelineCanvas();
                     } else {
                         FinOpsUI.showAlert("Sync Error", "The database pipeline returned an unexpected status code.");
                     }
@@ -612,7 +634,7 @@
                     hideLoading();
                     FinOpsUI.showAlert("Cloud Sync Failed", err.message);
                 })
-                .processTimelineSync(payload);
+                .processTimelineSync(cleanPayload);
         }
     };
 
