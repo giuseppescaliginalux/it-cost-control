@@ -470,7 +470,7 @@
                 }
             });
 
-            // ⚡ HASH MAP dei movimenti Ledger raggruppati per Contract ID (O(N))
+            // ⚡ HASH MAP dei movimenti Ledger raggruppate per Contract ID (O(N))
             const ledgerByContract = new Map();
             (ledgerArray || []).forEach(l => {
                 const cid = String(l.contractId || "").trim();
@@ -509,9 +509,12 @@
                     successorStart = new Date(successorMaster.masterStartDate);
                 }
 
-                const contractDto = { ...contract };
+                // ⚡ FIX: Utilizziamo l'oggetto "contract" nativo in ingresso per inizializzare l'istanza di dominio
+                const contractInstance = contract instanceof Contract ? contract : new Contract(contract);
+                contractLedger.forEach(l => contractInstance.ledger.push(new LedgerMovement(l)));
+                const contractDto = contractInstance.exportToData();
 
-                // Generazione proiezioni ad altissima velocità (senza loop giornalieri!)
+                // Generazione proiezioni ad altissima velocità
                 const p26 = new ContractProjection(contractDto, this.fy26, linkedInits, successorStart, contractLedger);
                 const p27 = new ContractProjection(contractDto, this.fy27, linkedInits, successorStart, contractLedger);
                 const p28 = new ContractProjection(contractDto, this.fy28, linkedInits, successorStart, contractLedger);
@@ -524,12 +527,22 @@
 
                 const rowObj = {
                     "Contract ID": cId,
-                    "Asset Name": contract.assetName,
-                    "Supplier": contract.supplier,
-                    "Cost Center": contract.costCenter,
-                    "Legal Entity": contract.legalEntity,
-                    "Expenditure Type": contract.expenditureType,
-                    "Pricing Model": contract.pricingModel,
+                    "Asset Name": contractDto.assetName,
+                    "Supplier": contractDto.supplier,
+                    "Cost Center": contractDto.costCenter,
+                    "Legal Entity": contractDto.legalEntity,
+                    "Expenditure Type": contractDto.expenditureType,
+                    "Pricing Model": contractDto.pricingModel,
+
+                    // Metadati per la timeline e la modale
+                    "startDate": contractDto.startDate,
+                    "contractEndDate": contractDto.contractEndDate,
+                    "adjustedEndDate": contractDto.adjustedEndDate,
+                    "contractTerm": contractDto.contractTerm,
+
+                    // Assegnazione del valore effettivo e nominale idratato
+                    "totalCommitment": parseFloat(contractDto.totalCommitment) || 0,
+                    "effectiveCommitment": parseFloat(contractDto.effectiveCommitment) || 0,
 
                     "FY26 Baseline": fy26B, "FY26 Optimized": fy26O,
                     "FY27 Baseline": fy27B, "FY27 Optimized": fy27O,
@@ -545,5 +558,6 @@
             console.timeEnd("ProjectionsEngine Compute");
             return outputProjections;
         }
+
     };
 </script>

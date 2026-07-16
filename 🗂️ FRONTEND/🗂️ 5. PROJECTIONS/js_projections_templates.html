@@ -227,35 +227,24 @@
         },
 
         // LEVEL 3: Deep Drill-Down Contract Items Sub-Table
-        getContractDrillDownTableStructure: function (rowsHtml) {
-            return `
-            <div class="border border-slate-200 rounded-xl bg-white p-3 shadow-3xs max-w-full overflow-hidden">
-                <table class="w-full text-left text-[11px] border-collapse table-fixed whitespace-nowrap">
-                    <thead>
-                        <tr class="border-b border-slate-200 text-slate-400 font-black uppercase tracking-wider text-[9px] select-none">
-                            <th class="pb-2 w-[20%]">Supplier</th>
-                            <th class="pb-2 w-[15%]">Entity</th>
-                            <th class="pb-2 w-[20%]">Cost Center</th>
-                            <th class="pb-2 w-[10%]">Type</th>
-                            <th class="pb-2 text-right w-[10%]">FY26</th>
-                            <th class="pb-2 text-right text-teal-900 bg-teal-50/20 px-1 rounded w-[12%]">FY27</th>
-                            <th class="pb-2 text-right w-[13%]">FY28</th>
-                        </tr>
-                    </thead>
-                    <tbody class="font-medium text-slate-600">
-                        ${rowsHtml}
-                    </tbody>
-                </table>
-            </div>`;
-        },
-
         getContractDrillDownItemRow: function (c) {
             // 🎯 Layout ultra-compatto a Livello 3 e trasparenza per i contratti scaduti
             const opacityClass = c.isExpired ? 'opacity-50 bg-slate-50' : 'opacity-100';
             const expBadge = c.isExpired ? '<span class="ml-1 text-[8px] text-slate-400 font-normal border border-slate-200 rounded px-1 shadow-3xs">(Exp)</span>' : '';
+
+            // ⚡ FORMATTAZIONE DEL TOOLTIP DI VALIDITÀ PER IL CAMPO "title" (Senza aggiungere colonne)
+            const startStr = c.startDate ? (c.startDate instanceof Date ? c.startDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : String(c.startDate)) : "—";
+            const endStr = c.endDate ? (c.endDate instanceof Date ? c.endDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : String(c.endDate)) : "—";
+            const validityTooltip = `Validity: ${startStr} ➔ ${endStr}`;
+
             return `
             <tr class="hover:bg-slate-50/80 border-b border-slate-100 last:border-0 ${opacityClass} transition-colors">
-                <td class="py-2 font-bold text-slate-800 truncate pr-2" title="${c.supplier} (ID: ${c.cId})">${c.supplier}${expBadge}</td>
+                <td class="py-2 font-bold text-slate-800 truncate pr-2" title="${validityTooltip}">
+                    <div class="cursor-help underline decoration-dotted inline-block" title="${validityTooltip}">
+                        ${c.supplier}${expBadge}
+                    </div>
+                    <span class="text-[9px] text-slate-400 block font-mono">ID: ${c.cId}</span>
+                </td>
                 <td class="py-2 truncate pr-2" title="${c.legalEntity}">${c.legalEntity}</td>
                 <td class="py-2 font-mono text-slate-500 truncate pr-2" title="${c.costCenter || 'N/A'}">${c.costCenter || 'N/A'}</td>
                 <td class="py-2 font-mono font-black text-[9px] text-slate-400"><span class="px-1.5 py-0.5 border rounded bg-slate-50">${c.expType}</span></td>
@@ -264,6 +253,28 @@
                 <td class="py-2 align-middle font-mono font-black bg-teal-50/10 px-1 truncate">${this._renderCell(c.v27, c.p27, 'text-teal-700', true)}</td>
                 <td class="py-2 align-middle font-mono truncate">${this._renderCell(c.v28, c.p28, 'text-slate-500', true)}</td>
             </tr>`;
+        },
+
+        getContractDrillDownTableStructure: function (rowsHtml) {
+            return `
+            <div class="border border-slate-200 rounded-xl bg-white p-3 shadow-3xs max-w-full overflow-hidden">
+                <table class="w-full text-left text-[11px] border-collapse table-fixed whitespace-nowrap">
+                    <thead>
+                        <tr class="border-b border-slate-200 text-slate-400 font-black uppercase tracking-wider text-[9px] select-none">
+                            <th class="pb-2 w-[25%]">Supplier Dimension</th>
+                            <th class="pb-2 w-[15%]">Entity</th>
+                            <th class="pb-2 w-[20%]">Cost Center</th>
+                            <th class="pb-2 w-[10%]">Type</th>
+                            <th class="pb-2 text-right w-[10%]">FY26</th>
+                            <th class="pb-2 text-right text-teal-900 bg-teal-50/20 px-1 rounded w-[10%]">FY27</th>
+                            <th class="pb-2 text-right w-[10%]">FY28</th>
+                        </tr>
+                    </thead>
+                    <tbody class="font-medium text-slate-600">
+                        ${rowsHtml}
+                    </tbody>
+                </table>
+            </div>`;
         },
 
         getFinancialBridgeModalMarkup: function (assetName) {
@@ -321,8 +332,6 @@
         },
 
         getFinancialBridgeTableRowMarkup: function (opts) {
-            // REQUISITO 3 & 5: Solo Entity (e ID sotto) in colonna 1. 
-            // REQUISITO 4: Eliminazione Date e Termini, teniamo solo il Total Commitment a destra.
             return `
             <tr class="hover:bg-slate-50/80 transition-colors cursor-help ${opts.rowOpacity}" title="${opts.tooltipContent}">
                 <td class="px-3 py-2 text-xs font-medium text-slate-800 sticky left-0 bg-white z-10 border-r border-slate-200 w-40 min-w-[10rem]">
@@ -338,8 +347,15 @@
                     </div>
                 </td>
                 ${opts.tableCells}
-                <td class="sticky right-0 bg-slate-50 shadow-sm p-3 border-l border-slate-200 z-10 w-24 min-w-[6rem] text-right align-middle">
-                    <div class="font-black font-mono text-slate-700 text-[12px] leading-tight">€${opts.fmtTotCommitment}</div>
+                
+                <td class="sticky right-0 bg-slate-50 shadow-sm p-3 border-l border-slate-200 z-10 w-28 min-w-[7rem] text-right align-middle">
+                    <div class="flex flex-col items-end justify-center">
+                        <div class="flex items-center justify-end gap-1">
+                            <span class="font-black font-mono text-slate-800 text-[12px] leading-tight">€${opts.effCommitmentStr}</span>
+                            ${opts.hasCredit ? `<span class="text-[9px] font-black text-teal-600 leading-none">${opts.creditStr}</span>` : ''}
+                        </div>
+                        ${opts.hasCredit ? `<span class="block text-[8px] font-bold text-slate-400 mt-0.5 uppercase tracking-tighter">Nom: €${opts.nomCommitmentStr}</span>` : ''}
+                    </div>
                 </td>
             </tr>
             `;

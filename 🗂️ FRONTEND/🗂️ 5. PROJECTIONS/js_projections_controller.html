@@ -653,29 +653,35 @@
             let fy26Sum = 0, fy27Sum = 0, fy28Sum = 0;
             const monthlyTotalsArray = new Array(monthKeys.length).fill(0);
 
-            // REQUISITO 1: Ordina per Data di Scadenza Decrescente (End Date)
+            // Ordina per Data di Scadenza Decrescente
             records.sort((a, b) => {
-                const cA = (windowPayload.contracts || []).find(c => c["Contract ID"] === (a["Contract ID"] || a.contractId)) || {};
-                const cB = (windowPayload.contracts || []).find(c => c["Contract ID"] === (b["Contract ID"] || b.contractId)) || {};
-                const dateA = cA["Contract End Date"] ? new Date(cA["Contract End Date"]).getTime() : 0;
-                const dateB = cB["Contract End Date"] ? new Date(cB["Contract End Date"]).getTime() : 0;
+                const dateA = a.adjustedEndDate || a.contractEndDate || a.endDate ? new Date(a.adjustedEndDate || a.contractEndDate || a.endDate).getTime() : 0;
+                const dateB = b.adjustedEndDate || b.contractEndDate || b.endDate ? new Date(b.adjustedEndDate || b.contractEndDate || b.endDate).getTime() : 0;
                 return dateB - dateA;
             });
 
             records.forEach((r, index) => {
                 const baseColor = palette[index % palette.length];
                 const cId = r["Contract ID"] || r.contractId || "";
-                const origContract = (windowPayload.contracts || []).find(c => c["Contract ID"] === cId) || {};
 
-                const supplier = origContract["Supplier"] || r["Supplier"] || "Generic Supplier";
-                const legalEntity = r["Legal Entity"] || origContract["Legal Entity"] || "Corporate";
-                const costCenter = r["Cost Center"] || origContract["Cost Center"] || "N/A";
-                const isExpired = origContract["Contract End Date"] && new Date(origContract["Contract End Date"]) < new Date();
+                const supplier = r["Supplier"] || "Generic Supplier";
+                const legalEntity = r["Legal Entity"] || "Corporate";
+                const costCenter = r["Cost Center"] || "N/A";
 
-                const totCommitment = parseFloat(origContract["Total Commitment"]) || 0;
-                const termMonths = origContract["Contract Term (Months)"] || "-";
-                const sDate = origContract["Start Date"] ? new Date(origContract["Start Date"]).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : '-';
-                const eDate = origContract["Contract End Date"] ? new Date(origContract["Contract End Date"]).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : '-';
+                const rawStart = r.startDate ? new Date(r.startDate) : null;
+                const rawEnd = r.contractEndDate ? new Date(r.contractEndDate) : null;
+                const isExpired = rawEnd && rawEnd < new Date();
+
+                const sDate = rawStart ? rawStart.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : '-';
+                const eDate = rawEnd ? rawEnd.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : '-';
+
+                // ⚡ LOGICA DI CALCOLO CREDITI E PASSAGGIO VARIABILI ALLINEATE ALL'ASSET CARD
+                const nomCommitNum = parseFloat(r.totalCommitment) || 0;
+                const effCommitNum = parseFloat(r.effectiveCommitment || nomCommitNum);
+                const creditDiff = effCommitNum - nomCommitNum;
+                const hasCredit = creditDiff <= -1;
+
+                const termMonths = r.contractTerm || "-";
 
                 const actualData = new Array(monthKeys.length).fill(0);
                 const virtualData = new Array(monthKeys.length).fill(0);
@@ -700,14 +706,17 @@
                     tableCells += `<td class="px-2 py-1 text-center text-xs whitespace-nowrap border-r border-slate-100 ${cellClass}">${this.formatKM(tot)}</td>`;
                 });
 
-                // REQUISITO 4 & 5: Tooltip ricco con Supplier e Validity
                 const tooltipContent = `Supplier: ${supplier}&#10;Entity: ${legalEntity}&#10;Cost Center: ${costCenter}&#10;Validity: ${sDate} ➔ ${eDate} (${termMonths}M)`;
                 const rowOpacity = isExpired ? 'opacity-50 grayscale hover:grayscale-0' : 'opacity-100';
 
+                // Passiamo le proprietà arricchite al template costruttore del markup di riga
                 tableRowsHtml += ProjectionsTemplates.getFinancialBridgeTableRowMarkup({
                     baseColor, supplier, isExpired, legalEntity, cId, tableCells,
-                    fmtTotCommitment: this.formatKM(totCommitment), sDate, eDate, termMonths,
-                    tooltipContent, rowOpacity
+                    effCommitmentStr: this.formatKM(effCommitNum),
+                    nomCommitmentStr: this.formatKM(nomCommitNum),
+                    creditStr: hasCredit ? `-€${this.formatKM(Math.abs(creditDiff))}` : '',
+                    hasCredit: hasCredit,
+                    sDate, eDate, termMonths, tooltipContent, rowOpacity
                 });
 
                 let bgColor = baseColor;
@@ -719,7 +728,6 @@
                     bdWidth = 2;
                 }
 
-                // REQUISITO 2: Legenda mostra solo Legal Entity
                 if (hasActual) {
                     datasets.push({
                         label: `${legalEntity} (Act)`,
@@ -783,7 +791,6 @@
                         legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10, weight: 'bold' } } },
                         tooltip: {
                             backgroundColor: 'rgba(15, 23, 42, 0.98)', titleFont: { size: 12, weight: 'black' }, padding: 12,
-                            // REQUISITO 2: Tooltip su 3 righe (Importo, Entity, ID)
                             callbacks: {
                                 title: () => null,
                                 label: function (context) {
