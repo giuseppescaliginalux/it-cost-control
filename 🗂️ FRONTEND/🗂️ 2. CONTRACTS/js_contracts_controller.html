@@ -778,7 +778,8 @@
                 const isConsumption = ["Pure Consumption", "Minimum Consumption", "Capped Consumption"].includes(model);
 
                 if (freqContainer && freqSelect) {
-                    if (terms === "Full Upfront / Prepaid" || terms === "Full Upfront" || isLedgerDriven || isPayg) {
+                    // ⚡ FIX: Pay-As-You-Go NON nasconde più la Billing Frequency, la rende obbligatoria
+                    if (terms === "Full Upfront / Prepaid" || terms === "Full Upfront" || isLedgerDriven) {
                         freqContainer.classList.add('hidden');
                         freqSelect.value = "";
                     } else {

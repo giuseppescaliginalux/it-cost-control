@@ -20,7 +20,8 @@
 
     function executeTabSwitch(tabId) {
         window.currentActiveTabId = tabId;
-        const tabs = ['tab-dashboard', 'tab-inventory', 'tab-operations', 'tab-contracts', 'tab-projections', 'tab-timeline'];
+        // ⚡ REMOVED 'tab-contracts' dalla lista di partizione dei pannelli visibili
+        const tabs = ['tab-dashboard', 'tab-inventory', 'tab-operations', 'tab-projections', 'tab-timeline'];
         const activeClass = "bg-teal-700 text-white shadow-sm pointer-events-none font-black".split(" ");
         const inactiveClass = "text-teal-300 hover:text-white hover:bg-teal-800/50 cursor-pointer font-bold".split(" ");
 
@@ -50,7 +51,7 @@
     }
 
     /**
-     * REATTORE DI STATO NAVBAR: Forza la transizione grafica coordinata su tutti i tab
+     * REATTORE DI STATO NAVBAR: Forza la transizione grafica coordinata su tutti i tab rimasti
      */
     function toggleGlobalEditMode() {
         if (window.hasPendingChanges && ContractsState.globalEditMode) {
@@ -70,7 +71,7 @@
         const editBtn = document.getElementById('contracts-edit-mode-btn');
         if (editBtn) {
             if (ContractsState.globalEditMode) {
-                // Accensione Smeraldo integrata alla palette (NO ARANCIONE)
+                // Accensione Smeraldo integrata alla palette
                 editBtn.className = "h-9 w-32 bg-teal-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 border border-teal-500 animate-fade-in";
                 editBtn.innerHTML = `
                 <svg class="w-3.5 h-3.5 text-teal-200 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -88,7 +89,7 @@
             }
         }
 
-        // PROPAGA LO STATO AI CONTROLLER ATTIVI
+        // PROPAGA LO STATO AI CONTROLLER ATTIVI (Rimosso il vecchio ramo di tab-contracts)
         if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined') {
             InventoryController.applyFiltersAndSort();
         } else if (window.currentActiveTabId === 'tab-operations' && typeof InitiativesController !== 'undefined') {
@@ -97,9 +98,6 @@
         } else if (window.currentActiveTabId === 'tab-timeline' && typeof TimelineController !== 'undefined') {
             TimelineState.isTimelineEditable = ContractsState.globalEditMode;
             TimelineController.renderActiveTimelineCanvas();
-        } else if (window.currentActiveTabId === 'tab-contracts' && typeof renderMasterFormBox === 'function') {
-            renderMasterFormBox();
-            renderDetailItemsTable();
         }
     }
 

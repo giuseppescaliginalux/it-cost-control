@@ -243,10 +243,17 @@ function formatServerDate(val) {
   let s = String(val).trim();
   if (s === "" || s === "—" || s === "-") return "";
 
-  // ⚡ GUARDIA FONDAMENTALE ANTI-CORRUZIONE ID:
-  // Se la stringa inizia con un prefisso di testo seguito da un trattino (es: MCT-, CTR-, TMP-, INIT-)
-  // è un identificativo relazionale del database, quindi NON deve mai essere interpretato come data!
+  // 🛡️ GUARDIA DI SICUREZZA 1: Anti-Corruzione ID Relazionali
   if (/^[A-Z]+-/i.test(s)) return "";
+
+  // 🛡️ GUARDIA DI SICUREZZA 2: Anti-Corruzione Nomi Testuali (es: "Articulate 360", "Office 365")
+  // Se la stringa contiene testo alfabetico mischiato a numeri ma NON è un pattern di data valido,
+  // la blocchiamo subito evitando che "new Date(s)" la corrompa in anno d.C.
+  if (/[a-z]/i.test(s)) {
+    // Lasciamo passare solo se è palesemente una stringa ISO completa con la T del tempo o un formato data testuale esplicito (es: "Jan", "Feb")
+    const isRealDateText = /T\d{2}:/i.test(s) || /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(s);
+    if (!isRealDateText) return "";
+  }
 
   if (!s.includes('/') && !s.includes('-') && !s.includes(' ')) return "";
 
@@ -256,8 +263,13 @@ function formatServerDate(val) {
   let euMatch = s.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
   if (euMatch) return `${euMatch[3]}-${euMatch[2]}-${euMatch[1]}`;
 
+  // Prova il parsing estremo solo se ha superato i controlli sopra
   let dObj = new Date(s);
-  if (!isNaN(dObj.getTime())) return `${dObj.getTime() === 0 ? '' : dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
+  if (!isNaN(dObj.getTime())) {
+    // Evitiamo anni spuri derivati da numeri singoli come "360" o "365"
+    if (dObj.getFullYear() < 1970 || dObj.getFullYear() > 2100) return "";
+    return `${dObj.getTime() === 0 ? '' : dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
+  }
 
   return "";
 }

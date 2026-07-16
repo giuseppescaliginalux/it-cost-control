@@ -116,8 +116,12 @@ class Contract {
     const origMonths = this._getExactMonths(this.startDate, this.contractEndDate);
     const actMonths = this._getExactMonths(this.startDate, this.getEndDate());
     let baseCommitment = parseFloat((this.totalCommitment * (actMonths / (origMonths || 1))).toFixed(2));
-    const creditsSum = this.ledger.filter(l => l.type === "CREDIT").reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
-    return parseFloat((baseCommitment + creditsSum).toFixed(2));
+
+    // ⚡ CALCOLO SIMMETRICO: I crediti abbassano l'impegno, i debiti (overusage) lo alzano
+    const creditsSum = this.ledger.filter(l => String(l.type).toUpperCase().trim() === "CREDIT").reduce((sum, l) => sum + Math.abs(parseFloat(l.amount) || 0), 0);
+    const debitsSum = this.ledger.filter(l => String(l.type).toUpperCase().trim() === "DEBIT").reduce((sum, l) => sum + Math.abs(parseFloat(l.amount) || 0), 0);
+
+    return parseFloat((baseCommitment + debitsSum - creditsSum).toFixed(2));
   }
 
   getAnnualValue() {
@@ -183,13 +187,14 @@ class Contract {
     const finalEnd = this.getEndDate();
     let currentCursor = new Date(this.startDate.getTime());
 
-    if (bt.includes("FIXED RECURRING")) {
-      let stepMonths = 1;
-      if (freq === "QUARTERLY") stepMonths = 3;
-      else if (freq === "EVERY 4 MONTHS") stepMonths = 4;
-      else if (freq === "BI-ANNUALLY") stepMonths = 6;
-      else if (freq === "ANNUALLY") stepMonths = 12;
+    // Configurazione step temporale in base alla Billing Frequency
+    let stepMonths = 1;
+    if (freq === "QUARTERLY") stepMonths = 3;
+    else if (freq === "EVERY 4 MONTHS") stepMonths = 4;
+    else if (freq === "BI-ANNUALLY") stepMonths = 6;
+    else if (freq === "ANNUALLY") stepMonths = 12;
 
+    if (bt.includes("FIXED RECURRING")) {
       const annualChunks = 12 / stepMonths;
       const periodAmount = this.getAnnualValue() / annualChunks;
 
@@ -199,7 +204,7 @@ class Contract {
 
         const hasCoverage = currentLedger.some(l => {
           const type = String(l.type || "").toUpperCase().trim();
-          if ((type !== "ACTUAL" && type !== "FORECAST") || !l.startDate) return false;
+          if ((type !== "ACTUAL" && type !== "FORECAST" && type !== "DEBIT") || !l.startDate) return false;
           const d = new Date(l.startDate);
           return d.getFullYear() === chunkStart.getFullYear() && d.getMonth() === chunkStart.getMonth();
         });
@@ -221,18 +226,18 @@ class Contract {
     }
 
     if (bt.includes("PAY-AS-YOU-GO") && (pm.includes("MINIMUM") || pm.includes("CAPPED"))) {
-      // Sottrae dal Total Commitment sia gli ACTUAL che i FORECAST manuali
-      const operationalSum = currentLedger
-        .filter(l => String(l.type).toUpperCase().trim() === "ACTUAL" || String(l.type).toUpperCase().trim() === "FORECAST")
-        .reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
+      // ⚡ DETRAZIONE DI TUTTE LE RIGHE REALI (COMPRESI I DEBITI DA OVERUSAGE E CREDITI)
+      const actSum = currentLedger.filter(l => String(l.type).toUpperCase().trim() === "ACTUAL").reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
+      const crSum = currentLedger.filter(l => String(l.type).toUpperCase().trim() === "CREDIT").reduce((sum, l) => sum + Math.abs(parseFloat(l.amount) || 0), 0);
+      const dbSum = currentLedger.filter(l => String(l.type).toUpperCase().trim() === "DEBIT").reduce((sum, l) => sum + Math.abs(parseFloat(l.amount) || 0), 0);
+      const fwdSum = currentLedger.filter(l => String(l.type).toUpperCase().trim() === "FORECAST").reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
 
-      const remainingCommitment = Math.max(0, this.totalCommitment - operationalSum);
+      const remainingCommitment = Math.max(0, this.totalCommitment - (actSum - crSum + dbSum) - fwdSum);
 
-      // Ripristinato: Cerca la partenza basandosi solo sulle fatture reali (ACTUAL)
       let lastActualEnd = new Date(this.startDate.getTime() - 86400000);
       currentLedger.forEach(l => {
         const type = String(l.type || "").toUpperCase().trim();
-        if (type === "ACTUAL" && l.endDate) {
+        if ((type === "ACTUAL" || type === "DEBIT") && l.endDate) {
           const d = new Date(l.endDate);
           if (d > lastActualEnd) lastActualEnd = d;
         }
@@ -246,40 +251,39 @@ class Contract {
       let tempCursor = new Date(forecastStart.getTime());
       tempCursor.setDate(1);
 
-      // Calcola quanti mesi reali mancano escludendo quelli già coperti da FORECAST manuali
-      let monthsRemaining = 0;
+      // Conteggio intervalli frequenziali residui effettivi
+      let intervalsRemaining = 0;
       while (tempCursor <= finalEnd) {
         const chunkStart = new Date(tempCursor.getTime());
-        const hasForecastInMonth = currentLedger.some(l => {
+        const hasForecastInPeriod = currentLedger.some(l => {
           const type = String(l.type || "").toUpperCase().trim();
           if (type !== "FORECAST" || !l.startDate) return false;
           const d = new Date(l.startDate);
-          return d.getFullYear() === chunkStart.getFullYear() && d.getMonth() === chunkStart.getMonth();
+          return d >= chunkStart && d < new Date(chunkStart.getFullYear(), chunkStart.getMonth() + stepMonths, 1);
         });
 
-        if (!hasForecastInMonth) {
-          monthsRemaining++;
+        if (!hasForecastInPeriod) {
+          intervalsRemaining++;
         }
-        tempCursor.setMonth(tempCursor.getMonth() + 1);
+        tempCursor.setMonth(tempCursor.getMonth() + stepMonths);
       }
 
-      if (monthsRemaining <= 0 || remainingCommitment <= 0) return [];
-      const monthlyForecast = remainingCommitment / monthsRemaining;
+      if (intervalsRemaining <= 0 || remainingCommitment <= 0) return [];
+      const intervalForecastAmount = remainingCommitment / intervalsRemaining;
 
       let generateCursor = new Date(forecastStart.getTime());
       generateCursor.setDate(1);
 
       while (generateCursor <= finalEnd) {
         const chunkStart = new Date(generateCursor.getTime());
-        const chunkEnd = new Date(generateCursor.getFullYear(), generateCursor.getMonth() + 1, 0);
+        const chunkEnd = new Date(generateCursor.getFullYear(), generateCursor.getMonth() + stepMonths, 0);
         const actualEnd = chunkEnd > finalEnd ? finalEnd : chunkEnd;
 
-        // Salta la generazione del CALCULATED se quel mese specifico ha già una stima manuale FORECAST
         const hasManualForecast = currentLedger.some(l => {
           const type = String(l.type || "").toUpperCase().trim();
           if (type !== "FORECAST" || !l.startDate) return false;
           const d = new Date(l.startDate);
-          return d.getFullYear() === chunkStart.getFullYear() && d.getMonth() === chunkStart.getMonth();
+          return d >= chunkStart && d <= actualEnd;
         });
 
         if (!hasManualForecast) {
@@ -288,11 +292,11 @@ class Contract {
             startDate: formatServerDate(chunkStart),
             endDate: formatServerDate(actualEnd),
             type: "CALCULATED",
-            amount: parseFloat(monthlyForecast.toFixed(2)),
+            amount: parseFloat(intervalForecastAmount.toFixed(2)),
             notes: `Engine-generated forecast (Remaining Commitment)`
           }));
         }
-        generateCursor = new Date(generateCursor.getFullYear(), generateCursor.getMonth() + 1, 1);
+        generateCursor = new Date(generateCursor.getFullYear(), generateCursor.getMonth() + stepMonths, 1);
       }
       return movements;
     }
@@ -308,6 +312,9 @@ class Contract {
       }
     });
     this.generateForecastLedger(this.ledger).forEach(f => fullLedger.push(f.exportToData()));
+
+    // ⚡ INVERSIONE CRONOLOGICA: Dal più recente al più vecchio (startDate desc)
+    fullLedger.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
     return fullLedger;
   }
 

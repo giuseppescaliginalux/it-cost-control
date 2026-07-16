@@ -352,7 +352,7 @@
                     <div class="flex flex-col items-end justify-center">
                         <div class="flex items-center justify-end gap-1">
                             <span class="font-black font-mono text-slate-800 text-[12px] leading-tight">€${opts.effCommitmentStr}</span>
-                            ${opts.hasCredit ? `<span class="text-[9px] font-black text-teal-600 leading-none">${opts.creditStr}</span>` : ''}
+                            ${opts.hasCredit ? `<span class="text-[9px] font-black ${opts.creditStr.includes('+') ? 'text-rose-600' : 'text-teal-600'} leading-none">${opts.creditStr}</span>` : ''}
                         </div>
                         ${opts.hasCredit ? `<span class="block text-[8px] font-bold text-slate-400 mt-0.5 uppercase tracking-tighter">Nom: €${opts.nomCommitmentStr}</span>` : ''}
                     </div>

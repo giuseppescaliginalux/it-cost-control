@@ -7,12 +7,8 @@
 function onOpen() {
   SpreadsheetApp.getUi().createMenu("IT Cost Control Hub")
     .addItem("🧹 Empty Cache", "clearAppCache")
+    .addItem("⚡ Run Auto-Forecast", "batchRecalculateEcosystemLedgers")
     .addToUi();
-}
-
-function clearAppCache() {
-  FinOpsCache.clear("DASHBOARD_PAYLOAD");
-  SpreadsheetApp.getActiveSpreadsheet().toast("Cache svuotata. Al prossimo avvio la WebApp rileggerà i dati freschi.");
 }
 
 function doGet() {
