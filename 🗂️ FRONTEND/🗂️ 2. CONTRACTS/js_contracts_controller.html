@@ -601,7 +601,7 @@
                     windowPayload.contracts = res.contracts || [];
                     windowPayload.allocationSplits = res.allocationSplits || [];
                     windowPayload.ledger = res.ledger || [];
-                    
+
                     windowPayload.projections = ProjectionsEngine.calculateAll(
                         windowPayload.contracts,
                         windowPayload.initiatives,
@@ -612,7 +612,7 @@
                     if (typeof window.originalPayloadSnapshot !== 'undefined') {
                         window.originalPayloadSnapshot = JSON.parse(JSON.stringify(windowPayload));
                     }
-                    
+
                     // 🌟 FIX: Chiudiamo la modale (se è aperta) e spegniamo l'allarme/linguette
                     if (window.ContractsController && window.ContractsController.closeContractModalWindow) {
                         window.ContractsController.closeContractModalWindow();
@@ -621,7 +621,7 @@
 
                     if (typeof DashboardState !== 'undefined') DashboardState.loadCachePayload(windowPayload);
                     if (typeof ProjectionsState !== 'undefined') ProjectionsState.loadPayload(windowPayload);
-                    
+
                     if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined') {
                         InventoryController.initWorkspace();
                         if (InventoryState.expandedAssetId) {
@@ -993,8 +993,16 @@
             const baseLeOptions = leList.map(le => `<option value="${le}">${le}</option>`).join('');
             const baseCcOptions = ccList.map(cc => `<option value="${cc}">${cc}</option>`).join('');
 
+            // ⚡ FIX: Sostituito d.startDate?.split con FinOpsDate.toIso per supportare sia stringhe che oggetti Date in RAM
             let splitsHtml = item.splits && item.splits.length > 0
-                ? item.splits.map(s => ContractsTemplates.getSplitRow(item.id, s, d.startDate?.split('T')[0] || "", d.contractEndDate?.split('T')[0] || "", baseLeOptions, baseCcOptions)).join('')
+                ? item.splits.map(s => ContractsTemplates.getSplitRow(
+                    item.id,
+                    s,
+                    typeof FinOpsDate !== 'undefined' ? FinOpsDate.toIso(d.startDate) : "",
+                    typeof FinOpsDate !== 'undefined' ? FinOpsDate.toIso(d.contractEndDate) : "",
+                    baseLeOptions,
+                    baseCcOptions
+                )).join('')
                 : `<p class="text-[9px] text-emerald-600 font-medium text-center py-2 empty-split-msg bg-emerald-50/50 rounded-md">➔ Standard Allocation Active (100% to main entity).</p>`;
 
             let ledgerHtml = item.ledger && item.ledger.length > 0

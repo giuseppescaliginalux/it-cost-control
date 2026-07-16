@@ -242,7 +242,13 @@ function formatServerDate(val) {
 
   let s = String(val).trim();
   if (s === "" || s === "—" || s === "-") return "";
-  if (!s.includes('/') && !s.includes('-')) return "";
+
+  // ⚡ GUARDIA FONDAMENTALE ANTI-CORRUZIONE ID:
+  // Se la stringa inizia con un prefisso di testo seguito da un trattino (es: MCT-, CTR-, TMP-, INIT-)
+  // è un identificativo relazionale del database, quindi NON deve mai essere interpretato come data!
+  if (/^[A-Z]+-/i.test(s)) return "";
+
+  if (!s.includes('/') && !s.includes('-') && !s.includes(' ')) return "";
 
   let isoMatch = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})/);
   if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
@@ -251,7 +257,7 @@ function formatServerDate(val) {
   if (euMatch) return `${euMatch[3]}-${euMatch[2]}-${euMatch[1]}`;
 
   let dObj = new Date(s);
-  if (!isNaN(dObj.getTime())) return `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
+  if (!isNaN(dObj.getTime())) return `${dObj.getTime() === 0 ? '' : dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
 
   return "";
 }
