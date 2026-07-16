@@ -599,32 +599,66 @@
         commitTimelineChanges: function () {
             showLoading();
 
+            // 🚀 STRATEGIA FINOPS "DIRTY TRACKING": 
+            // Usiamo originalPayloadSnapshot (che viene scattato al caricamento in js_core.html)
+            // per filtrare SOLO i record che sono stati realmente modificati sulla Timeline.
+            const dirtyContracts = (windowPayload.contracts || []).filter(c => {
+                const original = (window.originalPayloadSnapshot && window.originalPayloadSnapshot.contracts || [])
+                    .find(orig => orig.contractId === c.contractId);
+
+                if (!original) return true; // È un nuovo record (es. orfano appena inizializzato)
+
+                // C'è stata una mutazione di data (spostamento barra) o di legame (drag & drop di un orfano)?
+                return c.startDate !== original.startDate ||
+                    c.contractEndDate !== original.contractEndDate ||
+                    c.masterId !== original.masterId;
+            });
+
+            const dirtyMasters = (windowPayload.masterContracts || []).filter(m => {
+                const original = (window.originalPayloadSnapshot && window.originalPayloadSnapshot.masterContracts || [])
+                    .find(orig => orig.masterId === m.masterId);
+
+                if (!original) return true;
+
+                // C'è stata una mutazione nei legami di successione storici?
+                return m.previousMasterId !== original.previousMasterId ||
+                    m.masterStartDate !== original.masterStartDate ||
+                    m.masterEndDate !== original.masterEndDate;
+            });
+
+            if (dirtyContracts.length === 0 && dirtyMasters.length === 0) {
+                hideLoading();
+                FinOpsUI.showNotificationBanner("No structural modifications detected. Sync skipped.", "warning");
+                if (typeof setPendingChanges !== 'undefined') setPendingChanges(false);
+                return;
+            }
+
+            console.log(`🚀 Sincronizzazione chirurgica Timeline: Inviando ${dirtyContracts.length} contratti e ${dirtyMasters.length} master modificati.`);
+
             const rawPayload = {
-                masterContracts: windowPayload.masterContracts || [],
-                contracts: windowPayload.contracts || []
+                masterContracts: dirtyMasters,
+                contracts: dirtyContracts
             };
 
+            // Sterilizziamo i pochi record estratti per evitare crash RPC con gli oggetti Date
             const cleanPayload = JSON.parse(JSON.stringify(rawPayload));
 
             google.script.run
                 .withSuccessHandler((res) => {
                     hideLoading();
                     if (res && res.status === "SUCCESS") {
-                        FinOpsUI.showNotificationBanner("Timeline architecture successfully synchronized and persisted to Google Sheets.", "success");
+                        FinOpsUI.showNotificationBanner(`Successfully synchronized ${dirtyContracts.length + dirtyMasters.length} structural items.`, "success");
 
-                        // ⚡ FIX: Cambiamo lo stato locale per nascondere le linguette ed il tasto Commit
-                        if (typeof setPendingChanges !== 'undefined') {
-                            setPendingChanges(false);
-                        }
+                        if (typeof setPendingChanges !== 'undefined') setPendingChanges(false);
 
-                        // Sincronizziamo la RAM locale con l'anagrafica aggiornata dal server
                         if (res.masterContracts) windowPayload.masterContracts = res.masterContracts;
                         if (res.contracts) windowPayload.contracts = res.contracts;
                         if (res.ledger) windowPayload.ledger = res.ledger;
-                        if (res.allocationSplits) windowPayload.allocationSplits = res.allocationSplits;
                         if (res.assets) windowPayload.assets = res.assets;
 
-                        // Ridisegnamo la Timeline al volo in locale con i nuovi collegamenti stabili
+                        // Scattiamo una nuova foto della RAM per i futuri delta
+                        window.originalPayloadSnapshot = JSON.parse(JSON.stringify(windowPayload));
+
                         this.renderActiveTimelineCanvas();
                     } else {
                         FinOpsUI.showAlert("Sync Error", "The database pipeline returned an unexpected status code.");

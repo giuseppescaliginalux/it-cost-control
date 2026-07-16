@@ -62,6 +62,7 @@ const ContractMapper = {
 class ContractRepository {
   // Scritture
   saveMasterRow(masterDto) { FinOpsDatabase.updateOrAppendRowByColumnValue(CONFIG.SHEETS.MASTER_CONTRACTS, "Master Contract ID", masterDto.masterId, masterDto, MASTER_FIELD_MAP); }
+  saveContractRow(contractDto) { FinOpsDatabase.updateOrAppendRowByColumnValue(CONFIG.SHEETS.CONTRACTS, "Contract ID", contractDto.contractId, contractDto, CONTRACT_FIELD_MAP); }
   saveDetailsCollection(masterId, detailsDtoArray) {
     const ctx = FinOpsDatabase.getContext(CONFIG.SHEETS.CONTRACTS);
     const colIdx = ctx.headers.indexOf("Master Contract ID");

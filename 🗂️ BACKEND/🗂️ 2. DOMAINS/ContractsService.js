@@ -10,6 +10,16 @@ class ContractService {
     this.repository = new ContractRepository();
   }
 
+  // Disaccoppia la logica di update della Timeline
+  syncTimelineState(dirtyMasters, dirtyContracts) {
+    if (dirtyMasters && Array.isArray(dirtyMasters)) {
+      dirtyMasters.forEach(m => this.repository.saveMasterRow(m));
+    }
+    if (dirtyContracts && Array.isArray(dirtyContracts)) {
+      dirtyContracts.forEach(c => this.repository.saveContractRow(c));
+    }
+  }
+
   generateId(prefix, supplier, assetName, year, count) {
     const cleanSupplier = String(supplier || "GEN").replace(/[aeiou.,\s]/gi, "").substring(0, 4).toUpperCase();
     const cleanAsset = String(assetName || "AST").replace(/[aeiou.,\s]/gi, "").substring(0, 4).toUpperCase();

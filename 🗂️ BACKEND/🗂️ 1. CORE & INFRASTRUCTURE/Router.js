@@ -114,34 +114,22 @@ function processTimelineSync(payload) {
   try {
     lock.waitLock(20000);
 
-    // Normalizziamo le strutture passandole dalle classi di dominio pure
-    const purifiedContracts = (payload.contracts || []).map(c => {
-      const contractInstance = new Contract(c);
-      return contractInstance.exportToData();
-    });
+    // 1. DELEGAZIONE ARCHITETTURALE: Passiamo il delta al Service (SOLID approach)
+    ContractDomain.syncTimelineState(payload.masterContracts || [], payload.contracts || []);
 
-    const purifiedMasters = (payload.masterContracts || []).map(m => {
-      const masterInstance = new MasterContract(m);
-      return masterInstance.exportToData([]);
-    });
-
-    // Scrittura protetta delle strutture pulite senza stringhe illegali spure
-    FinOpsDatabase.setObjects(CONFIG.SHEETS.MASTER_CONTRACTS, purifiedMasters, MASTER_FIELD_MAP, false);
-    FinOpsDatabase.setObjects(CONFIG.SHEETS.CONTRACTS, purifiedContracts, CONTRACT_FIELD_MAP, false);
-
-    ContractDomain.forceRecalculateAll();
-    InitiativeDomain.forceRecalculateAll();
+    // 2. Sincronizziamo lo stato degli asset senza piallare il Ledger
     AssetDomain.consolidateBudgets();
 
+    // 3. Eseguiamo il commit fisico
     FinOpsDatabase.commit();
 
-    // ⚡ FIX: Invece di restituire "SUCCESS", ricostruiamo il payload specchio aggiornato
+    // 4. RICOSTRUZIONE CACHE
     const responsePayload = PayloadBuilder.buildFullPayload();
     responsePayload.status = "SUCCESS";
     const cleanResponse = JSON.parse(JSON.stringify(responsePayload));
 
-    // Svuota e riaggiorna la cache globale del server
-    FinOpsCache.put("DASHBOARD_PAYLOAD", cleanResponse);
+    if (typeof clearAppCache === 'function') clearAppCache();
+    else FinOpsCache.clear("DASHBOARD_PAYLOAD");
 
     return cleanResponse;
   } catch (error) {
