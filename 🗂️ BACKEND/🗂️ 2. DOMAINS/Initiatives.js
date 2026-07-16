@@ -43,7 +43,7 @@ class Initiative {
     this.qualityCheck = this.qualityCheck || "";
   }
 
-  injectContext(masterContractData, contractDetails, priorInits = []) {
+  injectContext(masterContractData, contractDetails, priorInits = [], allMasters = []) {
     const parseFinance = (rawVal) => {
       if (typeof rawVal === 'number') return rawVal;
       if (!rawVal || String(rawVal).trim() === "") return 0;
@@ -91,7 +91,22 @@ class Initiative {
         startingCost = parseFinance(validPriors[0].targetCostAnnualized);
       }
     }
+
     this.baselineSpendAnnualized = startingCost;
+
+    // ⚡ NUOVA LOGICA "CLOSED-LOOP": Cerca successore per estrarre l'Actual Cost
+    if (this.status === "COMPLETED") {
+      const strategy = String(this.decision).toUpperCase();
+      if (["TERMINATE", "TRANSFER"].includes(strategy)) {
+        this.newActual = 0;
+      } else if (this.masterId && allMasters && allMasters.length > 0) {
+        const successor = allMasters.find(m => (m.previousMasterId || "").includes(this.masterId));
+        if (successor) {
+          this.newActual = parseFloat(successor.runRate) || 0;
+        }
+      }
+    }
+
     this._recalculateFinancials();
   }
 
@@ -105,7 +120,11 @@ class Initiative {
     this.targetSavingPct = this.baselineSpendAnnualized > 0 ? (this.targetSavingAnnualized / this.baselineSpendAnnualized) : 0;
 
     if (this.status === "COMPLETED") {
-      this.actualSavingAnnualized = (this.newActual !== "") ? (this.baselineSpendAnnualized - this.newActual) : this.targetSavingAnnualized;
+      if (this.newActual !== "" && this.newActual !== null && !isNaN(parseFloat(this.newActual))) {
+        this.actualSavingAnnualized = this.baselineSpendAnnualized - parseFloat(this.newActual);
+      } else {
+        this.actualSavingAnnualized = this.targetSavingAnnualized; // Fallback al target se non c'è successore
+      }
     } else {
       this.actualSavingAnnualized = 0;
       this.newActual = "";

@@ -22,7 +22,9 @@ class InitiativeService {
       const parentMaster = activeMasters.find(m => String(m.masterId).trim() === String(initiative.masterId).trim());
       const childContracts = activeContracts.filter(c => String(c.masterId).trim() === String(initiative.masterId).trim());
 
-      initiative.injectContext(parentMaster, childContracts);
+      // ⚡ FIX: Passiamo activeMasters come 4° parametro per la lookup del successore
+      initiative.injectContext(parentMaster, childContracts, [], activeMasters);
+
       if (!initiative.id) initiative.id = `INC-FIN-${new Date().getFullYear()}-${String(idx + 1).padStart(2, '0')}`;
 
       return initiative.exportToData();

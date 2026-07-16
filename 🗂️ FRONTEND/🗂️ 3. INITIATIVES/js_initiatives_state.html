@@ -32,7 +32,7 @@
             });
         },
 
-        recalculateMetrics: function (initiatives, contracts) {
+        recalculateMetrics: function (initiatives, contracts, masterContracts = []) {
             const sortedInits = [...initiatives].sort((a, b) => {
                 const dA = new Date(a.targetDate || "2099-12-31");
                 const dB = new Date(b.targetDate || "2099-12-31");
@@ -46,11 +46,9 @@
 
                 let originalBaseline = 0;
                 if (contractId !== "") {
-                    // TARGET LOCALE: Isoliamo il singolo contratto selezionato
                     const c = contracts.find(x => String(x.contractId).trim() === contractId);
                     originalBaseline = c ? (parseFloat(c.annualValue) || 0) : 0;
                 } else {
-                    // TARGET GLOBALE: Sommiamo l'intero Run Rate dei contratti del Master
                     contracts.forEach(c => {
                         if (String(c.masterId).trim() === masterId && masterId !== "") {
                             originalBaseline += (parseFloat(c.annualValue) || 0);
@@ -64,11 +62,10 @@
                         const iMaster = String(i.masterId || "").trim();
                         const iContract = String(i.contractId || "").trim();
                         return iMaster === masterId && iContract === contractId &&
-                               new Date(i.targetDate) < targetDate &&
-                               !isNaN(parseFloat(i.targetCostAnnualized));
+                            new Date(i.targetDate) < targetDate &&
+                            !isNaN(parseFloat(i.targetCostAnnualized));
                     });
 
-                    // 🌟 FIX: Allineato il nome della variabile a priorInits
                     if (priorInits.length > 0) {
                         priorInits.sort((a, b) => new Date(b.targetDate) - new Date(a.targetDate));
                         startingCost = parseFloat(priorInits[0].targetCostAnnualized);
@@ -90,8 +87,22 @@
 
                 const status = (init.status || "").toString().trim().toLowerCase();
 
+                // ⚡ NUOVA LOGICA AUTOMATICA: Se Completata, ricalcola il saving vero dal successore
                 if (status === "completed") {
-                    init.actualSavingAnnualized = targetSaving;
+                    if (["terminate", "transfer"].includes(strategy)) {
+                        init.newActual = 0;
+                    } else if (masterId !== "") {
+                        const successor = masterContracts.find(m => (m.previousMasterId || "").includes(masterId));
+                        if (successor) {
+                            init.newActual = parseFloat(successor.runRate) || 0;
+                        }
+                    }
+
+                    if (init.newActual !== "" && init.newActual !== null && !isNaN(parseFloat(init.newActual))) {
+                        init.actualSavingAnnualized = startingCost - parseFloat(init.newActual);
+                    } else {
+                        init.actualSavingAnnualized = targetSaving;
+                    }
                 } else {
                     init.actualSavingAnnualized = 0;
                     init.newActual = "";

@@ -8,7 +8,7 @@
     function renderOperationsHub(payload) {
         window.windowPayload = payload;
         InitiativesState.loadPayload(payload);
-        InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || []);
+        InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || [], windowPayload.masterContracts || []);
         InitiativesController.renderKanbanBoard(true);
         InitiativesController.renderGlobalTagsFilterSelectionRow();
     }
@@ -634,7 +634,7 @@
             }
 
             InitiativesState.saveInitiativeInstance(activeId, instance);
-            InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || []);
+            InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || [], windowPayload.masterContracts || []);
 
             InitiativesController.closeInitiativeModalWindow();
             InitiativesController.renderKanbanBoard(false);
@@ -711,7 +711,7 @@
                         windowPayload.assets = deltaPayload.assets || [];
 
                         InitiativesState.loadPayload(windowPayload);
-                        InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || []);
+                        InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || [], windowPayload.masterContracts || []);
 
                         console.log("⚡ REACTIVE UPDATE: Ricalcolo Proiezioni...");
                         windowPayload.projections = ProjectionsEngine.calculateAll(
@@ -961,7 +961,7 @@
                 if (newStatus === "COMPLETED") initiative.actualDate = initiative.targetDate || new Date().toISOString().split('T')[0];
                 else initiative.actualDate = "";
 
-                InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || []);
+                InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || [], windowPayload.masterContracts || []);
                 InitiativesController.renderKanbanBoard(false);
 
                 if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
