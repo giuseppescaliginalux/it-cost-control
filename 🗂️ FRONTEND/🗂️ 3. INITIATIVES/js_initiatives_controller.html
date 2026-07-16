@@ -40,6 +40,44 @@
             InitiativesController.renderKanbanBoard(false);
         },
 
+        togglePnLImpact: function (id) {
+            const panel = document.getElementById(`pnl-impact-panel-${id}`);
+            if (!panel) return;
+
+            if (!panel.classList.contains('hidden')) {
+                panel.classList.add('hidden');
+                return;
+            }
+
+            const init = InitiativesState.rawInitiatives[id];
+            if (!init) return;
+
+            // ⚡ ESTRAZIONE DIRETTA: Peschiamo esattamente i numeri dal tab Projections!
+            let targetContractIds = [];
+            if (init.contractId) {
+                targetContractIds = [init.contractId];
+            } else if (init.masterId) {
+                targetContractIds = (windowPayload.contracts || []).filter(c => c.masterId === init.masterId).map(c => c.contractId);
+            }
+
+            let b26 = 0, o26 = 0, b27 = 0, o27 = 0, b28 = 0, o28 = 0;
+
+            (windowPayload.projections || []).forEach(p => {
+                if (targetContractIds.includes(p["Contract ID"])) {
+                    b26 += p["FY26 Baseline"] || 0;
+                    o26 += p["FY26 Optimized"] || 0;
+                    b27 += p["FY27 Baseline"] || 0;
+                    o27 += p["FY27 Optimized"] || 0;
+                    b28 += p["FY28 Baseline"] || 0;
+                    o28 += p["FY28 Optimized"] || 0;
+                }
+            });
+
+            // Passiamo i dati puri al template per disegnare il mini grafico
+            panel.innerHTML = InitiativesTemplates.getPnLImpactPanelMarkup(b26, o26, b27, o27, b28, o28);
+            panel.classList.remove('hidden');
+        },
+
         renderKanbanBoard: function (forceFullLayout = false) {
             const workspace = document.getElementById('tab-operations');
             if (!workspace) return;
