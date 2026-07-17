@@ -168,7 +168,11 @@ function uploadFilesToDrive(filesData, year, supplier, assetName) {
   try {
     const rootItr = DriveApp.getFoldersByName("IT Cost Center");
     const rootFolder = rootItr.hasNext() ? rootItr.next() : DriveApp.createFolder("IT Cost Center");
-    const assetFolder = getOrCreateFolder(assetName, getOrCreateFolder(supplier, getOrCreateFolder(year.toString(), rootFolder)));
+    // NUOVO STEP: Creiamo o recuperiamo la sottocartella "Contracts"
+    const contractsFolder = getOrCreateFolder("Contracts", rootFolder);
+
+    // Aggiorniamo la catena facendola partire da contractsFolder invece che da rootFolder
+    const assetFolder = getOrCreateFolder(assetName, getOrCreateFolder(supplier, getOrCreateFolder(year.toString(), contractsFolder)));
 
     return filesData.map(file => {
       const existingFiles = assetFolder.getFilesByName(file.filename);
