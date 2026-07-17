@@ -430,9 +430,57 @@
         }
 
         try {
+            // 1. Validiamo i dati prima di fare l'upload
             ContractsUtils.validateContractData(item.data);
-            item.data.contractLinks = baseLinks;
-            finalizeRowSave(item, id);
+
+            // 2. Intercettiamo l'input file specifico di questa modale
+            const fileInput = document.getElementById(`upload-files-${id}`);
+            const hasFiles = fileInput && fileInput.files.length > 0;
+
+            if (hasFiles) {
+                showLoading();
+                let filesData = [];
+                let filesProcessed = 0;
+
+                // 3. Prepariamo i metadati per la cartella su Drive
+                const supplier = item.data.supplier || (ContractsState.currentMasterData ? ContractsState.currentMasterData.supplier : "Unknown_Supplier");
+                const assetName = ContractsState.currentSelectedAsset ? ContractsState.currentSelectedAsset.name : "Unknown_Asset";
+                let dateStr = item.data.startDate;
+                let year = dateStr ? dateStr.split('-')[0] : new Date().getFullYear().toString();
+
+                // 4. Leggiamo tutti i file
+                Array.from(fileInput.files).forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        filesData.push({ filename: file.name, mimeType: file.type, base64: e.target.result.split(',')[1] });
+                        filesProcessed++;
+
+                        // 5. Quando tutti i file sono letti in RAM, lanciamo l'API
+                        if (filesProcessed === fileInput.files.length) {
+                            ContractsAPI.uploadDocuments(filesData, year, supplier, assetName,
+                                (urls) => {
+                                    // 6. Uniamo i nuovi link a quelli vecchi e finalizziamo
+                                    let currentLinks = baseLinks ? baseLinks.split(',').map(s => s.trim()).filter(s => s) : [];
+                                    urls.forEach(u => { if (!currentLinks.includes(u)) currentLinks.push(u); });
+
+                                    item.data.contractLinks = currentLinks.join(', ');
+                                    finalizeRowSave(item, id);
+                                },
+                                (err) => {
+                                    hideLoading();
+                                    FinOpsUI.showAlert("Upload Error", err.message);
+                                }
+                            );
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                });
+            } else {
+                // Se non ci sono file, procediamo come al solito
+                item.data.contractLinks = baseLinks;
+                finalizeRowSave(item, id);
+            }
+
         } catch (e) {
             FinOpsUI.showAlert("Validation Error", e.message);
         }
