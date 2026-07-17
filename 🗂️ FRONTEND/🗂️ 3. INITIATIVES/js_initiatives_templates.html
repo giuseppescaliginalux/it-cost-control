@@ -115,100 +115,137 @@
             </div>`).join('');
 
             return `
-            <div id="ops-card-parent-${id}" 
-                 draggable="${InitiativesState.globalEditMode ? 'true' : 'false'}" 
-                 ondragstart="InitiativesController.handleCardDragStart(event, ${id})"
-                 ondragover="InitiativesController.handleCardDragOver(event, this)"
-                 ondragleave="InitiativesController.handleCardDragLeave(event, this)"
-                 ondrop="InitiativesController.handleCardDrop(event, ${id}, this)"
-                 class="block bg-white rounded-xl border ${cardBorderClass} p-3.5 shadow-3xs cursor-pointer group hover:shadow-md hover:border-teal-500/40 transition-all relative animate-fade-in hover:z-30 mb-4"
-                 onclick="InitiativesController.openInitiativeModalForm(${id})">
-                
-                <div class="flex justify-between items-start gap-3 w-full mb-1 relative z-10">
-                    <div class="min-w-0 flex-1">
-                        <h4 class="font-black text-slate-900 text-[13px] leading-snug mb-1 truncate" title="${initiativeName}">${initiativeName}</h4>
-                        <div class="flex flex-col gap-1">
-                            <span class="text-[9px] text-slate-500 font-black uppercase tracking-widest bg-slate-50/80 px-1.5 py-0.5 border border-slate-200 rounded truncate w-fit max-w-full shadow-3xs" title="${assetName}">${assetName || 'Unassigned'}</span>
-                            <div class="text-[9px] text-slate-400 font-medium truncate mt-0.5" title="Supplier: ${safeSupplier}">
-                                Supplier: <span class="font-bold text-slate-600">${safeSupplier}</span>
-                            </div>
-                        </div>
-                    </div>
+            <!-- 🌐 GUSCIO CONTAINER 3D BILANCIATO -->
+            <div class="flip-card-container w-full group" id="card-container-${id}">
+                <div class="flip-card-inner w-full h-full shadow-3xs rounded-xl">
                     
-                    <div class="text-right shrink-0 flex gap-2.5 bg-slate-50/50 p-1.5 rounded-lg border border-slate-100">
-                        <div class="flex flex-col items-end border-r border-slate-200 pr-2.5 justify-center">
-                            <span class="text-[8px] font-bold text-slate-400 uppercase tracking-tight">Baseline</span>
-                            <span class="font-mono font-bold text-slate-500 text-[11px] mt-0.5">${fmtRunRate}</span>
-                        </div>
-                        <div class="flex flex-col items-end border-r border-slate-200 pr-2.5 justify-center">
-                            <span class="text-[8px] font-bold text-slate-400 uppercase tracking-tight">${costLabel}</span>
-                            <span class="font-mono font-black text-indigo-600 text-[11px] mt-0.5">${fmtTargetCost}</span>
-                        </div>
-                        <div class="flex flex-col items-end justify-center pl-0.5">
-                            <span class="text-[8px] font-bold text-slate-400 uppercase tracking-tight">Saving</span>
-                            <div class="flex items-center gap-1 mt-0.5 font-mono font-black ${textColorClass} text-[12px]">
-                                <span>${fmtSaving}</span>
-                                <span class="text-[8px] font-sans font-black px-1 py-0.5 rounded border ${badgeColorClass} leading-none">${savingPercentText}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="text-[11px] text-slate-600 font-medium leading-relaxed mt-2.5 border-b border-slate-50 pb-2.5 relative z-10">
-                    ${data.description || "No specific technical scope defined."}
-                </div>
-
-                <div class="flex items-end justify-between w-full mt-2.5 relative z-10">
-                    <div class="flex flex-col gap-1.5 shrink-0 min-w-0 pr-2">
-                        <div class="w-fit">${strategyBadge}</div>
-                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] font-bold text-slate-500 mt-1">
-                            <div class="flex items-center gap-1 truncate max-w-[100px]" title="Service Owner: ${safeOwner}">
-                                <svg class="w-3 h-3 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                                <span class="truncate">${safeOwner}</span>
-                            </div>
-                            <div class="flex items-center gap-1 truncate max-w-[100px]" title="Procurement Focal: ${safeProcurement}">
-                                <svg class="w-3 h-3 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                                <span class="truncate">${safeProcurement}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="flex flex-col items-end shrink-0">
-                        <span class="text-[8px] font-black uppercase tracking-widest ${isOverdue ? 'text-rose-500' : 'text-slate-400'}">${safeDateLabel}</span>
-                        <div class="flex items-center gap-1 mt-0.5">
-                            <button onclick="event.stopPropagation(); InitiativesController.togglePnLImpact(${id})" class="p-1 bg-slate-50 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded border border-slate-200 transition-colors shadow-3xs group/pnl" title="View Fiscal Projections">
-                                <svg class="w-3.5 h-3.5 group-hover/pnl:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
-                                </svg>
+                    <!-- 🟩 LATO A: FRONT VISTA OPERATIVA -->
+                    <div id="ops-card-parent-${id}" 
+                         draggable="${InitiativesState.globalEditMode ? 'true' : 'false'}" 
+                         ondragstart="InitiativesController.handleCardDragStart(event, ${id})"
+                         ondragover="InitiativesController.handleCardDragOver(event, this)"
+                         ondragleave="InitiativesController.handleCardDragLeave(event, this)"
+                         ondrop="InitiativesController.handleCardDrop(event, ${id}, this)"
+                         class="flip-card-front block bg-white rounded-xl border ${cardBorderClass} p-3 shadow-3xs ${InitiativesState.globalEditMode ? 'cursor-pointer hover:border-teal-500/40' : 'cursor-zoom-in'} transition-all relative animate-fade-in hover:shadow-md hover:z-30 w-full h-full"
+                         onclick="InitiativesController.openInitiativeModalForm(${id})">
+                        
+                        <!-- ⚡ CONTEXT MENU UNIVERSALE POSIZIONATO IN SICUREZZA -->
+                        <div class="absolute top-2.5 right-2 z-30" onclick="event.stopPropagation()">
+                            <button onclick="InitiativesController.toggleContextMenu('${id}')" class="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors shadow-3xs">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
                             </button>
+                            
+                            <div id="context-menu-${id}" class="hidden absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden context-dropdown">
+                                <button onclick="InitiativesController.flipCard('${id}')" class="w-full text-left px-4 py-2.5 text-xs font-black text-indigo-600 hover:bg-indigo-50 flex items-center gap-2 border-b border-slate-100 transition-colors">
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" /></svg> Fiscal Projection
+                                </button>
+                                ${InitiativesState.globalEditMode ? `
+                                <button onclick="InitiativesController.openInitiativeModalForm(${id})" class="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 mt-1">
+                                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg> Edit
+                                </button>
+                                <button onclick="InitiativesController.cloneInitiative('${id}')" class="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg> Clone
+                                </button>
+                                <div class="border-t border-slate-100 my-1"></div>
+                                <button onclick="InitiativesController.deleteInitiativeInline('${id}')" class="w-full text-left px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors">
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg> Delete
+                                </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                        
+                        <!-- 🛡️ PR-7 AGGIUNTO PER EVITARE SOVRAPPOSIZIONI CON I TRE PUNTINI -->
+                        <div class="flex justify-between items-start gap-3 w-full mb-1 relative z-10 pr-7">
+                            <div class="min-w-0 flex-1">
+                                <h4 class="font-black text-slate-900 text-[13px] leading-snug mb-1 truncate" title="${initiativeName}">${initiativeName}</h4>
+                                <div class="flex flex-col gap-1">
+                                    <span class="text-[9px] text-slate-500 font-black uppercase tracking-widest bg-slate-50/80 px-1.5 py-0.5 border border-slate-200 rounded truncate w-fit max-w-full shadow-3xs" title="${assetName}">${assetName || 'Unassigned'}</span>
+                                    <div class="text-[9px] text-slate-400 font-medium truncate mt-0.5" title="Supplier: ${safeSupplier}">
+                                        Supplier: <span class="font-bold text-slate-600">${safeSupplier}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="text-right shrink-0 flex gap-2.5 bg-slate-50/50 p-1.5 rounded-lg border border-slate-100">
+                                <div class="flex flex-col items-end border-r border-slate-200 pr-2.5 justify-center">
+                                    <span class="text-[8px] font-bold text-slate-400 uppercase tracking-tight">Baseline</span>
+                                    <span class="font-mono font-bold text-slate-500 text-[11px] mt-0.5">${fmtRunRate}</span>
+                                </div>
+                                <div class="flex flex-col items-end border-r border-slate-200 pr-2.5 justify-center">
+                                    <span class="text-[8px] font-bold text-slate-400 uppercase tracking-tight">${costLabel}</span>
+                                    <span class="font-mono font-black text-indigo-600 text-[11px] mt-0.5">${fmtTargetCost}</span>
+                                </div>
+                                <div class="flex flex-col items-end justify-center pl-0.5">
+                                    <span class="text-[8px] font-bold text-slate-400 uppercase tracking-tight">Saving</span>
+                                    <div class="flex items-center gap-1 mt-0.5 font-mono font-black ${textColorClass} text-[12px]">
+                                        <span>${fmtSaving}</span>
+                                        <span class="text-[8px] font-sans font-black px-1 py-0.5 rounded border ${badgeColorClass} leading-none">${savingPercentText}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
-                            <span class="font-mono text-[10px] font-black ${isOverdue ? 'text-rose-700 bg-rose-50 border-rose-200' : 'text-slate-700 bg-slate-50 border-slate-200'} px-2 py-0.5 rounded border shadow-3xs">${finalDateStr}</span>
-                            ${isOverdue ? `<span class="px-1.5 py-0.5 bg-rose-100 text-rose-700 border border-rose-200 rounded text-[7px] font-black uppercase tracking-wider animate-pulse ml-0.5">Overdue</span>` : ''}
+                        <div class="text-[11px] text-slate-600 font-medium leading-relaxed mt-2.5 border-b border-slate-50 pb-2.5 relative z-10">
+                            ${data.description || "No specific technical scope defined."}
+                        </div>
+
+                        <div class="flex items-end justify-between w-full mt-2.5 relative z-10">
+                            <div class="flex flex-col gap-1.5 shrink-0 min-w-0 pr-2">
+                                <div class="w-fit">${strategyBadge}</div>
+                                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] font-bold text-slate-500 mt-1">
+                                    <div class="flex items-center gap-1 truncate max-w-[100px]" title="Service Owner: ${safeOwner}">
+                                        <svg class="w-3 h-3 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                        <span class="truncate">${safeOwner}</span>
+                                    </div>
+                                    <div class="flex items-center gap-1 truncate max-w-[100px]" title="Procurement Focal: ${safeProcurement}">
+                                        <svg class="w-3 h-3 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                        <span class="truncate">${safeProcurement}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-col items-end shrink-0">
+                                <span class="text-[8px] font-black uppercase tracking-widest ${isOverdue ? 'text-rose-500' : 'text-slate-400'}">${safeDateLabel}</span>
+                                <div class="flex items-center gap-1 mt-0.5">
+                                    <button onclick="event.stopPropagation(); InitiativesController.flipCard('${id}')" class="p-1 bg-slate-50 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded border border-slate-200 transition-colors shadow-3xs group/pnl" title="Toggle 3D Fiscal Outlook">
+                                        <svg class="w-3.5 h-3.5 group-hover/pnl:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                                    </button>
+
+                                    <span class="font-mono text-[10px] font-black ${isOverdue ? 'text-rose-700 bg-rose-50 border-rose-200' : 'text-slate-700 bg-slate-50 border-slate-200'} px-2 py-0.5 rounded border shadow-3xs">${finalDateStr}</span>
+                                    ${isOverdue ? `<span class="px-1.5 py-0.5 bg-rose-100 text-rose-700 border border-rose-200 rounded text-[7px] font-black uppercase tracking-wider animate-pulse ml-0.5">Overdue</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+
+                        ${tags.length > 0 ? `
+                        <div class="absolute top-full -translate-y-1/2 left-4 right-4 flex flex-wrap gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none group-hover:pointer-events-auto z-30" onclick="event.stopPropagation()">
+                            ${tagsHtml}
+                        </div>` : ''}
+                        
+                        <div class="absolute inset-0 bg-teal-500/5 border border-teal-500/30 rounded-xl opacity-0 pointer-events-none transition-opacity z-20" id="drop-overlay-${id}"></div>
+                    </div>
+
+                    <!-- 🟦 LATO B: BACK (Clean Fiscal Outlook - No Double Padding) -->
+                    <div class="flip-card-back border border-slate-200 p-0 flex flex-col justify-between cursor-default bg-white" onclick="event.stopPropagation()">
+                        <!-- Contenitore a schermo intero per il grafico a barre YoY -->
+                        <div id="pnl-chart-3d-container-${id}" class="w-full h-full">
+                            <span class="text-slate-500 text-[10px] italic">Loading projections...</span>
                         </div>
                     </div>
+
                 </div>
-
-                ${tags.length > 0 ? `
-                <div class="absolute top-full -translate-y-1/2 left-4 right-4 flex flex-wrap gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none group-hover:pointer-events-auto z-30" onclick="event.stopPropagation()">
-                    ${tagsHtml}
-                </div>` : ''}
-                
-                <div id="pnl-impact-panel-${id}" class="hidden mt-3 pt-3 border-t border-slate-100 animate-fade-in" onclick="event.stopPropagation()"></div>
-
-                <div class="absolute inset-0 bg-teal-500/5 border border-teal-500/30 rounded-xl opacity-0 pointer-events-none transition-opacity z-20" id="drop-overlay-${id}"></div>
             </div>
             `;
         },
 
         // --- HELPER METODI P&L ---
-
-        getPnLImpactPanelMarkup: function (b26, o26, b27, o27, b28, o28) {
+        getPnLImpactPanelMarkup: function (b26, o26, b27, o27, b28, o28, id = null) {
             const maxVal = Math.max(b26, o26, b27, o27, b28, o28, 1);
 
             const getBar = (val, isOptimized) => {
-                const h = Math.max(4, (val / maxVal) * 100); // Altezza minima 4% per visibilità
+                const h = Math.max(4, (val / maxVal) * 100);
                 const color = isOptimized ? 'bg-teal-500' : 'bg-slate-300';
-                return `<div class="w-3 ${color} rounded-t-sm transition-all" style="height: ${h}%;" title="€${window.formatKM(val)}"></div>`;
+                return `<div class="w-3.5 ${color} rounded-t-sm transition-all" style="height: ${h}%;" title="€${window.formatKM(val)}"></div>`;
             };
 
             const calcYoY = (base, target) => {
@@ -217,56 +254,73 @@
                 const sign = diff > 0 ? '+' : '';
                 const color = diff < 0 ? 'text-emerald-600' : (diff > 0 ? 'text-rose-600' : 'text-slate-400');
                 if (diff === 0) return `<span class="text-slate-400 font-bold">—</span>`;
-                return `<span class="${color} font-black">${sign}€${window.formatKM(Math.abs(diff))} <span class="text-[8px]">(${sign}${pct.toFixed(1)}%)</span></span>`;
+                return `<span class="${color} font-black text-[11px]">${sign}€${window.formatKM(Math.abs(diff))} <span class="text-[9px]">(${sign}${pct.toFixed(1)}%)</span></span>`;
             };
 
+            // Se l'id è definito (retro card), applichiamo un padding confortevole di p-4 e allunghiamo il grafico
+            const paddingClass = id !== null ? "p-4" : "p-3 border border-slate-200/60";
+            const titleSize = id !== null ? "text-[11px]" : "text-[9px]";
+            const legendSize = id !== null ? "text-[9px]" : "text-[7.5px]";
+            const yoyTitleSize = id !== null ? "text-[8.5px]" : "text-[7px]";
+            const barHeightClass = id !== null ? "h-[74px]" : "h-16";
+
             return `
-            <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm w-full flex flex-col gap-3">
-                <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
-                    <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                        <svg class="w-3 h-3 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" /></svg>
-                        Fiscal Projections (Baseline vs Optimized)
+            <div class="bg-white ${paddingClass} rounded-xl w-full h-full flex flex-col justify-between">
+                <div class="flex justify-between items-center border-b border-slate-100 pb-2 mb-1.5 shrink-0">
+                    <span class="${titleSize} font-black text-slate-700 uppercase tracking-widest flex items-center gap-1.5 select-none">
+                        <svg class="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" /></svg>
+                        Fiscal Projections
                     </span>
-                    <div class="flex items-center gap-3 text-[8px] font-bold text-slate-400 uppercase">
-                        <div class="flex items-center gap-1"><span class="w-2 h-2 bg-slate-300 rounded-sm"></span> Baseline</div>
-                        <div class="flex items-center gap-1"><span class="w-2 h-2 bg-teal-500 rounded-sm"></span> Optimized</div>
+                    <div class="flex items-center gap-3">
+                        <!-- Ripristinate le diciture "Baseline" e "Optimized" in chiaro -->
+                        <div class="flex items-center gap-2 ${legendSize} font-bold text-slate-400 uppercase select-none">
+                            <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 bg-slate-300 rounded-sm"></span> Baseline</div>
+                            <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 bg-teal-500 rounded-sm"></span> Optimized</div>
+                        </div>
+                        ${id !== null ? `
+                        <button onclick="InitiativesController.flipCard('${id}')" class="p-1 text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100 transition-colors shadow-3xs" title="Back to front">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                        ` : ''}
                     </div>
                 </div>
 
-                <div class="flex items-end justify-around h-24 pt-2 pb-1 border-b border-slate-100">
+                <!-- Grafico a barre con altezza e spessore ottimizzati per massima leggibilità -->
+                <div class="flex items-end justify-around ${barHeightClass} pt-1 pb-1 border-b border-slate-100 shrink-0">
                     <div class="flex flex-col items-center h-full w-1/3 border-r border-slate-100">
-                        <div class="flex items-end justify-center gap-1.5 h-full w-full mb-1.5">
+                        <div class="flex items-end justify-center gap-1.5 h-full w-full mb-1">
                             ${getBar(b26, false)}
                             ${getBar(o26, true)}
                         </div>
-                        <span class="text-[9px] font-black text-slate-700">FY26</span>
-                        <span class="text-[10px] font-mono font-bold text-teal-700 leading-none mt-0.5">€${window.formatKM(o26)}</span>
+                        <span class="text-[9px] font-black text-slate-700 select-none">FY26</span>
+                        <span class="text-[11px] font-mono font-bold text-teal-700 leading-none mt-0.5">€${window.formatKM(o26)}</span>
                     </div>
                     <div class="flex flex-col items-center h-full w-1/3 border-r border-slate-100">
-                        <div class="flex items-end justify-center gap-1.5 h-full w-full mb-1.5">
+                        <div class="flex items-end justify-center gap-1.5 h-full w-full mb-1">
                             ${getBar(b27, false)}
                             ${getBar(o27, true)}
                         </div>
-                        <span class="text-[9px] font-black text-slate-700">FY27</span>
-                        <span class="text-[10px] font-mono font-bold text-teal-700 leading-none mt-0.5">€${window.formatKM(o27)}</span>
+                        <span class="text-[9px] font-black text-slate-700 select-none">FY27</span>
+                        <span class="text-[11px] font-mono font-bold text-teal-700 leading-none mt-0.5">€${window.formatKM(o27)}</span>
                     </div>
                     <div class="flex flex-col items-center h-full w-1/3">
-                        <div class="flex items-end justify-center gap-1.5 h-full w-full mb-1.5">
+                        <div class="flex items-end justify-center gap-1.5 h-full w-full mb-1">
                             ${getBar(b28, false)}
                             ${getBar(o28, true)}
                         </div>
-                        <span class="text-[9px] font-black text-slate-700">FY28</span>
-                        <span class="text-[10px] font-mono font-bold text-teal-700 leading-none mt-0.5">€${window.formatKM(o28)}</span>
+                        <span class="text-[9px] font-black text-slate-700 select-none">FY28</span>
+                        <span class="text-[11px] font-mono font-bold text-teal-700 leading-none mt-0.5">€${window.formatKM(o28)}</span>
                     </div>
                 </div>
 
-                <div class="flex justify-around items-center pt-1 pb-0.5 text-[9px]">
+                <!-- Riepilogo YoY spazioso e chiaro -->
+                <div class="flex justify-around items-center pt-2 pb-0.5 text-[10px] shrink-0 select-none">
                     <div class="flex flex-col items-center text-center">
-                        <span class="text-slate-400 font-bold uppercase tracking-wider mb-0.5 text-[8px]">FY27 vs FY26 (Optimized)</span>
+                        <span class="text-slate-400 font-bold uppercase tracking-wider mb-0.5 ${yoyTitleSize}">FY27 vs FY26</span>
                         ${calcYoY(o26, o27)}
                     </div>
                     <div class="flex flex-col items-center text-center">
-                        <span class="text-slate-400 font-bold uppercase tracking-wider mb-0.5 text-[8px]">FY28 vs FY26 (Optimized)</span>
+                        <span class="text-slate-400 font-bold uppercase tracking-wider mb-0.5 ${yoyTitleSize}">FY28 vs FY26</span>
                         ${calcYoY(o26, o28)}
                     </div>
                 </div>

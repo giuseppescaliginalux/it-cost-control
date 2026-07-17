@@ -40,6 +40,119 @@
             InitiativesController.renderKanbanBoard(false);
         },
 
+        // --- GESTIONE DROPDOWN CONTEXT MENU ---
+        toggleContextMenu: function (id) {
+            document.querySelectorAll('.context-dropdown').forEach(el => {
+                if (el.id !== `context-menu-${id}`) el.classList.add('hidden');
+            });
+            const menu = document.getElementById(`context-menu-${id}`);
+            if (menu) menu.classList.toggle('hidden');
+        },
+
+        closeAllMenus: function () {
+            document.querySelectorAll('.context-dropdown').forEach(el => el.classList.add('hidden'));
+        },
+
+        // --- MOTORE DI ROTAZIONE ED ESTRAZIONE NUMERICA P&L ---
+        flipCard: function (id) {
+            this.closeAllMenus();
+            const card = document.getElementById(`card-container-${id}`);
+            if (!card) return;
+
+            card.classList.toggle('is-flipped');
+
+            // Se stiamo ruotando verso il retro, iniettiamo i dati aggregati
+            if (card.classList.contains('is-flipped')) {
+                const init = InitiativesState.rawInitiatives[id];
+                if (!init) return;
+
+                let targetContractIds = [];
+                if (init.contractId) {
+                    targetContractIds = [init.contractId];
+                } else if (init.masterId) {
+                    targetContractIds = (windowPayload.contracts || []).filter(c => c.masterId === init.masterId).map(c => c.contractId);
+                }
+
+                let b26 = 0, o26 = 0, b27 = 0, o27 = 0, b28 = 0, o28 = 0;
+
+                (windowPayload.projections || []).forEach(p => {
+                    if (targetContractIds.includes(p["Contract ID"])) {
+                        b26 += p["FY26 Baseline"] || 0;
+                        o26 += p["FY26 Optimized"] || 0;
+                        b27 += p["FY27 Baseline"] || 0;
+                        o27 += p["FY27 Optimized"] || 0;
+                        b28 += p["FY28 Baseline"] || 0;
+                        o28 += p["FY28 Optimized"] || 0;
+                    }
+                });
+
+                // Passiamo l'id come settimo parametro per abilitare la "X" di chiusura integrata
+                const container = document.getElementById(`pnl-chart-3d-container-${id}`);
+                if (container) {
+                    container.innerHTML = InitiativesTemplates.getPnLImpactPanelMarkup(b26, o26, b27, o27, b28, o28, id);
+                }
+            }
+        },
+
+        // --- CLONAZIONE IN RAM (A/B TESTING FINANZIARIO) ---
+        cloneInitiative: function (id) {
+            this.closeAllMenus();
+            if (!InitiativesState.globalEditMode) return;
+
+            const index = (windowPayload.initiatives || []).findIndex(i => String(i.id) === String(id) || InitiativesState.rawInitiatives.indexOf(i) === parseInt(id));
+            const targetInit = InitiativesState.rawInitiatives[id];
+            if (!targetInit) return;
+
+            // Deep copy dell'iniziativa per duplicarla nello stesso stato della Kanban
+            const clone = JSON.parse(JSON.stringify(targetInit));
+            clone.id = ""; // Svuotiamo l'id per prepararla alla futura persistenza
+            clone.name = "Copy of " + (clone.name || 'Initiative');
+
+            windowPayload.initiatives.push(clone);
+            if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
+
+            InitiativesState.rawInitiatives = windowPayload.initiatives;
+            InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || [], windowPayload.masterContracts || []);
+
+            this.renderKanbanBoard(false);
+            FinOpsUI.showNotificationBanner("Initiative duplicated successfully in RAM.", "success");
+        },
+
+        // --- ELIMINAZIONE DIRETTA DA CONTEXT MENU (KANBAN CARD) ---
+        deleteInitiativeInline: function (id) {
+            this.closeAllMenus();
+
+            // 🛡️ HARD CHECK DI GOVERNANCE
+            if (!InitiativesState.globalEditMode) {
+                console.warn("Delete blocked: Administrative authorization required (Edit Mode).");
+                return;
+            }
+
+            FinOpsUI.showConfirm(
+                "Delete Initiative?",
+                "Are you entirely sure you want to completely erase this initiative from the local state?",
+                () => {
+                    // Purghe dalla RAM locale dello stato tramite indice originale
+                    InitiativesState.deleteInitiativeInstance(id);
+
+                    // Ricalcolo sincrono dei vettori finanziari e dei flussi dei contratti
+                    InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(
+                        InitiativesState.rawInitiatives,
+                        windowPayload.contracts || [],
+                        windowPayload.masterContracts || []
+                    );
+
+                    // Rinfresco immediato della Kanban Board mantenendo i filtri attivi
+                    this.renderKanbanBoard(false);
+
+                    // Notifica i pendings per illuminare le linguette salvataggio su GAS
+                    if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
+
+                    FinOpsUI.showNotificationBanner("Initiative removed locally. Commit changes to persist.", "warning");
+                }
+            );
+        },
+
         togglePnLImpact: function (id) {
             const panel = document.getElementById(`pnl-impact-panel-${id}`);
             if (!panel) return;
@@ -1110,6 +1223,16 @@
         }
         if (assetDrop && comboContainer && !assetDrop.classList.contains('hidden') && !comboContainer.contains(e.target)) {
             assetDrop.classList.add('hidden');
+        }
+
+        // --- CHIUSURA AUTOMATICA KEBAB MENU CONTEXT DROPDOWN ---
+        const isClickInsideMenu = e.target.closest('.context-dropdown');
+        const isClickOnTrigger = e.target.closest('button[onclick*="toggleContextMenu"]');
+
+        if (!isClickInsideMenu && !isClickOnTrigger) {
+            if (typeof InitiativesController !== 'undefined' && InitiativesController.closeAllMenus) {
+                InitiativesController.closeAllMenus();
+            }
         }
     });
 </script>
