@@ -82,10 +82,36 @@
 
         getMasterSidebarCard: function (mId, supplier, status, totalCommitment, isExpired, statusClass) {
             const cardClasses = isExpired ? "bg-slate-50 border-slate-200 opacity-60 hover:opacity-80 grayscale-[0.2]" : "bg-white border-slate-100 hover:border-teal-200 hover:shadow-md cursor-pointer";
+
+            // CONTEXT KEBAB MENU UI: Attivo solo in modalità di modifica amministrativa globale
+            const kebabMenuHtml = typeof ContractsState !== 'undefined' && ContractsState.globalEditMode ? `
+            <div class="absolute top-2.5 right-2 z-30" onclick="event.stopPropagation()">
+                <button onclick="ContractsController.toggleMasterContextMenu('${mId}', event)" class="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors shadow-3xs">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                    </svg>
+                </button>
+                <div id="master-kebab-menu-${mId}" class="hidden absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden contracts-kebab-dropdown z-50 text-left animate-fade-in">
+                    <button onclick="loadFullMasterDetailArchitecture('${mId}'); toggleMasterEditState(true);" class="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 mt-1 transition-colors">
+                        <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                        Edit Master Info
+                    </button>
+                    <button onclick="loadFullMasterDetailArchitecture('${mId}'); addNewDetailRowItem();" class="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors">
+                        <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                        Add Contract Line
+                    </button>
+                    <button onclick="ContractsController.initiateRenewal('${mId}')" class="w-full text-left px-4 py-2.5 text-xs font-black text-teal-600 hover:bg-teal-50 flex items-center gap-2 border-t border-slate-100 transition-colors">
+                        <svg class="w-3.5 h-3.5 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
+                        Create Renewal
+                    </button>
+                </div>
+            </div>` : '';
+
             return `
-            <div onclick="loadFullMasterDetailArchitecture('${mId}')" class="p-3 rounded-xl shadow-sm flex flex-col gap-2 group transition-all relative overflow-hidden border ${cardClasses}">
+            <div onclick="loadFullMasterDetailArchitecture('${mId}')" class="p-3 rounded-xl shadow-sm flex flex-col gap-2 group transition-all relative overflow-visible border ${cardClasses}">
                 ${isExpired ? `<div class="absolute top-0 right-0 bg-slate-200 text-slate-500 text-[7px] font-black uppercase tracking-widest px-2 py-0.5 rounded-bl-lg z-10 pointer-events-none">Historical</div>` : ''}
-                <div class="flex justify-between items-start gap-2 ${isExpired ? 'mt-2' : ''}">
+                ${kebabMenuHtml}
+                <div class="flex justify-between items-start gap-2 ${isExpired ? 'mt-2' : ''} pr-6">
                     <div class="min-w-0 flex-1">
                         <div class="font-black text-slate-800 text-xs truncate" title="${supplier}">Supplier: <span class="text-teal-700 font-black">${supplier}</span></div>
                         <div class="text-[9px] font-mono font-bold text-slate-400 uppercase mt-0.5">ID: ${mId}</div>
@@ -116,8 +142,6 @@
             const totCommit = parseFloat(data.totalCommitment) || 0;
             const bChannel = data.billingChannel || 'Direct Vendor';
 
-            const editBtnHtml = globalEditMode ? `<button onclick="toggleMasterEditState(true)" class="px-3 py-1.5 bg-slate-100 border border-slate-200 text-slate-700 font-black text-[10px] uppercase tracking-wider rounded-lg hover:bg-slate-200 transition-colors shadow-sm">Edit Master Info</button>` : '';
-
             return `
             <div class="flex justify-between items-start border-b border-slate-100 pb-2.5 mb-2.5">
                 <div>
@@ -129,7 +153,6 @@
                 </div>
                 <div class="flex flex-wrap justify-end items-center gap-2">
                     ${linksHtml}
-                    ${editBtnHtml}
                 </div>
             </div>
 
@@ -158,7 +181,7 @@
             </div>`;
         },
 
-        getMasterEditCard: function (data, isNew, suppliersList, masterLinks) {
+        getMasterEditCard: function (data, isNew, suppliersList, assetMastersList, masterLinks) {
             const currentSupplier = data.supplier || '';
             const bChannel = data.billingChannel || 'Direct Vendor';
 
@@ -168,6 +191,23 @@
                     <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 </button>
             `;
+
+            // STRUTTURAZIONE TENDINA: Elabora le etichette con ID e ciclo temporale per il selettore
+            const previousMasterOptions = (assetMastersList || []).map(m => {
+                const start = m.masterStartDate ? FinOpsDate.toVisualShort(m.masterStartDate) : "—";
+                const end = m.masterEndDate ? FinOpsDate.toVisualShort(m.masterEndDate) : "—";
+                return `${m.masterId} (${start} ➔ ${end})`;
+            });
+
+            let currentPrevMasterValue = data.previousMasterId || '';
+            if (currentPrevMasterValue && assetMastersList) {
+                const match = assetMastersList.find(m => m.masterId === currentPrevMasterValue);
+                if (match) {
+                    const start = match.masterStartDate ? FinOpsDate.toVisualShort(match.masterStartDate) : "—";
+                    const end = match.masterEndDate ? FinOpsDate.toVisualShort(match.masterEndDate) : "—";
+                    currentPrevMasterValue = `${match.masterId} (${start} ➔ ${end})`;
+                }
+            }
 
             return `
             <div class="flex justify-between items-center border-b border-slate-200 pb-2 mb-4">
@@ -202,9 +242,9 @@
             </div>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs mt-3">
-                <div class="md:col-span-2">
-                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Previous Master ID (Optional - For Renewals/Merges)</label>
-                    <input type="text" id="ins-previousMasterId" value="${data.previousMasterId || ''}" placeholder="e.g. MCT-AWS-2024-01 (use commas for multiple)" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 text-xs font-mono text-indigo-700">
+                <div class="md:col-span-2 z-40">
+                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Previous Master ID (Renewal Link)</label>
+                    ${FinOpsSelect.render({ id: 'ins-previousMasterId', placeholder: '🔍 Select historical master for renewal...', options: previousMasterOptions, selectedValue: currentPrevMasterValue, allowCustom: true })}
                 </div>
                 <div>
                     <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Master Scope</label>
@@ -268,10 +308,24 @@
             let ledgerBadge = item.ledger && item.ledger.length > 0 ? `<button onclick="ContractsController.toggleCardSection(${item.id}, 'ledger', event)" class="px-2 py-0.5 bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white border border-amber-200 rounded text-[9px] font-black uppercase tracking-wider shadow-sm flex items-center gap-1 cursor-pointer transition-colors" title="Click to view Ledger Movements">Ledger <span class="bg-white text-amber-700 rounded-full px-1 py-0.5 text-[7px] leading-none">${item.ledger.length}</span></button>` : '';
             let docsHtml = docLinks.length > 0 ? `<div class="flex gap-1">${docLinks.map((url, idx) => `<a href="#" target="_blank" class="live-doc-link px-2 py-0.5 bg-slate-50 text-slate-600 hover:bg-slate-600 hover:text-white border border-slate-200 rounded-md text-[8px] font-black uppercase tracking-wider flex items-center gap-1 transition-all shadow-sm" data-raw="${url.trim()}"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg> Doc ${idx + 1}</a>`).join('')}</div>` : '';
 
+            // CONTEXT MENU KEBAB RIGHE ALLOCATIVE: Rimpiazza i vecchi bottoni testuali esposti
             const actionsHtml = globalEditMode ? `
-                <div class="flex items-center gap-1.5 shrink-0 ml-4" onclick="event.stopPropagation();">
-                    <button onclick="cloneDetailRowItem(${item.id})" class="px-2.5 py-1 bg-slate-100 text-slate-600 hover:bg-slate-200 font-bold rounded-lg text-[9px] uppercase tracking-wider border border-slate-200 shadow-sm transition-colors">Clone</button>
-                    <button onclick="ContractsController.openContractModalWindow(${item.id})" class="px-3 py-1 bg-teal-50 hover:bg-teal-700 text-teal-700 hover:text-white font-black rounded-lg text-[9px] uppercase tracking-wider border border-teal-100 transition-colors shadow-sm">Modify Line ⚙️</button>
+                <div class="absolute top-2.5 right-2 z-30" onclick="event.stopPropagation();">
+                    <button onclick="ContractsController.toggleContractLineContextMenu(${item.id}, event)" class="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors shadow-3xs">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                        </svg>
+                    </button>
+                    <div id="line-kebab-menu-${item.id}" class="hidden absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden contracts-kebab-dropdown z-50 text-left animate-fade-in">
+                        <button onclick="ContractsController.openContractModalWindow(${item.id})" class="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 mt-1 transition-colors">
+                            <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                            Modify Line Configuration
+                        </button>
+                        <button onclick="cloneDetailRowItem(${item.id})" class="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors">
+                            <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                            Clone Allocation Line
+                        </button>
+                    </div>
                 </div>` : '';
 
             let splitsReadOnlyHtml = '';
@@ -292,7 +346,6 @@
 
             let ledgerReadOnlyHtml = '';
             if (item.ledger && item.ledger.length > 0) {
-                // 🌟 FIX: Aggiunto overscroll-behavior e rimossi i blocchi
                 ledgerReadOnlyHtml = `
                 <div id="read-ledger-${item.id}" class="hidden p-3 bg-amber-50/40 rounded-xl border border-amber-100 w-full mt-3 animate-fade-in" style="cursor: auto;" onclick="event.stopPropagation()">
                     <span class="block font-black text-amber-500 uppercase tracking-widest text-[8px] mb-2">Logged Invoices / Milestones</span>
@@ -318,7 +371,7 @@
 
             return `
             <div class="bg-white border border-slate-200/80 shadow-sm rounded-xl p-4 flex flex-col justify-between h-full relative group cursor-pointer hover:border-teal-400 hover:shadow-md transition-all col-span-full" onclick="toggleCompactAccordion(${item.id}, event)">
-                <div class="flex justify-between items-start w-full pb-3 border-b border-slate-100 mb-3">
+                <div class="flex justify-between items-start w-full pb-3 border-b border-slate-100 mb-3 relative overflow-visible pr-8">
                     <div class="flex items-start gap-2 min-w-0">
                         <svg id="compact-chevron-${item.id}" class="w-4 h-4 text-slate-300 group-hover:text-teal-500 transition-transform duration-200 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
                         <div class="min-w-0">

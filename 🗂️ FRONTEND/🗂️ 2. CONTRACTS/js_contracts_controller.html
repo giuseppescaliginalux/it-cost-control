@@ -143,6 +143,34 @@
         });
     }
 
+    function setupMasterRenewal(sourceMasterId) {
+        window.executeWithGlobalGuard(() => {
+            const allMasters = windowPayload.masterContracts || [];
+            const sourceMaster = allMasters.find(m => m.masterId === sourceMasterId);
+            if (!sourceMaster) return;
+
+            // Resetta lo stato interno per ospitare un nuovo record pulito
+            ContractsState.resetMaster();
+
+            // Logica di continuità automatica del rinnovo
+            ContractsState.currentMasterData.previousMasterId = sourceMasterId;
+            ContractsState.currentMasterData.supplier = sourceMaster.supplier || "";
+            ContractsState.currentMasterData.billingChannel = sourceMaster.billingChannel || "Direct Vendor";
+
+            // Forza l'apertura immediata in modalità editing
+            ContractsState.updateMasterEditState(true);
+            renderMasterFormBox();
+            renderDetailItemsTable();
+
+            // Forza il refresh visivo istantaneo del Billing Channel coerente col fornitore copiato
+            setTimeout(() => {
+                if (window.ContractsController && window.ContractsController.handleSupplierAutoChannel) {
+                    window.ContractsController.handleSupplierAutoChannel(sourceMaster.supplier);
+                }
+            }, 50);
+        });
+    }
+
     function renderMasterFormBox() {
         const masterContainer = document.getElementById('mgmt-master-form-container');
         if (!masterContainer) return;
@@ -171,9 +199,22 @@
 
             container.innerHTML = ContractsTemplates.getMasterReadOnly(data, masterLinks, cleanStart, cleanEnd, termMonths, status, statusClass, ContractsState.globalEditMode);
         } else {
-            const suppliersList = ContractsUtils.extractUniqueField(windowPayload.masterContracts || windowPayload.contracts, "supplier");
+            // Legge direttamente i supplier censiti a sistema; se vuoto, fa il fallback sui contratti
+            const suppliersList = (windowPayload.suppliers && windowPayload.suppliers.length > 0)
+                ? windowPayload.suppliers.map(s => s.supplier || s.name).filter(s => s)
+                : ContractsUtils.extractUniqueField(windowPayload.masterContracts || windowPayload.contracts, "supplier");
+
+            // FILTRO RINNOVI: Isola i vecchi accordi Master legati allo stesso Asset Target
+            const currentAsset = ContractsState.currentSelectedAsset ? ContractsState.currentSelectedAsset.name : "";
+            const allMasters = windowPayload.masterContracts || [];
+            const assetMastersList = allMasters.filter(m =>
+                String(m.assetName).trim().toLowerCase() === String(currentAsset).trim().toLowerCase() &&
+                m.masterId !== data.masterId &&
+                m.masterId
+            );
+
             const isNew = data.masterId === "";
-            container.innerHTML = ContractsTemplates.getMasterEditCard(data, isNew, suppliersList, masterLinks);
+            container.innerHTML = ContractsTemplates.getMasterEditCard(data, isNew, suppliersList, assetMastersList, masterLinks);
         }
 
         const targetLinks = container.querySelectorAll('.live-doc-link');
@@ -589,14 +630,36 @@
     function saveCurrentContract() {
         if (!ContractsState.currentSelectedAsset) return;
 
-        const isEditingExistingMaster = ContractsState.isMasterEditable && ContractsState.currentMasterData.masterId !== "";
+        if (!ContractsState.currentMasterData) {
+            const currentAsset = ContractsState.currentSelectedAsset.name;
+            const assetMasters = (windowPayload.masterContracts || []).filter(m =>
+                String(m.assetName).trim().toLowerCase() === String(currentAsset).trim().toLowerCase()
+            );
+
+            if (assetMasters.length > 0) {
+                const targetMasterId = ContractsState.lastDirtyMasterId ||
+                    (assetMasters.find(m => String(m.masterId).startsWith("TMP-")) || assetMasters[0]).masterId;
+
+                ContractsState.loadMasterDetails(targetMasterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
+                ContractsState.lastDirtyMasterId = null;
+            } else if ((ContractsState.deletedMasterIds && ContractsState.deletedMasterIds.length > 0) || (ContractsState.deletedContractIds && ContractsState.deletedContractIds.length > 0)) {
+                // Crea un inviluppo fittizio per trasmettere in sicurezza le cancellazioni esplicite al server se non ci sono master attivi
+                ContractsState.currentMasterData = { masterId: "PUDGE_OP", childContracts: [], supplier: "DUMMY", contractLinks: "" };
+                ContractsState.currentDetailItems = [];
+            } else {
+                FinOpsUI.showNotificationBanner("No Master Agreement modifications detected to synchronize for this asset.", "warning");
+                return;
+            }
+        }
+
+        const isEditingExistingMaster = ContractsState.isMasterEditable && ContractsState.currentMasterData.masterId !== "" && ContractsState.currentMasterData.masterId !== "PUDGE_OP";
         const hasOpenEdits = isEditingExistingMaster || ContractsState.currentDetailItems.some(item => item.isEditing);
         if (hasOpenEdits) {
             FinOpsUI.showNotificationBanner("There are active forms still in edit mode. Please click 'Apply' or 'Confirm Master Changes' before performing the global push.", "warning");
             return;
         }
 
-        if (ContractsState.isMasterEditable) {
+        if (ContractsState.isMasterEditable && ContractsState.currentMasterData.masterId !== "PUDGE_OP") {
             ContractsState.currentMasterData.supplier = document.getElementById('ins-masterSupplier').value;
             ContractsState.currentMasterData.masterScope = document.getElementById('ins-masterScope').value.trim();
             ContractsState.currentMasterData.masterComments = document.getElementById('ins-masterComments').value.trim();
@@ -622,6 +685,10 @@
             suppliers: (windowPayload.suppliers || []).filter(s => String(s.supplier).trim().toLowerCase() === String(spl).trim().toLowerCase()),
             initiatives: mId && mId.trim() !== "" ? (windowPayload.initiatives || []).filter(i => String(i.masterId).trim().toLowerCase() === mId.trim().toLowerCase()) : [],
 
+            // 👇 ALLEGAZIONE DEI CORREDI DEL CESTINO DELLE CANCELLAZIONI ESPLICITE
+            deletedContractIds: ContractsState.deletedContractIds || [],
+            deletedMasterIds: ContractsState.deletedMasterIds || [],
+
             details: ContractsState.currentDetailItems.map(item => {
                 const contract = new Contract(item.data);
                 const cleanExport = contract.exportToData();
@@ -644,12 +711,15 @@
                 if (res && res.status === "SUCCESS") {
                     FinOpsUI.showNotificationBanner("Architecture synchronized successfully.", "success");
 
+                    // 👇 SVUOTAMENTO BUFFER LOCALI A SINCRONIZZAZIONE CONCLUSA
+                    ContractsState.deletedContractIds = [];
+                    ContractsState.deletedMasterIds = [];
+
                     windowPayload.masterContracts = res.masterContracts || [];
                     windowPayload.contracts = res.contracts || [];
                     windowPayload.allocationSplits = res.allocationSplits || [];
                     windowPayload.ledger = res.ledger || [];
 
-                    // ⚡ FIX: Richiamiamo l'idratazione sul client subito dopo aver scaricato i dati aggiornati dal server
                     if (typeof HydrationEngine !== 'undefined') {
                         HydrationEngine.hydrateAllStatuses(windowPayload);
                     }
@@ -670,8 +740,7 @@
                     }
                     setPendingChanges(false);
 
-                    if (typeof DashboardState !== 'undefined') DashboardState.loadCachePayload(windowPayload);
-                    if (typeof ProjectionsState !== 'undefined') ProjectionsState.loadPayload(windowPayload);
+                    ContractsState.currentMasterData = null;
 
                     if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined') {
                         InventoryController.initWorkspace();
@@ -682,8 +751,6 @@
                                 InventoryController.renderContractsTabContent(InventoryState.expandedAssetId);
                             }
                         }
-                    } else {
-                        selectAssetForManagement(ContractsState.currentSelectedAsset.name, ContractsState.currentSelectedAsset.id);
                     }
                 } else {
                     FinOpsUI.showNotificationBanner("Sync failed: unexpected execution outcome from server.", "error");
@@ -694,25 +761,60 @@
     }
 
     window.ContractsController = {
-        deleteCurrentMaster: function () {
-            if (ContractsState.currentDetailItems.length > 0) {
-                FinOpsUI.showAlert("Warning", "Cannot delete a Master Agreement that contains active contract lines. Please remove the lines first.");
+        toggleMasterContextMenu: function (masterId, event) {
+            if (event) event.stopPropagation();
+            document.querySelectorAll('.contracts-kebab-dropdown').forEach(el => {
+                if (el.id !== `master-kebab-menu-${masterId}`) el.classList.add('hidden');
+            });
+            const menu = document.getElementById(`master-kebab-menu-${masterId}`);
+            if (menu) menu.classList.toggle('hidden');
+        },
+
+        toggleContractLineContextMenu: function (lineId, event) {
+            if (event) event.stopPropagation();
+            document.querySelectorAll('.contracts-kebab-dropdown').forEach(el => {
+                if (el.id !== `line-kebab-menu-${lineId}`) el.classList.add('hidden');
+            });
+            const menu = document.getElementById(`line-kebab-menu-${lineId}`);
+            if (menu) menu.classList.toggle('hidden');
+        },
+
+        closeAllContextMenus: function () {
+            document.querySelectorAll('.contracts-kebab-dropdown').forEach(el => el.classList.add('hidden'));
+        },
+
+        initiateRenewal: function (masterId) {
+            this.closeAllContextMenus();
+            setupMasterRenewal(masterId);
+        },
+
+        deleteCurrentMaster: function (masterId) {
+            const mId = masterId || (ContractsState.currentMasterData ? ContractsState.currentMasterData.masterId : "");
+            if (!mId) return;
+
+            // GOVERNANCE CHECK: Blocca la cancellazione se ci sono ancora linee contrattuali attive nel database in RAM
+            const childLines = (windowPayload.contracts || []).filter(c => String(c.masterId).trim() === String(mId).trim());
+            if (childLines.length > 0) {
+                FinOpsUI.showAlert("Governance Restriction", "Cannot delete a Master Agreement that contains active contract lines. Please remove all contract lines first.");
                 return;
             }
 
-            FinOpsUI.showConfirm("Delete Master", "Are you sure you want to permanently remove this Master Agreement?", () => {
-                const mId = ContractsState.currentMasterData.masterId;
+            FinOpsUI.showConfirm("Delete Master Agreement", "Are you entirely sure you want to permanently remove this Master Agreement from memory?", () => {
+                // 👇 INIZIALIZZAZIONE E ACCUMULO: Se l'ID è reale, lo marchiamo nel cestino esplicito dei Master
+                ContractsState.deletedMasterIds = ContractsState.deletedMasterIds || [];
+                if (!String(mId).toUpperCase().startsWith("TMP-")) {
+                    ContractsState.deletedMasterIds.push(mId);
+                }
 
                 windowPayload.masterContracts = windowPayload.masterContracts.filter(m => m.masterId !== mId);
 
-                ContractsState.currentMasterData = null;
-                ContractsState.currentDetailItems = [];
+                if (ContractsState.currentMasterData && ContractsState.currentMasterData.masterId === mId) {
+                    ContractsState.currentMasterData = null;
+                    ContractsState.currentDetailItems = [];
+                }
 
                 const mountPoint = document.getElementById('contracts-modal-mount-point');
                 if (mountPoint) { mountPoint.classList.add('hidden'); mountPoint.classList.remove('flex'); mountPoint.innerHTML = ''; }
-
-                const formContainer = document.getElementById('mgmt-master-form-container');
-                if (formContainer) formContainer.classList.add('hidden');
 
                 ContractsState.hasUnsavedChanges = true;
                 if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
@@ -726,12 +828,44 @@
                     }
                     InventoryController.renderContractsTabContent(InventoryState.expandedAssetId);
                     InventoryController.applyFiltersAndSort();
-                } else {
-                    if (typeof renderMasterFormBox === 'function') renderMasterFormBox();
-                    if (typeof renderMasterContractsList === 'function' && ContractsState.currentSelectedAsset) {
-                        const assetMasters = windowPayload.masterContracts.filter(m => (m.assetName || "").toString().toLowerCase() === ContractsState.currentSelectedAsset.name.toLowerCase());
-                        renderMasterContractsList(assetMasters);
+                }
+            });
+        },
+
+        deleteContractLineById: function (contractId) {
+            if (!contractId) return;
+
+            const targetContract = (windowPayload.contracts || []).find(c => c.contractId === contractId);
+            if (targetContract && targetContract.masterId) {
+                ContractsState.lastDirtyMasterId = targetContract.masterId;
+            }
+
+            FinOpsUI.showConfirm("Delete Contract Line", "Are you entirely sure you want to permanently remove this specific contract line allocation?", () => {
+                // 👇 INIZIALIZZAZIONE E ACCUMULO: Se l'ID è reale, lo marchiamo nel cestino esplicito dei Contratti
+                ContractsState.deletedContractIds = ContractsState.deletedContractIds || [];
+                if (!String(contractId).toUpperCase().startsWith("TMP-")) {
+                    ContractsState.deletedContractIds.push(contractId);
+                }
+
+                // Elimina la riga contrattuale dalla RAM globale
+                windowPayload.contracts = windowPayload.contracts.filter(c => c.contractId !== contractId);
+
+                // Purgatone a cascata dei registri di contabilità (Ledger e Splits) associati a quell'ID in RAM
+                if (windowPayload.ledger) windowPayload.ledger = windowPayload.ledger.filter(l => l.contractId !== contractId);
+                if (windowPayload.allocationSplits) windowPayload.allocationSplits = windowPayload.allocationSplits.filter(s => s.contractId !== contractId);
+
+                ContractsState.hasUnsavedChanges = true;
+                if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
+
+                if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined') {
+                    if (InventoryState.expandedAssetId) {
+                        const assetObj = globalCachedData.find(a => btoa(encodeURIComponent(a.name)).replace(/=/g, "") === InventoryState.expandedAssetId);
+                        if (assetObj) {
+                            InventoryState.loadAssetDrillDownData(assetObj.name);
+                        }
                     }
+                    InventoryController.renderContractsTabContent(InventoryState.expandedAssetId);
+                    InventoryController.applyFiltersAndSort();
                 }
             });
         },
@@ -796,8 +930,8 @@
         },
 
         handleAutoRenewalChange: function (id) {
-            const autoRenew = document.getElementById(`edit-autoRenewal-${id}`);
-            const noticePeriod = document.getElementById(`edit-noticePeriod-${id}`);
+            const autoRenew = document.getElementById('edit-autoRenewal-' + id);
+            const noticePeriod = document.getElementById('edit-noticePeriod-' + id);
             if (autoRenew && noticePeriod) {
                 if (autoRenew.value === "No") {
                     noticePeriod.disabled = true;
@@ -851,7 +985,6 @@
                 }
 
                 if (autoForecastBtn) {
-                    // ⚡ FIX: Abilitiamo il tasto di anteprima sia per PAYG che per Fixed Recurring
                     const canAutoForecast = isPayg || isFixedRec;
                     if (canAutoForecast) autoForecastBtn.classList.remove('hidden');
                     else autoForecastBtn.classList.add('hidden');
@@ -899,7 +1032,6 @@
             const freqSelect = document.getElementById(`edit-billingFrequency-${detailId}`);
             const freq = freqSelect ? freqSelect.value : "Monthly";
 
-            // ⚡ FIX: Modificata la guardia per includere le nuove regole concordate
             const isPayg = terms === "Pay-As-You-Go";
             const isFixedRec = terms === "Fixed Recurring" || terms === "Linear" || terms === "Quarterly";
 
@@ -1052,7 +1184,6 @@
             const baseLeOptions = leList.map(le => `<option value="${le}">${le}</option>`).join('');
             const baseCcOptions = ccList.map(cc => `<option value="${cc}">${cc}</option>`).join('');
 
-            // ⚡ FIX: Sostituito d.startDate?.split con FinOpsDate.toIso per supportare sia stringhe che oggetti Date in RAM
             let splitsHtml = item.splits && item.splits.length > 0
                 ? item.splits.map(s => ContractsTemplates.getSplitRow(
                     item.id,
@@ -1116,7 +1247,6 @@
 
             const data = ContractsState.currentMasterData;
             const isNew = !data.masterId;
-            // Legge direttamente i supplier censiti a sistema; se vuoto, fa il fallback sui contratti
             const suppliersList = (windowPayload.suppliers && windowPayload.suppliers.length > 0)
                 ? windowPayload.suppliers.map(s => s.supplier || s.name).filter(s => s)
                 : ContractsUtils.extractUniqueField(windowPayload.masterContracts || windowPayload.contracts, "supplier");
@@ -1124,7 +1254,14 @@
 
             let formHtml = '';
             if (isEditActive) {
-                formHtml = ContractsTemplates.getMasterEditCard(data, isNew, suppliersList, masterLinks);
+                const currentAsset = ContractsState.currentSelectedAsset ? ContractsState.currentSelectedAsset.name : "";
+                const allMasters = windowPayload.masterContracts || [];
+                const assetMastersList = allMasters.filter(m =>
+                    String(m.assetName).trim().toLowerCase() === String(currentAsset).trim().toLowerCase() &&
+                    m.masterId !== data.masterId &&
+                    m.masterId
+                );
+                formHtml = ContractsTemplates.getMasterEditCard(data, isNew, suppliersList, assetMastersList, masterLinks);
             } else {
                 const status = (data.status || "ACTIVE").toUpperCase().trim();
                 const rawStart = data.masterStartDate;
@@ -1143,9 +1280,9 @@
             }
 
             mountPoint.innerHTML = `
-            <div class="bg-white rounded-2xl border border-slate-200 p-6 w-full max-w-3xl shadow-2xl relative animate-fade-in text-xs flex flex-col" onclick="if(typeof FinOpsSelect !== 'undefined') FinOpsSelect.closeAll(event); event.stopPropagation();">
-                ${formHtml}
-            </div>`;
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 w-full max-w-3xl shadow-2xl relative animate-fade-in text-xs flex flex-col" onclick="if(typeof FinOpsSelect !== 'undefined') FinOpsSelect.closeAll(event); event.stopPropagation();">
+            ${formHtml}
+        </div>`;
 
             mountPoint.classList.remove('hidden');
             mountPoint.classList.add('flex');
@@ -1212,8 +1349,8 @@
             }
 
             listContainer.innerHTML = matched.map(s => `
-                <div onclick="ContractsController.selectSupplierOption('${s.replace(/'/g, "\\'")}')" class="p-1.5 text-[11px] font-bold text-slate-700 hover:bg-teal-50 hover:text-teal-900 rounded-md cursor-pointer transition-colors">${s}</div>
-            `).join('');
+            <div onclick="ContractsController.selectSupplierOption('${s.replace(/'/g, "\\'")}')" class="p-1.5 text-[11px] font-bold text-slate-700 hover:bg-teal-50 hover:text-teal-900 rounded-md cursor-pointer transition-colors">${s}</div>
+        `).join('');
         },
 
         toggleSupplierDropdown: function (show) {
@@ -1234,8 +1371,8 @@
             document.getElementById('ins-supplier-options-list').classList.add('hidden');
 
             const suppliers = windowPayload.suppliers || [];
-            const supObj = suppliers.find(s => String(s.supplier).trim().toLowerCase() === supplierName.toLowerCase());
-            const channel = supObj ? (supObj.billingChannel || 'Direct Vendor') : 'Direct Vendor';
+            const supObj = suppliers.find(s => String(s.supplier || s.name || "").trim().toLowerCase() === supplierName.toLowerCase());
+            const channel = supObj ? (supObj.Type || supObj.billingChannel || 'Direct Vendor') : 'Direct Vendor';
 
             const channelDisplay = document.getElementById('ins-masterBillingChannel-display');
             const channelInput = document.getElementById('ins-masterBillingChannel');
@@ -1247,8 +1384,6 @@
         handleSupplierAutoChannel: function (supplierName) {
             const suppliers = windowPayload.suppliers || [];
             const supObj = suppliers.find(s => String(s.supplier || s.name || "").trim().toLowerCase() === String(supplierName).toLowerCase().trim());
-
-            // 👇 FIX: Usiamo la chiave reale 'Type' mappata dal tuo database
             const channel = supObj ? (supObj.Type || 'Direct Vendor') : 'Direct Vendor';
 
             const context = document.getElementById('contracts-modal-mount-point') || document;
@@ -1264,8 +1399,11 @@
     };
 
     document.addEventListener('click', function (e) {
-        const assetDrop = document.getElementById('modal-asset-options-list');
-        const comboContainer = document.getElementById('modal-asset-combo-container');
+        const assetDrop = document.getElementById('mgmt-asset-results-list');
+        const searchInput = document.getElementById('mgmt-asset-search-input');
+        if (assetDrop && searchInput && !assetDrop.contains(e.target) && !searchInput.contains(e.target)) {
+            assetDrop.innerHTML = '';
+        }
 
         const supplierDrop = document.getElementById('ins-supplier-options-list');
         const supplierSearchInput = document.getElementById('ins-masterSupplier-search');
@@ -1273,8 +1411,14 @@
             supplierDrop.classList.add('hidden');
         }
 
-        if (assetDrop && comboContainer && !assetDrop.classList.contains('hidden') && !comboContainer.contains(e.target)) {
-            assetDrop.classList.add('hidden');
+        // --- ACCERTATO: CHIUSURA DI TUTTI I KEBAB DROPDOWN CONTRATTI AL CLICK ESTERNO ---
+        const isClickInsideKebabMenu = e.target.closest('.contracts-kebab-dropdown');
+        const isClickOnKebabTrigger = e.target.closest('button[onclick*="toggleMasterContextMenu"]') || e.target.closest('button[onclick*="toggleContractLineContextMenu"]');
+
+        if (!isClickInsideKebabMenu && !isClickOnKebabTrigger) {
+            if (typeof ContractsController !== 'undefined' && ContractsController.closeAllContextMenus) {
+                ContractsController.closeAllContextMenus();
+            }
         }
     });
 </script>

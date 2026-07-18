@@ -2,6 +2,7 @@
     /**
      * js_inventory_controller.html
      */
+
     const InventoryController = {
         initWorkspace: function () {
             const container = document.getElementById('tab-inventory');
@@ -128,6 +129,19 @@
             }
         },
 
+        applyInventoryKebabToggle: function (uniqueId, type, event) {
+            if (event) event.stopPropagation();
+            document.querySelectorAll('.inventory-kebab-dropdown').forEach(el => {
+                if (el.id !== `${type}-kebab-menu-${uniqueId}`) el.classList.add('hidden');
+            });
+            const menu = document.getElementById(`${type}-kebab-menu-${uniqueId}`);
+            if (menu) menu.classList.toggle('hidden');
+        },
+
+        closeAllInventoryKebabs: function () {
+            document.querySelectorAll('.inventory-kebab-dropdown').forEach(el => el.classList.add('hidden'));
+        },
+
         toggleAssetDrawer: function (assetName, safeDOMId) {
             const container = document.getElementById(`details-${safeDOMId}`);
             const arrow = document.getElementById(`arrow-${safeDOMId}`);
@@ -194,7 +208,7 @@
                 let html = `<div class="overflow-hidden border border-slate-200 rounded-xl bg-white shadow-sm"><table class="w-full text-left text-[11px] border-collapse"><thead><tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-black uppercase tracking-widest"><th class="p-3 w-1/2">Budget Entry</th><th class="p-3 text-right w-1/4">Original Amount</th><th class="p-3 text-right w-1/4">Allocated Share</th></tr></thead><tbody class="divide-y divide-slate-100">`;
                 let sumOriginal = 0; let sumEffective = 0;
                 dataList.forEach(log => {
-                    const origBudget = parseFloat(log.effectiveBudget || log.originalBudget || log["Original Budget"]) || 0; 
+                    const origBudget = parseFloat(log.effectiveBudget || log.originalBudget || log["Original Budget"]) || 0;
                     const effBudget = parseFloat(log.effectiveBudget || log["Effective Budget"]) || 0;
                     const coAssets = log.co_allocated_assets || []; sumOriginal += origBudget; sumEffective += effBudget;
                     let split = (parseFloat(log.allocationSplitPct || log["Allocation Split %"]) || 0); if (split > 0 && split <= 1) split *= 100;
@@ -248,12 +262,12 @@
 
             if (isEditActive) {
                 newMasterBtnHtml = `
-                <div class="flex justify-end mb-3 animate-fade-in">
-                    <button onclick="InventoryController.triggerCreateNewMaster()" class="h-8 px-4 bg-teal-600 hover:bg-teal-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-teal-700">
-                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                        <span>NEW MASTER AGREEMENT</span>
-                    </button>
-                </div>`;
+            <div class="flex justify-end mb-3 animate-fade-in">
+                <button onclick="InventoryController.triggerCreateNewMaster()" class="h-8 px-4 bg-teal-600 hover:bg-teal-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-teal-700">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                    <span>NEW MASTER AGREEMENT</span>
+                </button>
+            </div>`;
             }
 
             if (filteredMasters.length === 0) {
@@ -315,6 +329,7 @@
         },
 
         triggerEditContract: function (contractId) {
+            this.closeAllInventoryKebabs();
             if (typeof window.ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
                 const contractObj = windowPayload.contracts.find(c => c.contractId === contractId);
                 const masterId = contractObj ? contractObj.masterId : null;
@@ -333,6 +348,7 @@
         },
 
         triggerAddContractLine: function (masterId) {
+            this.closeAllInventoryKebabs();
             if (typeof window.ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
                 ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
                 const masterMatch = windowPayload.masterContracts.find(m => m.masterId === masterId);
@@ -345,6 +361,7 @@
         },
 
         triggerEditMaster: function (masterId) {
+            this.closeAllInventoryKebabs();
             if (typeof window.ContractsController !== 'undefined') {
                 const isEditActive = typeof ContractsState !== 'undefined' && ContractsState.globalEditMode;
                 ContractsState.updateMasterEditState(isEditActive);
@@ -369,12 +386,54 @@
             }
         },
 
+        triggerCreateRenewal: function (masterId) {
+            this.closeAllInventoryKebabs();
+            if (typeof window.ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
+                const allMasters = windowPayload.masterContracts || [];
+                const sourceMaster = allMasters.find(m => m.masterId === masterId);
+                if (!sourceMaster) return;
+
+                ContractsState.resetMaster();
+
+                // 👇 FIX: Generiamo un ID temporaneo univoco e assegniamo l'Asset al nuovo Master di Rinnovo
+                const tempId = "TMP-MCT-" + Date.now();
+                ContractsState.currentMasterData.masterId = tempId;
+                ContractsState.currentMasterData.assetName = sourceMaster.assetName || "";
+
+                // Logica ereditarietà rinnovo integrata per la sezione Assets
+                ContractsState.currentMasterData.previousMasterId = masterId;
+                ContractsState.currentMasterData.supplier = sourceMaster.supplier || "";
+                ContractsState.currentMasterData.billingChannel = sourceMaster.billingChannel || "Direct Vendor";
+
+                const assetMatch = windowPayload.assets.find(a => String(a.name).trim().toLowerCase() === String(sourceMaster.assetName).trim().toLowerCase());
+                if (assetMatch) {
+                    ContractsState.currentSelectedAsset = { name: assetMatch.name, id: assetMatch.id };
+                }
+
+                ContractsState.updateMasterEditState(true);
+                window.ContractsController.openMasterModalWindow("");
+
+                setTimeout(() => {
+                    if (window.ContractsController && window.ContractsController.handleSupplierAutoChannel) {
+                        window.ContractsController.handleSupplierAutoChannel(sourceMaster.supplier);
+                    }
+                }, 50);
+            }
+        },
+
         triggerCloneContract: function (contractId) {
+            this.closeAllInventoryKebabs();
             if (typeof window.ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
                 const contractObj = windowPayload.contracts.find(c => c.contractId === contractId);
                 const masterId = contractObj ? contractObj.masterId : null;
 
                 if (masterId) {
+                    // 👇 FIX: Idratiamo il contesto dell'Asset prima di lanciare la duplicazione in RAM
+                    const masterMatch = windowPayload.masterContracts.find(m => m.masterId === masterId);
+                    const assetName = masterMatch ? masterMatch.assetName : null;
+                    const assetMatch = windowPayload.assets.find(a => a.name === assetName);
+                    if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch.name, id: assetMatch.id };
+
                     ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
                     const item = ContractsState.currentDetailItems.find(i => i.data.contractId === contractId);
 
@@ -406,11 +465,11 @@
                 const container = document.getElementById(containerId);
                 if (!container) return;
                 container.innerHTML = values.map(val => `
-                    <label class="flex items-center gap-2 cursor-pointer group/cb">
-                        <input type="checkbox" value="${val}" onchange="InventoryController.applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
-                        <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val}</span>
-                    </label>
-                `).join('');
+                <label class="flex items-center gap-2 cursor-pointer group/cb">
+                    <input type="checkbox" value="${val}" onchange="InventoryController.applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
+                    <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val}</span>
+                </label>
+            `).join('');
             };
 
             buildCheckboxes(getUnique("billingChannel"), "filter-container-channel");
@@ -431,10 +490,10 @@
             const quickSelectContainer = document.getElementById("location-country-quick-select");
             if (quickSelectContainer) {
                 quickSelectContainer.innerHTML = uniqueCountries.map(c => `
-                    <button type="button" onclick="InventoryController.toggleCountryLocations(event, '${c}')" class="text-[9px] font-black px-2 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-teal-600 hover:text-white border border-slate-200 transition-all uppercase tracking-wider">
-                        ${c}
-                    </button>
-                `).join('');
+                <button type="button" onclick="InventoryController.toggleCountryLocations(event, '${c}')" class="text-[9px] font-black px-2 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-teal-600 hover:text-white border border-slate-200 transition-all uppercase tracking-wider">
+                    ${c}
+                </button>
+            `).join('');
             }
         },
 
@@ -458,31 +517,31 @@
             const container = document.getElementById("status-filter-container");
             if (container) {
                 container.innerHTML = getUnique("currentStatus").map(val => `
-                    <label class="flex items-center gap-2 cursor-pointer group/cb">
-                        <input type="checkbox" value="${val.toUpperCase()}" onchange="InventoryController.applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
-                        <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val.toUpperCase()}</span>
-                    </label>
-                `).join('');
+                <label class="flex items-center gap-2 cursor-pointer group/cb">
+                    <input type="checkbox" value="${val.toUpperCase()}" onchange="InventoryController.applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
+                    <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val.toUpperCase()}</span>
+                </label>
+            `).join('');
             }
 
             const budgetContainer = document.getElementById("budget-status-filter-container");
             if (budgetContainer) {
                 budgetContainer.innerHTML = getUnique("budgetStatusFY27").map(val => `
-                    <label class="flex items-center gap-2 cursor-pointer group/cb">
-                        <input type="checkbox" value="${val.toUpperCase()}" onchange="InventoryController.applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
-                        <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val.toUpperCase()}</span>
-                    </label>
-                `).join('');
+                <label class="flex items-center gap-2 cursor-pointer group/cb">
+                    <input type="checkbox" value="${val.toUpperCase()}" onchange="InventoryController.applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
+                    <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val.toUpperCase()}</span>
+                </label>
+            `).join('');
             }
 
             const driverContainer = document.getElementById("driver-filter-container");
             if (driverContainer) {
                 driverContainer.innerHTML = getUnique("businessDriver").map(val => `
-                    <label class="flex items-center gap-2 cursor-pointer group/cb">
-                        <input type="checkbox" value="${val.toUpperCase()}" onchange="InventoryController.applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
-                        <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val.toUpperCase()}</span>
-                    </label>
-                `).join('');
+                <label class="flex items-center gap-2 cursor-pointer group/cb">
+                    <input type="checkbox" value="${val.toUpperCase()}" onchange="InventoryController.applyFiltersAndSort()" class="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
+                    <span class="text-[11px] font-medium text-slate-600 group-hover/cb:text-slate-900 truncate">${val.toUpperCase()}</span>
+                </label>
+            `).join('');
             }
         },
 
@@ -510,6 +569,17 @@
             return '€ ' + val.toFixed(0);
         }
     };
+
+    // --- ACCERTATO: CHIUSURA AUTOMATICA DEI KEBAB INVENTORY AL CLICK ESTERNO ---
+    document.addEventListener('click', function (e) {
+        const isInsideKebab = e.target.closest('.inventory-kebab-dropdown');
+        const isTrigger = e.target.closest('button[onclick*="applyInventoryKebabToggle"]');
+        if (!isInsideKebab && !isTrigger) {
+            if (typeof InventoryController !== 'undefined' && InventoryController.closeAllInventoryKebabs) {
+                InventoryController.closeAllInventoryKebabs();
+            }
+        }
+    });
 
     const mvcOriginalExecuteTabSwitch = executeTabSwitch;
     executeTabSwitch = function (tabId) {
