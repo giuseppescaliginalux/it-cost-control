@@ -81,9 +81,12 @@
               const d = new Date(dEff);
               if (!isNaN(d.getTime())) transferDateStr = formatServerDate(d);
             }
-          } else if (["OPTIMIZATION", "OPTIMIZE"].includes(decision)) {
-            hasOptimize = true;
           }
+        }
+
+        // FIX: L'asset è "OPTIMIZING" *SOLO* se c'è un'iniziativa di ottimizzazione attivamente "IN PROGRESS".
+        if (initStatus === "IN PROGRESS" && ["OPTIMIZATION", "OPTIMIZE"].includes(decision)) {
+          hasOptimize = true;
         }
       });
 
