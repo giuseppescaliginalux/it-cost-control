@@ -1116,7 +1116,10 @@
 
             const data = ContractsState.currentMasterData;
             const isNew = !data.masterId;
-            const suppliersList = ContractsUtils.extractUniqueField(windowPayload.masterContracts || windowPayload.contracts, "supplier");
+            // Legge direttamente i supplier censiti a sistema; se vuoto, fa il fallback sui contratti
+            const suppliersList = (windowPayload.suppliers && windowPayload.suppliers.length > 0)
+                ? windowPayload.suppliers.map(s => s.supplier || s.name).filter(s => s)
+                : ContractsUtils.extractUniqueField(windowPayload.masterContracts || windowPayload.contracts, "supplier");
             const masterLinks = (data.contractLinks || "").toString().replace(/undefined|null/g, "").split(',').map(s => s.trim()).filter(s => s);
 
             let formHtml = '';
@@ -1243,11 +1246,14 @@
 
         handleSupplierAutoChannel: function (supplierName) {
             const suppliers = windowPayload.suppliers || [];
-            const supObj = suppliers.find(s => String(s.supplier).trim().toLowerCase() === String(supplierName).toLowerCase());
-            const channel = supObj ? (supObj.billingChannel || 'Direct Vendor') : 'Direct Vendor';
+            const supObj = suppliers.find(s => String(s.supplier || s.name || "").trim().toLowerCase() === String(supplierName).toLowerCase().trim());
 
-            const channelDisplay = document.getElementById('ins-masterBillingChannel-display');
-            const channelInput = document.getElementById('ins-masterBillingChannel');
+            // 👇 FIX: Usiamo la chiave reale 'Type' mappata dal tuo database
+            const channel = supObj ? (supObj.Type || 'Direct Vendor') : 'Direct Vendor';
+
+            const context = document.getElementById('contracts-modal-mount-point') || document;
+            const channelDisplay = context.querySelector('#ins-masterBillingChannel-display');
+            const channelInput = context.querySelector('#ins-masterBillingChannel');
 
             if (channelDisplay) channelDisplay.textContent = channel;
             if (channelInput) channelInput.value = channel;
