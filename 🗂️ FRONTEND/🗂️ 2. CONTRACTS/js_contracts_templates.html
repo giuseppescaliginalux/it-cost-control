@@ -1,135 +1,13 @@
 <script>
     /**
      * js_contracts_templates.html
-     * VIEW TEMPLATES: Genera le stringhe HTML per il modulo contratti.
+     * VIEW TEMPLATES: Genera le stringhe HTML ricche per le modali del modulo contratti.
      * Basato interamente su proprietà DTO camelCase native.
      */
 
     const ContractsTemplates = {
 
-        getBaseLayout: function () {
-            return `
-            <div class="flex flex-col lg:flex-row justify-between items-start lg:items-end w-full gap-4 mb-5 shrink-0">
-                <div class="min-w-0">
-                    <h2 class="text-xl font-black text-slate-800 uppercase tracking-widest truncate">Contracts Center</h2>
-                    <p class="text-slate-500 text-[11px] font-medium mt-1 truncate">Search an Asset capability, define Master Agreements, and allocate granular contract items.</p>
-                </div>
-                
-                <div class="flex items-center justify-end gap-3 shrink-0 flex-nowrap w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0">
-                    <button onclick="ContractsController.discardLocalChanges()" id="contracts-discard-btn" class="hidden px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-[11px] uppercase tracking-wider rounded-xl border border-rose-200 transition-all items-center justify-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer shadow-sm">
-                        <svg class="w-4 h-4 text-rose-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                        <span>Discard Changes</span>
-                    </button>
-
-                    <button onclick="saveCurrentContract()" id="contracts-commit-btn" class="hidden px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white font-black text-[11px] uppercase tracking-wider rounded-xl shadow-md transition-all items-center justify-center gap-1.5 shrink-0 whitespace-nowrap">
-                        <svg class="w-4 h-4 text-white shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
-                        <span>Commit & Push</span>
-                    </button>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-                <div class="lg:col-span-1 space-y-4 sticky top-20">
-                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
-                        <h3 class="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-1">
-                            <svg class="w-3.5 h-3.5 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                            Step 1: Locate Asset Target
-                        </h3>
-                        <input type="text" id="mgmt-asset-search-input" onkeyup="renderAssetSearchList()" placeholder="Type asset or manufacturer name..." class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 transition-shadow">
-                        <div id="mgmt-asset-results-list" class="max-h-44 overflow-y-auto border border-slate-100 rounded-xl divide-y divide-slate-50 bg-slate-50/30"></div>
-                    </div>
-
-                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
-                        <h3 class="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-1">
-                            <svg class="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                            Step 2: Master Agreements
-                        </h3>
-                        <div id="mgmt-selected-asset-header">
-                            <p class="text-slate-400 italic text-[11px] text-center">Select an asset above to access commercial vehicles.</p>
-                        </div>
-                        <div id="mgmt-master-list-container" class="space-y-2 pt-2 border-t border-slate-50"></div>
-                    </div>
-                </div>
-
-                <div class="lg:col-span-3 space-y-4">
-                    <div id="mgmt-master-form-container" class="hidden space-y-4">
-                        <div id="mgmt-master-form-box-inner" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3"></div>
-                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                            <div class="flex justify-between items-center pb-2 border-b border-slate-200 mb-4">
-                                <h3 class="text-xs font-black text-slate-700 uppercase tracking-widest">Step 3: Granular Items Allocation (Contracts table)</h3>
-                                <button onclick="addNewDetailRowItem()" id="btn-add-contract-row" style="display: none;" class="px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 font-black text-[10px] uppercase tracking-wider rounded-lg hover:bg-emerald-100 transition-colors shadow-sm shrink-0 cursor-pointer">Add Contract Line 📄</button>
-                            </div>
-                            <div id="mgmt-detailRowsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[600px] overflow-y-auto pr-1.5 pb-2"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div id="contracts-modal-mount-point" onclick="ContractsController.closeContractModalWindow()" class="hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4"></div>
-            `;
-        },
-
-        getAssetSearchResult: function (name, id, manufacturer) {
-            return `
-            <div onclick="selectAssetForManagement('${name.replace(/'/g, "\\'")}', '${id}')" class="p-2 border-b border-slate-100 hover:bg-teal-50/60 cursor-pointer transition-colors flex justify-between items-center text-xs group">
-                <div>
-                    <div class="font-black text-slate-800 group-hover:text-teal-900">${name}</div>
-                    <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">${manufacturer || 'Generic'}</div>
-                </div>
-                <span class="bg-slate-100 text-slate-500 font-mono text-[9px] px-1.5 py-0.5 rounded">ID: ${id}</span>
-            </div>`;
-        },
-
-        getMasterSidebarCard: function (mId, supplier, status, totalCommitment, isExpired, statusClass) {
-            const cardClasses = isExpired ? "bg-slate-50 border-slate-200 opacity-60 hover:opacity-80 grayscale-[0.2]" : "bg-white border-slate-100 hover:border-teal-200 hover:shadow-md cursor-pointer";
-
-            // CONTEXT KEBAB MENU UI: Attivo solo in modalità di modifica amministrativa globale
-            const kebabMenuHtml = typeof ContractsState !== 'undefined' && ContractsState.globalEditMode ? `
-            <div class="absolute top-2.5 right-2 z-30" onclick="event.stopPropagation()">
-                <button onclick="ContractsController.toggleMasterContextMenu('${mId}', event)" class="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors shadow-3xs">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                    </svg>
-                </button>
-                <div id="master-kebab-menu-${mId}" class="hidden absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden contracts-kebab-dropdown z-50 text-left animate-fade-in">
-                    <button onclick="loadFullMasterDetailArchitecture('${mId}'); toggleMasterEditState(true);" class="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 mt-1 transition-colors">
-                        <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                        Edit Master Info
-                    </button>
-                    <button onclick="loadFullMasterDetailArchitecture('${mId}'); addNewDetailRowItem();" class="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors">
-                        <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                        Add Contract Line
-                    </button>
-                    <button onclick="ContractsController.initiateRenewal('${mId}')" class="w-full text-left px-4 py-2.5 text-xs font-black text-teal-600 hover:bg-teal-50 flex items-center gap-2 border-t border-slate-100 transition-colors">
-                        <svg class="w-3.5 h-3.5 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
-                        Create Renewal
-                    </button>
-                </div>
-            </div>` : '';
-
-            return `
-            <div onclick="loadFullMasterDetailArchitecture('${mId}')" class="p-3 rounded-xl shadow-sm flex flex-col gap-2 group transition-all relative overflow-visible border ${cardClasses}">
-                ${isExpired ? `<div class="absolute top-0 right-0 bg-slate-200 text-slate-500 text-[7px] font-black uppercase tracking-widest px-2 py-0.5 rounded-bl-lg z-10 pointer-events-none">Historical</div>` : ''}
-                ${kebabMenuHtml}
-                <div class="flex justify-between items-start gap-2 ${isExpired ? 'mt-2' : ''} pr-6">
-                    <div class="min-w-0 flex-1">
-                        <div class="font-black text-slate-800 text-xs truncate" title="${supplier}">Supplier: <span class="text-teal-700 font-black">${supplier}</span></div>
-                        <div class="text-[9px] font-mono font-bold text-slate-400 uppercase mt-0.5">ID: ${mId}</div>
-                    </div>
-                    <span class="px-1.5 py-0.5 rounded-full text-[7px] font-black uppercase tracking-wider shrink-0 border ${statusClass}">${status}</span>
-                </div>
-                <div class="flex justify-between items-center border-t border-slate-100 pt-2 text-[10px]">
-                    <div>
-                        <span class="text-slate-400 font-bold uppercase text-[8px] tracking-wider">Total Commit</span>
-                        <span class="font-mono font-bold text-slate-700 block mt-0.5">€${totalCommitment.formatCurrency()}</span>
-                    </div>
-                    <div class="text-slate-300 group-hover:text-teal-600 transition-colors">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
-                    </div>
-                </div>
-            </div>`;
-        },
-
+        // --- VISUALIZZAZIONE MASTER COMPLETA IN SOLA LETTURA ---
         getMasterReadOnly: function (data, masterLinks, cleanStart, cleanEnd, termMonths, status, statusClass, globalEditMode) {
             const linksHtml = masterLinks.length > 0 ? `
             <div class="flex items-center gap-1.5 mr-1 border-r border-slate-200 pr-3">
@@ -181,18 +59,18 @@
             </div>`;
         },
 
+        // --- FORM MODIFICA CONFIGURAZIONE ACCORDO MASTER ---
         getMasterEditCard: function (data, isNew, suppliersList, assetMastersList, masterLinks) {
             const currentSupplier = data.supplier || '';
             const bChannel = data.billingChannel || 'Direct Vendor';
-
             const childCount = (typeof ContractsState !== 'undefined' && ContractsState.currentDetailItems) ? ContractsState.currentDetailItems.length : 0;
+
             const deleteBtnHtml = `
                 <button onclick="ContractsController.deleteCurrentMaster()" class="px-2.5 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors flex items-center justify-center shrink-0 border border-rose-200 shadow-3xs cursor-pointer ${childCount > 0 ? 'opacity-50 cursor-not-allowed' : ''}" title="${childCount > 0 ? 'Cannot delete master with active contracts' : 'Delete temporary master'}">
                     <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 </button>
             `;
 
-            // STRUTTURAZIONE TENDINA: Elabora le etichette con ID e ciclo temporale per il selettore
             const previousMasterOptions = (assetMastersList || []).map(m => {
                 const start = m.masterStartDate ? FinOpsDate.toVisualShort(m.masterStartDate) : "—";
                 const end = m.masterEndDate ? FinOpsDate.toVisualShort(m.masterEndDate) : "—";
@@ -215,7 +93,7 @@
                 <div class="flex gap-2 items-center">
                     ${deleteBtnHtml}
                     <button onclick="ContractsController.cancelMasterFormEditState(${isNew})" class="px-3 py-1.5 text-[10px] font-black uppercase text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer">Cancel</button>
-                    <button onclick="confirmMasterEditLocalChanges()" class="px-4 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-lg font-black text-[10px] uppercase tracking-wider shadow-md transition-colors cursor-pointer">Confirm Master</button>
+                    <button onclick="ContractsController.confirmMasterEditLocalChanges()" class="px-4 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-lg font-black text-[10px] uppercase tracking-wider shadow-md transition-colors cursor-pointer">Confirm Master</button>
                 </div>
             </div>
             
@@ -276,170 +154,12 @@
             </div>`;
         },
 
-        getDetailReadOnlyCard: function (item, warningBadgeHTML, effCommit, annVal, totCommit, cleanStart, cleanEnd, contractEnd, adjEnd, docLinks, globalEditMode) {
-            const d = item.data;
-
-            const legalEntity = d.legalEntity || "";
-            const costCenter = d.costCenter || "";
-            const status = d.status || "ACTIVE";
-            const scope = d.scope || "";
-            const expType = d.expenditureType || "OPEX";
-            const location = d.location || "N/A";
-            const serviceOwner = d.serviceOwner || "TBD";
-            const blId = d.blId || "—";
-            const requestCode = d.requestCode || "—";
-            const term = d.contractTerm || "—";
-            const recurrence = d.costRecurrence || "Recurrent";
-            const cId = d.contractId || "NEW_LINE";
-            const pricingModel = d.pricingModel || "Flat";
-            const billingTerms = d.billingTerms || "Linear";
-            const billingFreq = d.billingFrequency || "Monthly";
-
-            const fullBilling = (billingTerms === "Fixed Recurring" || billingTerms === "Linear" || billingTerms === "Quarterly") ? `Fixed Recurring (${billingFreq})` : billingTerms;
-            const statusClass = status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-200/50' : status === 'EXPIRED' ? 'bg-rose-50 text-rose-600 border-rose-200/50' : 'bg-amber-50 text-amber-700 border-amber-200/50';
-
-            const formatFinance = (val) => (val || 0).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-            const annValNum = ContractsUtils.parseFinancialValue(d.annualValue);
-            const effRunRateNum = ContractsUtils.parseFinancialValue(d.effectiveRunRate) || annValNum;
-            const effRunRate = formatFinance(effRunRateNum);
-            const isDiscounted = effRunRateNum !== annValNum;
-
-            let splitBadge = item.splits && item.splits.length > 0 ? `<button onclick="ContractsController.toggleCardSection(${item.id}, 'splits', event)" class="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 rounded text-[9px] font-black uppercase tracking-wider shadow-sm flex items-center gap-1 cursor-pointer transition-colors" title="Click to view Allocation Splits">Splits <span class="bg-white text-indigo-700 rounded-full px-1 py-0.5 text-[7px] leading-none">${item.splits.length}</span></button>` : '';
-            let ledgerBadge = item.ledger && item.ledger.length > 0 ? `<button onclick="ContractsController.toggleCardSection(${item.id}, 'ledger', event)" class="px-2 py-0.5 bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white border border-amber-200 rounded text-[9px] font-black uppercase tracking-wider shadow-sm flex items-center gap-1 cursor-pointer transition-colors" title="Click to view Ledger Movements">Ledger <span class="bg-white text-amber-700 rounded-full px-1 py-0.5 text-[7px] leading-none">${item.ledger.length}</span></button>` : '';
-            let docsHtml = docLinks.length > 0 ? `<div class="flex gap-1">${docLinks.map((url, idx) => `<a href="#" target="_blank" class="live-doc-link px-2 py-0.5 bg-slate-50 text-slate-600 hover:bg-slate-600 hover:text-white border border-slate-200 rounded-md text-[8px] font-black uppercase tracking-wider flex items-center gap-1 transition-all shadow-sm" data-raw="${url.trim()}"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg> Doc ${idx + 1}</a>`).join('')}</div>` : '';
-
-            // CONTEXT MENU KEBAB RIGHE ALLOCATIVE: Rimpiazza i vecchi bottoni testuali esposti
-            const actionsHtml = globalEditMode ? `
-                <div class="absolute top-2.5 right-2 z-30" onclick="event.stopPropagation();">
-                    <button onclick="ContractsController.toggleContractLineContextMenu(${item.id}, event)" class="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors shadow-3xs">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                        </svg>
-                    </button>
-                    <div id="line-kebab-menu-${item.id}" class="hidden absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden contracts-kebab-dropdown z-50 text-left animate-fade-in">
-                        <button onclick="ContractsController.openContractModalWindow(${item.id})" class="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 mt-1 transition-colors">
-                            <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                            Modify Line Configuration
-                        </button>
-                        <button onclick="cloneDetailRowItem(${item.id})" class="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors">
-                            <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                            Clone Allocation Line
-                        </button>
-                    </div>
-                </div>` : '';
-
-            let splitsReadOnlyHtml = '';
-            if (item.splits && item.splits.length > 0) {
-                splitsReadOnlyHtml = `
-                <div id="read-splits-${item.id}" class="hidden p-3 bg-indigo-50/40 rounded-xl border border-indigo-100 text-[10px] w-full mt-3 animate-fade-in pointer-events-auto" onclick="event.stopPropagation()">
-                    <span class="block font-black text-indigo-500 uppercase tracking-widest text-[8px] mb-2">Active Financial Splits</span>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">${item.splits.map(s => {
-                    let rule = s.allocationRule || "Percentage";
-                    let rawVal = "";
-                    if (rule === "Percentage") { let p = parseFloat(s.percentageShare || 0); rawVal = p <= 1 ? Math.round(p * 100) + "%" : Math.round(p) + "%"; }
-                    else if (rule === "Fixed Amount") rawVal = "€ " + Math.round(s.fixedAmount || 0).toLocaleString('it-IT');
-                    else rawVal = Math.round(s.unitsAssigned || 0) + " Qty";
-                    return `<div class="bg-white p-2 border border-slate-100 rounded-md shadow-3xs flex justify-between"><div><strong>${s.targetLegalEntity || 'N/A'}</strong> <span class="text-slate-400 text-[9px]">(${s.targetCostCenter || 'N/A'})</span></div><span class="font-mono font-black text-indigo-600">${rawVal}</span></div>`;
-                }).join('')}</div>
-                </div>`;
-            }
-
-            let ledgerReadOnlyHtml = '';
-            if (item.ledger && item.ledger.length > 0) {
-                ledgerReadOnlyHtml = `
-                <div id="read-ledger-${item.id}" class="hidden p-3 bg-amber-50/40 rounded-xl border border-amber-100 w-full mt-3 animate-fade-in" style="cursor: auto;" onclick="event.stopPropagation()">
-                    <span class="block font-black text-amber-500 uppercase tracking-widest text-[8px] mb-2">Logged Invoices / Milestones</span>
-                    <div class="space-y-1.5 max-h-48 overflow-y-auto pr-2 custom-scrollbar" style="pointer-events: auto; overscroll-behavior: contain;">
-                    ${item.ledger.map(l => {
-                    const lStart = l.startDate ? ContractsUtils.formatToEnglishCustomDate(l.startDate) : "—";
-                    const lEnd = l.endDate ? ContractsUtils.formatToEnglishCustomDate(l.endDate) : "—";
-                    const isCalc = l.type === "CALCULATED";
-                    const isCredit = l.type === "CREDIT";
-                    const colorType = isCalc ? 'bg-slate-100 text-slate-500' : (isCredit ? 'bg-teal-100 text-teal-700' : 'bg-amber-100 text-amber-700');
-                    return `
-                        <div class="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-lg border border-slate-100 text-[9px] gap-3 shadow-3xs ${isCalc ? 'opacity-70' : ''}">
-                            <div class="flex items-center gap-2.5 min-w-0">
-                                <span class="px-1.5 py-0.5 ${colorType} font-black rounded text-[7px] shrink-0 tracking-widest uppercase">${l.type}</span>
-                                <span class="font-mono font-bold text-slate-500 shrink-0 bg-slate-50 px-1.5 py-0.5 border border-slate-100 rounded">${lStart} ➔ ${lEnd}</span>
-                                <span class="font-medium text-slate-400 truncate hidden sm:block" title="${l.notes || ''}">${l.notes || '—'}</span>
-                            </div>
-                            <span class="font-mono font-black text-slate-800 shrink-0 text-[11px]">€ ${Math.round(l.amount || 0).toLocaleString('it-IT')}</span>
-                        </div>`;
-                }).join('')}</div>
-                </div>`;
-            }
-
-            return `
-            <div class="bg-white border border-slate-200/80 shadow-sm rounded-xl p-4 flex flex-col justify-between h-full relative group cursor-pointer hover:border-teal-400 hover:shadow-md transition-all col-span-full" onclick="toggleCompactAccordion(${item.id}, event)">
-                <div class="flex justify-between items-start w-full pb-3 border-b border-slate-100 mb-3 relative overflow-visible pr-8">
-                    <div class="flex items-start gap-2 min-w-0">
-                        <svg id="compact-chevron-${item.id}" class="w-4 h-4 text-slate-300 group-hover:text-teal-500 transition-transform duration-200 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
-                        <div class="min-w-0">
-                            <div class="font-black text-slate-900 text-sm truncate" title="${legalEntity}">${legalEntity}</div>
-                            <div class="text-[9px] font-mono text-slate-400 mt-1">CC: <span class="font-bold text-slate-600">${costCenter}</span> <span class="mx-1 text-slate-200">•</span> ID: <span class="text-slate-500 select-all bg-slate-50 border border-slate-100 px-1 py-0.5 rounded">${cId}</span></div>
-                        </div>
-                    </div>
-                    ${actionsHtml}
-                </div>
-                
-                <div class="flex justify-between items-center text-[10px] font-mono bg-slate-50/60 p-2 rounded-xl border border-slate-100 mb-3 w-full gap-2">
-                    <div class="flex items-center gap-1.5">
-                        <span class="bg-white px-2 py-1 border border-slate-200 rounded-md shadow-3xs text-slate-500 font-bold">${cleanStart} ➔ ${cleanEnd} <span class="font-sans font-black text-slate-700 ml-1 border-l border-slate-200 pl-1.5">${Math.round(term)}M</span></span>
-                        <span class="px-2 py-0.5 rounded-full text-[8px] font-black border ${statusClass} tracking-wider shrink-0 leading-none shadow-sm ml-2">${status}</span>
-                    </div>
-                    <div class="text-right shrink-0 border-l border-slate-200/60 pl-3">
-                        <span class="text-[7px] text-teal-600 font-sans block uppercase font-black tracking-widest mb-0.5">Effective Run Rate</span>
-                        <span class="font-mono font-black text-teal-800 text-[12px]">€${effRunRate}</span>${isDiscounted ? `<span class="text-[7px] text-slate-400 block mt-0.5">Nominal: €${annVal}</span>` : ''}
-                    </div>
-                </div>
-
-                <div class="text-[11px] text-slate-600 font-medium leading-snug line-clamp-2 min-h-[32px] mb-3 pr-2" title="${scope}">
-                    ${scope || '<span class="text-slate-300 italic">No description provided</span>'}
-                </div>
-
-                <div class="flex items-center justify-between w-full mt-auto pt-3 border-t border-slate-50 relative z-10 pointer-events-auto">
-                    <div class="flex items-center gap-1.5 shrink-0">
-                        <span class="px-2 py-0.5 bg-slate-50 border border-slate-200 shadow-3xs rounded text-[9px] font-mono font-black text-slate-500">${expType}</span>
-                        <span class="px-2 py-0.5 bg-slate-50 border border-slate-200 shadow-3xs rounded text-[9px] font-bold text-slate-600">${recurrence}</span>
-                    </div>
-                    <div class="flex flex-wrap items-center justify-end gap-1.5 shrink-0 ml-auto">
-                        ${warningBadgeHTML}${docsHtml}
-                        ${splitBadge}${ledgerBadge} 
-                    </div>
-                </div>
-
-                ${splitsReadOnlyHtml}${ledgerReadOnlyHtml}
-
-                <div id="compact-accordion-${item.id}" class="hidden mt-3 pt-3 border-t border-slate-100 animate-fade-in text-[10px]" onclick="event.stopPropagation();">
-                    <div class="grid grid-cols-2 gap-x-3 gap-y-2.5 mt-1 bg-slate-50/50 p-3 rounded-xl border border-slate-100 shadow-inner">
-                        <div class="col-span-2 border-b border-slate-200/60 pb-1.5 mb-0.5"><span class="text-[9px] font-black text-teal-700 uppercase tracking-widest">Financial Mechanics</span></div>
-                        <div class="bg-white p-2 rounded-lg border border-slate-200 shadow-3xs"><span class="text-slate-400 block font-bold text-[7px] uppercase mb-0.5">Pricing Model</span><span class="text-slate-800 font-bold">${pricingModel}</span></div>
-                        <div class="bg-white p-2 rounded-lg border border-slate-200 shadow-3xs"><span class="text-slate-400 block font-bold text-[7px] uppercase mb-0.5">Billing Terms</span><span class="text-indigo-700 font-bold">${fullBilling}</span></div>
-                        
-                        <div class="col-span-2 border-b border-slate-200/60 pb-1.5 mb-0.5 mt-2"><span class="text-[9px] font-black text-indigo-700 uppercase tracking-widest">Lifecycle & Expiry</span></div>
-                        <div><span class="text-slate-400 block font-bold text-[7px] uppercase mb-0.5">Total Commitment</span><span class="text-slate-800 font-mono font-black text-[11px]">€${totCommit}</span></div>
-                        <div><span class="text-slate-400 block font-bold text-[7px] uppercase mb-0.5">Early Termination (Adj)</span><span class="text-slate-700 font-mono font-bold ${adjEnd !== '—' ? 'text-rose-600 bg-rose-50 px-1 rounded border border-rose-100' : ''}">${adjEnd}</span></div>
-                        
-                        <div class="col-span-2 border-b border-slate-200/60 pb-1.5 mb-0.5 mt-2"><span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Operations & Identifiers</span></div>
-                        <div><span class="text-slate-400 block font-bold text-[7px] uppercase mb-0.5">Service Owner</span><span class="text-slate-700 font-medium truncate block">${serviceOwner}</span></div>
-                        <div><span class="text-slate-400 block font-bold text-[7px] uppercase mb-0.5">Location Zone</span><span class="text-slate-700 font-medium truncate block">${location}</span></div>
-                        <div class="flex gap-4 col-span-2 mt-1">
-                            <div><span class="text-slate-400 block font-bold text-[7px] uppercase mb-0.5">BL ID</span><span class="text-slate-500 font-mono font-bold">${blId}</span></div>
-                            <div class="border-l border-slate-200 pl-4"><span class="text-slate-400 block font-bold text-[7px] uppercase mb-0.5">Request Code</span><span class="text-slate-500 font-mono font-bold">${requestCode}</span></div>
-                        </div>
-                    </div>
-                </div>
-            </div>`;
-        },
-
+        // --- IL MODULO STRUTTURALE INTERO DELLA MODALE DI ALLOCAZIONE LINEE CONTRATTO ---
         getContractModalFormStructure: function (id, leList, tgOptions, locList, soList, ccList, docLinks, splitsHtml, ledgerHtml, d, masterStartStr, masterEndStr, masterCommitment, isEditMode) {
-
             const ro = !isEditMode ? 'disabled' : '';
             const roInputClass = !isEditMode ? 'opacity-60 cursor-not-allowed bg-slate-50/50' : '';
             const roWrapperClass = !isEditMode ? 'pointer-events-none opacity-60 grayscale-[0.2]' : '';
             const hiddenBtns = !isEditMode ? 'hidden' : 'flex';
-            const hiddenBlock = !isEditMode ? 'hidden' : 'block';
-            const disableClicks = '';
 
             const isNew = !d.contractId;
             const bTerms = d.billingTerms;
@@ -457,7 +177,7 @@
             const masterIdStr = d.masterId || 'N/A';
 
             return `
-        <div class="bg-white rounded-2xl border border-slate-200 p-5 w-full max-w-4xl shadow-2xl relative animate-fade-in text-xs flex flex-col h-[85vh] min-h-[600px] ${disableClicks}" onclick="if(typeof FinOpsSelect !== 'undefined') FinOpsSelect.closeAll(event); event.stopPropagation();">
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 w-full max-w-4xl shadow-2xl relative animate-fade-in text-xs flex flex-col h-[85vh] min-h-[600px]" onclick="if(typeof FinOpsSelect !== 'undefined') FinOpsSelect.closeAll(event); event.stopPropagation();">
             
             <div class="flex justify-between items-center border-b border-slate-100 pb-2 mb-4 shrink-0 pointer-events-auto">
                 <div>
@@ -608,7 +328,7 @@
                                 <h4 class="text-[12px] text-indigo-800 font-black uppercase tracking-widest">Granular Cost Allocation</h4>
                                 <p class="text-[10px] text-indigo-600/80 italic mt-0.5">Leave empty to assign 100% to main corporate entity context.</p>
                             </div>
-                            <button type="button" onclick="ContractsController.addSplitRowToUI(${id})" class="${hiddenBlock} text-[9px] font-black text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 border border-indigo-700 rounded-lg shadow-sm transition-colors cursor-pointer">+ Add Split Row</button>
+                            <button type="button" onclick="ContractsController.addSplitRowToUI(${id})" class="${isEditMode ? 'block' : 'hidden'} text-[9px] font-black text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 border border-indigo-700 rounded-lg shadow-sm transition-colors cursor-pointer">+ Add Split Row</button>
                         </div>
                         <div id="splits-container-${id}" class="space-y-1.5 flex-1 overflow-y-auto custom-scrollbar pr-2 pb-8">
                             <div class="${roWrapperClass}">
@@ -631,12 +351,12 @@
                                                 <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                                                 Doc ${idx + 1}
                                             </a>
-                                            <button type="button" onclick="ContractsUtils.removeDocumentLink(event, '${url.trim()}', false, ${id})" class="${hiddenBlock} px-1.5 py-0.5 text-indigo-400 hover:bg-rose-500 hover:text-white transition-colors border-l border-indigo-200 cursor-pointer">×</button>
+                                            <button type="button" onclick="ContractsUtils.removeDocumentLink(event, '${url.trim()}', false, ${id})" class="${isEditMode ? 'block' : 'hidden'} px-1.5 py-0.5 text-indigo-400 hover:bg-rose-500 hover:text-white transition-colors border-l border-indigo-200 cursor-pointer">×</button>
                                         </div>`).join('')}
                                 </div>
                             </div>` : ''}
                         <input type="text" id="edit-contractLinks-${id}" value="${d.contractLinks || ''}" class="hidden">
-                        <div class="${hiddenBlock}">
+                        <div class="${isEditMode ? 'block' : 'hidden'}">
                             <input type="file" id="upload-files-${id}" multiple class="w-full text-xs text-slate-500 p-1.5 rounded-lg border border-dashed border-slate-300 bg-white cursor-pointer pointer-events-auto">
                         </div>
                     </div>
@@ -685,6 +405,7 @@
         `;
         },
 
+        // --- COMPONENTE RIGA ALLOCAZIONE FINANZIARIA DEI COSTI (SPLITS) ---
         getSplitRow: function (detailId, split, defaultStartDate, defaultEndDate, leOptions, ccOptions) {
             const rule = split.allocationRule || "Percentage";
             const validFrom = typeof FinOpsDate !== 'undefined' ? (FinOpsDate.toIso(split.validFrom) || defaultStartDate) : defaultStartDate;
@@ -746,6 +467,7 @@
         </div>`;
         },
 
+        // --- COMPONENTE RIGA SCADENZE FATTURAZIONE MANUALE (LEDGER) ---
         getLedgerRow: function (detailId, mov) {
             const type = (mov.type || "ACTUAL").toUpperCase();
             const sDate = typeof FinOpsDate !== 'undefined' ? FinOpsDate.toIso(mov.startDate || mov.StartDate) : "";
@@ -787,7 +509,7 @@
                 </div>
                 ${!isCalculated ? `
                 <div class="flex items-center gap-1 pb-1.5 shrink-0">
-                    <button type="button" onclick="duplicateLedgerRowInUI(this, ${detailId})" class="text-slate-300 hover:text-teal-600 px-1 transition-colors" title="Duplicate Movement">
+                    <button type="button" onclick="ContractsController.duplicateLedgerRowInUI(this, ${detailId})" class="text-slate-300 hover:text-teal-600 px-1 transition-colors" title="Duplicate Movement">
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                     </button>
                     <button type="button" onclick="this.closest('.ledger-row-item').remove()" class="text-slate-300 hover:text-rose-500 px-1 transition-colors" title="Remove Movement">

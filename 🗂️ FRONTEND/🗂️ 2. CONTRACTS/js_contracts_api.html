@@ -11,27 +11,15 @@
                     targetLinks.forEach(el => {
                         const currentRaw = el.getAttribute('data-raw');
                         const match = resolvedFiles.find(r => r.raw === currentRaw);
-                        if (match) {
-                            el.href = match.url;
-                            el.title = `Live File Name: ${match.name}`;
-                        }
+                        if (match) { el.href = match.url; el.title = `Live File Name: ${match.name}`; }
                     });
-                })
-                .apiGetLiveDriveFileNames(uniqueUrlsString);
+                }).apiGetLiveDriveFileNames(uniqueUrlsString);
         },
-
         uploadDocuments: function (filesData, year, supplier, assetName, onSuccess, onFailure) {
-            google.script.run
-                .withSuccessHandler(onSuccess)
-                .withFailureHandler(onFailure)
-                .uploadFilesToDrive(filesData, year, supplier, assetName);
+            google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFailure).uploadFilesToDrive(filesData, year, supplier, assetName);
         },
-
         syncArchitectureToBackend: function (payload, onSuccess, onFailure) {
-            google.script.run
-                .withSuccessHandler(onSuccess)
-                .withFailureHandler(onFailure)
-                .processMasterDetailSync(payload);
+            google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFailure).processMasterDetailSync(payload);
         }
     };
 </script>

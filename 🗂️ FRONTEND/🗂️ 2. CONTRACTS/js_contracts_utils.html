@@ -5,129 +5,75 @@
      */
 
     const ContractsUtils = {
-        // --- Data Extraction & Validation ---
-        extractUniqueField: function (payloadArray, keyName) {
-            if (!payloadArray || payloadArray.length === 0) return [];
-            return [...new Set(payloadArray.map(item => {
-                const val = item[keyName] !== undefined ? item[keyName] : Object.values(item)[0];
-                return (val || "").toString().trim();
-            }))].filter(v => v !== "").sort();
+        extractUniqueField: function (arr, key) {
+            return [...new Set((arr || []).map(x => x[key]).filter(Boolean))].sort();
         },
 
-        validateContractData: function (data) {
-            // Usa le chiavi camelCase corrette del DTO
-            const requiredFields = {
-                "legalEntity": "Legal Entity",
-                "scope": "Scope",
-                "totalCommitment": "Total Commitment",
-                "startDate": "Start Date",
-                "contractEndDate": "Contract End Date"
-            };
-
-            for (let field in requiredFields) {
-                const val = data[field];
-                if (val === null || val === undefined || String(val).trim() === "") {
-                    throw new Error(`Field '${requiredFields[field]}' is mandatory.`);
-                }
-            }
-
-            if (parseFloat(data.totalCommitment) <= 0) {
-                throw new Error("Total Commitment must be greater than zero.");
-            }
-
-            if (new Date(data.startDate) >= new Date(data.contractEndDate)) {
-                throw new Error("Start Date must be before Contract End Date.");
-            }
-            return true;
+        parseFinancialValue: function (v) {
+            return typeof v === 'number' ? v : parseFloat(String(v || 0).replace(/[^0-9.-]/g, '')) || 0;
         },
 
-        // --- Safe Financial Parsing (LA FUNZIONE CHE MANCAVA) ---
-        parseFinancialValue: function (rawVal) {
-            if (typeof rawVal === 'number') return rawVal;
-            if (!rawVal || String(rawVal).trim() === "") return 0;
-            // Rimuove i simboli valuta, lettere, e normalizza la virgola in punto
-            const cleaned = String(rawVal).replace(/[^0-9,.-]/g, '').replace(/,/g, '.');
-            return parseFloat(cleaned) || 0;
-        },
-
-        // --- Formatters ---
-        formatToEnglishCustomDate: function (dateStr) {
-            if (!dateStr || String(dateStr).trim() === "" || String(dateStr) === "—") return "—";
-
-            if (typeof FinOpsDate !== 'undefined') {
-                return FinOpsDate.toVisualLong(dateStr);
-            }
-
-            let d = new Date(dateStr);
-            if (!isNaN(d.getTime())) {
-                const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-                return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-            }
-
-            return String(dateStr);
+        formatToEnglishCustomDate: function (d) {
+            return d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
         },
 
         formatInputAsIntegerCurrency: function (el) {
-            let val = el.value.replace(/[^0-9]/g, '');
-            if (val === '') {
-                el.value = '';
-                return;
-            }
-            el.value = parseInt(val, 10).toLocaleString('it-IT');
+            el.value = (parseInt(el.value.replace(/[^0-9]/g, ''), 10) || 0).toLocaleString('it-IT');
         },
 
-        formatLedgerValue: function (inputEl) {
-            let val = inputEl.value.replace(/[^0-9-]/g, '');
-            if (val === '' || val === '-') { inputEl.value = val; return; }
-            
-            const isNegative = val.startsWith('-');
-            const numVal = parseInt(val.replace(/-/g, ''), 10);
-            
-            if (isNaN(numVal)) { inputEl.value = isNegative ? '-' : ''; return; }
-            inputEl.value = (isNegative ? '-' : '') + numVal.toLocaleString('it-IT');
-        },
-
-        formatSplitValue: function (inputEl) {
-            const rule = inputEl.closest('.split-row-item').querySelector('.split-rule').value;
-            let val = inputEl.value.replace(/[^0-9]/g, '');
-
-            if (val === '') {
-                inputEl.value = '';
-                return;
-            }
-
-            let intVal = parseInt(val, 10);
-
-            if (rule === 'Percentage') {
-                if (intVal > 100) intVal = 100;
-                inputEl.value = intVal.toString();
-            } else if (rule === 'Fixed Amount') {
-                inputEl.value = intVal.toLocaleString('it-IT');
-            } else if (rule === 'Units') {
-                inputEl.value = intVal.toString();
-            }
-        },
-
-        // --- DOM Manipulators ---
-        removeDocumentLink: function (event, urlToRemove, isMaster, detailId = null) {
-            const clickedButton = event.currentTarget;
-            if (isMaster) {
-                const input = document.getElementById('ins-masterDocumentLink');
-                if (input) {
-                    let links = input.value.split(',').map(s => s.trim()).filter(s => s !== urlToRemove && s);
-                    input.value = links.join(', ');
-                }
+        // REINSERITA: Formattazione per la griglia degli split
+        formatSplitValue: function (el) {
+            const rule = el.closest('.split-row-item').querySelector('.split-rule').value;
+            if (rule === 'Fixed Amount' || rule === 'Units') {
+                let val = parseInt(el.value.replace(/[^0-9]/g, ''), 10) || 0;
+                el.value = val === 0 && el.value.trim() === '' ? '' : val.toLocaleString('it-IT');
             } else {
-                const input = document.getElementById(`edit-contractLinks-${detailId}`);
-                if (input) {
-                    let links = input.value.split(',').map(s => s.trim()).filter(s => s !== urlToRemove && s);
-                    input.value = links.join(', ');
-                }
+                let val = el.value.replace(/[^0-9]/g, '');
+                if (parseInt(val, 10) > 100) val = '100';
+                el.value = val;
             }
-            if (clickedButton && clickedButton.parentElement) {
-                clickedButton.parentElement.style.display = 'none';
+        },
+
+        // REINSERITA: Formattazione per il ledger
+        formatLedgerValue: function (el) {
+            let val = parseInt(el.value.replace(/[^0-9-]/g, ''), 10) || 0;
+            el.value = val === 0 && el.value.trim() === '' ? '' : val.toLocaleString('it-IT');
+        },
+
+        // REINSERITA: Regole di Governance vitali invocate dal Controller
+        validateContractData: function (d) {
+            if (!d.legalEntity) throw new Error("Governance: Legal Entity is strictly mandatory.");
+            if (!d.costCenter) throw new Error("Governance: Cost Center is strictly mandatory.");
+            if (!d.startDate) throw new Error("Governance: Contract Start Date is strictly mandatory.");
+            if (!d.contractEndDate) throw new Error("Governance: Contract End Date is strictly mandatory.");
+            if (d.startDate && d.contractEndDate && new Date(d.startDate) > new Date(d.contractEndDate)) {
+                throw new Error("Timeline Error: Start Date cannot be later than End Date.");
+            }
+            if (!d.totalCommitment || d.totalCommitment <= 0) {
+                throw new Error("Financial Error: Total Commitment must be greater than zero.");
+            }
+        },
+
+        // REINSERITA: Rimozione visiva e stringa base64 degli allegati
+        removeDocumentLink: function (event, urlToRemove, isMaster, detailId) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const processRemoval = (inputId) => {
+                const linkInput = document.getElementById(inputId);
+                if (linkInput) {
+                    let links = linkInput.value.split(',').map(s => s.trim()).filter(Boolean);
+                    links = links.filter(l => l !== urlToRemove);
+                    linkInput.value = links.join(', ');
+                    event.target.closest('.group').remove();
+                }
+            };
+
+            if (isMaster) {
+                processRemoval('ins-masterDocumentLink');
+            } else {
+                processRemoval(`edit-contractLinks-${detailId}`);
             }
         }
-
     };
 </script>
