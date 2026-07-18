@@ -1,11 +1,3 @@
-/**
- * ============================================================================
- * FINOPS PURE DOMAIN: Assets
- * ============================================================================
- * Entità di dominio isomorfica. Ignora totalmente
- * l'esistenza di Google Sheets o dei Services.
- */
-
 class Asset {
   constructor(data = {}) {
     Object.assign(this, data);
@@ -82,9 +74,12 @@ class Asset {
             const d = new Date(dEff);
             if (!isNaN(d.getTime())) transferDateStr = formatServerDate(d);
           }
-        } else if (["OPTIMIZATION", "OPTIMIZE"].includes(decision)) {
-          hasOptimize = true;
         }
+      }
+
+      // FIX: L'asset è "OPTIMIZING" *SOLO* se c'è un'iniziativa di ottimizzazione attivamente "IN PROGRESS".
+      if (initStatus === "IN PROGRESS" && ["OPTIMIZATION", "OPTIMIZE"].includes(decision)) {
+        hasOptimize = true;
       }
     });
 

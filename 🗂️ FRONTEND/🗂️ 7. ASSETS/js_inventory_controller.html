@@ -59,11 +59,21 @@
             const alertThreshold = new Date();
             alertThreshold.setDate(today.getDate() + 30);
 
+            const isEditActive = typeof ContractsState !== 'undefined' && ContractsState.globalEditMode;
+
             filteredAssets.forEach(row => {
                 const name = row.name || "Unknown Asset";
                 const manufacturer = row.manufacturer || "";
                 const businessDriver = row.businessDriver || "Technology";
-                const status = (row.currentStatus || "Active").toUpperCase().trim();
+                let status = (row.currentStatus || "Active").toUpperCase().trim();
+
+                // Sovrascrittura Dinamica: se ha iniziative Optimization in corso, lo stato diventa OPTIMIZING
+                const assetInits = (windowPayload.initiatives || []).filter(i => String(i.assetName).trim().toLowerCase() === String(name).trim().toLowerCase());
+                const isOptimizing = assetInits.some(i => String(i.driver || i.decision || "").toUpperCase().trim() === "OPTIMIZATION" && String(i.status).toUpperCase().trim() === "IN PROGRESS");
+                if (isOptimizing) {
+                    status = "OPTIMIZING";
+                }
+
                 const target = row.targetStatus || "-";
                 const budgetStatus = row.budgetStatusFY27 || "";
                 const exitDate = row.exitDate || "";
@@ -108,7 +118,7 @@
 
                 htmlBuffer += InventoryTemplates.getAssetRow(
                     { name, manufacturer, driver: businessDriver, datesHtml },
-                    safeDOMId, alertClass, alertLabel, statusBadge, targetBadge, budgetBadge, financials
+                    safeDOMId, alertClass, alertLabel, statusBadge, targetBadge, budgetBadge, financials, isEditActive
                 );
             });
 
@@ -129,23 +139,65 @@
             }
         },
 
+        flipAssetRow: function (safeDOMId, assetName) {
+            this.closeAllInventoryKebabs();
+            const inner = document.getElementById(`asset-flip-inner-${safeDOMId}`);
+            if (!inner) return;
+
+            const isFlipped = inner.style.transform === 'rotateX(180deg)';
+
+            if (!isFlipped) {
+                let b26 = 0, o26 = 0, b27 = 0, o27 = 0, b28 = 0, o28 = 0;
+
+                (windowPayload.projections || []).forEach(p => {
+                    if (String(p["Asset Name"] || p.assetName).trim().toLowerCase() === String(assetName).trim().toLowerCase()) {
+                        b26 += parseFloat(p["FY26 Baseline"]) || 0;
+                        o26 += parseFloat(p["FY26 Optimized"]) || 0;
+                        b27 += parseFloat(p["FY27 Baseline"]) || 0;
+                        o27 += parseFloat(p["FY27 Optimized"]) || 0;
+                        b28 += parseFloat(p["FY28 Baseline"]) || 0;
+                        o28 += parseFloat(p["FY28 Optimized"]) || 0;
+                    }
+                });
+
+                const backContainer = document.getElementById(`asset-flip-back-${safeDOMId}`);
+                if (backContainer) {
+                    backContainer.innerHTML = InventoryTemplates.getAssetOutlookMarkup(b26, o26, b27, o27, b28, o28, safeDOMId);
+                }
+                inner.style.transform = 'rotateX(180deg)';
+            } else {
+                inner.style.transform = 'rotateX(0deg)';
+            }
+        },
+
         applyInventoryKebabToggle: function (uniqueId, type, event) {
             if (event) event.stopPropagation();
-            document.querySelectorAll('.inventory-kebab-dropdown').forEach(el => {
-                if (el.id !== `${type}-kebab-menu-${uniqueId}`) el.classList.add('hidden');
-            });
-            const menu = document.getElementById(`${type}-kebab-menu-${uniqueId}`);
-            if (menu) menu.classList.toggle('hidden');
+            const currentMenu = document.getElementById(`${type}-kebab-menu-${uniqueId}`);
+            const wasHidden = currentMenu ? currentMenu.classList.contains('hidden') : true;
+
+            document.querySelectorAll('.inventory-kebab-dropdown').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.contracts-kebab-dropdown').forEach(el => el.classList.add('hidden'));
+
+            if (currentMenu && wasHidden) {
+                currentMenu.classList.remove('hidden');
+            }
         },
 
         closeAllInventoryKebabs: function () {
             document.querySelectorAll('.inventory-kebab-dropdown').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.contracts-kebab-dropdown').forEach(el => el.classList.add('hidden'));
         },
 
         toggleAssetDrawer: function (assetName, safeDOMId) {
             const container = document.getElementById(`details-${safeDOMId}`);
             const arrow = document.getElementById(`arrow-${safeDOMId}`);
             if (!container || !arrow) return;
+
+            // Se l'asset è flippato, impediamo di espandere per pulizia di navigazione
+            const inner = document.getElementById(`asset-flip-inner-${safeDOMId}`);
+            if (inner && inner.style.transform === 'rotateX(180deg)') {
+                return;
+            }
 
             if (!container.classList.contains('hidden')) {
                 container.classList.add('hidden');
@@ -257,25 +309,20 @@
                 return mAsset === actualAssetName.trim().toLowerCase();
             });
 
-            let newMasterBtnHtml = '';
+            filteredMasters.sort((a, b) => {
+                const dA = a.masterEndDate ? new Date(a.masterEndDate).getTime() : 0;
+                const dB = b.masterEndDate ? new Date(b.masterEndDate).getTime() : 0;
+                return dB - dA;
+            });
+
             const isEditActive = typeof ContractsState !== 'undefined' && ContractsState.globalEditMode;
 
-            if (isEditActive) {
-                newMasterBtnHtml = `
-            <div class="flex justify-end mb-3 animate-fade-in">
-                <button onclick="InventoryController.triggerCreateNewMaster()" class="h-8 px-4 bg-teal-600 hover:bg-teal-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-teal-700">
-                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                    <span>NEW MASTER AGREEMENT</span>
-                </button>
-            </div>`;
-            }
-
             if (filteredMasters.length === 0) {
-                contentDiv.innerHTML = newMasterBtnHtml + `<p class="text-slate-400 italic text-center py-4 bg-white border border-dashed border-slate-200 rounded-xl text-xs">No Master Agreements associated with this asset.</p>`;
+                contentDiv.innerHTML = `<p class="text-slate-400 italic text-center py-4 bg-white border border-dashed border-slate-200 rounded-xl text-xs">No Master Agreements associated with this asset.</p>`;
                 return;
             }
 
-            let htmlBuffer = newMasterBtnHtml + `<div class="flex flex-col gap-0">`;
+            let htmlBuffer = `<div class="flex flex-col gap-0">`;
             filteredMasters.forEach(master => {
                 const mId = master.masterId;
 
@@ -292,8 +339,23 @@
                     return timeB - timeA;
                 });
 
+                const otherMasters = filteredMasters.filter(m => m.masterId !== mId);
+                let moveOptionsHtml = '';
+                if (otherMasters.length > 0 && isEditActive) {
+                    moveOptionsHtml = `
+                    <div class="border-t border-slate-100 my-0.5"></div>
+                    <button onclick="InventoryController.openMoveLineModal('[[CONTRACT_ID]]')" class="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors">
+                        <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                        Move Line...
+                    </button>`;
+                }
+
                 let childRowsHtml = '';
-                childContracts.forEach(c => { childRowsHtml += InventoryTemplates.getContractChildRowMarkup(c, isEditActive); });
+                childContracts.forEach(c => {
+                    // FIX: Sostituiamo il placeholder con il VERO ID del contratto!
+                    const safeMoveHtml = moveOptionsHtml.replace('[[CONTRACT_ID]]', c.contractId);
+                    childRowsHtml += InventoryTemplates.getContractChildRowMarkup(c, isEditActive, safeMoveHtml);
+                });
                 if (childRowsHtml === '') childRowsHtml = `<p class="text-slate-400 italic p-2 text-center text-[10px]">No operational rows linked.</p>`;
 
                 const isMasterExpanded = InventoryState.expandedMasterId === mId;
@@ -307,6 +369,108 @@
                 const rawUrls = Array.from(targetLinks).map(el => el.getAttribute('data-raw'));
                 const uniqueUrlsString = [...new Set(rawUrls)].join(',');
                 ContractsAPI.resolveLiveDocumentNames(uniqueUrlsString, targetLinks);
+            }
+        },
+
+        moveContractLine: function (contractId, targetMasterId) {
+            if (!contractId || !targetMasterId) return;
+            const targetContract = (windowPayload.contracts || []).find(c => c.contractId === contractId);
+            if (!targetContract) return;
+
+            targetContract.masterId = targetMasterId;
+
+            ContractsState.hasUnsavedChanges = true;
+            if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
+
+            this.closeAllInventoryKebabs();
+            this.renderContractsTabContent(InventoryState.expandedAssetId);
+        },
+
+        openMoveLineModal: function (contractId) {
+            this.closeAllInventoryKebabs();
+
+            const targetContract = (windowPayload.contracts || []).find(c => c.contractId === contractId);
+            if (!targetContract) return;
+
+            const currentMasterId = targetContract.masterId;
+            const currentMaster = (windowPayload.masterContracts || []).find(m => m.masterId === currentMasterId);
+            const assetName = currentMaster ? currentMaster.assetName : null;
+
+            let availableMasters = (windowPayload.masterContracts || []).filter(m =>
+                m.assetName === assetName && m.masterId !== currentMasterId
+            );
+
+            // Ordinamento cronologico decrescente (più recente -> più vecchio) sulla End Date
+            availableMasters.sort((a, b) => {
+                const dEndA = a.masterEndDate || a["Master End Date"];
+                const dEndB = b.masterEndDate || b["Master End Date"];
+                const timeA = dEndA ? new Date(dEndA).getTime() : 0;
+                const timeB = dEndB ? new Date(dEndB).getTime() : 0;
+                return timeB - timeA; // Inverte l'ordine per avere il più nuovo sopra
+            });
+
+            if (availableMasters.length === 0) return;
+
+            const modalHtml = InventoryTemplates.getMoveLineModalMarkup(targetContract, currentMaster, availableMasters);
+
+            this.closeMoveLineModal();
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        },
+
+        closeMoveLineModal: function () {
+            const m = document.getElementById('move-line-modal');
+            if (m) m.remove();
+            InventoryState.selectedTargetMasterId = null;
+        },
+
+        selectTargetMaster: function (masterId) {
+            InventoryState.selectedTargetMasterId = masterId;
+
+            // Resetta stili di tutte le card
+            document.querySelectorAll('.move-target-card').forEach(el => {
+                el.classList.remove('border-teal-500', 'bg-teal-50/50', 'ring-1', 'ring-teal-500');
+                el.classList.add('bg-white', 'border-slate-200');
+                const indicator = el.querySelector('[id^="move-target-indicator-"]');
+                if (indicator) indicator.classList.add('opacity-0');
+            });
+
+            // Applica stile a card selezionata
+            const target = document.getElementById(`move-target-card-${masterId}`);
+            if (target) {
+                target.classList.remove('bg-white', 'border-slate-200');
+                target.classList.add('border-teal-500', 'bg-teal-50/50', 'ring-1', 'ring-teal-500');
+                const indicator = document.getElementById(`move-target-indicator-${masterId}`);
+                if (indicator) indicator.classList.remove('opacity-0');
+            }
+
+            // Abilita il bottone Apply
+            const btn = document.getElementById('move-line-apply-btn');
+            if (btn) {
+                btn.disabled = false;
+                btn.classList.remove('bg-slate-300', 'cursor-not-allowed');
+                btn.classList.add('bg-teal-600', 'hover:bg-teal-700', 'shadow-md', 'cursor-pointer');
+            }
+        },
+
+        confirmMoveLine: function (contractId) {
+            const targetMasterId = InventoryState.selectedTargetMasterId;
+            if (!targetMasterId) return;
+
+            if (typeof FinOpsUI !== 'undefined' && FinOpsUI.showConfirm) {
+                // FIX: rimossa la stringa di testo, passiamo direttamente la funzione come 3° parametro!
+                FinOpsUI.showConfirm(
+                    "Confirm Movement",
+                    "Are you sure you want to reassign this line? This will recalculate the commitment and financials for both Master Agreements involved.",
+                    () => {
+                        InventoryController.moveContractLine(contractId, targetMasterId);
+                        InventoryController.closeMoveLineModal();
+                    }
+                );
+            } else {
+                if (confirm("Are you sure you want to move this contract line?")) {
+                    InventoryController.moveContractLine(contractId, targetMasterId);
+                    InventoryController.closeMoveLineModal();
+                }
             }
         },
 
@@ -369,9 +533,11 @@
             }
         },
 
-        triggerCreateNewMaster: function () {
-            if (typeof window.ContractsController !== 'undefined' && InventoryState.expandedAssetId) {
-                const assetMatch = globalCachedData.find(a => btoa(encodeURIComponent(a.name)).replace(/=/g, "") === InventoryState.expandedAssetId);
+        triggerCreateNewMaster: function (safeDOMId) {
+            this.closeAllInventoryKebabs();
+            const targetId = safeDOMId || InventoryState.expandedAssetId;
+            if (typeof window.ContractsController !== 'undefined' && targetId) {
+                const assetMatch = globalCachedData.find(a => btoa(encodeURIComponent(a.name)).replace(/=/g, "") === targetId);
 
                 if (assetMatch) {
                     ContractsState.currentSelectedAsset = { name: assetMatch.name, id: assetMatch.id };
@@ -395,12 +561,10 @@
 
                 ContractsState.resetMaster();
 
-                // 👇 FIX: Generiamo un ID temporaneo univoco e assegniamo l'Asset al nuovo Master di Rinnovo
                 const tempId = "TMP-MCT-" + Date.now();
                 ContractsState.currentMasterData.masterId = tempId;
                 ContractsState.currentMasterData.assetName = sourceMaster.assetName || "";
 
-                // Logica ereditarietà rinnovo integrata per la sezione Assets
                 ContractsState.currentMasterData.previousMasterId = masterId;
                 ContractsState.currentMasterData.supplier = sourceMaster.supplier || "";
                 ContractsState.currentMasterData.billingChannel = sourceMaster.billingChannel || "Direct Vendor";
@@ -428,7 +592,6 @@
                 const masterId = contractObj ? contractObj.masterId : null;
 
                 if (masterId) {
-                    // 👇 FIX: Idratiamo il contesto dell'Asset prima di lanciare la duplicazione in RAM
                     const masterMatch = windowPayload.masterContracts.find(m => m.masterId === masterId);
                     const assetName = masterMatch ? masterMatch.assetName : null;
                     const assetMatch = windowPayload.assets.find(a => a.name === assetName);
@@ -570,9 +733,8 @@
         }
     };
 
-    // --- ACCERTATO: CHIUSURA AUTOMATICA DEI KEBAB INVENTORY AL CLICK ESTERNO ---
     document.addEventListener('click', function (e) {
-        const isInsideKebab = e.target.closest('.inventory-kebab-dropdown');
+        const isInsideKebab = e.target.closest('.inventory-kebab-dropdown') || e.target.closest('.contracts-kebab-dropdown');
         const isTrigger = e.target.closest('button[onclick*="applyInventoryKebabToggle"]');
         if (!isInsideKebab && !isTrigger) {
             if (typeof InventoryController !== 'undefined' && InventoryController.closeAllInventoryKebabs) {
