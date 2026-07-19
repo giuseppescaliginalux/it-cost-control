@@ -25,7 +25,7 @@ const CONTRACT_FIELD_MAP = {
   "End Date": "endDate", "Notice Period (Days)": "noticePeriod", "Auto-Renewal": "autoRenewal",
   "BL ID": "blId", "Request Code": "requestCode", "Comments": "comments", "Contract Links": "contractLinks",
   "Status": "status", "Contract Term (Months)": "contractTerm",
-  "Annual Value": "annualValue", "Asset Name": "assetName", "Supplier": "supplier", "Billing Channel": "billingChannel"
+  "Annual Value": "annualValue", "Asset Name": "assetName", "Asset ID": "assetId", "Supplier": "supplier", "Billing Channel": "billingChannel"
 };
 
 const SPLIT_FIELD_MAP = {

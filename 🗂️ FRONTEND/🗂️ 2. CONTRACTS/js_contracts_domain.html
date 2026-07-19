@@ -62,6 +62,7 @@
     constructor(data = {}) {
       Object.assign(this, data);
       this.id = this.contractId || this.id || "";
+      this.assetId = this.assetId || "";
       this.startDate = this.startDate ? new Date(this.startDate) : null;
       this.contractEndDate = this.contractEndDate ? new Date(this.contractEndDate) : null;
       this.adjustedEndDate = this.adjustedEndDate ? new Date(this.adjustedEndDate) : null;
@@ -364,6 +365,7 @@
       contractInstance.masterId = this.id;
       contractInstance.supplier = this.supplier;
       contractInstance.assetName = this.assetName;
+      contractInstance.assetId = this.assetId;
       contractInstance.billingChannel = this.billingChannel;
       this.childContracts.push(contractInstance);
     }

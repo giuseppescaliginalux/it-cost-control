@@ -116,8 +116,9 @@
                     labelColorClass: isInactiveGroup ? "text-emerald-500" : "text-slate-400"
                 };
 
+                // FIX: Passiamo esplicitamente l'ID dell'asset al costruttore del template
                 htmlBuffer += InventoryTemplates.getAssetRow(
-                    { name, manufacturer, driver: businessDriver, datesHtml },
+                    { id: row.id, name, manufacturer, driver: businessDriver, datesHtml },
                     safeDOMId, alertClass, alertLabel, statusBadge, targetBadge, budgetBadge, financials, isEditActive
                 );
             });
@@ -139,7 +140,7 @@
             }
         },
 
-        flipAssetRow: function (safeDOMId, assetName) {
+        flipAssetRow: function (safeDOMId, assetId) {
             this.closeAllInventoryKebabs();
             const inner = document.getElementById(`asset-flip-inner-${safeDOMId}`);
             if (!inner) return;
@@ -148,9 +149,11 @@
 
             if (!isFlipped) {
                 let b26 = 0, o26 = 0, b27 = 0, o27 = 0, b28 = 0, o28 = 0;
+                const targetId = String(assetId).trim();
 
                 (windowPayload.projections || []).forEach(p => {
-                    if (String(p["Asset Name"] || p.assetName).trim().toLowerCase() === String(assetName).trim().toLowerCase()) {
+                    // FIX: Recuperiamo i dati previsionali tramite assetId
+                    if (String(p.assetId || p["Asset ID"] || "").trim() === targetId) {
                         b26 += parseFloat(p["FY26 Baseline"]) || 0;
                         o26 += parseFloat(p["FY26 Optimized"]) || 0;
                         b27 += parseFloat(p["FY27 Baseline"]) || 0;
@@ -188,7 +191,7 @@
             document.querySelectorAll('.contracts-kebab-dropdown').forEach(el => el.classList.add('hidden'));
         },
 
-        toggleAssetDrawer: function (assetName, safeDOMId) {
+        toggleAssetDrawer: function (assetId, safeDOMId) {
             const container = document.getElementById(`details-${safeDOMId}`);
             const arrow = document.getElementById(`arrow-${safeDOMId}`);
             if (!container || !arrow) return;
@@ -221,7 +224,8 @@
             InventoryState.expandedAssetId = safeDOMId;
             InventoryState.expandedMasterId = null;
 
-            InventoryState.loadAssetDrillDownData(assetName);
+            // FIX: Carichiamo i dettagli passando l'Asset ID
+            InventoryState.loadAssetDrillDownData(assetId);
             this.switchDetailTab(safeDOMId, 'contracts');
         },
 
@@ -301,13 +305,11 @@
 
             const assetContracts = InventoryState.currentDrillDownData.contracts || [];
             const targetAssetObj = globalCachedData.find(a => btoa(encodeURIComponent(a.name)).replace(/=/g, "") === safeDOMId);
-            const actualAssetName = targetAssetObj ? (targetAssetObj.name || "") : "";
+            const targetAssetId = targetAssetObj ? String(targetAssetObj.id).trim() : "";
             const allMasters = windowPayload.masterContracts || [];
 
-            const filteredMasters = allMasters.filter(m => {
-                const mAsset = (m.assetName || "").trim().toLowerCase();
-                return mAsset === actualAssetName.trim().toLowerCase();
-            });
+            // FIX: Filtriamo i Master Agreement nativamente per ID
+            const filteredMasters = allMasters.filter(m => String(m.assetId).trim() === targetAssetId);
 
             filteredMasters.sort((a, b) => {
                 const dA = a.masterEndDate ? new Date(a.masterEndDate).getTime() : 0;

@@ -94,25 +94,42 @@
 
             setPendingChanges(false);
 
-            // 4. Calcoli Aggregati
+            // 4. Motore di Budgeting (NEW!)
+            console.time("💰 4. CPU: BudgetAllocationEngine");
+            // Generiamo il Variance Report al volo in RAM incrociando Allocazioni, Bridge e Proiezioni
+            if (typeof BudgetAllocationEngine !== 'undefined') {
+                windowPayload.varianceReport = BudgetAllocationEngine.calculateVariances(
+                    windowPayload.allocations || [],
+                    windowPayload.bridge || [],
+                    windowPayload.projections || []
+                );
+            } else {
+                windowPayload.varianceReport = [];
+            }
+            console.timeEnd("💰 4. CPU: BudgetAllocationEngine");
+
+            // 5. Calcoli Aggregati Finali per Asset
             console.time("📊 5. CPU: Aggregazione Budget per Asset");
             globalCachedData = (hydratedPayload.assets || []).filter(r => (r.name || "").toString().trim() !== "");
             globalCachedData.forEach(asset => {
-                const assetName = (asset.name || "").toString().toLowerCase().trim();
-                const projForAsset = windowPayload.projections.filter(p => (p["Asset Name"] || p.assetName || "").toLowerCase().trim() === assetName);
+                const assetIdStr = String(asset.id).trim();
 
+                // FIX: Filtriamo le proiezioni tramite Asset ID
+                const projForAsset = windowPayload.projections.filter(p => String(p.assetId || p["Asset ID"] || "").trim() === assetIdStr);
                 asset.fiscalProjectionFY27 = projForAsset.reduce((acc, p) => acc + (parseFloat(p["FY27 Optimized"] || p.fy27Optimized) || 0), 0);
 
+                // FIX: Filtriamo i contratti attivi tramite Asset ID
                 const activeContracts = (windowPayload.contracts || []).filter(c =>
-                    String(c.assetName || "").toLowerCase().trim() === assetName &&
+                    String(c.assetId || "").trim() === assetIdStr &&
                     ["ACTIVE", "UPCOMING", "INCOMING"].includes(String(c.status || "").toUpperCase().trim())
                 );
                 asset.runRate = activeContracts.reduce((sum, c) => sum + (parseFloat(c.effectiveRunRate || c.annualValue) || 0), 0);
 
+                // Lettura dal nuovo Variance Report generato dal client
                 let effBudget = 0;
                 let variance = 0;
                 (windowPayload.varianceReport || []).forEach(v => {
-                    if (String(v.assetName || "").toLowerCase().trim() === assetName && String(v.fiscalYear || "").toUpperCase().trim() === "FY27") {
+                    if (String(v.assetId || "").trim() === assetIdStr && String(v.fiscalYear || "").toUpperCase().trim() === "FY27") {
                         effBudget += parseFloat(v.effectiveBudget) || 0;
                         variance += parseFloat(v.variance) || 0;
                     }

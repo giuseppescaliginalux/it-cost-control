@@ -2,16 +2,19 @@
     /**
      * js_projections_state.html
      * MODEL: Centralized state engine for multi-dimensional OLAP analytics.
+     * Allineato al 100% sullo standard camelCase puro.
      */
     const ProjectionsState = {
         rawDataset: [],
         assetLookupMap: new Map(),
-        
+        currentOlapData: [],
+        currentFilteredRecords: [],
+
         // OLAP Configuration
         pivotDimension: 'expenditureType', // Options: 'expenditureType', 'costCenter', 'legalEntity'
         sortKey: 'name',                  // Options: 'name', '2026', '2027', '2028'
         sortOrder: 'asc',
-        
+
         // Active Multi-Select Filters
         filters: {
             searchKeyword: '',
@@ -21,24 +24,25 @@
             suppliers: []
         },
 
-        loadPayload: function(payload) {
+        loadPayload: function (payload) {
             this.rawDataset = payload.projections || [];
-            // Salviamo un link globale per far pescare facilmente i dati alla modale
-            this.currentOlapData = []; 
-            
+            this.currentOlapData = [];
+            this.currentFilteredRecords = [];
+
             this.assetLookupMap.clear();
             (payload.assets || []).forEach(asset => {
-                const name = (asset["Asset Name"] || "").toString().trim().toLowerCase();
-                if (name) {
-                    this.assetLookupMap.set(name, {
-                        manufacturer: (asset["Manufacturer"] || "Unknown").toString().trim(),
-                        driver: (asset["Business Driver"] || "Technology").toString().trim()
+                const id = String(asset.id || "").trim();
+                if (id) {
+                    this.assetLookupMap.set(id, {
+                        name: (asset.name || "").toString().trim(),
+                        manufacturer: (asset.manufacturer || "Unknown").toString().trim(),
+                        driver: (asset.businessDriver || "Technology").toString().trim()
                     });
                 }
             });
         },
 
-        toggleFilterValue: function(category, value) {
+        toggleFilterValue: function (category, value) {
             const arr = this.filters[category];
             const idx = arr.indexOf(value);
             if (idx > -1) {
@@ -48,7 +52,7 @@
             }
         },
 
-        resetAllFilters: function() {
+        resetAllFilters: function () {
             this.pivotDimension = 'expenditureType';
             this.sortKey = 'name';
             this.sortOrder = 'asc';

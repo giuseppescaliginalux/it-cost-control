@@ -53,31 +53,68 @@
             const activeContracts = DashboardState.contracts.filter(c => (c.status || "").toString().trim().toUpperCase() === "ACTIVE");
 
             if (tabType === 'general') {
-                const top10 = DashboardState.getTop10AssetsByRunRate();
+                // 1. Prendiamo gli asset candidati
+                const rawTop10 = DashboardState.getTop10AssetsByRunRate();
+                const projs = windowPayload.projections || [];
+                const bridge = windowPayload.bridge || [];
+                const allocs = windowPayload.allocations || [];
 
-                const budgets = top10.map(asset => {
-                    const assetNameLower = (asset.name || "").toString().trim().toLowerCase();
+                // 2. Costruiamo un array temporaneo arricchito con i calcoli aggregati reali
+                const enrichedAssets = rawTop10.map(asset => {
+                    const targetAssetId = asset.id ? asset.id.toString().trim() : "";
+                    const targetAssetName = asset.name ? asset.name.toString().trim().toLowerCase() : "";
+
+                    // Calcolo Budget FY27
                     let bSum = 0;
-                    (DashboardState.varianceReport || []).forEach(v => {
-                        if (String(v.assetName || "").trim().toLowerCase() === assetNameLower && String(v.fiscalYear || "").toUpperCase().trim() === "FY27") {
-                            bSum += parseFloat(v.effectiveBudget || 0);
+                    const assetLinks = bridge.filter(b => {
+                        const bAssetId = b.assetId ? b.assetId.toString().trim() : "";
+                        const bFy = b.fiscalYear ? b.fiscalYear.toString().toUpperCase().trim() : "";
+                        return bAssetId === targetAssetId && bFy === "FY27";
+                    });
+
+                    assetLinks.forEach(link => {
+                        const linkAllocId = link.allocationId ? link.allocationId.toString().trim() : "";
+                        const rootAlloc = allocs.find(a => {
+                            const aAllocId = a.allocationId ? a.allocationId.toString().trim() : "";
+                            return aAllocId === linkAllocId && linkAllocId !== "";
+                        });
+                        if (rootAlloc) {
+                            bSum += parseFloat(rootAlloc.amount) || 0;
                         }
                     });
-                    return bSum;
-                });
 
-                const costs = top10.map(asset => {
-                    const assetNameLower = (asset.name || "").toString().trim().toLowerCase();
+                    // Calcolo Outlook FY27 (Costs)
                     let pSum = 0;
-                    (DashboardState.projections || []).forEach(p => {
-                        if (String(p.assetName || p["Asset Name"] || "").trim().toLowerCase() === assetNameLower) {
-                            pSum += parseFloat(p.fy27Optimized || p["FY27 Optimized"] || 0);
-                        }
+                    const assetProjs = projs.filter(p => {
+                        const pAssetId = p.assetId ? p.assetId.toString().trim() : "";
+                        const pAssetName = p.assetName ? p.assetName.toString().trim().toLowerCase() : "";
+                        return (pAssetId === targetAssetId && targetAssetId !== "") || (pAssetName === targetAssetName && targetAssetName !== "");
                     });
-                    return pSum;
+
+                    if (assetProjs.length > 0) {
+                        assetProjs.forEach(p => {
+                            pSum += parseFloat(p.fy27Optimized) || 0;
+                        });
+                    } else {
+                        pSum = parseFloat(asset.runRate) || 0;
+                    }
+
+                    return {
+                        name: asset.name,
+                        budget: bSum,
+                        cost: pSum
+                    };
                 });
 
-                this.drawLiveChart(top10.map(r => r.name), budgets, costs);
+                // 3. Ordiniamo in modo decrescente dal costo (Outlook) più alto al più basso
+                enrichedAssets.sort((a, b) => b.cost - a.cost);
+
+                // 4. Estraiamo i vettori allineati per il grafico
+                const labels = enrichedAssets.map(a => a.name);
+                const budgets = enrichedAssets.map(a => a.budget);
+                const costs = enrichedAssets.map(a => a.cost);
+
+                this.drawLiveChart(labels, budgets, costs);
             }
             else if (tabType === 'savings') {
                 this.drawOfflineTrendChart(DashboardState.projections);
@@ -155,11 +192,16 @@
             };
 
             const dataMap = {};
+            // FIX: Usiamo lo stato locale della dashboard
+            const allMasters = DashboardState.masterContracts || [];
+
             contracts.forEach(c => {
                 let key = "";
                 if (columnKey === 'Business Driver') {
-                    const aNameLower = (c.assetName || "").toString().trim().toLowerCase();
-                    const assetObj = (windowPayload.assets || []).find(a => (a.name || "").toString().trim().toLowerCase() === aNameLower);
+                    const masterObj = allMasters.find(m => String(m.masterId).trim() === String(c.masterId).trim());
+                    const targetAssetId = masterObj ? String(masterObj.assetId || "").trim() : "";
+                    const assetObj = (DashboardState.assets || []).find(a => String(a.id).trim() === targetAssetId);
+
                     key = assetObj ? (assetObj.businessDriver || "Technology") : "Technology";
                 } else {
                     const prop = propMap[columnKey] || columnKey;
@@ -312,12 +354,12 @@
             const trend = { FY26: { g: 0, o: 0 }, FY27: { g: 0, o: 0 }, FY28: { g: 0, o: 0 } };
 
             projections.forEach(row => {
-                trend.FY26.g += parseFloat(row.fy26Baseline || row["FY26 Baseline"]) || 0;
-                trend.FY26.o += parseFloat(row.fy26Optimized || row["FY26 Optimized"]) || 0;
-                trend.FY27.g += parseFloat(row.fy27Baseline || row["FY27 Baseline"]) || 0;
-                trend.FY27.o += parseFloat(row.fy27Optimized || row["FY27 Optimized"]) || 0;
-                trend.FY28.g += parseFloat(row.fy28Baseline || row["FY28 Baseline"]) || 0;
-                trend.FY28.o += parseFloat(row.fy28Optimized || row["FY28 Optimized"]) || 0;
+                trend.FY26.g += parseFloat(row.fy26Baseline) || 0;
+                trend.FY26.o += parseFloat(row.fy26Optimized) || 0;
+                trend.FY27.g += parseFloat(row.fy27Baseline) || 0;
+                trend.FY27.o += parseFloat(row.fy27Optimized) || 0;
+                trend.FY28.g += parseFloat(row.fy28Baseline) || 0;
+                trend.FY28.o += parseFloat(row.fy28Optimized) || 0;
             });
 
             window.chartInstances.trend = new Chart(canvas.getContext('2d'), {

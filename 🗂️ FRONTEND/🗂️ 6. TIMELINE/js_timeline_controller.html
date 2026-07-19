@@ -106,7 +106,8 @@
                 if (searchQ) {
                     let match = name.includes(searchQ) || mfg.includes(searchQ);
                     if (!match) {
-                        const linkedMasters = masters.filter(m => String(m.assetName).toLowerCase() === name);
+                        const targetAssetId = String(asset.id).trim();
+                        const linkedMasters = masters.filter(m => String(m.assetId).trim() === targetAssetId);
                         match = linkedMasters.some(m => (m.supplier || "").toLowerCase().includes(searchQ));
                     }
                     if (!match) return false;
@@ -114,32 +115,38 @@
                 return true;
             });
 
-            let validAssetNames = validAssets.map(a => String(a.name).trim());
+            // FIX: Raggruppamento per Array di ID validi invece dei Nomi
+            let validAssetIds = validAssets.map(a => String(a.id).trim());
 
             const swimlanesBuckets = {};
             masters.forEach(m => {
-                let asset = (m.assetName || "Unassigned Asset").toString().trim();
-                if (validAssetNames.includes(asset) || (validAssetNames.length === 0 && TimelineState.currentStatusFilters.length === 0 && TimelineState.targetStatusFilters.length === 0)) {
-                    if (asset === "") asset = "Unassigned Asset";
-                    if (!swimlanesBuckets[asset]) swimlanesBuckets[asset] = [];
-                    swimlanesBuckets[asset].push(m);
+                let assetId = String(m.assetId || "").trim();
+                // FIX: Logica di fallback per gli orfani e filtro per ID
+                if (validAssetIds.includes(assetId) || (validAssetIds.length === 0 && TimelineState.currentStatusFilters.length === 0 && TimelineState.targetStatusFilters.length === 0)) {
+                    if (!assetId) assetId = "unassigned";
+                    if (!swimlanesBuckets[assetId]) swimlanesBuckets[assetId] = [];
+                    swimlanesBuckets[assetId].push(m);
                 }
             });
 
-            let sortedAssetNames = Object.keys(swimlanesBuckets);
-            if (sortedAssetNames.length === 0) {
+            let sortedAssetIds = Object.keys(swimlanesBuckets);
+            if (sortedAssetIds.length === 0) {
                 viewport.innerHTML = '<div class="p-8 mt-4 mx-4 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50"><p class="text-slate-400 text-xs font-bold uppercase tracking-wider">No active Master Contracts found matching current filters.</p></div>';
                 return;
             }
 
             if (TimelineState.sortKey === 'runRate') {
-                sortedAssetNames.sort((a, b) => {
+                sortedAssetIds.sort((a, b) => {
                     let runA = swimlanesBuckets[a].reduce((sum, m) => sum + (parseFloat(m.runRate) || 0), 0);
                     let runB = swimlanesBuckets[b].reduce((sum, m) => sum + (parseFloat(m.runRate) || 0), 0);
                     return runB - runA;
                 });
             } else {
-                sortedAssetNames.sort((a, b) => a.localeCompare(b));
+                sortedAssetIds.sort((a, b) => {
+                    const nameA = (assetsMetadata.find(x => String(x.id) === a) || { name: "Unassigned Asset" }).name;
+                    const nameB = (assetsMetadata.find(x => String(x.id) === b) || { name: "Unassigned Asset" }).name;
+                    return nameA.localeCompare(nameB);
+                });
             }
 
             axisTrack.innerHTML = TimelineTemplates.getTimeScaleAxisTicks(
@@ -153,8 +160,13 @@
             const allContracts = windowPayload.contracts || [];
             const allInitiatives = windowPayload.initiatives || [];
 
-            sortedAssetNames.forEach(assetName => {
-                const mastersInAsset = swimlanesBuckets[assetName];
+            // FIX: Iteriamo sugli ID e recuperiamo il nome da stampare per ciascuna corsia
+            sortedAssetIds.forEach(assetId => {
+                const mastersInAsset = swimlanesBuckets[assetId];
+
+                const assetMatch = validAssets.find(a => String(a.id).trim() === String(assetId).trim()) || {};
+                const assetName = assetMatch.name || "Unassigned Asset";
+
                 const masterMap = new Map();
                 mastersInAsset.forEach(m => masterMap.set(m.masterId, m));
 
@@ -193,12 +205,12 @@
 
                 roots.forEach(root => traverse(root));
                 mastersInAsset.forEach(m => { if (!visited.has(m.masterId)) traverse(m); });
-                swimlanesBuckets[assetName] = orderedMasters;
+                swimlanesBuckets[assetId] = orderedMasters;
 
                 let cardsHtml = '';
                 const masterGeometryMap = {};
 
-                swimlanesBuckets[assetName].forEach((master, index) => {
+                swimlanesBuckets[assetId].forEach((master, index) => {
                     const mId = master.masterId;
                     const coord = TimelineState.calculateTimeCoordinates(
                         master.masterStartDate || master.startDate,
@@ -229,9 +241,9 @@
                 });
 
                 let svgPathsHtml = '';
-                const supplierTrackHeight = swimlanesBuckets[assetName].length * (rowHeight + rowGap);
+                const supplierTrackHeight = swimlanesBuckets[assetId].length * (rowHeight + rowGap);
 
-                swimlanesBuckets[assetName].forEach(master => {
+                swimlanesBuckets[assetId].forEach(master => {
                     const mId = master.masterId;
                     const prevIds = (master.previousMasterId || "").toString().split(',').map(s => s.trim()).filter(s => s);
 
@@ -281,7 +293,6 @@
                     ${svgPathsHtml}
                 </svg>` : '';
 
-                const assetMatch = validAssets.find(a => String(a.name).trim().toLowerCase() === String(assetName).trim().toLowerCase()) || {};
                 const currentStatus = assetMatch.currentStatus || "ACTIVE";
                 const targetStrategy = assetMatch.targetStatus || "RETAIN";
 

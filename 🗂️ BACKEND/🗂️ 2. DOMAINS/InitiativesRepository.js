@@ -6,7 +6,7 @@
 
 const INITIATIVE_FIELD_MAP = {
   "Initiative ID": "id", "Initiative Name": "name", "Initiative Status": "status",
-  "Initial Strategy": "initialStrategy", "Decision": "decision", "Asset Name": "assetName",
+  "Initial Strategy": "initialStrategy", "Decision": "decision", "Asset Name": "assetName", "Asset ID": "assetId",
   "Master Contract ID": "masterId", "Contract ID": "contractId", "Supplier": "supplier",
   "Baseline (Annualized)": "baselineAnnualized",
   "Contract Term": "contractTerm",
@@ -41,12 +41,12 @@ const InitiativeMapper = {
 
 class InitiativeRepository {
   constructor() { this.sheetName = CONFIG.SHEETS.INITIATIVES; }
-  
+
   findAllAsDto() {
     const rawData = getSheetDataAsObjects(null, this.sheetName) || [];
     return rawData.map(r => InitiativeMapper.toDto(r));
   }
-  
+
   saveAllBulk(dtosArray) {
     FinOpsDatabase.setObjects(this.sheetName, dtosArray, INITIATIVE_FIELD_MAP, false);
   }

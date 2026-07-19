@@ -20,9 +20,10 @@ class AssetService {
     const dtosInitiatives = this.initiativeRepo.findAllAsDto();
 
     const updatedAssetsPayload = assets.map(asset => {
-      const assetNameLower = asset.name.trim().toLowerCase();
-      const assetContracts = dtosContracts.filter(c => String(c.assetName).trim().toLowerCase() === assetNameLower);
-      const assetInits = dtosInitiatives.filter(i => String(i.assetName).trim().toLowerCase() === assetNameLower);
+      // FIX: Join robusta tramite Asset ID invece del nome testuale
+      const assetIdString = String(asset.id).trim();
+      const assetContracts = dtosContracts.filter(c => String(c.assetId).trim() === assetIdString);
+      const assetInits = dtosInitiatives.filter(i => String(i.assetId).trim() === assetIdString);
 
       asset.injectContext([], assetContracts, assetInits, []);
       return asset.exportToData();

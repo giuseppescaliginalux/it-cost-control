@@ -65,7 +65,7 @@
                     if (InventoryState.expandedAssetId) {
                         const assetObj = globalCachedData.find(a => btoa(encodeURIComponent(a.name)).replace(/=/g, "") === InventoryState.expandedAssetId);
                         if (assetObj) {
-                            InventoryState.loadAssetDrillDownData(assetObj.name);
+                            InventoryState.loadAssetDrillDownData(assetObj.id);
                         }
                     }
                     InventoryController.renderContractsTabContent(InventoryState.expandedAssetId);
@@ -100,7 +100,7 @@
                     if (InventoryState.expandedAssetId) {
                         const assetObj = globalCachedData.find(a => btoa(encodeURIComponent(a.name)).replace(/=/g, "") === InventoryState.expandedAssetId);
                         if (assetObj) {
-                            InventoryState.loadAssetDrillDownData(assetObj.name);
+                            InventoryState.loadAssetDrillDownData(assetObj.id);
                         }
                     }
                     InventoryController.renderContractsTabContent(InventoryState.expandedAssetId);
@@ -125,7 +125,7 @@
                     if (InventoryState.expandedAssetId) {
                         const assetObj = globalCachedData.find(a => btoa(encodeURIComponent(a.name)).replace(/=/g, "") === InventoryState.expandedAssetId);
                         if (assetObj) {
-                            InventoryState.loadAssetDrillDownData(assetObj.name);
+                            InventoryState.loadAssetDrillDownData(assetObj.id);
                             InventoryController.renderContractsTabContent(InventoryState.expandedAssetId);
                         }
                     }
@@ -493,13 +493,17 @@
 
             let formHtml = '';
             if (isEditActive) {
-                const currentAsset = ContractsState.currentSelectedAsset ? ContractsState.currentSelectedAsset.name : "";
+                // FIX: Estraiamo l'ID invece del Nome
+                const currentAssetId = ContractsState.currentSelectedAsset ? String(ContractsState.currentSelectedAsset.id).trim() : "";
                 const allMasters = windowPayload.masterContracts || [];
+
+                // FIX: Filtro puramente basato sull'ID relazionale
                 const assetMastersList = allMasters.filter(m =>
-                    String(m.assetName).trim().toLowerCase() === String(currentAsset).trim().toLowerCase() &&
+                    String(m.assetId).trim() === currentAssetId &&
                     m.masterId !== data.masterId &&
                     m.masterId
                 );
+
                 formHtml = ContractsTemplates.getMasterEditCard(data, isNew, suppliersList, assetMastersList, masterLinks);
             } else {
                 const status = (data.status || "ACTIVE").toUpperCase().trim();
@@ -756,6 +760,7 @@
             if (ContractsState.currentMasterData) {
                 item.data.masterId = ContractsState.currentMasterData.masterId;
                 item.data.assetName = ContractsState.currentSelectedAsset ? ContractsState.currentSelectedAsset.name : (ContractsState.currentMasterData.assetName || "");
+                item.data.assetId = ContractsState.currentSelectedAsset ? ContractsState.currentSelectedAsset.id : (ContractsState.currentMasterData.assetId || ""); // <-- AGGIUNTA
                 item.data.supplier = ContractsState.currentMasterData.supplier || "";
             }
 
@@ -806,7 +811,7 @@
 
             this.closeContractModalWindow();
             if (typeof InventoryController !== 'undefined') {
-                InventoryState.loadAssetDrillDownData(ContractsState.currentSelectedAsset.name);
+                InventoryState.loadAssetDrillDownData(ContractsState.currentSelectedAsset.id);
                 InventoryController.renderContractsTabContent(InventoryState.expandedAssetId);
                 InventoryController.applyFiltersAndSort();
             }
@@ -817,7 +822,9 @@
             const data = ContractsState.currentMasterData;
             data.supplier = document.getElementById('ins-masterSupplier').value;
             data.masterScope = document.getElementById('ins-masterScope').value;
+
             data.assetName = ContractsState.currentSelectedAsset?.name || "";
+            data.assetId = ContractsState.currentSelectedAsset?.id || "";
 
             windowPayload.masterContracts = windowPayload.masterContracts.filter(m => m.masterId !== data.masterId);
             windowPayload.masterContracts.push(data);

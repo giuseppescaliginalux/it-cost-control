@@ -2,6 +2,7 @@
     /**
      * js_projections_controller.html
      * CONTROLLER: High-performance multi-tier data pipeline and visualization driver.
+     * Certificato 100% camelCase puro - Tolleranza zero per stringhe con spazi.
      */
     const ProjectionsController = {
 
@@ -9,21 +10,13 @@
             const container = document.getElementById('tab-projections');
             if (!container) return;
 
-            // 1. Initialize State Architecture
             ProjectionsState.loadPayload(payload);
-
-            // 2. Inject Complete View Framework
             container.innerHTML = ProjectionsTemplates.getWorkspaceLayout();
-
-            // 3. Mount Inline Filter Sub-Dropdown Menus
             this.buildFilterDropdownMenus();
-
-            // 4. Fire Calculations and Rendering Operations
             this.applyEngine();
         },
 
         formatKM: function (num) {
-            // ⚡ FIX: Invece di duplicare la logica, puntiamo alla funzione globale centralizzata in js_core.html
             return window.formatKM(num);
         },
 
@@ -35,12 +28,12 @@
                 c = '0x' + c.join('');
                 return 'rgba(' + [(c >> 16) & 255, (c >> 8) & 255, c & 255].join(',') + ',' + alpha + ')';
             }
-            return `rgba(128,128,128,${alpha})`; // Fallback
+            return `rgba(128,128,128,${alpha})`;
         },
 
         buildFilterDropdownMenus: function () {
             const raw = ProjectionsState.rawDataset;
-            const getUniqueValues = (key) => [...new Set(raw.map(r => (r[key] || r[key.replace(" ", "")] || "").toString().trim()).filter(v => v !== ""))].sort();
+            const getUniqueValues = (key) => [...new Set(raw.map(r => (r[key] || "").toString().trim()).filter(v => v !== ""))].sort();
 
             const buildCheckboxItems = (valuesArray, containerId, stateFilterCategory) => {
                 const domBox = document.getElementById(containerId);
@@ -54,11 +47,11 @@
                 `).join('');
             };
 
-            buildCheckboxItems(getUniqueValues("Legal Entity"), "proj-filter-drop-le", "legalEntities");
-            buildCheckboxItems(getUniqueValues("Cost Center"), "proj-filter-drop-cc", "costCenters");
-            buildCheckboxItems(getUniqueValues("Expenditure Type"), "proj-filter-drop-exp", "expenditureTypes");
+            buildCheckboxItems(getUniqueValues("legalEntity"), "proj-filter-drop-le", "legalEntities");
+            buildCheckboxItems(getUniqueValues("costCenter"), "proj-filter-drop-cc", "costCenters");
+            buildCheckboxItems(getUniqueValues("expenditureType"), "proj-filter-drop-exp", "expenditureTypes");
 
-            const suppliers = getUniqueValues("Supplier");
+            const suppliers = getUniqueValues("supplier");
             const supBox = document.getElementById("proj-dropdown-supplier-items-box");
             if (supBox) {
                 supBox.innerHTML = suppliers.map(val => `
@@ -179,11 +172,11 @@
             const f = ProjectionsState.filters;
 
             const filteredRows = ProjectionsState.rawDataset.filter(row => {
-                const assetName = (row["Asset Name"] || "").toString().toLowerCase();
-                const supplier = (row["Supplier"] || "").toString().trim();
-                const legal = (row["Legal Entity"] || "").toString().trim();
-                const costCenter = (row["Cost Center"] || row.costCenter || "").toString().trim();
-                const expType = (row["Expenditure Type"] || "").toString().toUpperCase().trim();
+                const assetName = (row.assetName || "").toString().toLowerCase();
+                const supplier = (row.supplier || "").toString().trim();
+                const legal = (row.legalEntity || "").toString().trim();
+                const costCenter = (row.costCenter || "").toString().trim();
+                const expType = (row.expenditureType || "").toString().toUpperCase().trim();
 
                 if (f.searchKeyword && !assetName.includes(f.searchKeyword)) return false;
                 if (f.expenditureTypes.length > 0 && !f.expenditureTypes.includes(expType)) return false;
@@ -202,29 +195,30 @@
 
             filteredRows.forEach(row => {
                 let dimensionLabel = "";
-                if (activeDimension === 'expenditureType') dimensionLabel = row["Expenditure Type"] || row.expenditureType;
-                else if (activeDimension === 'costCenter') dimensionLabel = row["Cost Center"] || row.costCenter;
-                else if (activeDimension === 'legalEntity') dimensionLabel = row["Legal Entity"] || row.legalEntity;
+                if (activeDimension === 'expenditureType') dimensionLabel = row.expenditureType;
+                else if (activeDimension === 'costCenter') dimensionLabel = row.costCenter;
+                else if (activeDimension === 'legalEntity') dimensionLabel = row.legalEntity;
 
                 dimensionLabel = (dimensionLabel || "UNSPECIFIED").toString().trim();
 
-                const assetName = (row["Asset Name"] || "Unknown Asset").toString().trim();
-                const supplier = (row["Supplier"] || "Generic Supplier").toString().trim();
-                const legal = (row["Legal Entity"] || "N/A").toString().trim();
-                const costCenter = (row["Cost Center"] || row.costCenter || "N/A").toString().trim();
-                const expType = (row["Expenditure Type"] || "OPEX").toString().toUpperCase().trim();
+                const assetId = String(row.assetId || "").trim();
+                const assetName = (row.assetName || "Unknown Asset").toString().trim();
+                const supplier = (row.supplier || "Generic Supplier").toString().trim();
+                const legal = (row.legalEntity || "N/A").toString().trim();
+                const costCenter = (row.costCenter || "N/A").toString().trim();
+                const expType = (row.expenditureType || "OPEX").toString().toUpperCase().trim();
+                const cId = (row.contractId || "").toString().trim();
 
-                const cId = (row["Contract ID"] || "").toString().trim();
-                const origContract = (windowPayload.contracts || []).find(c => c["Contract ID"] === cId) || {};
-                const isExpired = origContract["Contract End Date"] && new Date(origContract["Contract End Date"]) < new Date();
+                const origContract = (windowPayload.contracts || []).find(c => String(c.contractId).trim() === cId) || {};
+                const isExpired = origContract.contractEndDate && new Date(origContract.contractEndDate) < new Date();
 
-                const v26 = parseFloat(row["FY26 Optimized"]) || 0;
-                const v27 = parseFloat(row["FY27 Optimized"]) || 0;
-                const v28 = parseFloat(row["FY28 Optimized"]) || 0;
+                const v26 = parseFloat(row.fy26Optimized) || 0;
+                const v27 = parseFloat(row.fy27Optimized) || 0;
+                const v28 = parseFloat(row.fy28Optimized) || 0;
 
-                const b26 = parseFloat(row["FY26 Baseline"]) || 0;
-                const b27 = parseFloat(row["FY27 Baseline"]) || 0;
-                const b28 = parseFloat(row["FY28 Baseline"]) || 0;
+                const b26 = parseFloat(row.fy26Baseline) || 0;
+                const b27 = parseFloat(row.fy27Baseline) || 0;
+                const b28 = parseFloat(row.fy28Baseline) || 0;
 
                 if (!graphDatasetTotals[dimensionLabel]) {
                     graphDatasetTotals[dimensionLabel] = { 2026: 0, 2027: 0, 2028: 0 };
@@ -248,9 +242,10 @@
                 pivotMap[dimensionLabel].b27 += b27;
                 pivotMap[dimensionLabel].b28 += b28;
 
-                if (!pivotMap[dimensionLabel].assetsMap[assetName]) {
-                    const meta = ProjectionsState.assetLookupMap.get(assetName.toLowerCase()) || { manufacturer: "Generic", driver: "Technology" };
-                    pivotMap[dimensionLabel].assetsMap[assetName] = {
+                if (!pivotMap[dimensionLabel].assetsMap[assetId]) {
+                    const meta = ProjectionsState.assetLookupMap.get(assetId) || { manufacturer: "Generic", driver: "Technology" };
+                    pivotMap[dimensionLabel].assetsMap[assetId] = {
+                        id: assetId,
                         name: assetName,
                         manufacturer: meta.manufacturer,
                         driver: meta.driver,
@@ -259,28 +254,28 @@
                         contractsMap: {}
                     };
                 }
-                pivotMap[dimensionLabel].assetsMap[assetName].v26 += v26;
-                pivotMap[dimensionLabel].assetsMap[assetName].v27 += v27;
-                pivotMap[dimensionLabel].assetsMap[assetName].v28 += v28;
-                pivotMap[dimensionLabel].assetsMap[assetName].b26 += b26;
-                pivotMap[dimensionLabel].assetsMap[assetName].b27 += b27;
-                pivotMap[dimensionLabel].assetsMap[assetName].b28 += b28;
+                pivotMap[dimensionLabel].assetsMap[assetId].v26 += v26;
+                pivotMap[dimensionLabel].assetsMap[assetId].v27 += v27;
+                pivotMap[dimensionLabel].assetsMap[assetId].v28 += v28;
+                pivotMap[dimensionLabel].assetsMap[assetId].b26 += b26;
+                pivotMap[dimensionLabel].assetsMap[assetId].b27 += b27;
+                pivotMap[dimensionLabel].assetsMap[assetId].b28 += b28;
 
                 const contractKey = `${cId}|||${supplier}|||${legal}|||${costCenter}|||${expType}`;
-                if (!pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey]) {
-                    pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey] = {
+                if (!pivotMap[dimensionLabel].assetsMap[assetId].contractsMap[contractKey]) {
+                    pivotMap[dimensionLabel].assetsMap[assetId].contractsMap[contractKey] = {
                         supplier: supplier, legalEntity: legal, costCenter: costCenter, expType: expType,
                         isExpired: isExpired, cId: cId,
                         v26: 0, v27: 0, v28: 0,
                         b26: 0, b27: 0, b28: 0
                     };
                 }
-                pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey].v26 += v26;
-                pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey].v27 += v27;
-                pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey].v28 += v28;
-                pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey].b26 += b26;
-                pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey].b27 += b27;
-                pivotMap[dimensionLabel].assetsMap[assetName].contractsMap[contractKey].b28 += b28;
+                pivotMap[dimensionLabel].assetsMap[assetId].contractsMap[contractKey].v26 += v26;
+                pivotMap[dimensionLabel].assetsMap[assetId].contractsMap[contractKey].v27 += v27;
+                pivotMap[dimensionLabel].assetsMap[assetId].contractsMap[contractKey].v28 += v28;
+                pivotMap[dimensionLabel].assetsMap[assetId].contractsMap[contractKey].b26 += b26;
+                pivotMap[dimensionLabel].assetsMap[assetId].contractsMap[contractKey].b27 += b27;
+                pivotMap[dimensionLabel].assetsMap[assetId].contractsMap[contractKey].b28 += b28;
             });
 
             const finalGroupedArray = Object.values(pivotMap).filter(asset =>
@@ -348,7 +343,6 @@
             }
 
             let html = '';
-
             finalStructure.forEach((group, gIdx) => {
                 const p26_l1 = group.b26 > 0 ? ((group.b26 - group.v26) / group.b26) * 100 : 0;
                 const p27_l1 = group.b27 > 0 ? ((group.b27 - group.v27) / group.b27) * 100 : 0;
@@ -394,7 +388,7 @@
                     let drillDownTable = ProjectionsTemplates.getContractDrillDownTableStructure(rowsHtml);
 
                     subHtml += ProjectionsTemplates.getAssetRowMarkup(
-                        gIdx, aIdx, asset.name, asset.manufacturer, asset.driver,
+                        gIdx, aIdx, asset.id, asset.name, asset.manufacturer, asset.driver,
                         asset.v26, p26_l2,
                         asset.v27, p27_l2,
                         asset.v28, p28_l2,
@@ -469,9 +463,7 @@
                         lastMeta.data.forEach((bar, i) => {
                             const val = totals[i];
                             if (val > 0) {
-                                const formatted = val >= 1000000
-                                    ? '€' + (val / 1000000).toFixed(2) + 'M'
-                                    : '€' + (val / 1000).toFixed(0) + 'k';
+                                const formatted = val >= 1000000 ? '€' + (val / 1000000).toFixed(2) + 'M' : '€' + (val / 1000).toFixed(0) + 'k';
                                 ctx.fillText(formatted, bar.x, bar.y - 8);
                             }
                         });
@@ -509,7 +501,7 @@
             });
         },
 
-        openFinancialBridgeModal: function (assetName, ctxField, ctxValue) {
+        openFinancialBridgeModal: function (assetId, assetName, ctxField, ctxValue) {
             const mountPoint = document.getElementById('proj-modal-mount-point');
             if (!mountPoint) {
                 const div = document.createElement('div');
@@ -528,22 +520,10 @@
                 ? ProjectionsState.currentFilteredRecords
                 : (windowPayload.projections || []);
 
-            let records = sourceDataset.filter(p =>
-                String(p["Asset Name"] || p.assetName || "").trim().toLowerCase() === assetName.toLowerCase().trim()
-            );
+            let records = sourceDataset.filter(p => String(p.assetId || "").trim() === String(assetId).trim());
 
             if (ctxField && ctxValue) {
-                const keyMap = {
-                    'expenditureType': 'Expenditure Type',
-                    'costCenter': 'Cost Center',
-                    'legalEntity': 'Legal Entity'
-                };
-                const realKey = keyMap[ctxField] || ctxField;
-
-                records = records.filter(r => {
-                    const rVal = String(r[realKey] || "").trim().toLowerCase();
-                    return rVal === ctxValue.toLowerCase().trim();
-                });
+                records = records.filter(r => String(r[ctxField] || "").toLowerCase().trim() === ctxValue.toLowerCase().trim());
             }
 
             const populateSelect = (id, field) => {
@@ -553,14 +533,14 @@
                 uniqueVals.forEach(v => sel.add(new Option(v, v)));
             };
 
-            populateSelect('modal-sel-exp', 'Expenditure Type');
-            populateSelect('modal-sel-cc', 'Cost Center');
-            populateSelect('modal-sel-le', 'Legal Entity');
+            populateSelect('modal-sel-exp', 'expenditureType');
+            populateSelect('modal-sel-cc', 'costCenter');
+            populateSelect('modal-sel-le', 'legalEntity');
 
             if (ctxField && ctxValue) {
-                if (ctxField === "expenditureType" || ctxField === "Expenditure Type") document.getElementById('modal-sel-exp').value = ctxValue;
-                if (ctxField === "costCenter" || ctxField === "Cost Center") document.getElementById('modal-sel-cc').value = ctxValue;
-                if (ctxField === "legalEntity" || ctxField === "Legal Entity") document.getElementById('modal-sel-le').value = ctxValue;
+                if (ctxField === "expenditureType") document.getElementById('modal-sel-exp').value = ctxValue;
+                if (ctxField === "costCenter") document.getElementById('modal-sel-cc').value = ctxValue;
+                if (ctxField === "legalEntity") document.getElementById('modal-sel-le').value = ctxValue;
             }
 
             const triggerRender = () => {
@@ -568,7 +548,6 @@
                 const vCc = document.getElementById('modal-sel-cc').value.toLowerCase();
                 const vLe = document.getElementById('modal-sel-le').value.toLowerCase();
 
-                // Show clear buttons
                 ['modal-sel-exp', 'modal-sel-cc', 'modal-sel-le'].forEach(id => {
                     const el = document.getElementById(id);
                     const btn = document.getElementById(`clear-${id}`);
@@ -579,9 +558,9 @@
                 });
 
                 const finalRecords = records.filter(r => {
-                    const matchExp = !vExp || String(r["Expenditure Type"] || "").toLowerCase() === vExp;
-                    const matchCc = !vCc || String(r["Cost Center"] || "").toLowerCase() === vCc;
-                    const matchLe = !vLe || String(r["Legal Entity"] || "").toLowerCase() === vLe;
+                    const matchExp = !vExp || String(r.expenditureType || "").toLowerCase() === vExp;
+                    const matchCc = !vCc || String(r.costCenter || "").toLowerCase() === vCc;
+                    const matchLe = !vLe || String(r.legalEntity || "").toLowerCase() === vLe;
                     return matchExp && matchCc && matchLe;
                 });
                 this.renderBridgeChartAndTable(finalRecords);
@@ -653,20 +632,18 @@
             let fy26Sum = 0, fy27Sum = 0, fy28Sum = 0;
             const monthlyTotalsArray = new Array(monthKeys.length).fill(0);
 
-            // Ordina per Data di Scadenza Decrescente
             records.sort((a, b) => {
-                const dateA = a.adjustedEndDate || a.contractEndDate || a.endDate ? new Date(a.adjustedEndDate || a.contractEndDate || a.endDate).getTime() : 0;
-                const dateB = b.adjustedEndDate || b.contractEndDate || b.endDate ? new Date(b.adjustedEndDate || b.contractEndDate || b.endDate).getTime() : 0;
+                const dateA = a.adjustedEndDate || a.contractEndDate ? new Date(a.adjustedEndDate || a.contractEndDate).getTime() : 0;
+                const dateB = b.adjustedEndDate || b.contractEndDate ? new Date(b.adjustedEndDate || b.contractEndDate).getTime() : 0;
                 return dateB - dateA;
             });
 
             records.forEach((r, index) => {
                 const baseColor = palette[index % palette.length];
-                const cId = r["Contract ID"] || r.contractId || "";
-
-                const supplier = r["Supplier"] || "Generic Supplier";
-                const legalEntity = r["Legal Entity"] || "Corporate";
-                const costCenter = r["Cost Center"] || "N/A";
+                const cId = r.contractId || "";
+                const supplier = r.supplier || "Generic Supplier";
+                const legalEntity = r.legalEntity || "Corporate";
+                const costCenter = r.costCenter || "N/A";
 
                 const rawStart = r.startDate ? new Date(r.startDate) : null;
                 const rawEnd = r.contractEndDate ? new Date(r.contractEndDate) : null;
@@ -675,12 +652,10 @@
                 const sDate = rawStart ? rawStart.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : '-';
                 const eDate = rawEnd ? rawEnd.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : '-';
 
-                // ⚡ LOGICA DI CALCOLO CREDITI E PASSAGGIO VARIABILI ALLINEATE ALL'ASSET CARD
                 const nomCommitNum = parseFloat(r.totalCommitment) || 0;
                 const effCommitNum = parseFloat(r.effectiveCommitment || nomCommitNum);
                 const creditDiff = effCommitNum - nomCommitNum;
                 const hasCredit = creditDiff <= -1;
-
                 const termMonths = r.contractTerm || "-";
 
                 const actualData = new Array(monthKeys.length).fill(0);
@@ -709,7 +684,6 @@
                 const tooltipContent = `Supplier: ${supplier}&#10;Entity: ${legalEntity}&#10;Cost Center: ${costCenter}&#10;Validity: ${sDate} ➔ ${eDate} (${termMonths}M)`;
                 const rowOpacity = isExpired ? 'opacity-50 grayscale hover:grayscale-0' : 'opacity-100';
 
-                // Passiamo le proprietà arricchite al template costruttore del markup di riga
                 tableRowsHtml += ProjectionsTemplates.getFinancialBridgeTableRowMarkup({
                     baseColor, supplier, isExpired, legalEntity, cId, tableCells,
                     effCommitmentStr: this.formatKM(effCommitNum),
@@ -796,14 +770,12 @@
                                 label: function (context) {
                                     const val = context.raw;
                                     if (val === 0) return null;
-                                    const formatted = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(val);
-                                    return ` ${formatted}`;
+                                    return ` ${new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(val)}`;
                                 },
                                 afterLabel: function (ctx) {
                                     const ds = ctx.dataset;
-                                    const isVirt = ds.label.includes('Virt');
                                     let lines = `Entity: ${ds.legalEntity}\nID: ${ds.cId}`;
-                                    if (isVirt) lines += `\n(Forecasted Renewal)`;
+                                    if (ds.label.includes('Virt')) lines += `\n(Forecasted Renewal)`;
                                     return lines;
                                 }
                             }
@@ -841,7 +813,6 @@
                 }]
             });
         }
-
     };
 
     const olapOriginalSwitchTab = switchTab;

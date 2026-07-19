@@ -9,9 +9,23 @@
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
-            // 1. Contratti Locali: Svegliamo le classi di dominio per calcolare i crediti reali all'avvio
+            // ⚡ PROFILING: Mappa di supporto O(1) per trovare al volo l'Asset ID dal Master
+            const masterToAssetMap = new Map();
+            (payload.masterContracts || []).forEach(m => {
+                if (m.masterId) {
+                    masterToAssetMap.set(String(m.masterId).trim(), String(m.assetId || "").trim());
+                }
+            });
+
+            // 1. Contratti Locali: Svegliamo le classi di dominio e iniettiamo l'assetId mancante
             (payload.contracts || []).forEach(c => {
                 const cid = c.contractId;
+                const mId = String(c.masterId || "").trim();
+
+                // ⚡ FIX: Ereditiamo l'assetId dal Master di riferimento se non è presente a livello flat
+                if (!c.assetId || String(c.assetId).trim() === "") {
+                    c.assetId = masterToAssetMap.get(mId) || "";
+                }
 
                 // Raccogliamo i movimenti del Ledger di questo contratto
                 const cLedger = (payload.ledger || []).filter(l => String(l.contractId).trim() === String(cid).trim());
@@ -46,10 +60,12 @@
             // 3. Asset (Macchina a Stati Finiti)
             payload.assets = (payload.assets || []).map(rawAsset => {
                 const asset = new Asset(rawAsset);
-                const assetNameLower = (asset.name || "").trim().toLowerCase();
 
-                const assetContracts = (payload.contracts || []).filter(c => String(c.assetName || "").trim().toLowerCase() === assetNameLower);
-                const assetInits = (payload.initiatives || []).filter(i => String(i.assetName || "").trim().toLowerCase() === assetNameLower);
+                // FIX: Usiamo l'ID stringa per la join al posto del nome text-based
+                const assetIdStr = String(asset.id).trim();
+
+                const assetContracts = (payload.contracts || []).filter(c => String(c.assetId || "").trim() === assetIdStr);
+                const assetInits = (payload.initiatives || []).filter(i => String(i.assetId || "").trim() === assetIdStr);
 
                 asset.injectContext([], assetContracts, assetInits, []);
                 return asset.exportToData();

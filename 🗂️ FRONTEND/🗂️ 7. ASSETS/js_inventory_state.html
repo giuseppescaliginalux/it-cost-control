@@ -9,7 +9,7 @@
         expandedMasterId: null,
         currentDrillDownData: null,
 
-        getFilteredAndSortedAssets: function() {
+        getFilteredAndSortedAssets: function () {
             const f = this.filters;
             let filteredData = globalCachedData.filter(row => {
                 const name = (row.name || "").toLowerCase();
@@ -18,7 +18,7 @@
                 const currentStatus = (row.currentStatus || "").toUpperCase().trim();
                 const budgetStatus = (row.budgetStatusFY27 || "").toUpperCase().trim();
                 const currentDriver = (row.businessDriver || "").toUpperCase().trim();
-                
+
                 const matchesSearch = !f.search || name.includes(f.search) || manufacturer.includes(f.search);
                 const matchesRunRate = runRate >= f.minRunRate;
                 const matchesStatus = f.status.length === 0 || f.status.includes(currentStatus);
@@ -29,9 +29,10 @@
                 let matchesSupplier = true; let matchesCostCenter = true; let matchesLocation = true;
 
                 if (f.channel.length > 0 || f.expType.length > 0 || f.legalEntity.length > 0 || f.supplier.length > 0 || f.costCenter.length > 0 || f.location.length > 0) {
-                    const normalizedRowAsset = (row.name || "").toString().trim().toLowerCase();
-                    const relatedContracts = windowPayload.contracts.filter(c => 
-                        (c.assetName || "").toString().trim().toLowerCase() === normalizedRowAsset
+                    // FIX: Uso dell'Asset ID per filtrare i contratti collegati
+                    const targetAssetId = String(row.id).trim();
+                    const relatedContracts = windowPayload.contracts.filter(c =>
+                        String(c.assetId).trim() === targetAssetId
                     );
 
                     if (f.channel.length > 0) matchesChannel = relatedContracts.some(c => f.channel.includes((c.billingChannel || "").toString().trim()));
@@ -42,8 +43,8 @@
                     if (f.location.length > 0) matchesLocation = relatedContracts.some(c => f.location.includes((c.location || "").toString().trim()));
                 }
 
-                return matchesSearch && matchesRunRate && matchesStatus && matchesBudgetStatus && matchesDriver && 
-                       matchesChannel && matchesExp && matchesLegal && matchesSupplier && matchesCostCenter && matchesLocation;
+                return matchesSearch && matchesRunRate && matchesStatus && matchesBudgetStatus && matchesDriver &&
+                    matchesChannel && matchesExp && matchesLegal && matchesSupplier && matchesCostCenter && matchesLocation;
             });
 
             filteredData.sort((a, b) => {
@@ -59,28 +60,34 @@
             return filteredData;
         },
 
-        loadAssetDrillDownData: function(assetName) {
-            const targetName = (assetName || "").toString().trim().toLowerCase();
+        loadAssetDrillDownData: function (assetId) {
+            const targetId = String(assetId).trim();
             const bridge = windowPayload.bridge || [];
             const aliasMap = new Map();
-            
+
             bridge.forEach(r => {
                 if (!r.allocationAlias) return;
                 if (!aliasMap.has(r.allocationAlias)) aliasMap.set(r.allocationAlias, []);
-                aliasMap.get(r.allocationAlias).push({ asset_name: r.assetName, split_pct: r.allocationSplitPct || 0 });
+                aliasMap.get(r.allocationAlias).push({ asset_name: r.assetName, asset_id: r.assetId, split_pct: r.allocationSplitPct || 0 });
             });
 
-            const offlineAllocations = bridge.filter(r => (r.assetName || "").toString().trim().toLowerCase() === targetName)
-                .map(r => ({ ...r, co_allocated_assets: (aliasMap.get(r.allocationAlias) || []).filter(a => (a.asset_name || "").toString().trim().toLowerCase() !== targetName) }));
+            const offlineAllocations = bridge.filter(r => String(r.assetId).trim() === targetId)
+                .map(r => ({ ...r, co_allocated_assets: (aliasMap.get(r.allocationAlias) || []).filter(a => String(a.asset_id).trim() !== targetId) }));
+
+            // ⚡ FIX RELAZIONALE: Troviamo gli ID dei Master collegati a questo Asset
+            const validMasterIds = (windowPayload.masterContracts || [])
+                .filter(m => String(m.assetId).trim() === targetId)
+                .map(m => String(m.masterId).trim());
 
             this.currentDrillDownData = {
-                contracts: (windowPayload.contracts || []).filter(c => (c.assetName || "").toString().trim().toLowerCase() === targetName),
-                initiatives: (windowPayload.initiatives || []).filter(i => (i.assetName || "").toString().trim().toLowerCase() === targetName),
+                // ⚡ Ora peschiamo i contratti usando l'ID del Master (chiave esterna)
+                contracts: (windowPayload.contracts || []).filter(c => validMasterIds.includes(String(c.masterId).trim())),
+                initiatives: (windowPayload.initiatives || []).filter(i => String(i.assetId).trim() === targetId),
                 allocations: offlineAllocations
             };
         },
 
-        resetAllFilters: function() {
+        resetAllFilters: function () {
             this.filters = { search: '', minRunRate: 0, status: [], budgetStatus: [], driver: [], channel: [], expType: [], legalEntity: [], supplier: [], costCenter: [], location: [] };
             this.sort.by = 'runrate-desc';
         }

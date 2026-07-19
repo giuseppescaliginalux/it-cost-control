@@ -252,8 +252,11 @@
                 if (InitiativesState.selectedTagsFilter.length > 0 && !InitiativesState.selectedTagsFilter.some(t => currentItemTags.includes(t))) return;
 
                 const initiativeName = (init.name || "").toString().trim() || "Unnamed Initiative";
-                const assetName = (init.assetName || "").toString().trim();
-                const relatedAsset = assets.find(a => (a.name || "").toString().trim().toLowerCase() === assetName.toLowerCase()) || {};
+
+                // FIX: Recuperiamo il relatedAsset tramite l'assetId nativo
+                const assetId = String(init.assetId || "").trim();
+                const relatedAsset = assets.find(a => String(a.id).trim() === assetId) || {};
+                const assetName = (init.assetName || relatedAsset.name || "").toString().trim();
                 const manufacturer = relatedAsset.manufacturer || "Generic";
 
                 const relatedContract = contracts.find(c => c.contractId === init.contractId) || {};
@@ -420,8 +423,14 @@
             }
 
             const allContracts = windowPayload.contracts || [];
+
+            // FIX: Risolviamo l'ID dell'Asset dal nome selezionato
+            const selectedAssetObj = (windowPayload.assets || []).find(a => String(a.name).trim().toLowerCase() === String(selectedAssetName).trim().toLowerCase());
+            const targetAssetId = selectedAssetObj ? String(selectedAssetObj.id).trim() : "";
+
+            // FIX: Filtriamo i Master per assetId invece che per assetName
             const filteredMasters = (windowPayload.masterContracts || []).filter(m =>
-                String(m.assetName).trim().toLowerCase() === String(selectedAssetName).trim().toLowerCase()
+                String(m.assetId).trim() === targetAssetId
             );
 
             if (filteredMasters.length === 0) {
@@ -752,6 +761,11 @@
 
             instance.name = initName;
             instance.assetName = assetName;
+
+            // FIX: Immagazziniamo stabilmente l'Asset ID nell'oggetto Iniziativa
+            const assetObj = (windowPayload.assets || []).find(a => String(a.name).trim().toLowerCase() === String(assetName).trim().toLowerCase());
+            instance.assetId = assetObj ? assetObj.id : "";
+
             instance.masterId = masterId;
             instance.contractId = contractId;
 

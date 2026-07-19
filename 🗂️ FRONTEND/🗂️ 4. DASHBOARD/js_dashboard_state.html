@@ -20,25 +20,39 @@
             this.contracts = payload.contracts || [];
             this.initiatives = payload.initiatives || [];
             this.projections = payload.projections || [];
-            this.varianceReport = payload.varianceReport || []; 
+            this.varianceReport = payload.varianceReport || [];
+            // FIX: Assorbiamo bridge, allocazioni e master direttamente nello stato locale
+            this.bridge = payload.bridge || [];
+            this.allocations = payload.allocations || [];
+            this.masterContracts = payload.masterContracts || [];
         },
 
         computeExecutiveMetrics: function () {
             let totalBudget = 0;
-            
-            (this.varianceReport || []).forEach(v => {
-                const fYear = String(v.fiscalYear || "").toUpperCase().trim();
+
+            // FIX: Calcoliamo il Budget TOTALE aziendale leggendo il foglio Allocations
+            const allocs = windowPayload.allocations || [];
+            allocs.forEach(a => {
+                const fYear = String(a.fiscalYear || "").toUpperCase().trim();
                 if (fYear === "FY27") {
-                    let bVal = parseFloat(v.effectiveBudget);
+                    let bVal = parseFloat(a.amount);
                     totalBudget += isNaN(bVal) ? 0 : bVal;
                 }
             });
 
             let totalProjection = 0;
-            this.projections.forEach(p => {
-                let pVal = parseFloat(p.fy27Optimized || p["FY27 Optimized"]);
-                totalProjection += isNaN(pVal) ? 0 : pVal;
-            });
+            // FIX: Fallback su runRate se le proiezioni non sono ancora generate
+            if (this.projections && this.projections.length > 0) {
+                this.projections.forEach(p => {
+                    let pVal = parseFloat(p.fy27Optimized);
+                    totalProjection += isNaN(pVal) ? 0 : pVal;
+                });
+            } else {
+                this.assets.forEach(a => {
+                    let pVal = parseFloat(a.runRate);
+                    totalProjection += isNaN(pVal) ? 0 : pVal;
+                });
+            }
 
             const activeContracts = this.contracts.filter(c => (c.status || "").toString().trim().toUpperCase() === "ACTIVE");
 

@@ -2,6 +2,7 @@
     /**
      * js_projections_templates.html
      * VIEW: Component UI template factory for multi-dimensional financial structures.
+     * Certificato 100% camelCase puro - Rimosso ogni riferimento a spazi.
      */
     const ProjectionsTemplates = {
 
@@ -110,21 +111,17 @@
                         </div>
                     </div>
                 </div>
-                <div id="proj-modal-mount-point" onclick="ProjectionsController.closeFinancialBridgeModal()" class="hidden fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[9999] items-center justify-center p-4 transition-opacity"></div>
             </div>`;
         },
 
-        // 🌟 Helper interno per generare le celle finanziarie con i Badge di sconto (Ibrido Vettoriale)
         _renderCell: function (val, pct, colorClass = "text-slate-700", isCompact = false) {
             let badge = '';
             const roundedPct = Math.round(pct);
 
-            // 🛡️ Scudo protettivo per nascondere decimali o zero spuri (-0%)
             if (roundedPct > 0) {
                 const isTerminated = roundedPct >= 99.9;
 
                 if (isCompact) {
-                    // 🎯 LIVELLO 3 (Drill-down): Layout ultra-compatto con micro-freccia verticale
                     const badgeColor = isTerminated ? 'text-emerald-800 bg-emerald-100' : 'text-teal-800 bg-teal-100';
                     const iconSvg = `<svg class="w-2.5 h-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m0 0l6.75-6.75M12 19.5l-6.75-6.75" /></svg>`;
 
@@ -133,15 +130,12 @@
                         ${iconSvg}${roundedPct}%
                     </span>`;
                 } else {
-                    // ⚡ LIVELLI 1 e 2 (Riepiloghi Macro): Icone SVG pure ad alta fedeltà (Anti-Schiacciamento)
                     let badgeColor, iconSvg;
 
                     if (isTerminated) {
-                        // Dismissione completa (100%): Colore Smeraldo, icona di Chiusura/Taglio Netto (X spessa)
                         badgeColor = 'text-emerald-700 bg-emerald-50 border-emerald-200';
                         iconSvg = `<svg class="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>`;
                     } else {
-                        // Ottimizzazione parziale: Colore Teal FinOps, icona del Fulmine Vettoriale asimmetrico
                         badgeColor = 'text-teal-700 bg-teal-50 border-teal-200';
                         iconSvg = `<svg class="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M11.5 2L3 13h7v9l8.5-11H11.5V2z"/></svg>`;
                     }
@@ -160,21 +154,20 @@
             </div>`;
         },
 
-        // LEVEL 1: Top-Level Dimension Header Card (isCompact = false)
         getGroupHeaderRowMarkup: function (groupIdx, label, assetCount, v26, p26, v27, p27, v28, p28) {
             return `
             <tr onclick="ProjectionsController.toggleLevel1Accordion(${groupIdx})" class="bg-slate-100/80 border-b border-slate-200 hover:bg-slate-100 transition-all font-black text-slate-900 select-none cursor-pointer">
                 <td class="p-3 text-left align-middle w-2/5">
-                    <div style="display: flex; align-items: center; justify-content: flex-start; width: 100%; min-width: 0;">
-                        <div style="flex-shrink: 0; width: 20px; display: flex; justify-content: center;">
+                    <div class="flex items-center justify-start w-full min-w-0">
+                        <div class="shrink-0 w-20px flex justify-center mr-1">
                             <svg id="proj-l1-chevron-${groupIdx}" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" class="text-slate-500 transition-transform duration-200" style="transform: rotate(0deg);">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                             </svg>
                         </div>
-                        <div style="flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px;" class="text-xs uppercase font-black tracking-wider text-slate-800" title="${label || 'UNSPECIFIED'}">
+                        <div class="flex-1 overflow-hidden text-ellipsis whitespace-nowrap pr-2 text-xs uppercase font-black tracking-wider text-slate-800" title="${label || 'UNSPECIFIED'}">
                             ${label || 'UNSPECIFIED'}
                         </div>
-                        <div style="flex-shrink: 0;">
+                        <div class="shrink-0">
                             <span class="bg-white border border-slate-300 text-slate-600 text-[8px] font-extrabold px-1.5 py-0.5 rounded shadow-3xs leading-none" title="Contains ${assetCount} active scoped assets">${assetCount} Assets</span>
                         </div>
                     </div>
@@ -192,26 +185,25 @@
             </tr>`;
         },
 
-        // LEVEL 2: Nested Intermediate Asset Row (isCompact = false)
-        getAssetRowMarkup: function (groupIdx, assetIdx, assetName, manufacturer, driver, v26, p26, v27, p27, v28, p28, childTableHtml, groupLabel) {
+        getAssetRowMarkup: function (groupIdx, assetIdx, assetId, assetName, manufacturer, driver, v26, p26, v27, p27, v28, p28, childTableHtml, groupLabel) {
             return `
             <tr onclick="ProjectionsController.toggleLevel2Accordion(${groupIdx}, ${assetIdx})" class="hover:bg-slate-50/70 transition-all border-b border-slate-100 cursor-pointer select-none">
                 <td class="p-3 pl-8 text-left align-middle w-2/5">
-                    <div style="display: flex; align-items: center; justify-content: flex-start; width: 100%; min-width: 0;">
-                        <div style="flex-shrink: 0; width: 20px; display: flex; justify-content: center;">
+                    <div class="flex items-center justify-start w-full min-w-0">
+                        <div class="shrink-0 w-20px flex justify-center mr-1">
                             <svg id="proj-l2-chevron-${groupIdx}-${assetIdx}" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="text-slate-400 transition-transform duration-200" style="transform: rotate(0deg);">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                             </svg>
                         </div>
-                        <div style="flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px;" class="font-extrabold text-slate-900 text-xs tracking-tight" title="${assetName}">
+                        <div class="flex-1 overflow-hidden text-ellipsis whitespace-nowrap pr-2 font-extrabold text-slate-900 text-xs tracking-tight" title="${assetName}">
                             ${assetName}
                         </div>
-                        <button onclick="event.stopPropagation(); ProjectionsController.openFinancialBridgeModal('${assetName.replace(/'/g, "\\'")}', ProjectionsState.pivotDimension, '${(groupLabel || "").replace(/'/g, "\\'")}')" class="ml-2 px-1.5 py-0.5 bg-teal-50 hover:bg-teal-600 text-teal-600 hover:text-white rounded border border-teal-200 shadow-sm flex items-center gap-1.5 transition-all group/btn shrink-0" title="View Accrual vs Run-Rate Bridge">
+                        <button onclick="event.stopPropagation(); ProjectionsController.openFinancialBridgeModal('${assetId}', '${assetName.replace(/'/g, "\\'")}', ProjectionsState.pivotDimension, '${(groupLabel || "").replace(/'/g, "\\'")}')" class="ml-2 px-1.5 py-0.5 bg-teal-50 hover:bg-teal-600 text-teal-600 hover:text-white rounded border border-teal-200 shadow-sm flex items-center gap-1.5 transition-all group/btn shrink-0" title="View Accrual vs Run-Rate Bridge">
                             <svg class="w-3.5 h-3.5 group-hover/btn:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18h18M7 15l4-4 4 4 6-6" /></svg>
                             <span class="text-[8px] font-black uppercase tracking-widest">P&L Bridge</span>
                         </button>
                     </div>
-                    <div class="text-[9px] font-bold text-slate-400 uppercase tracking-tight mt-0.5 pl-[20px] truncate w-full">
+                    <div class="text-[9px] font-bold text-slate-400 uppercase tracking-tight mt-0.5 pl-[24px] truncate w-full">
                         ${manufacturer} <span class="text-slate-300 font-normal mx-1 select-none">•</span> <span class="text-slate-400/60 font-medium normal-case tracking-normal">for: ${driver}</span>
                     </div>
                 </td>
@@ -226,27 +218,24 @@
             </tr>`;
         },
 
-        // LEVEL 3: Deep Drill-Down Contract Items Sub-Table
         getContractDrillDownItemRow: function (c) {
-            // 🎯 Layout ultra-compatto a Livello 3 e trasparenza per i contratti scaduti
             const opacityClass = c.isExpired ? 'opacity-50 bg-slate-50' : 'opacity-100';
             const expBadge = c.isExpired ? '<span class="ml-1 text-[8px] text-slate-400 font-normal border border-slate-200 rounded px-1 shadow-3xs">(Exp)</span>' : '';
 
-            // ⚡ FORMATTAZIONE DEL TOOLTIP DI VALIDITÀ PER IL CAMPO "title" (Senza aggiungere colonne)
             const startStr = c.startDate ? (c.startDate instanceof Date ? c.startDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : String(c.startDate)) : "—";
-            const endStr = c.endDate ? (c.endDate instanceof Date ? c.endDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : String(c.endDate)) : "—";
+            const endStr = c.contractEndDate ? (c.contractEndDate instanceof Date ? c.contractEndDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : String(c.contractEndDate)) : "—";
             const validityTooltip = `Validity: ${startStr} ➔ ${endStr}`;
 
             return `
             <tr class="hover:bg-slate-50/80 border-b border-slate-100 last:border-0 ${opacityClass} transition-colors">
                 <td class="py-2 font-bold text-slate-800 truncate pr-2" title="${validityTooltip}">
-                    <div class="cursor-help underline decoration-dotted inline-block" title="${validityTooltip}">
+                    <div class="cursor-help underline decoration-dotted inline-block">
                         ${c.supplier}${expBadge}
                     </div>
                     <span class="text-[9px] text-slate-400 block font-mono">ID: ${c.cId}</span>
                 </td>
                 <td class="py-2 truncate pr-2" title="${c.legalEntity}">${c.legalEntity}</td>
-                <td class="py-2 font-mono text-slate-500 truncate pr-2" title="${c.costCenter || 'N/A'}">${c.costCenter || 'N/A'}</td>
+                <td class="py-2 font-mono text-slate-500 truncate pr-2" title="${c.costCenter}">${c.costCenter}</td>
                 <td class="py-2 font-mono font-black text-[9px] text-slate-400"><span class="px-1.5 py-0.5 border rounded bg-slate-50">${c.expType}</span></td>
                 
                 <td class="py-2 align-middle font-mono truncate">${this._renderCell(c.v26, c.p26, 'text-slate-500', true)}</td>
@@ -324,11 +313,9 @@
                     <div class="flex-1 min-h-[200px] w-full overflow-x-auto border border-slate-200 rounded-lg p-2 bg-white shadow-sm" id="modal-chart-container">
                         <div class="min-w-[800px] h-full relative"><canvas id="financialBridgeChart"></canvas></div>
                     </div>
-                    <div class="max-h-[50%] w-full overflow-auto border border-slate-200 rounded-lg bg-white shadow-sm shrink-0" id="modal-table-container">
-                    </div>
+                    <div class="max-h-[50%] w-full overflow-auto border border-slate-200 rounded-lg bg-white shadow-sm shrink-0" id="modal-table-container"></div>
                 </div>
-            </div>
-            `;
+            </div>`;
         },
 
         getFinancialBridgeTableRowMarkup: function (opts) {
@@ -347,18 +334,16 @@
                     </div>
                 </td>
                 ${opts.tableCells}
-                
                 <td class="sticky right-0 bg-slate-50 shadow-sm p-3 border-l border-slate-200 z-10 w-28 min-w-[7rem] text-right align-middle">
                     <div class="flex flex-col items-end justify-center">
                         <div class="flex items-center justify-end gap-1">
-                            <span class="font-black font-mono text-slate-800 text-[12px] leading-tight">€${opts.effCommitmentStr}</span>
-                            ${opts.hasCredit ? `<span class="text-[9px] font-black ${opts.creditStr.includes('+') ? 'text-rose-600' : 'text-teal-600'} leading-none">${opts.creditStr}</span>` : ''}
+                            <span class="font-black font-mono text-slate-800 text-[12px] leading-tight">€ ${opts.effCommitmentStr}</span>
+                            ${opts.hasCredit ? `<span class="text-[9px] font-black text-teal-600 leading-none">${opts.creditStr}</span>` : ''}
                         </div>
-                        ${opts.hasCredit ? `<span class="block text-[8px] font-bold text-slate-400 mt-0.5 uppercase tracking-tighter">Nom: €${opts.nomCommitmentStr}</span>` : ''}
+                        ${opts.hasCredit ? `<span class="block text-[8px] font-bold text-slate-400 mt-0.5 uppercase tracking-tighter">Nom: € ${opts.nomCommitmentStr}</span>` : ''}
                     </div>
                 </td>
-            </tr>
-            `;
+            </tr>`;
         },
 
         getFinancialBridgeTableMarkup: function (labels, tableRowsHtml, totalsCells, fyMap, monthlyTotalsArray, formatKM) {
@@ -376,13 +361,13 @@
 
             labels.forEach((_, idx) => {
                 if (fyMap[idx] !== currentFy) {
-                    tfootHtml += `<td colspan="${currentSpan}" class="p-2 text-center border-r border-slate-300 font-black ${bgColorsUI[colorIdx % bgColorsUI.length]} ${textColorsUI[colorIdx % textColorsUI.length]}"><span class="text-[8px] uppercase opacity-60 tracking-widest mr-1.5">${currentFy}:</span>€${formatKM(currentFyTotal)}</td>`;
+                    tfootHtml += `<td colspan="${currentSpan}" class="p-2 text-center border-r border-slate-300 font-black ${bgColorsUI[colorIdx % bgColorsUI.length]} ${textColorsUI[colorIdx % bgColorsUI.length]}"><span class="text-[8px] uppercase opacity-60 tracking-widest mr-1.5">${currentFy}:</span>€ ${formatKM(currentFyTotal)}</td>`;
                     currentFy = fyMap[idx]; currentSpan = 1; currentFyTotal = monthlyTotalsArray[idx]; colorIdx++;
                 } else {
                     currentSpan++; currentFyTotal += monthlyTotalsArray[idx];
                 }
             });
-            tfootHtml += `<td colspan="${currentSpan}" class="p-2 text-center border-r border-slate-300 font-black ${bgColorsUI[colorIdx % bgColorsUI.length]} ${textColorsUI[colorIdx % textColorsUI.length]}"><span class="text-[8px] uppercase opacity-60 tracking-widest mr-1.5">${currentFy}:</span>€${formatKM(currentFyTotal)}</td>`;
+            tfootHtml += `<td colspan="${currentSpan}" class="p-2 text-center border-r border-slate-300 font-black ${bgColorsUI[colorIdx % bgColorsUI.length]} ${textColorsUI[colorIdx % bgColorsUI.length]}"><span class="text-[8px] uppercase opacity-60 tracking-widest mr-1.5">${currentFy}:</span>€ ${formatKM(currentFyTotal)}</td>`;
 
             return `
             <table class="min-w-full divide-y divide-slate-200 table-fixed">
@@ -393,18 +378,14 @@
                         <th class="sticky right-0 bg-slate-50 p-3 border-l border-slate-200 z-30 w-24 min-w-[6rem] text-right text-[10px] font-black uppercase tracking-widest text-slate-500">Tot. Cmmt</th>
                     </tr>
                 </thead>
-                <tbody class="bg-white divide-y divide-slate-100">
-                    ${tableRowsHtml}
-                </tbody>
+                <tbody class="bg-white divide-y divide-slate-100">${tableRowsHtml}</tbody>
                 <tfoot class="bg-slate-100 sticky bottom-0 z-20 border-t-2 border-slate-300 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
                     <tr>
                         ${tfootHtml}
                         <td class="sticky right-0 bg-slate-100 border-l border-slate-300 z-30 w-24 min-w-[6rem]"></td>
                     </tr>
                 </tfoot>
-            </table>
-            `;
+            </table>`;
         }
-
     };
 </script>

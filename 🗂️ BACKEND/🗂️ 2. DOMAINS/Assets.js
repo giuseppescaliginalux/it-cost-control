@@ -100,9 +100,14 @@ class Asset {
     this.currentStatus = computedStatus;
 
     if (assetVariances && assetVariances.length > 0) {
-      const v = assetVariances.find(vari => String(vari.fiscalYear || "").includes("FY27")) || assetVariances[0];
-      const budgetVal = parseFloat(String(v.effectiveBudget || "0").replace(/[^0-9.-]/g, ''));
-      const varianceVal = parseFloat(String(v.variance || "0").replace(/[^0-9.-]/g, ''));
+      const v = assetVariances.find(vari => String(vari.fiscalYear || vari["Fiscal Year"] || "").includes("FY27")) || assetVariances[0];
+
+      // FIX TDD: Aggiunto fallback per "Variance" con la V maiuscola
+      const rawBudget = v.effectiveBudget !== undefined ? v.effectiveBudget : (v.budget !== undefined ? v.budget : (v["Effective Budget"] !== undefined ? v["Effective Budget"] : "0"));
+      const rawVariance = v.variance !== undefined ? v.variance : (v.netVariance !== undefined ? v.netVariance : (v["Net Variance"] !== undefined ? v["Net Variance"] : (v["Variance"] !== undefined ? v["Variance"] : "0")));
+
+      const budgetVal = parseFloat(String(rawBudget).replace(/[^0-9.-]/g, ''));
+      const varianceVal = parseFloat(String(rawVariance).replace(/[^0-9.-]/g, ''));
 
       if (budgetVal > 0) {
         if (varianceVal < 0) {

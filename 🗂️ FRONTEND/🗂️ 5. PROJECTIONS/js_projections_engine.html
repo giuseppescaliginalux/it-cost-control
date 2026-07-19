@@ -495,6 +495,18 @@
                 const mId = String(contract.masterId).trim();
                 const cId = String(contract.contractId).trim();
 
+                // ⚡ BLINDATURA RELAZIONALE SUPPLIER & ASSET
+                // Se per qualche motivo il contratto flat non ha ancora ereditato il fornitore o l'assetId, lo recuperiamo dal dizionario master
+                const parentMaster = (masterContractsArray || []).find(m => String(m.masterId).trim() === mId);
+                if (parentMaster) {
+                    if (!contract.assetId || String(contract.assetId).trim() === "") {
+                        contract.assetId = parentMaster.assetId;
+                    }
+                    if (!contract.supplier || String(contract.supplier).trim() === "" || contract.supplier.toLowerCase().includes("unknown")) {
+                        contract.supplier = parentMaster.supplier || "Generic Supplier";
+                    }
+                }
+
                 // Recupero relazioni in O(1)
                 const linkedInits = (initsByMaster.get(mId) || []).filter(init => {
                     const initContract = String(init.contractId || "").trim();
@@ -526,27 +538,32 @@
                 if (fy26B === 0 && fy27B === 0 && fy28B === 0 && fy26O === 0 && fy27O === 0 && fy28O === 0) return;
 
                 const rowObj = {
-                    "Contract ID": cId,
-                    "Asset Name": contractDto.assetName,
-                    "Supplier": contractDto.supplier,
-                    "Cost Center": contractDto.costCenter,
-                    "Legal Entity": contractDto.legalEntity,
-                    "Expenditure Type": contractDto.expenditureType,
-                    "Pricing Model": contractDto.pricingModel,
+                    contractId: cId,
+                    assetId: contractDto.assetId,
+                    assetName: contractDto.assetName,
+                    supplier: contractDto.supplier,
+                    costCenter: contractDto.costCenter,
+                    legalEntity: contractDto.legalEntity,
+                    expenditureType: contractDto.expenditureType,
+                    pricingModel: contractDto.pricingModel,
 
                     // Metadati per la timeline e la modale
-                    "startDate": contractDto.startDate,
-                    "contractEndDate": contractDto.contractEndDate,
-                    "adjustedEndDate": contractDto.adjustedEndDate,
-                    "contractTerm": contractDto.contractTerm,
+                    startDate: contractDto.startDate,
+                    contractEndDate: contractDto.contractEndDate,
+                    adjustedEndDate: contractDto.adjustedEndDate,
+                    contractTerm: contractDto.contractTerm,
 
                     // Assegnazione del valore effettivo e nominale idratato
-                    "totalCommitment": parseFloat(contractDto.totalCommitment) || 0,
-                    "effectiveCommitment": parseFloat(contractDto.effectiveCommitment) || 0,
+                    totalCommitment: parseFloat(contractDto.totalCommitment) || 0,
+                    effectiveCommitment: parseFloat(contractDto.effectiveCommitment) || 0,
 
-                    "FY26 Baseline": fy26B, "FY26 Optimized": fy26O,
-                    "FY27 Baseline": fy27B, "FY27 Optimized": fy27O,
-                    "FY28 Baseline": fy28B, "FY28 Optimized": fy28O,
+                    // ⚡ PROPRIETÀ NORMALIZZATE IN camelCase
+                    fy26Baseline: fy26B,
+                    fy26Optimized: fy26O,
+                    fy27Baseline: fy27B,
+                    fy27Optimized: fy27O,
+                    fy28Baseline: fy28B,
+                    fy28Optimized: fy28O,
 
                     monthlyActual: { ...p26.monthlyOptimizedActual, ...p27.monthlyOptimizedActual, ...p28.monthlyOptimizedActual },
                     monthlyVirtual: { ...p26.monthlyOptimizedVirtual, ...p27.monthlyOptimizedVirtual, ...p28.monthlyOptimizedVirtual }
