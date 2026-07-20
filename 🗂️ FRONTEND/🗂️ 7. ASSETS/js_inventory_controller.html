@@ -153,13 +153,13 @@
 
                 (windowPayload.projections || []).forEach(p => {
                     // FIX: Recuperiamo i dati previsionali tramite assetId
-                    if (String(p.assetId || p["Asset ID"] || "").trim() === targetId) {
-                        b26 += parseFloat(p["FY26 Baseline"]) || 0;
-                        o26 += parseFloat(p["FY26 Optimized"]) || 0;
-                        b27 += parseFloat(p["FY27 Baseline"]) || 0;
-                        o27 += parseFloat(p["FY27 Optimized"]) || 0;
-                        b28 += parseFloat(p["FY28 Baseline"]) || 0;
-                        o28 += parseFloat(p["FY28 Optimized"]) || 0;
+                    if (String(p.assetId || "").trim() === targetId) {
+                        b26 += parseFloat(p.fy26Baseline) || 0;
+                        o26 += parseFloat(p.fy26Optimized) || 0;
+                        b27 += parseFloat(p.fy27Baseline) || 0;
+                        o27 += parseFloat(p.fy27Optimized) || 0;
+                        b28 += parseFloat(p.fy28Baseline) || 0;
+                        o28 += parseFloat(p.fy28Optimized) || 0;
                     }
                 });
 
@@ -264,11 +264,11 @@
                 let html = `<div class="overflow-hidden border border-slate-200 rounded-xl bg-white shadow-sm"><table class="w-full text-left text-[11px] border-collapse"><thead><tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-black uppercase tracking-widest"><th class="p-3 w-1/2">Budget Entry</th><th class="p-3 text-right w-1/4">Original Amount</th><th class="p-3 text-right w-1/4">Allocated Share</th></tr></thead><tbody class="divide-y divide-slate-100">`;
                 let sumOriginal = 0; let sumEffective = 0;
                 dataList.forEach(log => {
-                    const origBudget = parseFloat(log.effectiveBudget || log.originalBudget || log["Original Budget"]) || 0;
-                    const effBudget = parseFloat(log.effectiveBudget || log["Effective Budget"]) || 0;
+                    const origBudget = parseFloat(log.originalBudget) || 0;
+                    const effBudget = parseFloat(log.effectiveBudget) || 0;
                     const coAssets = log.co_allocated_assets || []; sumOriginal += origBudget; sumEffective += effBudget;
-                    let split = (parseFloat(log.allocationSplitPct || log["Allocation Split %"]) || 0); if (split > 0 && split <= 1) split *= 100;
-                    html += `<tr class="text-slate-600 font-medium hover:bg-slate-50/30"><td class="p-3 align-top"><div class="font-bold text-slate-900 leading-tight">${log.allocationAlias || log["Allocation Alias"] || "N/A"}</div><div class="text-[9px] text-slate-400 mt-1 uppercase font-bold">${safeFormatStringDate(log.validFrom)} → ${safeFormatStringDate(log.validTo)}</div></td><td class="p-3 text-right align-top font-mono text-slate-400 italic">€ ${origBudget.formatCurrency()}</td><td class="p-3 text-right align-top"><div class="text-teal-900 font-black font-mono text-sm">€ ${effBudget.formatCurrency()}</div><div class="mt-1"><span class="px-2 py-0.5 rounded border text-[9px] font-black uppercase ${split >= 99.9 ? 'text-emerald-600 bg-emerald-50 border-emerald-100' : 'text-teal-600 bg-teal-50 border-teal-100'}">${split.toFixed(1)}%</span></div></td></tr>`;
+                    let split = (parseFloat(log.allocationSplitPct) || 0); if (split > 0 && split <= 1) split *= 100;
+                    html += `<tr class="text-slate-600 font-medium hover:bg-slate-50/30"><td class="p-3 align-top"><div class="font-bold text-slate-900 leading-tight">${log.allocationAlias || "N/A"}</div><div class="text-[9px] text-slate-400 mt-1 uppercase font-bold">${safeFormatStringDate(log.validFrom)} → ${safeFormatStringDate(log.validTo)}</div></td><td class="p-3 text-right align-top font-mono text-slate-400 italic">€ ${origBudget.formatCurrency()}</td><td class="p-3 text-right align-top"><div class="text-teal-900 font-black font-mono text-sm">€ ${effBudget.formatCurrency()}</div><div class="mt-1"><span class="px-2 py-0.5 rounded border text-[9px] font-black uppercase ${split >= 99.9 ? 'text-emerald-600 bg-emerald-50 border-emerald-100' : 'text-teal-600 bg-teal-50 border-teal-100'}">${split.toFixed(1)}%</span></div></td></tr>`;
                     if (split < 99.9 && coAssets.length > 0) {
                         const sharedList = coAssets.map(co => `<span class="text-slate-700 font-bold">${co.asset_name}</span> <span class="text-teal-600 font-mono">(${(parseFloat(co.split_pct) * 100).toFixed(0)}%)</span>`).join('<span class="mx-3 text-slate-300">|</span>');
                         html += `<tr class="bg-slate-50/50"><td colspan="3" class="px-4 py-2 border-b border-slate-100 text-left"><div class="text-[10px] leading-relaxed"><span class="font-black text-slate-400 uppercase tracking-widest mr-2">↳ Co-allocated with:</span>${sharedList}</div></td></tr>`;
@@ -404,8 +404,8 @@
 
             // Ordinamento cronologico decrescente (più recente -> più vecchio) sulla End Date
             availableMasters.sort((a, b) => {
-                const dEndA = a.masterEndDate || a["Master End Date"];
-                const dEndB = b.masterEndDate || b["Master End Date"];
+                const dEndA = a.masterEndDate;
+                const dEndB = b.masterEndDate;
                 const timeA = dEndA ? new Date(dEndA).getTime() : 0;
                 const timeB = dEndB ? new Date(dEndB).getTime() : 0;
                 return timeB - timeA; // Inverte l'ordine per avere il più nuovo sopra
@@ -503,8 +503,11 @@
                 if (masterId) {
                     ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
                     const masterMatch = windowPayload.masterContracts.find(m => m.masterId === masterId);
-                    const assetName = masterMatch ? masterMatch.assetName : null;
-                    const assetMatch = windowPayload.assets.find(a => a.name === assetName);
+
+                    // FIX: Ricerca basata su assetId
+                    const assetId = masterMatch ? masterMatch.assetId : null;
+                    const assetMatch = windowPayload.assets.find(a => String(a.id).trim() === String(assetId).trim());
+
                     if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch.name, id: assetMatch.id };
 
                     const item = ContractsState.currentDetailItems.find(i => i.data.contractId === contractId);
@@ -518,8 +521,11 @@
             if (typeof window.ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
                 ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
                 const masterMatch = windowPayload.masterContracts.find(m => m.masterId === masterId);
-                const assetName = masterMatch ? masterMatch.assetName : null;
-                const assetMatch = windowPayload.assets.find(a => a.name === assetName);
+
+                // FIX: Ricerca basata su assetId
+                const assetId = masterMatch ? masterMatch.assetId : null;
+                const assetMatch = windowPayload.assets.find(a => String(a.id).trim() === String(assetId).trim());
+
                 if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch.name, id: assetMatch.id };
 
                 window.ContractsController.addNewDetailRowItem();
@@ -528,18 +534,34 @@
 
         triggerEditMaster: function (masterId) {
             this.closeAllInventoryKebabs();
-            if (typeof window.ContractsController !== 'undefined') {
+            if (typeof window.ContractsController !== 'undefined' && typeof ContractsState !== 'undefined') {
                 const isEditActive = typeof ContractsState !== 'undefined' && ContractsState.globalEditMode;
                 ContractsState.updateMasterEditState(isEditActive);
+
+                // Popolamento preventivo dell'asset nel ContractsState prima di aprire la modale
+                if (masterId) {
+                    const masterMatch = windowPayload.masterContracts.find(m => m.masterId === masterId);
+                    const assetId = masterMatch ? masterMatch.assetId : null;
+                    const assetMatch = windowPayload.assets.find(a => String(a.id).trim() === String(assetId).trim());
+
+                    if (assetMatch) {
+                        ContractsState.currentSelectedAsset = { name: assetMatch.name, id: assetMatch.id };
+                    }
+                }
+
                 window.ContractsController.openMasterModalWindow(masterId);
             }
         },
 
-        triggerCreateNewMaster: function (safeDOMId) {
+        triggerCreateNewMaster: function (passedId) {
             this.closeAllInventoryKebabs();
-            const targetId = safeDOMId || InventoryState.expandedAssetId;
+            const targetId = passedId || InventoryState.expandedAssetId;
             if (typeof window.ContractsController !== 'undefined' && targetId) {
-                const assetMatch = globalCachedData.find(a => btoa(encodeURIComponent(a.name)).replace(/=/g, "") === targetId);
+
+                const assetMatch = globalCachedData.find(a =>
+                    String(a.id).trim() === String(targetId).trim() ||
+                    btoa(encodeURIComponent(a.name)).replace(/=/g, "") === targetId
+                );
 
                 if (assetMatch) {
                     ContractsState.currentSelectedAsset = { name: assetMatch.name, id: assetMatch.id };
@@ -548,6 +570,7 @@
                     const tempId = "TMP-MCT-" + Date.now();
                     ContractsState.currentMasterData.masterId = tempId;
                     ContractsState.currentMasterData.assetName = ContractsState.currentSelectedAsset.name;
+                    ContractsState.currentMasterData.assetId = ContractsState.currentSelectedAsset.id; // <-- ID relazionale normalizzato inserito nel DTO
 
                     window.ContractsController.openMasterModalWindow("");
                 }
@@ -571,7 +594,8 @@
                 ContractsState.currentMasterData.supplier = sourceMaster.supplier || "";
                 ContractsState.currentMasterData.billingChannel = sourceMaster.billingChannel || "Direct Vendor";
 
-                const assetMatch = windowPayload.assets.find(a => String(a.name).trim().toLowerCase() === String(sourceMaster.assetName).trim().toLowerCase());
+                // FIX: Match diretto sull'assetId
+                const assetMatch = windowPayload.assets.find(a => String(a.id).trim() === String(sourceMaster.assetId).trim());
                 if (assetMatch) {
                     ContractsState.currentSelectedAsset = { name: assetMatch.name, id: assetMatch.id };
                 }
@@ -595,8 +619,11 @@
 
                 if (masterId) {
                     const masterMatch = windowPayload.masterContracts.find(m => m.masterId === masterId);
-                    const assetName = masterMatch ? masterMatch.assetName : null;
-                    const assetMatch = windowPayload.assets.find(a => a.name === assetName);
+
+                    // FIX: Ricerca basata su assetId
+                    const assetId = masterMatch ? masterMatch.assetId : null;
+                    const assetMatch = windowPayload.assets.find(a => String(a.id).trim() === String(assetId).trim());
+
                     if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch.name, id: assetMatch.id };
 
                     ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);

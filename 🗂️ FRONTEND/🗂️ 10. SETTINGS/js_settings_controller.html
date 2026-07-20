@@ -1,7 +1,7 @@
 <script>
     /**
      * js_settings_controller.html
-     * CONTROLLER: Master Data Control Center Centralizzato.
+     * CONTROLLER: Master Data, Budget Lines & Asset Matchmaker
      */
 
     function renderSettingsHub(payload) {
@@ -12,97 +12,50 @@
     }
 
     const SettingsController = {
-        currentMenuKey: 'budget', // Valore di default all'ingresso
+        currentMenuKey: 'budgetLines',
+        selectedMatchmakerAssetId: null,
+        selectedMatchmakerFy: null,
+        currentAssetFilter: 'all',
 
-        // DIZIONARIO DI CONFIGURAZIONE DEL FRAMEWORK ANAGRAFICHE
         RegistrySchema: {
-            budget: {
-                label: "Budget Allocations",
-                payloadKey: "allocations",
-                title: "Asset Budget Allocation Engine"
-            },
-            suppliers: {
-                label: "Suppliers",
-                payloadKey: "suppliers",
-                title: "Suppliers Registry",
-                desc: "Anagrafica centralizzata dei fornitori e vendor di terze parti.",
-                fields: [
-                    { key: "supplierId", label: "Supplier ID" },
-                    { key: "supplier", label: "Supplier" },
-                    { key: "type", label: "Type" }
-                ]
-            },
-            legalEntities: {
-                label: "Legal Entities",
-                payloadKey: "legalEntities",
-                title: "Corporate Legal Entities",
-                desc: "Società del gruppo utilizzate per la fatturazione dei contratti.",
-                fields: [
-                    { key: "legalEntity", label: "Legal Entity" }
-                ]
-            },
-            costCenters: {
-                label: "Cost Centers",
-                payloadKey: "costCenters",
-                title: "FinOps Cost Centers",
-                desc: "Codici dei centri di costo per l'allocazione delle spese IT.",
-                fields: [
-                    { key: "costCenter", label: "Cost Center" }
-                ]
-            },
-            locations: {
-                label: "Locations",
-                payloadKey: "locations",
-                title: "Geographical Sites",
-                desc: "Sedi fisiche, uffici corporate o region cloud.",
-                fields: [
-                    { key: "location", label: "Location" },
-                    { key: "country", label: "Country" }
-                ]
-            },
-            deliveryModels: {
-                label: "Delivery Models",
-                payloadKey: "deliveryModels",
-                title: "Service Delivery Models",
-                desc: "Modelli di erogazione legati alla tipologia tecnologica dell'asset.",
-                fields: [
-                    { key: "deliveryModel", label: "Delivery Model" },
-                    { key: "assetType", label: "Asset Type" },
-                    { key: "description", label: "Description" }
-                ]
-            },
-            optimizationLevers: {
-                label: "Optimization Levers",
-                payloadKey: "optimizationLevers",
-                title: "Efficiency Optimization Levers",
-                desc: "Strategie di risparmio applicate all'architettura delle iniziative.",
-                fields: [
-                    { key: "lever", label: "Lever" },
-                    { key: "description", label: "Description" }
-                ]
-            },
-            assetCategories: {
-                label: "Asset Categories",
-                payloadKey: "assetCategories",
-                title: "Asset Taxonomy Categories",
-                desc: "Categorie tassonomiche di classificazione dei costi.",
-                fields: [
-                    { key: "category", label: "Category" },
-                    { key: "description", label: "Description" }
-                ]
-            },
-            currencyExchangeRates: {
-                label: "Currency Exchange",
-                payloadKey: "currencyExchangeRates",
-                title: "FX Currency Exchange Rates",
-                desc: "Tassi di cambio mensili storici per la normalizzazione multicurrency.",
-                fields: [
-                    { key: "monthYear", label: "MonthYear" },
-                    { key: "eur", label: "EUR" },
-                    { key: "usd", label: "USD" },
-                    { key: "gbp", label: "GBP" },
-                    { key: "hkd", label: "HKD" }
-                ]
+            budgetLines: { label: "Budget Lines", payloadKey: "allocations", title: "Budget Lines Portfolio" },
+            assetCoverage: { label: "Asset Coverage", payloadKey: "bridge", title: "Matchmaker Engine" },
+            suppliers: { label: "Suppliers", payloadKey: "suppliers", title: "Suppliers Registry", desc: "Anagrafica centralizzata dei fornitori.", fields: [{ key: "supplierId", label: "Supplier ID" }, { key: "supplier", label: "Supplier" }, { key: "type", label: "Type" }] },
+            legalEntities: { label: "Legal Entities", payloadKey: "legalEntities", title: "Corporate Legal Entities", desc: "Società del gruppo utilizzate per la fatturazione.", fields: [{ key: "legalEntity", label: "Legal Entity" }] },
+            costCenters: { label: "Cost Centers", payloadKey: "costCenters", title: "FinOps Cost Centers", desc: "Codici dei centri di costo.", fields: [{ key: "costCenter", label: "Cost Center" }] },
+            locations: { label: "Locations", payloadKey: "locations", title: "Geographical Sites", desc: "Sedi fisiche, uffici o region cloud.", fields: [{ key: "location", label: "Location" }, { key: "country", label: "Country" }] },
+            deliveryModels: { label: "Delivery Models", payloadKey: "deliveryModels", title: "Service Delivery Models", desc: "Modelli di erogazione tecnologici.", fields: [{ key: "deliveryModel", label: "Delivery Model" }, { key: "assetType", label: "Asset Type" }, { key: "description", label: "Description" }] },
+            optimizationLevers: { label: "Optimization Levers", payloadKey: "optimizationLevers", title: "Optimization Levers", desc: "Strategie di risparmio.", fields: [{ key: "lever", label: "Lever" }, { key: "description", label: "Description" }] },
+            assetCategories: { label: "Asset Categories", payloadKey: "assetCategories", title: "Asset Taxonomy Categories", desc: "Categorie di classificazione dei costi.", fields: [{ key: "category", label: "Category" }, { key: "description", label: "Description" }] },
+            currencyExchangeRates: { label: "Currency Exchange", payloadKey: "currencyExchangeRates", title: "FX Currency Exchange", desc: "Tassi di cambio mensili storici.", fields: [{ key: "monthYear", label: "MonthYear" }, { key: "eur", label: "EUR" }, { key: "usd", label: "USD" }, { key: "gbp", label: "GBP" }, { key: "hkd", label: "HKD" }] }
+        },
+
+        getUniqueList: function (payloadKey, fieldName) {
+            const list = window.windowPayload[payloadKey] || [];
+            return [...new Set(list.map(i => (i[fieldName] || "").toString().trim()).filter(v => v !== ""))].sort();
+        },
+
+        getEditModeStatus: function () {
+            return typeof ContractsState !== 'undefined' && ContractsState.globalEditMode;
+        },
+
+        toggleSidebar: function () {
+            const sidebar = document.getElementById('settings-master-sidebar');
+            const content = document.getElementById('settings-sidebar-content');
+            const chevron = document.getElementById('sidebar-chevron');
+
+            if (sidebar.classList.contains('w-1/5')) {
+                sidebar.classList.remove('w-1/5', 'min-w-[200px]', 'pr-4');
+                sidebar.classList.add('w-0', 'min-w-0', 'pr-0', 'border-transparent');
+                content.classList.replace('opacity-100', 'opacity-0');
+                setTimeout(() => content.classList.add('hidden'), 300);
+                chevron.classList.add('rotate-180');
+            } else {
+                sidebar.classList.remove('w-0', 'min-w-0', 'pr-0', 'border-transparent');
+                sidebar.classList.add('w-1/5', 'min-w-[200px]', 'pr-4');
+                content.classList.remove('hidden');
+                setTimeout(() => content.classList.replace('opacity-0', 'opacity-100'), 10);
+                chevron.classList.remove('rotate-180');
             }
         },
 
@@ -110,142 +63,476 @@
             const container = document.getElementById('tab-settings');
             if (!container) return;
 
-            // 1. Costruisce l'elenco della sidebar con i conteggi reali estratti dalla RAM
             const menuItems = Object.keys(this.RegistrySchema).map(key => {
                 const schema = this.RegistrySchema[key];
                 const list = window.windowPayload[schema.payloadKey] || [];
                 return { key: key, label: schema.label, count: list.length };
             });
 
-            // 2. Genera il Workspace specifico basandosi sulla selezione corrente
+            if (!this.selectedMatchmakerFy) {
+                const year = new Date().getFullYear();
+                this.selectedMatchmakerFy = `FY${String(year + 1).slice(-2)}`;
+            }
+
             let workspaceHtml = "";
-            if (this.currentMenuKey === 'budget') {
-                workspaceHtml = this.compileBudgetWorkspace();
+            if (this.currentMenuKey === 'budgetLines') {
+                workspaceHtml = this.compileBudgetLinesWorkspace();
+            } else if (this.currentMenuKey === 'assetCoverage') {
+                workspaceHtml = this.compileAssetCoverageWorkspace();
             } else {
                 workspaceHtml = this.compileGenericCrudWorkspace(this.currentMenuKey);
             }
 
             container.innerHTML = SettingsTemplates.getMainLayout(this.currentMenuKey, menuItems, workspaceHtml);
+
+            // Ri-applica i filtri testuali post-render
+            if (this.currentMenuKey === 'budgetLines') {
+                this.filterBudgetLines();
+            } else if (this.currentMenuKey === 'assetCoverage') {
+                this.filterMatchmakerAssets();
+                this.filterMatchmakerAllocations();
+            }
         },
 
         switchSettingsMenu: function (menuKey) {
             this.currentMenuKey = menuKey;
+            if (menuKey !== 'assetCoverage') this.selectedMatchmakerAssetId = null;
             this.initSettingsWorkspace();
         },
 
-        // --- COMPILATORE 1: LOGICA BUDGET QUANTITATIVI ---
-        compileBudgetWorkspace: function () {
-            const currentBridge = window.windowPayload.bridge || [];
-            const currentAllocations = window.windowPayload.allocations || [];
+        // --- ASSET COVERAGE (MATCHMAKER) RENDERING SINCRONO ---
+        compileAssetCoverageWorkspace: function () {
+            const isEditMode = this.getEditModeStatus();
+
+            // Genera la lista di sinistra in memoria
+            const assetListHtml = this.generateAssetListHtml();
+
+            // Genera il cruscotto di destra in memoria (nessun setTimeout!)
+            const detailHtml = this.generateMatchmakerRightPaneHtml();
+
+            return SettingsTemplates.getAssetCoverageWorkspace(assetListHtml, detailHtml, isEditMode);
+        },
+
+        generateAssetListHtml: function () {
             const assets = (window.windowPayload.assets || []).filter(a => a.name && a.name.trim() !== "");
             assets.sort((a, b) => a.name.localeCompare(b.name));
 
-            let rowsHtml = "";
-            assets.forEach(asset => {
-                const assetId = String(asset.id).trim();
-                const assetName = String(asset.name).trim();
-                const assetBridges = currentBridge.filter(b => String(b.assetId).trim() === assetId);
+            const bridges = window.windowPayload.bridge || [];
+            const projs = window.windowPayload.projections || [];
+            const allocs = window.windowPayload.allocations || [];
+            const sfy = this.selectedMatchmakerFy;
 
-                const getBudget = (fy) => {
-                    const bridgeLink = assetBridges.find(b => String(b.fiscalYear).toUpperCase().trim() === fy);
-                    if (!bridgeLink) return 0;
-                    const allocRow = currentAllocations.find(a => String(a.allocationId).trim() === String(bridgeLink.allocationId).trim());
-                    return allocRow ? parseFloat(allocRow.amount) : 0;
-                };
-
-                let supplier = "", legalEntity = "", costCenter = "";
-                if (assetBridges.length > 0) {
-                    const allocRow = currentAllocations.find(a => String(a.allocationId).trim() === String(assetBridges[0].allocationId).trim());
-                    if (allocRow) {
-                        supplier = allocRow.supplier || "";
-                        legalEntity = allocRow.legalEntity || "";
-                        costCenter = allocRow.costCenter || "";
-                    }
+            let html = "";
+            assets.forEach(a => {
+                let outlookVal = 0;
+                const assetProjs = projs.filter(p => String(p.assetId || "").trim() === String(a.id));
+                if (assetProjs.length > 0) {
+                    assetProjs.forEach(p => outlookVal += parseFloat(p[sfy.toLowerCase() + 'Optimized'] || 0));
+                } else {
+                    outlookVal = parseFloat(a.runRate || 0);
                 }
 
-                rowsHtml += SettingsTemplates.getAssetRow(
-                    assetId, assetName, getBudget("FY26"), getBudget("FY27"), getBudget("FY28"),
-                    supplier, legalEntity, costCenter
-                );
+                let coverageVal = 0;
+                const assetBridges = bridges.filter(b => String(b.assetId) === String(a.id) && String(b.fiscalYear).toUpperCase().trim() === sfy);
+                assetBridges.forEach(b => {
+                    const linkedAlloc = allocs.find(al => String(al.allocationId) === String(b.allocationId) && String(al.fiscalYear).toUpperCase().trim() === sfy);
+                    if (linkedAlloc) coverageVal += parseFloat(linkedAlloc.amount) || 0;
+                });
+
+                let status = 'unbudgeted';
+                if (coverageVal > 0) {
+                    status = coverageVal >= outlookVal ? 'secured' : 'risk';
+                }
+
+                const pct = outlookVal > 0 ? (coverageVal / outlookVal) * 100 : (coverageVal > 0 ? 100 : 0);
+                const isSelected = this.selectedMatchmakerAssetId === String(a.id);
+
+                html += SettingsTemplates.getMatchmakerAssetItem(a, isSelected, assetBridges.length, status, pct);
             });
 
-            return SettingsTemplates.getSidebarLayout(rowsHtml);
+            return html || '<div class="text-center text-slate-400 text-[10px] italic py-6">Initializing Matchmaker...</div>';
         },
 
-        // --- COMPILATORE 2: LOGICA DIZIONARI CRUD A COPPIE ---
+        generateMatchmakerRightPaneHtml: function () {
+            if (!this.selectedMatchmakerAssetId) {
+                return `
+                <div class="flex flex-col h-full items-center justify-center text-center p-8 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                    <div class="w-16 h-16 bg-slate-200 text-slate-400 rounded-full flex items-center justify-center mb-4">
+                        <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zm-7.518-.267A8.25 8.25 0 1120.25 10.5M8.288 14.212A5.25 5.25 0 1117.25 10.5" /></svg>
+                    </div>
+                    <h2 class="text-lg font-black text-slate-800 uppercase tracking-widest mb-2">Select an Asset</h2>
+                    <p class="text-xs text-slate-500 font-medium">Scegli un asset per visualizzarne la radiografia finanziaria e le coperture in <span class="font-bold text-slate-700">${this.selectedMatchmakerFy}</span>.</p>
+                </div>`;
+            }
+
+            const isEditMode = this.getEditModeStatus();
+            const assets = window.windowPayload.assets || [];
+            const asset = assets.find(a => String(a.id) === this.selectedMatchmakerAssetId);
+            if (!asset) return '';
+
+            const bridges = window.windowPayload.bridge || [];
+            const projs = window.windowPayload.projections || [];
+            const allocs = window.windowPayload.allocations || [];
+            const sfy = this.selectedMatchmakerFy;
+
+            let outlookVal = 0;
+            const assetProjs = projs.filter(p => String(p.assetId || "").trim() === String(asset.id));
+            if (assetProjs.length > 0) {
+                assetProjs.forEach(p => { outlookVal += parseFloat(p[sfy.toLowerCase() + 'Optimized'] || 0); });
+            } else {
+                outlookVal = parseFloat(asset.runRate || 0);
+            }
+
+            let coverageVal = 0;
+            const assetBridges = bridges.filter(b => String(b.assetId) === String(asset.id));
+
+            assetBridges.forEach(b => {
+                if (String(b.fiscalYear).toUpperCase().trim() === sfy) {
+                    const linkedAlloc = allocs.find(a => String(a.allocationId) === String(b.allocationId) && String(a.fiscalYear).toUpperCase().trim() === sfy);
+                    if (linkedAlloc) coverageVal += parseFloat(linkedAlloc.amount) || 0;
+                }
+            });
+
+            const fys = ['FY26', 'FY27', 'FY28'];
+            const activeAllocs = allocs.filter(a => String(a.fiscalYear).toUpperCase().trim() === sfy);
+
+            const suppliers = [...new Set(activeAllocs.map(a => a.supplier).filter(v => v))].sort();
+            const legalEntities = [...new Set(activeAllocs.map(a => a.legalEntity).filter(v => v))].sort();
+            const costCenters = [...new Set(activeAllocs.map(a => a.costCenter).filter(v => v))].sort();
+            const expTypes = ['OPEX', 'CAPEX'];
+
+            const sortedAllocs = [...activeAllocs].sort((a, b) => {
+                const isAssocA = assetBridges.some(bx => String(bx.allocationId) === String(a.allocationId) && String(bx.fiscalYear).toUpperCase().trim() === sfy);
+                const isAssocB = assetBridges.some(bx => String(bx.allocationId) === String(b.allocationId) && String(bx.fiscalYear).toUpperCase().trim() === sfy);
+                if (isAssocA && !isAssocB) return -1;
+                if (!isAssocA && isAssocB) return 1;
+                return (a.allocationName || '').localeCompare(b.allocationName || '');
+            });
+
+            let allocsHtml = "";
+            sortedAllocs.forEach(alloc => {
+                const isAssociated = assetBridges.some(b => String(b.allocationId) === String(alloc.allocationId) && String(b.fiscalYear).toUpperCase().trim() === sfy);
+                const sharingBridges = bridges.filter(xb => String(xb.allocationId) === String(alloc.allocationId) && String(xb.fiscalYear).toUpperCase().trim() === sfy);
+                const sharingCount = sharingBridges.length;
+
+                let drawerHtml = "";
+                if (sharingCount > 0) {
+                    let totalWeight = 0;
+                    const shares = sharingBridges.map(sb => {
+                        const sAsset = assets.find(a => String(a.id) === String(sb.assetId)) || { name: 'Unknown', runRate: 0 };
+                        const sProj = projs.find(p => String(p.assetId || "").trim() === String(sb.assetId)) || {};
+                        const weight = parseFloat(sProj[sfy.toLowerCase() + 'Optimized'] || sAsset.runRate || 1);
+                        totalWeight += weight;
+                        return { assetId: sb.assetId, name: sAsset.name, weight: weight };
+                    });
+
+                    const gridCellsHtml = shares.map(sh => {
+                        const pct = totalWeight > 0 ? (sh.weight / totalWeight) * 100 : (100 / shares.length);
+                        const val = (pct / 100) * parseFloat(alloc.amount || 0);
+                        const isMe = String(sh.assetId) === String(asset.id);
+                        const bgClass = isMe ? 'bg-teal-50 border-teal-200 shadow-3xs' : 'bg-white border-slate-200 opacity-80';
+                        const textClass = isMe ? 'text-teal-700' : 'text-slate-700';
+
+                        return `
+                        <div class="p-2 rounded-md border flex flex-col justify-between ${bgClass}">
+                            <span class="text-[9px] font-black uppercase truncate mb-1 ${textClass}" title="${sh.name}">${sh.name}</span>
+                            <div class="flex justify-between items-end">
+                                <span class="text-[10px] font-bold ${isMe ? 'text-teal-600' : 'text-slate-500'}">${pct.toFixed(1)}%</span>
+                                <span class="text-[10px] font-mono font-black ${textClass}">€ ${val.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                            </div>
+                        </div>`;
+                    }).join('');
+
+                    drawerHtml = `<div class="grid grid-cols-2 lg:grid-cols-3 gap-2 p-3">${gridCellsHtml}</div>`;
+                }
+
+                allocsHtml += SettingsTemplates.getMatchmakerAllocationRow(alloc, isAssociated, isEditMode, sharingCount, drawerHtml);
+            });
+
+            return SettingsTemplates.getMatchmakerDetailMarkup(
+                asset, outlookVal, coverageVal, allocsHtml, suppliers, legalEntities, costCenters, expTypes, fys, sfy
+            );
+        },
+
+        renderAssetList: function () {
+            const listContainer = document.getElementById('matchmaker-asset-list');
+            if (listContainer) {
+                listContainer.innerHTML = this.generateAssetListHtml();
+                this.filterMatchmakerAssets();
+            }
+        },
+
+        refreshMatchmakerRightPane: function () {
+            const pane = document.getElementById('matchmaker-detail-pane');
+            if (pane) {
+                pane.innerHTML = this.generateMatchmakerRightPaneHtml();
+            }
+        },
+
+        // --- FILTRI ED EVENTI ---
+        setAssetFilter: function (status) {
+            this.currentAssetFilter = status;
+            document.querySelectorAll('.ast-flt-btn').forEach(btn => {
+                btn.classList.remove('bg-white', 'text-slate-800', 'shadow-sm');
+                btn.classList.add('text-slate-500');
+            });
+            const activeBtn = document.getElementById(`flt-ast-${status}`);
+            if (activeBtn) {
+                activeBtn.classList.remove('text-slate-500');
+                activeBtn.classList.add('bg-white', 'text-slate-800', 'shadow-sm');
+            }
+            this.filterMatchmakerAssets();
+        },
+
+        filterMatchmakerAssets: function () {
+            const input = document.getElementById('matchmaker-asset-search');
+            const term = input ? input.value.toLowerCase().trim() : '';
+            const statusFlt = this.currentAssetFilter || 'all';
+
+            const items = document.querySelectorAll('.asset-item');
+            items.forEach(item => {
+                const name = item.getAttribute('data-name') || '';
+                const itemStatus = item.getAttribute('data-status') || '';
+
+                const matchTerm = term === '' || name.includes(term);
+                const matchStatus = statusFlt === 'all' || itemStatus === statusFlt;
+
+                item.style.display = (matchTerm && matchStatus) ? '' : 'none';
+            });
+        },
+
+        setMatchmakerFy: function (fy) {
+            this.selectedMatchmakerFy = fy;
+            this.renderAssetList();
+            if (this.selectedMatchmakerAssetId) {
+                this.refreshMatchmakerRightPane();
+            }
+        },
+
+        selectMatchmakerAsset: function (assetId) {
+            this.selectedMatchmakerAssetId = String(assetId);
+            this.renderAssetList();
+            this.refreshMatchmakerRightPane();
+        },
+
+        toggleMatchmakerDrawer: function (allocId, event) {
+            if (event) event.stopPropagation();
+            const drawer = document.getElementById(`drawer-${allocId}`);
+            const chevron = document.getElementById(`chevron-${allocId}`);
+            if (drawer) {
+                drawer.classList.toggle('hidden');
+                if (chevron) chevron.classList.toggle('rotate-180');
+            }
+        },
+
+        toggleMultiSelect: function (id, event) {
+            if (event) event.stopPropagation();
+            const dropdown = document.getElementById(`finops-select-dropdown-${id}`);
+            document.querySelectorAll('[id^="finops-select-dropdown-"]').forEach(el => {
+                if (el.id !== `finops-select-dropdown-${id}`) el.classList.add('hidden');
+            });
+            if (dropdown) dropdown.classList.toggle('hidden');
+        },
+
+        filterMatchmakerAllocations: function () {
+            const term = (document.getElementById('matchmaker-alloc-search')?.value || '').toLowerCase().trim();
+
+            const getChecked = (cls) => Array.from(document.querySelectorAll('.' + cls + ':checked')).map(cb => cb.value);
+
+            const sups = getChecked('ms-sup-cb');
+            const les = getChecked('ms-le-cb');
+            const ccs = getChecked('ms-cc-cb');
+            const exps = getChecked('ms-exp-cb');
+
+            const updateLabel = (id, vals, placeholder) => {
+                const display = document.getElementById(`display-${id}`);
+                if (display) {
+                    display.textContent = vals.length > 0 ? `${vals.length} Selected` : placeholder;
+                    display.className = vals.length > 0 ? "truncate text-teal-700 font-black" : "truncate text-slate-500";
+                }
+            };
+
+            updateLabel('sup', sups, 'All Suppliers');
+            updateLabel('le', les, 'All Entities');
+            updateLabel('cc', ccs, 'All CCs');
+            updateLabel('exp', exps, 'All Types');
+
+            const items = document.querySelectorAll('.alloc-item');
+            items.forEach(item => {
+                const iSearch = item.getAttribute('data-search') || '';
+                const iSup = item.getAttribute('data-sup') || '';
+                const iLe = item.getAttribute('data-le') || '';
+                const iCc = item.getAttribute('data-cc') || '';
+                const iExp = item.getAttribute('data-exp') || '';
+
+                const mTerm = term === '' || iSearch.includes(term);
+                const mSup = sups.length === 0 || sups.includes(iSup);
+                const mLe = les.length === 0 || les.includes(iLe);
+                const mCc = ccs.length === 0 || ccs.includes(iCc);
+                const mExp = exps.length === 0 || exps.includes(iExp);
+
+                item.style.display = (mTerm && mSup && mLe && mCc && mExp) ? 'flex' : 'none';
+            });
+        },
+
+        toggleMatchmakerAssociation: function (allocationId, fiscalYear, isChecked) {
+            if (!this.selectedMatchmakerAssetId) return;
+
+            let bridgeList = window.windowPayload.bridge || [];
+            const targetAssetId = this.selectedMatchmakerAssetId;
+            const targetFy = String(fiscalYear).toUpperCase().trim();
+            const targetAlloc = String(allocationId).trim();
+
+            if (isChecked) {
+                const exists = bridgeList.some(b => String(b.assetId) === targetAssetId && String(b.allocationId) === targetAlloc && String(b.fiscalYear).toUpperCase().trim() === targetFy);
+                if (!exists) {
+                    bridgeList.push({
+                        allocationId: targetAlloc,
+                        assetId: targetAssetId,
+                        fiscalYear: targetFy,
+                        validFrom: "",
+                        validTo: "",
+                        comments: "Associated via Matchmaker"
+                    });
+                }
+            } else {
+                window.windowPayload.bridge = bridgeList.filter(b =>
+                    !(String(b.assetId) === targetAssetId && String(b.allocationId) === targetAlloc && String(b.fiscalYear).toUpperCase().trim() === targetFy)
+                );
+            }
+
+            if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
+
+            window.windowPayload = HydrationEngine.enhancePayload(window.windowPayload);
+
+            this.renderAssetList();
+
+            const searchInput = document.getElementById('matchmaker-alloc-search')?.value || '';
+            this.refreshMatchmakerRightPane();
+
+            const newSearchInput = document.getElementById('matchmaker-alloc-search');
+            if (newSearchInput) newSearchInput.value = searchInput;
+            this.filterMatchmakerAllocations();
+        },
+
+        // --- COMPILATORE AREA A: BUDGET LINES (PORTFOLIO) ---
+        compileBudgetLinesWorkspace: function () {
+            const isEditMode = this.getEditModeStatus();
+            const allocs = window.windowPayload.allocations || [];
+
+            const suppliers = this.getUniqueList('suppliers', 'supplier');
+            const costCenters = this.getUniqueList('costCenters', 'costCenter');
+            const legalEntities = this.getUniqueList('legalEntities', 'legalEntity');
+            const expTypes = ['OPEX', 'CAPEX'];
+            const fiscalYears = ['FY26', 'FY27', 'FY28'];
+
+            let rowsHtml = "";
+            allocs.forEach((a, idx) => {
+                const isDirty = !a.allocationName;
+                const trClass = `budget-row hover:bg-slate-50 transition-colors ${isDirty ? 'bg-amber-50/30' : ''}`;
+
+                let idNameCell, fyCell, amountCell, suppCell, leCell, ccCell, expCell, actCell = "";
+
+                if (isEditMode) {
+                    idNameCell = `<input type="text" class="w-full p-1 border border-slate-200 rounded text-[11px] font-bold text-slate-800 focus:ring-1 focus:ring-teal-500" value="${a.allocationName || ''}" placeholder="Type Fund Name..." oninput="SettingsController.syncFieldInput('allocations', ${idx}, 'allocationName', this.value)">`;
+                    amountCell = `<input type="number" class="w-full p-1.5 border border-slate-200 rounded text-[11px] font-mono font-black text-slate-800 text-right focus:ring-1 focus:ring-teal-500" value="${a.amount || 0}" oninput="SettingsController.syncFieldInput('allocations', ${idx}, 'amount', this.value)">`;
+                    fyCell = FinOpsSelect.render({ id: `sel-fy-${idx}`, selectedValue: a.fiscalYear, options: fiscalYears, allowCustom: false, onChange: `SettingsController.syncFieldInput('allocations', ${idx}, 'fiscalYear', value)` });
+                    suppCell = FinOpsSelect.render({ id: `sel-sup-${idx}`, selectedValue: a.supplier, options: suppliers, allowCustom: true, onChange: `SettingsController.syncFieldInput('allocations', ${idx}, 'supplier', value)` });
+                    leCell = FinOpsSelect.render({ id: `sel-le-${idx}`, selectedValue: a.legalEntity, options: legalEntities, allowCustom: true, onChange: `SettingsController.syncFieldInput('allocations', ${idx}, 'legalEntity', value)` });
+                    ccCell = FinOpsSelect.render({ id: `sel-cc-${idx}`, selectedValue: a.costCenter, options: costCenters, allowCustom: true, onChange: `SettingsController.syncFieldInput('allocations', ${idx}, 'costCenter', value)` });
+                    expCell = FinOpsSelect.render({ id: `sel-exp-${idx}`, selectedValue: a.expenditureType, options: expTypes, allowCustom: true, onChange: `SettingsController.syncFieldInput('allocations', ${idx}, 'expenditureType', value)` });
+
+                    actCell = `
+                        <button onclick="SettingsController.deleteRowInline('budgetLines', ${idx})" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>`;
+                } else {
+                    idNameCell = `<div class="font-bold text-slate-800 text-[11px]">${a.allocationName || '-'}</div>`;
+                    fyCell = `<span class="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[9px] font-black uppercase tracking-widest">${a.fiscalYear || '-'}</span>`;
+                    amountCell = `<span class="font-mono font-black text-slate-800 text-[11px]">€ ${parseFloat(a.amount || 0).toLocaleString('en-US')}</span>`;
+                    suppCell = `<span class="font-bold text-slate-600 text-[11px] block truncate max-w-[120px]" title="${a.supplier || ''}">${a.supplier || '-'}</span>`;
+                    leCell = `<span class="font-bold text-slate-500 text-[10px] block truncate max-w-[100px]" title="${a.legalEntity || ''}">${a.legalEntity || '-'}</span>`;
+                    ccCell = `<span class="font-mono text-[10px] text-slate-500 block truncate max-w-[90px]" title="${a.costCenter || ''}">${a.costCenter || '-'}</span>`;
+                    expCell = `<span class="px-1.5 py-0.5 bg-slate-50 text-slate-500 font-black text-[8px] uppercase tracking-widest rounded border border-slate-200/60">${a.expenditureType || '-'}</span>`;
+                }
+
+                rowsHtml += `
+                <tr class="${trClass}" data-search-str="${(a.allocationName + a.supplier + a.costCenter + a.legalEntity).toLowerCase()}">
+                    <td class="p-2.5 w-[20%] align-top">${idNameCell}</td>
+                    <td class="p-2.5 w-[8%] align-top">${fyCell}</td>
+                    <td class="p-2.5 w-[12%] align-top text-right">${amountCell}</td>
+                    <td class="p-2.5 w-[15%] align-top">${suppCell}</td>
+                    <td class="p-2.5 w-[15%] align-top">${leCell}</td>
+                    <td class="p-2.5 w-[15%] align-top">${ccCell}</td>
+                    <td class="p-2.5 w-[10%] align-top">${expCell}</td>
+                    ${isEditMode ? `<td class="p-2.5 text-center align-middle">${actCell}</td>` : ''}
+                </tr>`;
+            });
+
+            return SettingsTemplates.getBudgetLinesWorkspace(rowsHtml, isEditMode);
+        },
+
+        filterBudgetLines: function () {
+            const input = document.getElementById('budget-lines-search');
+            if (!input) return;
+            const term = input.value.toLowerCase().trim();
+            const rows = document.querySelectorAll('#budget-lines-tbody tr');
+            rows.forEach(row => {
+                if (!row.hasAttribute('data-search-str')) return;
+                const match = row.getAttribute('data-search-str').includes(term);
+                row.style.display = match ? '' : 'none';
+            });
+        },
+
+        addNewBudgetLine: function () {
+            if (!window.windowPayload.allocations) window.windowPayload.allocations = [];
+            const autoId = "ALL-" + Math.random().toString(36).substr(2, 5).toUpperCase();
+
+            window.windowPayload.allocations.unshift({
+                allocationId: autoId, allocationName: "", fiscalYear: "FY27", amount: 0, supplier: "", costCenter: "", legalEntity: "", expenditureType: ""
+            });
+            if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
+            this.initSettingsWorkspace();
+        },
+
+        // --- COMPILATORE ANAGRAFICHE STANDARD ---
         compileGenericCrudWorkspace: function (menuKey) {
             const schema = this.RegistrySchema[menuKey];
             const records = window.windowPayload[schema.payloadKey] || [];
             const headers = schema.fields.map(f => f.label);
+            const isEditMode = this.getEditModeStatus();
 
             let rowsHtml = "";
             records.forEach((record, idx) => {
                 const tds = schema.fields.map(f => {
                     const val = record[f.key] || "";
-                    return `<td class="p-2"><input type="text" data-field-key="${f.key}" class="w-full p-1.5 border border-slate-200 rounded-lg text-slate-800 text-xs shadow-3xs outline-none focus:ring-1 focus:ring-teal-500 font-bold" value="${val}" oninput="SettingsController.syncFieldInput('${menuKey}', ${idx}, '${f.key}', this.value)"></td>`;
+                    if (isEditMode) {
+                        return `<td class="p-2"><input type="text" class="w-full p-1.5 border border-slate-200 rounded-lg text-slate-800 text-xs shadow-3xs outline-none focus:ring-1 focus:ring-teal-500 font-bold" value="${val.replace(/"/g, '&quot;')}" oninput="SettingsController.syncFieldInput('${schema.payloadKey}', ${idx}, '${f.key}', this.value)"></td>`;
+                    } else {
+                        return `<td class="p-3 text-slate-700 font-bold text-xs">${val}</td>`;
+                    }
                 }).join('');
 
                 rowsHtml += `
                 <tr class="hover:bg-slate-50/60 transition-colors">
                     ${tds}
+                    ${isEditMode ? `
                     <td class="p-2 text-center">
                         <button onclick="SettingsController.deleteRowInline('${menuKey}', ${idx})" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer outline-none">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         </button>
-                    </td>
+                    </td>` : ''}
                 </tr>`;
             });
 
-            return SettingsTemplates.getGenericCrudTable(schema.title, schema.desc, headers, rowsHtml, menuKey);
+            return SettingsTemplates.getGenericCrudTable(schema.title, schema.desc, headers, rowsHtml, menuKey, isEditMode);
         },
 
-        // --- MOTORE CRUD IN RAM CON CASCADE UPDATE AUTOMATICO ---
-        syncFieldInput: function (menuKey, index, fieldKey, value) {
-            const schema = this.RegistrySchema[menuKey];
-            const record = window.windowPayload[schema.payloadKey][index];
-
-            if (record) {
-                const oldValue = record[fieldKey] || "";
-
-                if (oldValue === value || (fieldKey !== 'supplier' && fieldKey !== 'costCenter' && fieldKey !== 'legalEntity' && fieldKey !== 'category' && fieldKey !== 'location')) {
-                    record[fieldKey] = value;
-                    if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
-                    return;
-                }
-
-                console.log(`🔄 CASCADE UPDATE: Rilevato cambio anagrafica su ${menuKey} [${oldValue} ➔ ${value}]. Allineamento payload in corso...`);
-
-                if (menuKey === 'suppliers' && fieldKey === 'supplier') {
-                    (window.windowPayload.contracts || []).forEach(c => { if (c.supplier === oldValue) c.supplier = value; });
-                    (window.windowPayload.initiatives || []).forEach(i => { if (i.supplier === oldValue) i.supplier = value; });
-                }
-
-                if (menuKey === 'costCenters' && fieldKey === 'costCenter') {
-                    (window.windowPayload.contracts || []).forEach(c => { if (c.costCenter === oldValue) c.costCenter = value; });
-                    (window.windowPayload.allocations || []).forEach(a => { if (a.costCenter === oldValue) a.costCenter = value; });
-                }
-
-                if (menuKey === 'legalEntities' && fieldKey === 'legalEntity') {
-                    (window.windowPayload.contracts || []).forEach(c => { if (c.legalEntity === oldValue) c.legalEntity = value; });
-                    (window.windowPayload.allocations || []).forEach(a => { if (a.legalEntity === oldValue) a.legalEntity = value; });
-                }
-
-                if (menuKey === 'assetCategories' && fieldKey === 'category') {
-                    (window.windowPayload.assets || []).forEach(a => {
-                        if (a.assetCategory === oldValue || a.category === oldValue) {
-                            if (a.assetCategory) a.assetCategory = value;
-                            if (a.category) a.category = value;
-                        }
-                    });
-                }
-
-                if (menuKey === 'locations' && fieldKey === 'location') {
-                    (window.windowPayload.contracts || []).forEach(c => { if (c.location === oldValue) c.location = value; });
-                }
-
-                record[fieldKey] = value;
-
-                window.windowPayload = HydrationEngine.enhancePayload(window.windowPayload);
+        syncFieldInput: function (payloadKey, index, fieldKey, value) {
+            const targetListKey = this.RegistrySchema[payloadKey] ? this.RegistrySchema[payloadKey].payloadKey : payloadKey;
+            const list = window.windowPayload[targetListKey];
+            if (list && list[index]) {
+                list[index][fieldKey] = value;
                 if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
             }
         },
@@ -256,66 +543,27 @@
             schema.fields.forEach(f => newRecord[f.key] = "");
 
             if (!window.windowPayload[schema.payloadKey]) window.windowPayload[schema.payloadKey] = [];
-            window.windowPayload[schema.payloadKey].push(newRecord);
+            window.windowPayload[schema.payloadKey].unshift(newRecord);
 
             if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
             this.initSettingsWorkspace();
         },
 
         deleteRowInline: function (menuKey, index) {
-            const schema = this.RegistrySchema[menuKey];
-            FinOpsUI.showConfirm(
-                "Remove Master Data Record?",
-                "Are you entirely sure you want to delete this structural lookup record from local memory?",
-                () => {
-                    window.windowPayload[schema.payloadKey].splice(index, 1);
-                    if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
-                    this.initSettingsWorkspace();
+            const payloadKey = this.RegistrySchema[menuKey] ? this.RegistrySchema[menuKey].payloadKey : menuKey;
+
+            FinOpsUI.showConfirm("Remove Record?", "Are you sure you want to delete this record?", () => {
+                window.windowPayload[payloadKey].splice(index, 1);
+                if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
+
+                if (payloadKey === 'bridge' || payloadKey === 'allocations') {
+                    window.windowPayload = HydrationEngine.enhancePayload(window.windowPayload);
                 }
-            );
+
+                this.initSettingsWorkspace();
+            });
         },
 
-        saveAllocationsLocally: function () {
-            if (this.currentMenuKey === 'budget') {
-                const rows = document.querySelectorAll('.budget-row');
-                rows.forEach(row => {
-                    const assetId = row.getAttribute('data-asset-id');
-                    const assetName = row.getAttribute('data-asset-name');
-                    const detailRow = document.getElementById(`detail-row-${assetId}`);
-                    const supplierVal = detailRow ? detailRow.querySelector('.meta-input-supplier').value.trim() : "";
-                    const legalVal = detailRow ? detailRow.querySelector('.meta-input-legal').value.trim() : "";
-                    const ccVal = detailRow ? detailRow.querySelector('.meta-input-cc').value.trim() : "";
-                    const fYears = ["FY26", "FY27", "FY28"];
-
-                    fYears.forEach(fy => {
-                        const inputEl = row.querySelector(`.budget-input-${fy.toLowerCase()}`);
-                        if (!inputEl) return;
-                        const amountValue = parseFloat(inputEl.value) || 0;
-                        const allocId = `ALL-${assetId}-${fy}`;
-
-                        window.windowPayload.bridge = (window.windowPayload.bridge || []).filter(b => !(String(b.assetId).trim() === assetId && String(b.fiscalYear).toUpperCase().trim() === fy));
-                        window.windowPayload.allocations = (window.windowPayload.allocations || []).filter(a => String(a.allocationId).trim() !== allocId);
-
-                        if (amountValue > 0 || supplierVal || legalVal || ccVal) {
-                            window.windowPayload.allocations.push({
-                                allocationId: allocId, allocationName: `Budget ${assetName} ${fy}`, fiscalYear: fy, amount: amountValue, supplier: supplierVal, costCenter: ccVal, legalEntity: legalVal, expenditureType: ""
-                            });
-                            window.windowPayload.bridge.push({
-                                allocationId: allocId, assetId: assetId, fiscalYear: fy, validFrom: "", validTo: "", comments: "Generated via Settings Control Center"
-                            });
-                        }
-                    });
-                });
-            }
-
-            console.log("⚙️ SETTINGS CORE: Esecuzione JIT enhancement...");
-            window.windowPayload = HydrationEngine.enhancePayload(window.windowPayload);
-            if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
-            this.initSettingsWorkspace();
-            FinOpsUI.showNotificationBanner("Local registry states recalculated. Push synchronization required.", "warning");
-        },
-
-        // --- PERSISTENZA REMOTA AGNOSTICA DI TUTTE LE ANAGRAFICHE ---
         syncMasterDataEcosystem: function () {
             showLoading();
 
@@ -345,7 +593,7 @@
                         if (typeof ProjectionsState !== 'undefined') ProjectionsState.loadPayload(windowPayload);
 
                         SettingsController.initSettingsWorkspace();
-                        FinOpsUI.showNotificationBanner("Master Data Center synchronized successfully!", "success");
+                        FinOpsUI.showNotificationBanner("Settings Workspace synchronized successfully!", "success");
                     } else {
                         FinOpsUI.showAlert("Sync Error", response.message || "Pipeline error.");
                     }
@@ -354,7 +602,7 @@
                     hideLoading();
                     FinOpsUI.showAlert("Cloud Sync Failed", err.message);
                 })
-                .processMasterDataEcosystemSync(cleanPayload); // Rotta allineata al 100%
+                .processMasterDataEcosystemSync(cleanPayload);
         }
     };
 </script>

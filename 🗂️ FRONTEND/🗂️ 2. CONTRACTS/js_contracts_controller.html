@@ -479,9 +479,13 @@
             if (masterId) {
                 ContractsState.loadMasterDetails(masterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
                 const masterObj = windowPayload.masterContracts.find(m => m.masterId === masterId);
-                const assetName = masterObj ? masterObj.assetName : null;
-                const assetMatch = windowPayload.assets.find(a => a.name === assetName);
-                if (assetMatch) ContractsState.currentSelectedAsset = { name: assetMatch.name, id: assetMatch.id };
+
+                // CORREZIONE: Risoluzione del DTO basata su assetId (camelCase puro) e non sul nome dell'asset
+                const assetId = masterObj ? masterObj.assetId : null;
+                const assetMatch = windowPayload.assets.find(a => String(a.id).trim() === String(assetId).trim());
+                if (assetMatch) {
+                    ContractsState.currentSelectedAsset = { name: assetMatch.name, id: assetMatch.id };
+                }
             }
 
             const data = ContractsState.currentMasterData;
@@ -853,6 +857,141 @@
         removeRowFromLocalArchitecture: function (id) {
             ContractsState.removeDetailRow(id);
             renderDetailItemsTable();
+        },
+
+        saveCurrentContract: function () {
+            if (!ContractsState.currentSelectedAsset) return;
+
+            if (!ContractsState.currentMasterData) {
+                const currentAsset = ContractsState.currentSelectedAsset.id;
+                const assetMasters = (windowPayload.masterContracts || []).filter(m =>
+                    String(m.assetId).trim().toLowerCase() === String(currentAsset).trim().toLowerCase()
+                );
+
+                if (assetMasters.length > 0) {
+                    const targetMasterId = ContractsState.lastDirtyMasterId ||
+                        (assetMasters.find(m => String(m.masterId).startsWith("TMP-")) || assetMasters[0]).masterId;
+
+                    ContractsState.loadMasterDetails(targetMasterId, windowPayload.masterContracts, windowPayload.contracts, windowPayload.allocationSplits, windowPayload.ledger);
+                    ContractsState.lastDirtyMasterId = null;
+                } else if ((ContractsState.deletedMasterIds && ContractsState.deletedMasterIds.length > 0) || (ContractsState.deletedContractIds && ContractsState.deletedContractIds.length > 0)) {
+                    // Creates a dummy envelope to safely transmit explicit deletions to the server if there are no active masters
+                    ContractsState.currentMasterData = { masterId: "PUDGE_OP", childContracts: [], supplier: "DUMMY", contractLinks: "" };
+                    ContractsState.currentDetailItems = [];
+                } else {
+                    FinOpsUI.showNotificationBanner("No Master Agreement modifications detected to synchronize for this asset.", "warning");
+                    return;
+                }
+            }
+
+            const isEditingExistingMaster = ContractsState.isMasterEditable && ContractsState.currentMasterData.masterId !== "" && ContractsState.currentMasterData.masterId !== "PUDGE_OP";
+            const hasOpenEdits = isEditingExistingMaster || ContractsState.currentDetailItems.some(item => item.isEditing);
+            if (hasOpenEdits) {
+                FinOpsUI.showNotificationBanner("There are active forms still in edit mode. Please click 'Apply' or 'Confirm Master Changes' before performing the global push.", "warning");
+                return;
+            }
+
+            if (ContractsState.isMasterEditable && ContractsState.currentMasterData.masterId !== "PUDGE_OP") {
+                ContractsState.currentMasterData.supplier = document.getElementById('ins-masterSupplier').value;
+                ContractsState.currentMasterData.masterScope = document.getElementById('ins-masterScope').value.trim();
+                ContractsState.currentMasterData.masterComments = document.getElementById('ins-masterComments').value.trim();
+                if (document.getElementById('ins-previousMasterId')) {
+                    ContractsState.currentMasterData.previousMasterId = document.getElementById('ins-previousMasterId').value.trim();
+                }
+            }
+
+            const mId = ContractsState.currentMasterData.masterId || (document.getElementById('ins-masterId') ? document.getElementById('ins-masterId').value.trim() : "");
+            const prevMId = ContractsState.currentMasterData.previousMasterId || "";
+            const spl = ContractsState.currentMasterData.supplier;
+
+            const payload = {
+                assetName: ContractsState.currentSelectedAsset.name,
+                assetId: ContractsState.currentSelectedAsset.id,
+                masterId: mId,
+                previousMasterId: prevMId,
+                supplier: spl,
+                masterScope: ContractsState.currentMasterData.masterScope,
+                masterComments: ContractsState.currentMasterData.masterComments,
+                contractLinks: ContractsState.currentMasterData.contractLinks,
+                billingChannel: ContractsState.currentMasterData.billingChannel || "",
+                suppliers: (windowPayload.suppliers || []).filter(s => String(s.supplier).trim().toLowerCase() === String(spl).trim().toLowerCase()),
+                initiatives: mId && mId.trim() !== "" ? (windowPayload.initiatives || []).filter(i => String(i.masterId).trim().toLowerCase() === mId.trim().toLowerCase()) : [],
+
+                // Attaching the trash bin contents with explicit deletions
+                deletedContractIds: ContractsState.deletedContractIds || [],
+                deletedMasterIds: ContractsState.deletedMasterIds || [],
+
+                details: ContractsState.currentDetailItems.map(item => {
+                    const contract = new Contract(item.data);
+                    const cleanExport = contract.exportToData();
+                    cleanExport.splits = item.splits || [];
+                    cleanExport.ledger = item.ledger || [];
+                    return cleanExport;
+                })
+            };
+
+            if (!payload.supplier) {
+                FinOpsUI.showNotificationBanner("Supplier selection at Master level is required.", "warning");
+                return;
+            }
+
+            showLoading();
+
+            ContractsAPI.syncArchitectureToBackend(payload,
+                (res) => {
+                    hideLoading();
+                    if (res && res.status === "SUCCESS") {
+                        FinOpsUI.showNotificationBanner("Architecture synchronized successfully.", "success");
+
+                        // Clearing local buffers after sync is complete
+                        ContractsState.deletedContractIds = [];
+                        ContractsState.deletedMasterIds = [];
+
+                        windowPayload.masterContracts = res.masterContracts || [];
+                        windowPayload.contracts = res.contracts || [];
+                        windowPayload.allocationSplits = res.allocationSplits || [];
+                        windowPayload.ledger = res.ledger || [];
+
+                        if (typeof HydrationEngine !== 'undefined') {
+                            HydrationEngine.hydrateAllStatuses(windowPayload);
+                        }
+
+                        windowPayload.projections = ProjectionsEngine.calculateAll(
+                            windowPayload.contracts,
+                            windowPayload.initiatives,
+                            windowPayload.masterContracts,
+                            windowPayload.ledger
+                        );
+
+                        if (typeof window.originalPayloadSnapshot !== 'undefined') {
+                            window.originalPayloadSnapshot = JSON.parse(JSON.stringify(windowPayload));
+                        }
+
+                        if (window.ContractsController && window.ContractsController.closeContractModalWindow) {
+                            window.ContractsController.closeContractModalWindow();
+                        }
+                        setPendingChanges(false);
+
+                        ContractsState.currentMasterData = null;
+
+                        if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined') {
+                            InventoryController.initWorkspace();
+                            if (InventoryState.expandedAssetId) {
+                                const targetAssetId = ContractsState.currentSelectedAsset.id;
+                                const assetObj = globalCachedData.find(a => String(a.id).trim() === String(targetAssetId).trim());
+
+                                if (assetObj) {
+                                    InventoryState.loadAssetDrillDownData(assetObj.id);
+                                    InventoryController.renderContractsTabContent(InventoryState.expandedAssetId);
+                                }
+                            }
+                        }
+                    } else {
+                        FinOpsUI.showNotificationBanner("Sync failed: unexpected execution outcome from server.", "error");
+                    }
+                },
+                (err) => { hideLoading(); FinOpsUI.showNotificationBanner("Sync error: " + err.message, "error"); }
+            );
         }
     };
 </script>

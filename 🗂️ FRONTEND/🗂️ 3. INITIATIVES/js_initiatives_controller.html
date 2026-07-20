@@ -76,13 +76,13 @@
                 let b26 = 0, o26 = 0, b27 = 0, o27 = 0, b28 = 0, o28 = 0;
 
                 (windowPayload.projections || []).forEach(p => {
-                    if (targetContractIds.includes(p["Contract ID"])) {
-                        b26 += p["FY26 Baseline"] || 0;
-                        o26 += p["FY26 Optimized"] || 0;
-                        b27 += p["FY27 Baseline"] || 0;
-                        o27 += p["FY27 Optimized"] || 0;
-                        b28 += p["FY28 Baseline"] || 0;
-                        o28 += p["FY28 Optimized"] || 0;
+                    if (targetContractIds.includes(p.contractId)) {
+                        b26 += p.fy26Baseline || 0;
+                        o26 += p.fy26Optimized || 0;
+                        b27 += p.fy27Baseline || 0;
+                        o27 += p.fy27Optimized || 0;
+                        b28 += p.fy28Baseline || 0;
+                        o28 += p.fy28Optimized || 0;
                     }
                 });
 
@@ -176,13 +176,13 @@
             let b26 = 0, o26 = 0, b27 = 0, o27 = 0, b28 = 0, o28 = 0;
 
             (windowPayload.projections || []).forEach(p => {
-                if (targetContractIds.includes(p["Contract ID"])) {
-                    b26 += p["FY26 Baseline"] || 0;
-                    o26 += p["FY26 Optimized"] || 0;
-                    b27 += p["FY27 Baseline"] || 0;
-                    o27 += p["FY27 Optimized"] || 0;
-                    b28 += p["FY28 Baseline"] || 0;
-                    o28 += p["FY28 Optimized"] || 0;
+                if (targetContractIds.includes(p.ccontractId)) {
+                    b26 += p.fy26Baseline || 0;
+                    o26 += p.fy26Optimized || 0;
+                    b27 += p.fy27Baseline || 0;
+                    o27 += p.fy27Optimized || 0;
+                    b28 += p.fy28Baseline || 0;
+                    o28 += p.fy28Optimized || 0;
                 }
             });
 

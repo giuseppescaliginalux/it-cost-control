@@ -1,11 +1,10 @@
 <script>
     /**
      * js_settings_templates.html
-     * VIEW TEMPLATES: Layout Split Master-Detail per il Master Data Control Center.
+     * VIEW TEMPLATES: Layout per il Master Data, Budget Hub e Matchmaker Interattivo.
      */
     const SettingsTemplates = {
 
-        // --- 1. LAYOUT PRINCIPALE (SIDEBAR + WORKSPACE) ---
         getMainLayout: function (activeMenuKey, menuItems, crudWorkspaceHtml) {
             const sidebarLinksHtml = menuItems.map(item => {
                 const isActive = item.key === activeMenuKey;
@@ -21,113 +20,340 @@
             }).join('');
 
             return `
-            <div class="animate-fade-in w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex gap-6 min-h-[650px]">
-                <!-- SIDEBAR ANAGRAFICHE SINISTRA (Fissa) -->
-                <div class="w-1/4 border-r border-slate-100 pr-4 flex flex-col gap-4 shrink-0 select-none">
-                    <div>
-                        <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-2">Master Data Framework</h3>
-                        <div class="flex flex-col gap-1">
-                            ${sidebarLinksHtml}
-                        </div>
+            <div class="animate-fade-in w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex gap-6 min-h-[650px] max-h-[85vh] relative">
+                
+                <!-- MAIN SIDEBAR (Collapsible) -->
+                <div id="settings-master-sidebar" class="w-1/5 min-w-[200px] border-r border-slate-100 pr-4 flex flex-col shrink-0 select-none transition-all duration-300 relative group">
+                    <button onclick="SettingsController.toggleSidebar()" class="absolute -right-3 top-4 w-6 h-6 bg-white border border-slate-200 rounded-full shadow-sm flex items-center justify-center text-slate-400 hover:text-teal-600 hover:bg-teal-50 transition-colors z-[20] cursor-pointer" title="Toggle Master Menu">
+                        <svg id="sidebar-chevron" class="w-3 h-3 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+
+                    <div id="settings-sidebar-content" class="flex flex-col gap-1 transition-opacity duration-300 overflow-hidden w-full whitespace-nowrap">
+                        <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-2">Master Data</h3>
+                        ${sidebarLinksHtml}
                     </div>
                 </div>
 
-                <!-- WORKSPACE DI GESTIONE DESTRO (Dinamico) -->
-                <div class="flex-1 flex flex-col justify-between overflow-hidden">
-                    <div class="w-full overflow-y-auto pr-1 space-y-4 custom-scrollbar">
+                <div class="flex-1 flex flex-col justify-between overflow-hidden relative">
+                    <div class="w-full h-full overflow-y-auto pr-1 custom-scrollbar">
                         ${crudWorkspaceHtml}
                     </div>
                 </div>
             </div>`;
         },
 
-        // --- 2. TEMPLATE PER LE ANAGRAFICHE DIZIONARIO (CRUD) ---
-        getGenericCrudTable: function (title, description, headers, rowsHtml, entityKey) {
+        // --- TEMPLATE: BUDGET LINES (AREA A) ---
+        getBudgetLinesWorkspace: function (rowsHtml, isEditMode) {
             return `
-            <div class="border-b border-slate-100 pb-4 flex justify-between items-center bg-transparent mb-4">
-                <div>
-                    <h2 class="text-lg font-black text-slate-800 uppercase tracking-widest">${title}</h2>
-                    <p class="text-xs text-slate-500 mt-0.5 font-medium">${description}</p>
+            <div class="border-b border-slate-100 pb-4 mb-4 flex flex-col gap-4 sticky top-0 bg-white z-20">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h2 class="text-lg font-black text-slate-800 uppercase tracking-widest">Budget Lines Portfolio</h2>
+                        <p class="text-xs text-slate-500 mt-0.5 font-medium">Anagrafica dei fondi stanziati e delle coordinate contabili.</p>
+                    </div>
+                    ${isEditMode ? `
+                    <button onclick="SettingsController.addNewBudgetLine()" class="px-4 py-2 bg-teal-800 hover:bg-teal-900 text-white text-[10px] font-black uppercase tracking-wider rounded-xl shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer">
+                        <svg class="w-3.5 h-3.5 text-teal-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
+                        Add Budget Line
+                    </button>` : `
+                    <div class="px-3 py-1.5 bg-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-wider rounded-xl flex items-center gap-1.5 border border-slate-200">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+                        Read Only
+                    </div>`}
                 </div>
-                <button onclick="SettingsController.addNewRowInline('${entityKey}')" 
-                        class="px-4 py-2 bg-teal-800 hover:bg-teal-900 text-white text-[10px] font-black uppercase tracking-wider rounded-xl shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer">
-                    <svg class="w-3.5 h-3.5 text-teal-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
-                    Add Record
-                </button>
+                
+                <div class="flex gap-3 items-center bg-slate-50 p-2 rounded-xl border border-slate-200 shadow-inner">
+                    <div class="flex-1 relative">
+                        <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                        <input type="text" id="budget-lines-search" onkeyup="SettingsController.filterBudgetLines()" placeholder="Search by name, supplier, or cost center..." class="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:ring-1 focus:ring-teal-500 font-medium outline-none">
+                    </div>
+                </div>
             </div>
             
-            <div class="border border-slate-200 rounded-xl overflow-hidden shadow-3xs bg-white">
+            <div class="border border-slate-200 rounded-xl shadow-3xs bg-white">
                 <table class="w-full text-left text-xs border-collapse">
                     <thead>
-                        <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-black uppercase tracking-widest text-[9px] select-none">
-                            ${headers.map(h => `<th class="p-3">${h}</th>`).join('')}
-                            <th class="p-3 w-16 text-center">Action</th>
+                        <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-black uppercase tracking-widest text-[8px] select-none">
+                            <th class="p-2.5">Fund Name</th>
+                            <th class="p-2.5">FY</th>
+                            <th class="p-2.5 text-right">Amount (€)</th>
+                            <th class="p-2.5">Supplier</th>
+                            <th class="p-2.5">Legal Entity</th>
+                            <th class="p-2.5">Cost Center</th>
+                            <th class="p-2.5">Type</th>
+                            ${isEditMode ? `<th class="p-2.5 w-10 text-center">Act</th>` : ''}
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-slate-100 text-slate-700 font-medium" id="crud-registry-tbody">
-                        ${rowsHtml || `<tr><td colspan="${headers.length + 1}" class="p-8 text-center text-slate-400 italic text-[11px]">No operational data loaded in this registry. Click Add Record to compile.</td></tr>`}
+                    <tbody class="divide-y divide-slate-100 text-slate-700 font-medium" id="budget-lines-tbody">
+                        ${rowsHtml || `<tr><td colspan="8" class="p-8 text-center text-slate-400 italic text-[11px]">No budget lines mapped.</td></tr>`}
                     </tbody>
                 </table>
             </div>`;
         },
 
-        // --- 3. TEMPLATE SPECIFICI PER IL BUDGET ENGINE (Reintrodotti) ---
-        getSidebarLayout: function (rowsHtml) {
+        // --- TEMPLATE: ASSET COVERAGE MATCHMAKER (AREA B) ---
+        getAssetCoverageWorkspace: function (assetListHtml, detailHtml, isEditMode) {
             return `
-            <div class="border-b border-slate-100 pb-4 flex justify-between items-center bg-transparent mb-4">
-                <div>
-                    <h2 class="text-lg font-black text-slate-800 uppercase tracking-widest">Asset Budget Allocation Engine</h2>
-                    <p class="text-xs text-slate-500 mt-0.5 font-medium">Gestione degli stanziamenti pluriennali e delle coordinate contabili per asset.</p>
+            <div class="flex flex-col h-full space-y-4">
+                <div class="border-b border-slate-100 pb-2 flex justify-between items-center bg-transparent sticky top-0 bg-white z-20">
+                    <div>
+                        <h2 class="text-lg font-black text-slate-800 uppercase tracking-widest">Asset Coverage Matchmaker</h2>
+                    </div>
+                    ${!isEditMode ? `
+                    <div class="px-3 py-1.5 bg-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-wider rounded-xl flex items-center gap-1.5 border border-slate-200">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+                        Read Only
+                    </div>` : `
+                    <div class="px-3 py-1.5 bg-teal-50 text-teal-700 text-[10px] font-black uppercase tracking-wider rounded-xl flex items-center gap-1.5 border border-teal-200">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                        Editing Active
+                    </div>
+                    `}
                 </div>
-                <button onclick="SettingsController.saveAllocationsLocally()" 
-                        class="px-4 py-2 bg-teal-800 hover:bg-teal-900 text-white text-[10px] font-black uppercase tracking-wider rounded-xl shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5">
-                    <svg class="w-3.5 h-3.5 text-teal-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
-                    Apply in RAM
-                </button>
-            </div>
-            <div class="space-y-4 pb-12">
-                ${rowsHtml || '<div class="p-8 text-center text-slate-400 italic text-[11px]">Nessun asset disponibile per l\'allocazione.</div>'}
+
+                <div class="flex gap-4 h-[calc(100%-40px)]">
+                    <div class="w-1/3 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden shadow-inner flex flex-col h-full">
+                        <div class="p-2 border-b border-slate-200 bg-white flex flex-col gap-2">
+                            <div class="flex gap-1 bg-slate-100 p-1 rounded-lg">
+                                <button onclick="SettingsController.setAssetFilter('all')" id="flt-ast-all" class="ast-flt-btn flex-1 py-1 text-[9px] font-black uppercase tracking-wider rounded bg-white text-slate-800 shadow-sm transition-all">All</button>
+                                <button onclick="SettingsController.setAssetFilter('secured')" id="flt-ast-secured" class="ast-flt-btn flex-1 py-1 text-[9px] font-black uppercase tracking-wider rounded text-slate-500 hover:text-slate-700 transition-all">Secured</button>
+                                <button onclick="SettingsController.setAssetFilter('risk')" id="flt-ast-risk" class="ast-flt-btn flex-1 py-1 text-[9px] font-black uppercase tracking-wider rounded text-slate-500 hover:text-slate-700 transition-all">Risk</button>
+                                <button onclick="SettingsController.setAssetFilter('unbudgeted')" id="flt-ast-unbudgeted" class="ast-flt-btn flex-1 py-1 text-[9px] font-black uppercase tracking-wider rounded text-slate-500 hover:text-slate-700 transition-all">No Budg</button>
+                            </div>
+                            <div class="relative">
+                                <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2 top-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                <input type="text" id="matchmaker-asset-search" onkeyup="SettingsController.filterMatchmakerAssets()" placeholder="Search asset..." class="w-full pl-7 pr-2 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-teal-500 font-medium outline-none">
+                            </div>
+                        </div>
+                        <div class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1" id="matchmaker-asset-list">
+                            ${assetListHtml || '<div class="text-center text-slate-400 text-[10px] italic py-6">Initializing Matchmaker...</div>'}
+                        </div>
+                    </div>
+
+                    <div class="w-2/3 h-full flex flex-col gap-3 overflow-hidden" id="matchmaker-detail-pane">
+                        ${detailHtml}
+                    </div>
+                </div>
             </div>`;
         },
 
-        getAssetRow: function (assetId, assetName, fy26, fy27, fy28, supplier, legalEntity, costCenter) {
+        getMatchmakerAssetItem: function (asset, isSelected, bridgeCount, status, pct) {
+            const activeClass = isSelected ? "bg-teal-600 text-white shadow-md border-teal-700" : "bg-white text-slate-700 hover:bg-slate-100 border-slate-200";
+            const badgeClass = isSelected ? "bg-teal-500 text-white border-teal-400" : "bg-slate-100 text-slate-500 border-slate-200";
+
+            let statusDot = "";
+            let statusText = "";
+            let statusTextClass = "";
+
+            if (status === 'secured') {
+                statusDot = isSelected ? "bg-white" : "bg-emerald-500";
+                statusText = "Secured";
+                statusTextClass = isSelected ? "text-teal-100" : "text-emerald-600";
+            } else if (status === 'risk') {
+                statusDot = isSelected ? "bg-amber-300" : "bg-amber-500";
+                statusText = "At Risk";
+                statusTextClass = isSelected ? "text-teal-100" : "text-amber-600";
+            } else {
+                statusDot = isSelected ? "bg-teal-400" : "bg-slate-300";
+                statusText = "Unbudgeted";
+                statusTextClass = isSelected ? "text-teal-100" : "text-slate-400";
+            }
+
+            const pctColor = isSelected ? "text-teal-100" : "text-slate-400";
+            const dispPct = pct >= 999 ? '>999' : pct.toFixed(0);
+
             return `
-            <div class="budget-row border border-slate-200 rounded-xl p-5 bg-white shadow-sm" data-asset-id="${assetId}" data-asset-name="${assetName}">
-                <div class="flex justify-between items-center mb-4">
-                    <div class="font-black text-slate-800">${assetName} <span class="text-[10px] font-mono text-slate-400 font-medium ml-2">${assetId}</span></div>
+            <div id="asset-item-${asset.id}" class="asset-item cursor-pointer p-2.5 border rounded-lg transition-all flex flex-col gap-2 ${activeClass}" onclick="SettingsController.selectMatchmakerAsset('${asset.id}')" data-name="${(asset.name || '').toLowerCase()}" data-status="${status}">
+                <div class="flex justify-between items-start">
+                    <div class="text-[11px] font-black truncate pr-2 leading-tight">${asset.name}</div>
+                    <span id="asset-badge-${asset.id}" class="px-1.5 py-0.5 rounded border text-[9px] font-black shrink-0 leading-none ${badgeClass}" title="Assigned Budget Lines">${bridgeCount}</span>
                 </div>
-                
-                <!-- Quantità (Budget) -->
-                <div class="grid grid-cols-3 gap-4 mb-4">
-                    <div>
-                        <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">FY26 Budget</label>
-                        <input type="number" class="budget-input-fy26 w-full p-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-teal-500" value="${fy26}">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-1.5 bg-black/5 px-1.5 py-0.5 rounded-full">
+                        <span class="w-1.5 h-1.5 rounded-full ${statusDot}"></span>
+                        <span class="text-[8px] font-black uppercase tracking-wider ${statusTextClass}">${statusText}</span>
                     </div>
-                    <div>
-                        <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">FY27 Budget</label>
-                        <input type="number" class="budget-input-fy27 w-full p-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-teal-500" value="${fy27}">
+                    <span class="text-[9px] font-mono font-black ${pctColor}">${dispPct}% Cov.</span>
+                </div>
+            </div>`;
+        },
+
+        getFinOpsMultiSelect: function (id, placeholder, options) {
+            const optsHtml = options.map(opt => `
+                <label class="flex items-center gap-1.5 p-1.5 hover:bg-teal-50 cursor-pointer text-[9px] font-bold text-slate-700 transition-colors">
+                    <input type="checkbox" value="${opt.replace(/"/g, '&quot;')}" onchange="SettingsController.filterMatchmakerAllocations()" class="w-3 h-3 text-teal-600 rounded border-slate-300 focus:ring-teal-600 cursor-pointer ms-${id}-cb">
+                    <span class="truncate">${opt}</span>
+                </label>
+            `).join('');
+
+            return `
+            <div class="relative finops-select-container flex-1 min-w-[80px]" id="finops-select-wrapper-${id}">
+                <div onclick="SettingsController.toggleMultiSelect('${id}', event)" class="w-full p-1.5 bg-white border border-slate-200 rounded text-[9px] font-bold text-slate-500 shadow-3xs cursor-pointer flex justify-between items-center hover:border-teal-400 transition-colors">
+                    <span id="display-${id}" class="truncate">${placeholder}</span>
+                    <svg class="w-3 h-3 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                </div>
+                <div id="finops-select-dropdown-${id}" class="hidden absolute left-0 right-0 top-full mt-1 max-h-40 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-xl z-[99999] p-1 flex flex-col custom-scrollbar">
+                    ${optsHtml || '<div class="p-2 text-slate-400 italic text-[9px] text-center">No options</div>'}
+                </div>
+            </div>`;
+        },
+
+        getMatchmakerDetailMarkup: function (asset, outlookVal, coverageVal, allocsHtml, suppliers, legalEntities, costCenters, expTypes, fys, selectedFy) {
+            const fmt = val => val.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+            const varVal = coverageVal - outlookVal;
+            const isSecured = varVal >= 0 && coverageVal > 0;
+            const pct = outlookVal > 0 ? Math.min(100, (coverageVal / outlookVal) * 100) : (coverageVal > 0 ? 100 : 0);
+            const barColor = isSecured ? 'bg-emerald-500' : 'bg-rose-500';
+            const textColor = isSecured ? 'text-emerald-600' : 'text-rose-600';
+            const sign = varVal >= 0 ? '+' : '';
+
+            const fyPills = fys.map(fy => `
+                <button onclick="SettingsController.setMatchmakerFy('${fy}')" class="px-4 py-1.5 rounded-full text-[10px] font-black tracking-widest uppercase transition-all ${fy === selectedFy ? 'bg-teal-600 text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}">
+                    ${fy}
+                </button>
+            `).join('');
+
+            return `
+            <!-- Pannello Superiore (Varianza a tutto schermo) -->
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm shrink-0">
+                <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-teal-50 rounded-full flex items-center justify-center text-teal-600 border border-teal-100">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+                        </div>
+                        <h3 class="text-sm font-black text-slate-800 uppercase tracking-widest">${asset.name}</h3>
                     </div>
-                    <div>
-                        <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">FY28 Budget</label>
-                        <input type="number" class="budget-input-fy28 w-full p-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-teal-500" value="${fy28}">
+                    <div class="flex gap-2">
+                        ${fyPills}
                     </div>
                 </div>
-                
-                <!-- Coordinate Anagrafiche -->
-                <div id="detail-row-${assetId}" class="grid grid-cols-3 gap-4 border-t border-slate-100 pt-4">
-                    <div>
-                        <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Supplier</label>
-                        <input type="text" class="meta-input-supplier w-full p-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-teal-500" value="${supplier}">
+
+                <div class="flex flex-col bg-slate-50 p-3 rounded-xl border border-slate-200 shadow-inner">
+                    <div class="flex justify-between items-end mb-2">
+                        <span class="text-[11px] font-black text-slate-400 uppercase tracking-widest">${selectedFy} COVERAGE</span>
+                        <div class="text-right">
+                            <span class="font-mono text-[13px] font-black text-slate-800">€ ${fmt(coverageVal)}</span>
+                            <span class="text-[10px] font-bold text-slate-400"> / €${fmt(outlookVal)}</span>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Legal Entity</label>
-                        <input type="text" class="meta-input-legal w-full p-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-teal-500" value="${legalEntity}">
+                    <div class="h-2.5 w-full bg-slate-200 rounded-full overflow-hidden mb-2">
+                        <div class="h-full ${barColor} transition-all duration-500" style="width: ${pct}%"></div>
                     </div>
-                    <div>
-                        <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Cost Center</label>
-                        <input type="text" class="meta-input-cc w-full p-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-teal-500" value="${costCenter}">
+                    <div class="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest">
+                        <span class="text-slate-500">Variance:</span>
+                        <span class="${textColor} font-black font-mono">${sign}€ ${fmt(varVal)}</span>
                     </div>
                 </div>
+            </div>
+
+            <!-- Pannello Inferiore (Filtri e Lista con Drawers) -->
+            <div class="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
+                <div class="p-2.5 border-b border-slate-100 bg-slate-50 flex flex-col gap-2">
+                    <div class="flex gap-2 w-full">
+                        <div class="flex-1 min-w-[120px] relative">
+                            <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2 top-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                            <input type="text" id="matchmaker-alloc-search" onkeyup="SettingsController.filterMatchmakerAllocations()" placeholder="Search in ${selectedFy}..." class="w-full pl-7 pr-2 py-1.5 text-[10px] border border-slate-200 rounded focus:ring-1 focus:ring-teal-500 font-medium outline-none bg-white shadow-inner">
+                        </div>
+                        ${this.getFinOpsMultiSelect('sup', 'All Suppliers', suppliers)}
+                        ${this.getFinOpsMultiSelect('le', 'All Entities', legalEntities)}
+                        ${this.getFinOpsMultiSelect('cc', 'All CCs', costCenters)}
+                        ${this.getFinOpsMultiSelect('exp', 'All Types', expTypes)}
+                    </div>
+                </div>
+                <div class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2">
+                    ${allocsHtml || `<p class="text-center text-slate-400 text-[10px] italic py-6">No budget lines configured for ${selectedFy}.</p>`}
+                </div>
+            </div>`;
+        },
+
+        getMatchmakerAllocationRow: function (alloc, isAssociated, isEditMode, sharingCount, drawerHtml) {
+            const fmt = val => parseFloat(val || 0).toLocaleString('en-US');
+            const bgClass = isAssociated ? 'bg-teal-50 border-teal-300 shadow-sm' : 'bg-white border-slate-200 hover:border-slate-300';
+
+            const sName = (alloc.allocationName || '').toLowerCase().replace(/"/g, '&quot;');
+            const sSup = (alloc.supplier || '').replace(/"/g, '&quot;');
+            const sLe = (alloc.legalEntity || '').replace(/"/g, '&quot;');
+            const sCc = (alloc.costCenter || '').replace(/"/g, '&quot;');
+            const sExp = (alloc.expenditureType || '').replace(/"/g, '&quot;');
+
+            return `
+            <div class="alloc-item border rounded-lg flex flex-col transition-all mb-2 ${bgClass}" data-search="${sName}" data-sup="${sSup}" data-le="${sLe}" data-cc="${sCc}" data-exp="${sExp}">
+                <div class="p-3 flex items-center gap-4">
+                    <div class="flex-1 min-w-0 flex flex-col">
+                        <div class="flex items-center gap-2 mb-1.5">
+                            <span class="px-1.5 py-0.5 bg-slate-100 text-slate-500 font-black text-[9px] uppercase tracking-widest rounded border border-slate-200/60 shrink-0 shadow-3xs">${alloc.expenditureType || 'N/A'}</span>
+                            <span class="text-[12px] font-black text-slate-800 uppercase truncate">${alloc.allocationName || 'Unnamed Fund'}</span>
+                        </div>
+                        
+                        <div class="text-[10px] font-medium text-slate-500 tracking-tight flex items-center gap-2">
+                            <span class="truncate" title="${alloc.supplier}">Sup: <span class="font-bold text-slate-700">${alloc.supplier || '-'}</span></span>
+                            <span class="text-slate-300">•</span>
+                            <span class="truncate" title="${alloc.legalEntity}">LE: <span class="font-bold text-slate-700">${alloc.legalEntity || '-'}</span></span>
+                            <span class="text-slate-300">•</span>
+                            <span class="truncate font-mono" title="${alloc.costCenter}">CC: ${alloc.costCenter || '-'}</span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-4 shrink-0 pl-2">
+                        <div class="text-right">
+                            <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Amount (${alloc.fiscalYear})</span>
+                            <span class="font-mono text-sm font-black ${isAssociated ? 'text-teal-700' : 'text-slate-800'}">€ ${fmt(alloc.amount)}</span>
+                        </div>
+                        <div class="shrink-0 border-l border-slate-200/60 pl-3 py-1">
+                            <label class="relative inline-flex items-center cursor-pointer ${!isEditMode ? 'opacity-50 cursor-not-allowed' : ''}">
+                                <input type="checkbox" class="sr-only peer" ${isAssociated ? 'checked' : ''} ${!isEditMode ? 'disabled' : ''} 
+                                       onchange="SettingsController.toggleMatchmakerAssociation('${alloc.allocationId}', '${alloc.fiscalYear}', this.checked)">
+                                <div class="w-8 h-4 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-teal-500"></div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                ${sharingCount > 0 ? `
+                <div class="w-full bg-slate-50/80 border-t border-slate-200/80 py-1 flex justify-center items-center cursor-pointer hover:bg-slate-200 transition-colors" onclick="SettingsController.toggleMatchmakerDrawer('${alloc.allocationId}', event)">
+                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <span>Co-Allocation (${sharingCount} Asset)</span>
+                        <svg id="chevron-${alloc.allocationId}" class="w-3 h-3 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                    </span>
+                </div>
+                <div id="drawer-${alloc.allocationId}" class="hidden border-t border-slate-200 bg-slate-50">
+                    ${drawerHtml}
+                </div>
+                ` : ''}
+            </div>`;
+        },
+
+        getGenericCrudTable: function (title, description, headers, rowsHtml, entityKey, isEditMode) {
+            return `
+            <div class="border-b border-slate-100 pb-4 flex justify-between items-center bg-transparent mb-4 sticky top-0 bg-white z-20">
+                <div>
+                    <h2 class="text-lg font-black text-slate-800 uppercase tracking-widest">${title}</h2>
+                    <p class="text-xs text-slate-500 mt-0.5 font-medium">${description}</p>
+                </div>
+                ${isEditMode ? `
+                <button onclick="SettingsController.addNewRowInline('${entityKey}')" class="px-4 py-2 bg-teal-800 hover:bg-teal-900 text-white text-[10px] font-black uppercase tracking-wider rounded-xl shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer">
+                    <svg class="w-3.5 h-3.5 text-teal-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
+                    Add Record
+                </button>` : `
+                <div class="px-3 py-1.5 bg-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-wider rounded-xl flex items-center gap-1.5 border border-slate-200">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+                    Read Only
+                </div>`}
+            </div>
+            
+            <div class="border border-slate-200 rounded-xl shadow-3xs bg-white overflow-visible">
+                <table class="w-full text-left text-xs border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-black uppercase tracking-widest text-[9px] select-none">
+                            ${headers.map(h => `<th class="p-3">${h}</th>`).join('')}
+                            ${isEditMode ? `<th class="p-3 w-12 text-center">Act</th>` : ''}
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
+                        ${rowsHtml || `<tr><td colspan="${headers.length + 1}" class="p-8 text-center text-slate-400 italic text-[11px]">No operational data loaded in this registry.</td></tr>`}
+                    </tbody>
+                </table>
             </div>`;
         }
     };

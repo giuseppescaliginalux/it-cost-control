@@ -175,9 +175,9 @@
         if (window.currentActiveTabId === 'tab-inventory' && typeof InventoryController !== 'undefined') {
             InventoryController.initWorkspace();
             if (typeof InventoryState !== 'undefined' && InventoryState.expandedAssetId) {
-                const assetObj = globalCachedData.find(a => btoa(encodeURIComponent(a["Asset Name"] || a.assetName)).replace(/=/g, "") === InventoryState.expandedAssetId);
+                const assetObj = globalCachedData.find(a => btoa(encodeURIComponent(a.assetName)).replace(/=/g, "") === InventoryState.expandedAssetId);
                 if (assetObj) {
-                    InventoryState.loadAssetDrillDownData(assetObj["Asset Name"] || assetObj.assetName);
+                    InventoryState.loadAssetDrillDownData(assetObj.id);
                     InventoryController.renderContractsTabContent(InventoryState.expandedAssetId);
                 }
             }
@@ -198,10 +198,7 @@
 
     window.triggerGlobalCommit = function () {
         if (window.currentActiveTabId === 'tab-inventory') {
-            if (typeof saveCurrentContract === 'function') saveCurrentContract();
-
-        } else if (window.currentActiveTabId === 'tab-contracts') {
-            if (typeof saveCurrentContract === 'function') saveCurrentContract();
+            if (typeof ContractsController !== 'undefined') ContractsController.saveCurrentContract();
 
         } else if (window.currentActiveTabId === 'tab-operations') {
             if (typeof InitiativesController !== 'undefined') InitiativesController.pushKanbanArchitectureToGoogleSheets();
@@ -210,7 +207,6 @@
             if (typeof TimelineController !== 'undefined') TimelineController.commitTimelineChanges();
 
         } else if (window.currentActiveTabId === 'tab-settings') {
-            // ⚡ ENDPOINT PROPRIETARIO DELLA PERSISTENZA DEL MASTER DATA ECOSYSTEM
             if (typeof SettingsController !== 'undefined') SettingsController.syncMasterDataEcosystem();
 
         } else {
