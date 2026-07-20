@@ -1,0 +1,360 @@
+<script>
+    /**
+     * js_settings_controller.html
+     * CONTROLLER: Master Data Control Center Centralizzato.
+     */
+
+    function renderSettingsHub(payload) {
+        window.windowPayload = payload;
+        if (window.currentActiveTabId === 'tab-settings' && typeof SettingsController !== 'undefined') {
+            SettingsController.initSettingsWorkspace();
+        }
+    }
+
+    const SettingsController = {
+        currentMenuKey: 'budget', // Valore di default all'ingresso
+
+        // DIZIONARIO DI CONFIGURAZIONE DEL FRAMEWORK ANAGRAFICHE
+        RegistrySchema: {
+            budget: {
+                label: "Budget Allocations",
+                payloadKey: "allocations",
+                title: "Asset Budget Allocation Engine"
+            },
+            suppliers: {
+                label: "Suppliers",
+                payloadKey: "suppliers",
+                title: "Suppliers Registry",
+                desc: "Anagrafica centralizzata dei fornitori e vendor di terze parti.",
+                fields: [
+                    { key: "supplierId", label: "Supplier ID" },
+                    { key: "supplier", label: "Supplier" },
+                    { key: "type", label: "Type" }
+                ]
+            },
+            legalEntities: {
+                label: "Legal Entities",
+                payloadKey: "legalEntities",
+                title: "Corporate Legal Entities",
+                desc: "Società del gruppo utilizzate per la fatturazione dei contratti.",
+                fields: [
+                    { key: "legalEntity", label: "Legal Entity" }
+                ]
+            },
+            costCenters: {
+                label: "Cost Centers",
+                payloadKey: "costCenters",
+                title: "FinOps Cost Centers",
+                desc: "Codici dei centri di costo per l'allocazione delle spese IT.",
+                fields: [
+                    { key: "costCenter", label: "Cost Center" }
+                ]
+            },
+            locations: {
+                label: "Locations",
+                payloadKey: "locations",
+                title: "Geographical Sites",
+                desc: "Sedi fisiche, uffici corporate o region cloud.",
+                fields: [
+                    { key: "location", label: "Location" },
+                    { key: "country", label: "Country" }
+                ]
+            },
+            deliveryModels: {
+                label: "Delivery Models",
+                payloadKey: "deliveryModels",
+                title: "Service Delivery Models",
+                desc: "Modelli di erogazione legati alla tipologia tecnologica dell'asset.",
+                fields: [
+                    { key: "deliveryModel", label: "Delivery Model" },
+                    { key: "assetType", label: "Asset Type" },
+                    { key: "description", label: "Description" }
+                ]
+            },
+            optimizationLevers: {
+                label: "Optimization Levers",
+                payloadKey: "optimizationLevers",
+                title: "Efficiency Optimization Levers",
+                desc: "Strategie di risparmio applicate all'architettura delle iniziative.",
+                fields: [
+                    { key: "lever", label: "Lever" },
+                    { key: "description", label: "Description" }
+                ]
+            },
+            assetCategories: {
+                label: "Asset Categories",
+                payloadKey: "assetCategories",
+                title: "Asset Taxonomy Categories",
+                desc: "Categorie tassonomiche di classificazione dei costi.",
+                fields: [
+                    { key: "category", label: "Category" },
+                    { key: "description", label: "Description" }
+                ]
+            },
+            currencyExchangeRates: {
+                label: "Currency Exchange",
+                payloadKey: "currencyExchangeRates",
+                title: "FX Currency Exchange Rates",
+                desc: "Tassi di cambio mensili storici per la normalizzazione multicurrency.",
+                fields: [
+                    { key: "monthYear", label: "MonthYear" },
+                    { key: "eur", label: "EUR" },
+                    { key: "usd", label: "USD" },
+                    { key: "gbp", label: "GBP" },
+                    { key: "hkd", label: "HKD" }
+                ]
+            }
+        },
+
+        initSettingsWorkspace: function () {
+            const container = document.getElementById('tab-settings');
+            if (!container) return;
+
+            // 1. Costruisce l'elenco della sidebar con i conteggi reali estratti dalla RAM
+            const menuItems = Object.keys(this.RegistrySchema).map(key => {
+                const schema = this.RegistrySchema[key];
+                const list = window.windowPayload[schema.payloadKey] || [];
+                return { key: key, label: schema.label, count: list.length };
+            });
+
+            // 2. Genera il Workspace specifico basandosi sulla selezione corrente
+            let workspaceHtml = "";
+            if (this.currentMenuKey === 'budget') {
+                workspaceHtml = this.compileBudgetWorkspace();
+            } else {
+                workspaceHtml = this.compileGenericCrudWorkspace(this.currentMenuKey);
+            }
+
+            container.innerHTML = SettingsTemplates.getMainLayout(this.currentMenuKey, menuItems, workspaceHtml);
+        },
+
+        switchSettingsMenu: function (menuKey) {
+            this.currentMenuKey = menuKey;
+            this.initSettingsWorkspace();
+        },
+
+        // --- COMPILATORE 1: LOGICA BUDGET QUANTITATIVI ---
+        compileBudgetWorkspace: function () {
+            const currentBridge = window.windowPayload.bridge || [];
+            const currentAllocations = window.windowPayload.allocations || [];
+            const assets = (window.windowPayload.assets || []).filter(a => a.name && a.name.trim() !== "");
+            assets.sort((a, b) => a.name.localeCompare(b.name));
+
+            let rowsHtml = "";
+            assets.forEach(asset => {
+                const assetId = String(asset.id).trim();
+                const assetName = String(asset.name).trim();
+                const assetBridges = currentBridge.filter(b => String(b.assetId).trim() === assetId);
+
+                const getBudget = (fy) => {
+                    const bridgeLink = assetBridges.find(b => String(b.fiscalYear).toUpperCase().trim() === fy);
+                    if (!bridgeLink) return 0;
+                    const allocRow = currentAllocations.find(a => String(a.allocationId).trim() === String(bridgeLink.allocationId).trim());
+                    return allocRow ? parseFloat(allocRow.amount) : 0;
+                };
+
+                let supplier = "", legalEntity = "", costCenter = "";
+                if (assetBridges.length > 0) {
+                    const allocRow = currentAllocations.find(a => String(a.allocationId).trim() === String(assetBridges[0].allocationId).trim());
+                    if (allocRow) {
+                        supplier = allocRow.supplier || "";
+                        legalEntity = allocRow.legalEntity || "";
+                        costCenter = allocRow.costCenter || "";
+                    }
+                }
+
+                rowsHtml += SettingsTemplates.getAssetRow(
+                    assetId, assetName, getBudget("FY26"), getBudget("FY27"), getBudget("FY28"),
+                    supplier, legalEntity, costCenter
+                );
+            });
+
+            return SettingsTemplates.getSidebarLayout(rowsHtml);
+        },
+
+        // --- COMPILATORE 2: LOGICA DIZIONARI CRUD A COPPIE ---
+        compileGenericCrudWorkspace: function (menuKey) {
+            const schema = this.RegistrySchema[menuKey];
+            const records = window.windowPayload[schema.payloadKey] || [];
+            const headers = schema.fields.map(f => f.label);
+
+            let rowsHtml = "";
+            records.forEach((record, idx) => {
+                const tds = schema.fields.map(f => {
+                    const val = record[f.key] || "";
+                    return `<td class="p-2"><input type="text" data-field-key="${f.key}" class="w-full p-1.5 border border-slate-200 rounded-lg text-slate-800 text-xs shadow-3xs outline-none focus:ring-1 focus:ring-teal-500 font-bold" value="${val}" oninput="SettingsController.syncFieldInput('${menuKey}', ${idx}, '${f.key}', this.value)"></td>`;
+                }).join('');
+
+                rowsHtml += `
+                <tr class="hover:bg-slate-50/60 transition-colors">
+                    ${tds}
+                    <td class="p-2 text-center">
+                        <button onclick="SettingsController.deleteRowInline('${menuKey}', ${idx})" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer outline-none">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                    </td>
+                </tr>`;
+            });
+
+            return SettingsTemplates.getGenericCrudTable(schema.title, schema.desc, headers, rowsHtml, menuKey);
+        },
+
+        // --- MOTORE CRUD IN RAM CON CASCADE UPDATE AUTOMATICO ---
+        syncFieldInput: function (menuKey, index, fieldKey, value) {
+            const schema = this.RegistrySchema[menuKey];
+            const record = window.windowPayload[schema.payloadKey][index];
+
+            if (record) {
+                const oldValue = record[fieldKey] || "";
+
+                if (oldValue === value || (fieldKey !== 'supplier' && fieldKey !== 'costCenter' && fieldKey !== 'legalEntity' && fieldKey !== 'category' && fieldKey !== 'location')) {
+                    record[fieldKey] = value;
+                    if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
+                    return;
+                }
+
+                console.log(`🔄 CASCADE UPDATE: Rilevato cambio anagrafica su ${menuKey} [${oldValue} ➔ ${value}]. Allineamento payload in corso...`);
+
+                if (menuKey === 'suppliers' && fieldKey === 'supplier') {
+                    (window.windowPayload.contracts || []).forEach(c => { if (c.supplier === oldValue) c.supplier = value; });
+                    (window.windowPayload.initiatives || []).forEach(i => { if (i.supplier === oldValue) i.supplier = value; });
+                }
+
+                if (menuKey === 'costCenters' && fieldKey === 'costCenter') {
+                    (window.windowPayload.contracts || []).forEach(c => { if (c.costCenter === oldValue) c.costCenter = value; });
+                    (window.windowPayload.allocations || []).forEach(a => { if (a.costCenter === oldValue) a.costCenter = value; });
+                }
+
+                if (menuKey === 'legalEntities' && fieldKey === 'legalEntity') {
+                    (window.windowPayload.contracts || []).forEach(c => { if (c.legalEntity === oldValue) c.legalEntity = value; });
+                    (window.windowPayload.allocations || []).forEach(a => { if (a.legalEntity === oldValue) a.legalEntity = value; });
+                }
+
+                if (menuKey === 'assetCategories' && fieldKey === 'category') {
+                    (window.windowPayload.assets || []).forEach(a => {
+                        if (a.assetCategory === oldValue || a.category === oldValue) {
+                            if (a.assetCategory) a.assetCategory = value;
+                            if (a.category) a.category = value;
+                        }
+                    });
+                }
+
+                if (menuKey === 'locations' && fieldKey === 'location') {
+                    (window.windowPayload.contracts || []).forEach(c => { if (c.location === oldValue) c.location = value; });
+                }
+
+                record[fieldKey] = value;
+
+                window.windowPayload = HydrationEngine.enhancePayload(window.windowPayload);
+                if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
+            }
+        },
+
+        addNewRowInline: function (menuKey) {
+            const schema = this.RegistrySchema[menuKey];
+            const newRecord = {};
+            schema.fields.forEach(f => newRecord[f.key] = "");
+
+            if (!window.windowPayload[schema.payloadKey]) window.windowPayload[schema.payloadKey] = [];
+            window.windowPayload[schema.payloadKey].push(newRecord);
+
+            if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
+            this.initSettingsWorkspace();
+        },
+
+        deleteRowInline: function (menuKey, index) {
+            const schema = this.RegistrySchema[menuKey];
+            FinOpsUI.showConfirm(
+                "Remove Master Data Record?",
+                "Are you entirely sure you want to delete this structural lookup record from local memory?",
+                () => {
+                    window.windowPayload[schema.payloadKey].splice(index, 1);
+                    if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
+                    this.initSettingsWorkspace();
+                }
+            );
+        },
+
+        saveAllocationsLocally: function () {
+            if (this.currentMenuKey === 'budget') {
+                const rows = document.querySelectorAll('.budget-row');
+                rows.forEach(row => {
+                    const assetId = row.getAttribute('data-asset-id');
+                    const assetName = row.getAttribute('data-asset-name');
+                    const detailRow = document.getElementById(`detail-row-${assetId}`);
+                    const supplierVal = detailRow ? detailRow.querySelector('.meta-input-supplier').value.trim() : "";
+                    const legalVal = detailRow ? detailRow.querySelector('.meta-input-legal').value.trim() : "";
+                    const ccVal = detailRow ? detailRow.querySelector('.meta-input-cc').value.trim() : "";
+                    const fYears = ["FY26", "FY27", "FY28"];
+
+                    fYears.forEach(fy => {
+                        const inputEl = row.querySelector(`.budget-input-${fy.toLowerCase()}`);
+                        if (!inputEl) return;
+                        const amountValue = parseFloat(inputEl.value) || 0;
+                        const allocId = `ALL-${assetId}-${fy}`;
+
+                        window.windowPayload.bridge = (window.windowPayload.bridge || []).filter(b => !(String(b.assetId).trim() === assetId && String(b.fiscalYear).toUpperCase().trim() === fy));
+                        window.windowPayload.allocations = (window.windowPayload.allocations || []).filter(a => String(a.allocationId).trim() !== allocId);
+
+                        if (amountValue > 0 || supplierVal || legalVal || ccVal) {
+                            window.windowPayload.allocations.push({
+                                allocationId: allocId, allocationName: `Budget ${assetName} ${fy}`, fiscalYear: fy, amount: amountValue, supplier: supplierVal, costCenter: ccVal, legalEntity: legalVal, expenditureType: ""
+                            });
+                            window.windowPayload.bridge.push({
+                                allocationId: allocId, assetId: assetId, fiscalYear: fy, validFrom: "", validTo: "", comments: "Generated via Settings Control Center"
+                            });
+                        }
+                    });
+                });
+            }
+
+            console.log("⚙️ SETTINGS CORE: Esecuzione JIT enhancement...");
+            window.windowPayload = HydrationEngine.enhancePayload(window.windowPayload);
+            if (typeof setPendingChanges !== 'undefined') setPendingChanges(true);
+            this.initSettingsWorkspace();
+            FinOpsUI.showNotificationBanner("Local registry states recalculated. Push synchronization required.", "warning");
+        },
+
+        // --- PERSISTENZA REMOTA AGNOSTICA DI TUTTE LE ANAGRAFICHE ---
+        syncMasterDataEcosystem: function () {
+            showLoading();
+
+            const fullSettingsPayload = {
+                allocations: windowPayload.allocations || [],
+                bridge: windowPayload.bridge || [],
+                suppliers: windowPayload.suppliers || [],
+                legalEntities: windowPayload.legalEntities || [],
+                costCenters: windowPayload.costCenters || [],
+                locations: windowPayload.locations || [],
+                deliveryModels: windowPayload.deliveryModels || [],
+                optimizationLevers: windowPayload.optimizationLevers || [],
+                assetCategories: windowPayload.assetCategories || [],
+                currencyExchangeRates: windowPayload.currencyExchangeRates || []
+            };
+
+            const cleanPayload = JSON.parse(JSON.stringify(fullSettingsPayload));
+
+            google.script.run
+                .withSuccessHandler((response) => {
+                    hideLoading();
+                    if (response && response.status === "SUCCESS") {
+                        window.originalPayloadSnapshot = JSON.parse(JSON.stringify(windowPayload));
+                        setPendingChanges(false);
+
+                        if (typeof DashboardState !== 'undefined') DashboardState.loadCachePayload(windowPayload);
+                        if (typeof ProjectionsState !== 'undefined') ProjectionsState.loadPayload(windowPayload);
+
+                        SettingsController.initSettingsWorkspace();
+                        FinOpsUI.showNotificationBanner("Master Data Center synchronized successfully!", "success");
+                    } else {
+                        FinOpsUI.showAlert("Sync Error", response.message || "Pipeline error.");
+                    }
+                })
+                .withFailureHandler((err) => {
+                    hideLoading();
+                    FinOpsUI.showAlert("Cloud Sync Failed", err.message);
+                })
+                .processMasterDataEcosystemSync(cleanPayload); // Rotta allineata al 100%
+        }
+    };
+</script>

@@ -63,24 +63,49 @@
         loadAssetDrillDownData: function (assetId) {
             const targetId = String(assetId).trim();
             const bridge = windowPayload.bridge || [];
+            const allocs = windowPayload.allocations || [];
+            const assets = windowPayload.assets || [];
             const aliasMap = new Map();
 
+            // Raggruppiamo i bridge per allocationId
             bridge.forEach(r => {
-                if (!r.allocationAlias) return;
-                if (!aliasMap.has(r.allocationAlias)) aliasMap.set(r.allocationAlias, []);
-                aliasMap.get(r.allocationAlias).push({ asset_name: r.assetName, asset_id: r.assetId, split_pct: r.allocationSplitPct || 0 });
+                if (!r.allocationId) return;
+                if (!aliasMap.has(r.allocationId)) aliasMap.set(r.allocationId, []);
+
+                const assetMatch = assets.find(a => String(a.id).trim() === String(r.assetId).trim());
+                aliasMap.get(r.allocationId).push({
+                    asset_name: assetMatch ? assetMatch.name : "Unknown Asset",
+                    asset_id: r.assetId
+                });
             });
 
+            // Arricchiamo il DTO per la tabella UI iniettando i valori finanziari
             const offlineAllocations = bridge.filter(r => String(r.assetId).trim() === targetId)
-                .map(r => ({ ...r, co_allocated_assets: (aliasMap.get(r.allocationAlias) || []).filter(a => String(a.asset_id).trim() !== targetId) }));
+                .map(r => {
+                    const baseAlloc = allocs.find(a => String(a.allocationId).trim() === String(r.allocationId).trim() && String(a.fiscalYear).trim().toUpperCase() === String(r.fiscalYear).trim().toUpperCase());
+                    const originalAmount = baseAlloc ? parseFloat(baseAlloc.amount) || 0 : 0;
+                    const allocName = baseAlloc ? (baseAlloc.allocationName || baseAlloc.allocationId) : r.allocationId;
 
-            // ⚡ FIX RELAZIONALE: Troviamo gli ID dei Master collegati a questo Asset
+                    const allCoAssets = aliasMap.get(r.allocationId) || [];
+                    const splitPct = allCoAssets.length > 0 ? (1 / allCoAssets.length) : 1;
+                    const effectiveAmount = originalAmount * splitPct;
+
+                    return {
+                        ...r,
+                        allocationAlias: allocName,
+                        originalBudget: originalAmount,
+                        effectiveBudget: effectiveAmount,
+                        allocationSplitPct: splitPct,
+                        co_allocated_assets: allCoAssets.filter(a => String(a.asset_id).trim() !== targetId).map(ca => ({ ...ca, split_pct: splitPct }))
+                    };
+                });
+
+            // Troviamo gli ID dei Master collegati a questo Asset
             const validMasterIds = (windowPayload.masterContracts || [])
                 .filter(m => String(m.assetId).trim() === targetId)
                 .map(m => String(m.masterId).trim());
 
             this.currentDrillDownData = {
-                // ⚡ Ora peschiamo i contratti usando l'ID del Master (chiave esterna)
                 contracts: (windowPayload.contracts || []).filter(c => validMasterIds.includes(String(c.masterId).trim())),
                 initiatives: (windowPayload.initiatives || []).filter(i => String(i.assetId).trim() === targetId),
                 allocations: offlineAllocations

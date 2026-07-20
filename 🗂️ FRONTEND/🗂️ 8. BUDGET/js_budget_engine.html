@@ -1,0 +1,152 @@
+<script>
+    /**
+     * ============================================================================
+     * FINOPS CLIENT ENGINE: Budget Allocation & Variance Engine
+     * ============================================================================
+     * Il cuore finanziario lato client. Sostituisce interamente le formule Excel
+     * (VLOOKUP, SUMIFS) calcolando dinamicamente Split %, Prorata Temporis e Varianze.
+     */
+    const BudgetAllocationEngine = {
+
+        /**
+         * Calcola il Variance Report incrociando Budget, Bridge e Proiezioni
+         * 
+         * @param {Object} payload Il windowPayload globale ripulito
+         * @param {Object} contractProjections Mappa delle proiezioni pre-calcolate (es. { 'CTR-123': { 'FY27': 50000 } })
+         * @returns {Array} Il Variance Report pronto per l'Asset Domain
+         */
+        calculateVariances: function (payload, contractProjections) {
+            const allocations = payload.allocations || [];
+            const bridges = payload.bridge || [];
+            const contracts = payload.contracts || [];
+
+            // 1. Mappatura Regole Allocation (O(1) Lookup)
+            // Creiamo una chiave univoca basata su ID + Anno Fiscale
+            const allocMap = {};
+            allocations.forEach(a => {
+                const key = `${a.allocationId}_${a.fiscalYear}`;
+                allocMap[key] = a;
+            });
+
+            // 2. Fase di Clustering (Raggruppamento Bridge per Regola di Budget)
+            const bridgeClusters = {};
+            bridges.forEach(b => {
+                const clusterKey = `${b.allocationId}_${b.fiscalYear}`;
+                if (!bridgeClusters[clusterKey]) bridgeClusters[clusterKey] = [];
+                bridgeClusters[clusterKey].push(b);
+            });
+
+            // Helper: Calcolo Prorata Temporis (esatto come da formula Excel)
+            const getProrataRatio = (validFromStr, validToStr) => {
+                if (!validFromStr || !validToStr) return 1; // 100% se le date mancano
+                const d1 = new Date(validFromStr);
+                const d2 = new Date(validToStr);
+                if (isNaN(d1) || isNaN(d2)) return 1;
+
+                // Formula: MAX(0, DataFine - DataInizio + 1) / 365
+                const diffTime = d2.getTime() - d1.getTime();
+                const diffDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
+                return diffDays / 365.0; // Anno commerciale pattuito
+            };
+
+            const effectiveBudgets = []; // Secchielli finanziari temporanei
+
+            // 3. Esecuzione Algoritmo per ogni Cluster di Budget
+            Object.keys(bridgeClusters).forEach(clusterKey => {
+                const clusterBridges = bridgeClusters[clusterKey];
+                const allocationRule = allocMap[clusterKey];
+
+                if (!allocationRule) return; // Scarta i bridge orfani
+
+                let totRunRateCluster = 0;
+                const assetFilteredProjections = {};
+
+                // FASE A: Il Filtro Dinamico Universale
+                clusterBridges.forEach(bridge => {
+                    let assetProjSum = 0;
+
+                    // Estraiamo tutti i contratti dell'Asset
+                    const assetContracts = contracts.filter(c => c.assetId === bridge.assetId);
+
+                    assetContracts.forEach(contract => {
+                        // Setaccio multidimensionale: Il contratto rispetta le regole del budget?
+                        const matchSupplier = !allocationRule.supplier || (contract.supplier === allocationRule.supplier);
+                        const matchCostCenter = !allocationRule.costCenter || (contract.costCenter === allocationRule.costCenter);
+                        const matchLegalEntity = !allocationRule.legalEntity || (contract.legalEntity === allocationRule.legalEntity);
+                        const matchExpType = !allocationRule.expenditureType || (contract.expenditureType === allocationRule.expenditureType);
+
+                        if (matchSupplier && matchCostCenter && matchLegalEntity && matchExpType) {
+                            // Il contratto passa il filtro: peschiamo la sua proiezione per quell'anno
+                            const proj = contractProjections[contract.contractId] || {};
+                            const fyVal = proj[allocationRule.fiscalYear] || 0;
+                            assetProjSum += fyVal;
+                        }
+                    });
+
+                    assetFilteredProjections[bridge.assetId] = assetProjSum;
+                    totRunRateCluster += assetProjSum;
+                });
+
+                // FASE B: Calcolo Matematico (Split % + Prorata Temporis)
+                clusterBridges.forEach(bridge => {
+                    const assetProjSum = assetFilteredProjections[bridge.assetId] || 0;
+
+                    // Prevenzione divisione per zero (se nessuno ha proiezioni, peso 100%)
+                    const splitPct = totRunRateCluster === 0 ? 1 : (assetProjSum / totRunRateCluster);
+                    const prorataRatio = getProrataRatio(bridge.validFrom, bridge.validTo);
+
+                    // Effective Budget = Budget Originale * Split * (Giorni / 365)
+                    const effectiveBudget = allocationRule.amount * splitPct * prorataRatio;
+
+                    effectiveBudgets.push({
+                        assetId: bridge.assetId,
+                        fiscalYear: bridge.fiscalYear,
+                        effectiveBudget: effectiveBudget
+                    });
+                });
+            });
+
+            // 4. Sintesi: Generazione del Variance Report
+            const varianceReport = [];
+            const uniqueAssets = [...new Set(bridges.map(b => b.assetId))];
+
+            uniqueAssets.forEach(assetId => {
+                const fyMap = {}; // Raggruppiamo i risultati per Anno Fiscale
+
+                // Sommiamo tutti gli Effective Budgets assegnati a questo Asset
+                effectiveBudgets.filter(eb => eb.assetId === assetId).forEach(eb => {
+                    if (!fyMap[eb.fiscalYear]) fyMap[eb.fiscalYear] = { budget: 0, totalProjection: 0 };
+                    fyMap[eb.fiscalYear].budget += eb.effectiveBudget;
+                });
+
+                // Recuperiamo la proiezione TOTALE dell'asset (senza filtri) per calcolare la varianza reale
+                const assetContracts = contracts.filter(c => c.assetId === assetId);
+                assetContracts.forEach(contract => {
+                    const proj = contractProjections[contract.contractId] || {};
+                    Object.keys(proj).forEach(fy => {
+                        if (fyMap[fy]) {
+                            fyMap[fy].totalProjection += (proj[fy] || 0);
+                        }
+                    });
+                });
+
+                // Compilazione del report finale iniettabile
+                Object.keys(fyMap).forEach(fy => {
+                    const budget = fyMap[fy].budget;
+                    const projection = fyMap[fy].totalProjection;
+                    const variance = budget - projection;
+
+                    varianceReport.push({
+                        assetId: assetId,
+                        fiscalYear: fy,
+                        effectiveBudget: budget,
+                        assetProjection: projection,
+                        variance: variance
+                    });
+                });
+            });
+
+            return varianceReport;
+        }
+    };
+</script>

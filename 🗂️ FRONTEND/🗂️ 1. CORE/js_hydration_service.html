@@ -2,14 +2,15 @@
     /**
      * js_hydration_service.html
      * ENGINE: Just-In-Time (JIT) Hydration Service.
-     * Cura l'inconsistenza temporale e ricalcola a freddo i valori finanziari (Crediti).
+     * Cura l'inconsistenza temporale, ricalcola a freddo i valori finanziari (Crediti)
+     * e orchestra l'arricchimento globale del payload (Proiezioni e Budget).
      */
     const HydrationEngine = {
+
+        // Mantieni intatta la tua funzione esistente...
         hydrateAllStatuses: function (payload) {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
-
-            // ⚡ PROFILING: Mappa di supporto O(1) per trovare al volo l'Asset ID dal Master
             const masterToAssetMap = new Map();
             (payload.masterContracts || []).forEach(m => {
                 if (m.masterId) {
@@ -17,34 +18,24 @@
                 }
             });
 
-            // 1. Contratti Locali: Svegliamo le classi di dominio e iniettiamo l'assetId mancante
+            // 1. Contratti Locali
             (payload.contracts || []).forEach(c => {
                 const cid = c.contractId;
                 const mId = String(c.masterId || "").trim();
-
-                // ⚡ FIX: Ereditiamo l'assetId dal Master di riferimento se non è presente a livello flat
                 if (!c.assetId || String(c.assetId).trim() === "") {
                     c.assetId = masterToAssetMap.get(mId) || "";
                 }
-
-                // Raccogliamo i movimenti del Ledger di questo contratto
                 const cLedger = (payload.ledger || []).filter(l => String(l.contractId).trim() === String(cid).trim());
-
-                // Istanziamo la classe di dominio pura e gli iniettiamo il Ledger
                 const contractInstance = new Contract(c);
                 cLedger.forEach(l => contractInstance.ledger.push(new LedgerMovement(l)));
-
-                // Arricchiamo l'oggetto DTO con le proprietà calcolate (effectiveCommitment, effectiveRunRate, status)
                 Object.assign(c, contractInstance.exportToData());
             });
 
-            // 2. Master Contracts: Ricalcoliamo l'aggregazione dei totali Master basandoci sui figli idratati
+            // 2. Master Contracts
             (payload.masterContracts || []).forEach(m => {
                 const mId = m.masterId;
                 const children = (payload.contracts || []).filter(c => c.masterId === mId);
                 const inits = (payload.initiatives || []).filter(i => i.masterId === mId);
-
-                // Istanziamo la classe MasterContract per ricalcolare i totali corretti con i crediti attivi
                 const masterInstance = new MasterContract(m);
                 children.forEach(c => {
                     const childContract = new Contract(c);
@@ -52,25 +43,97 @@
                     cLedger.forEach(l => childContract.ledger.push(new LedgerMovement(l)));
                     masterInstance.addChild(childContract);
                 });
-
-                // Sovrascriviamo le proprietà calcolate del Master (totalCommitment, runRate, effectiveRunRate, status)
                 Object.assign(m, masterInstance.exportToData(inits));
             });
 
             // 3. Asset (Macchina a Stati Finiti)
             payload.assets = (payload.assets || []).map(rawAsset => {
                 const asset = new Asset(rawAsset);
-
-                // FIX: Usiamo l'ID stringa per la join al posto del nome text-based
                 const assetIdStr = String(asset.id).trim();
-
                 const assetContracts = (payload.contracts || []).filter(c => String(c.assetId || "").trim() === assetIdStr);
                 const assetInits = (payload.initiatives || []).filter(i => String(i.assetId || "").trim() === assetIdStr);
-
                 asset.injectContext([], assetContracts, assetInits, []);
                 return asset.exportToData();
             });
+            return payload;
+        },
 
+        /**
+         * IL NUOVO CERVELLO: Prende i dati raw e li trasforma in un database relazionale perfetto in RAM.
+         */
+        enhancePayload: function (rawPayload) {
+            console.time("💧 [Hydration] Totale Idratazione");
+
+            // 1. Domini e Stati (Chiama la funzione qui sopra)
+            console.time("  -> Domini e Stati");
+            let payload = this.hydrateAllStatuses(rawPayload);
+            console.timeEnd("  -> Domini e Stati");
+
+            // 2. Proiezioni Finanziarie
+            console.time("  -> Proiezioni Finanziarie");
+            payload.projections = typeof ProjectionsEngine !== 'undefined'
+                ? ProjectionsEngine.calculateAll(
+                    payload.contracts || [],
+                    payload.initiatives || [],
+                    payload.masterContracts || [],
+                    payload.ledger || []
+                )
+                : [];
+            console.timeEnd("  -> Proiezioni Finanziarie");
+
+            // 3. Generazione Mappa Proiezioni per Budget
+            const projMap = {};
+            (payload.projections || []).forEach(p => {
+                projMap[p.contractId || p.initiativeId] = {
+                    "FY26": parseFloat(p.fy26Optimized || p["FY26 Optimized"]) || 0,
+                    "FY27": parseFloat(p.fy27Optimized || p["FY27 Optimized"]) || 0,
+                    "FY28": parseFloat(p.fy28Optimized || p["FY28 Optimized"]) || 0
+                };
+            });
+
+            // 4. Budget Allocation Engine
+            console.time("  -> Budget Varianze");
+            if (typeof BudgetAllocationEngine !== 'undefined') {
+                payload.varianceReport = BudgetAllocationEngine.calculateVariances(payload, projMap);
+            } else {
+                payload.varianceReport = [];
+            }
+            console.timeEnd("  -> Budget Varianze");
+
+            // 5. Aggregazione KPI per Asset (RunRate, Status, ecc.)
+            console.time("  -> Aggregazione Asset");
+            payload.assets = (payload.assets || []).filter(r => (r.name || "").toString().trim() !== "");
+            payload.assets.forEach(asset => {
+                const assetIdStr = String(asset.id).trim();
+
+                // Calcolo Fiscal Projection
+                const projForAsset = payload.projections.filter(p => String(p.assetId || p["Asset ID"] || "").trim() === assetIdStr);
+                asset.fiscalProjectionFY27 = projForAsset.reduce((acc, p) => acc + (parseFloat(p["FY27 Optimized"] || p.fy27Optimized) || 0), 0);
+
+                // Calcolo Run Rate
+                const activeContracts = (payload.contracts || []).filter(c =>
+                    String(c.assetId || "").trim() === assetIdStr &&
+                    ["ACTIVE", "UPCOMING", "INCOMING"].includes(String(c.status || "").toUpperCase().trim())
+                );
+                asset.runRate = activeContracts.reduce((sum, c) => sum + (parseFloat(c.effectiveRunRate || c.annualValue) || 0), 0);
+
+                // Lettura Varianze e calcolo Status
+                let effBudget = 0;
+                let variance = 0;
+                (payload.varianceReport || []).forEach(v => {
+                    if (String(v.assetId || "").trim() === assetIdStr && String(v.fiscalYear || "").toUpperCase().trim() === "FY27") {
+                        effBudget += parseFloat(v.effectiveBudget) || 0;
+                        variance += parseFloat(v.variance) || 0;
+                    }
+                });
+
+                if (effBudget === 0) asset.budgetStatusFY27 = "Not Budgeted";
+                else if (variance < 0) asset.budgetStatusFY27 = "At Risk";
+                else asset.budgetStatusFY27 = "Secured";
+            });
+            console.timeEnd("  -> Aggregazione Asset");
+
+            console.timeEnd("💧 [Hydration] Totale Idratazione");
             return payload;
         }
     };

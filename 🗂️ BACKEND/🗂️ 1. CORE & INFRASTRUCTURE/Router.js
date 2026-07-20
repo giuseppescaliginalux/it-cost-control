@@ -137,6 +137,49 @@ function processTimelineSync(payload) {
   } finally { lock.releaseLock(); }
 }
 
+/**
+ * BACKEND ROUTE: Centralino unico per la persistenza di tutto il Master Data Framework.
+ * Riceve i DTO in camelCase dal client, delega il mapping alle repository e committa su Sheets.
+ */
+function processMasterDataEcosystemSync(payload) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(20000); // Rete di protezione per scritture concorrenti
+    console.log("=== API ROUTER: AVVIO SCRITTURA ATOMICA MASTER DATA SYSTEM ===");
+
+    FinOpsDatabase.preloadAll(); // Allinea la cache in RAM del database
+    const budgetRepo = new BudgetRepository();
+    const masterDataRepo = new MasterDataRepository();
+
+    // 1. Persistenza dei Domini Finanziari Strutturati (Budget & Bridge)
+    if (payload.allocations && Array.isArray(payload.allocations)) budgetRepo.overwriteAllAllocations(payload.allocations);
+    if (payload.bridge && Array.isArray(payload.bridge)) budgetRepo.overwriteAllBridges(payload.bridge);
+
+    // 2. Persistenza isolata delle LookUp Tables Anagrafiche Generiche
+    if (payload.suppliers) masterDataRepo.overwriteSuppliers(payload.suppliers);
+    if (payload.legalEntities) masterDataRepo.overwriteLegalEntities(payload.legalEntities);
+    if (payload.costCenters) masterDataRepo.overwriteCostCenters(payload.costCenters);
+    if (payload.locations) masterDataRepo.overwriteLocations(payload.locations);
+    if (payload.deliveryModels) masterDataRepo.overwriteDeliveryModels(payload.deliveryModels);
+    if (payload.optimizationLevers) masterDataRepo.overwriteOptimizationLevers(payload.optimizationLevers);
+    if (payload.assetCategories) masterDataRepo.overwriteAssetCategories(payload.assetCategories);
+    if (payload.currencyExchangeRates) masterDataRepo.overwriteCurrencyExchangeRates(payload.currencyExchangeRates);
+
+    // 3. Esecuzione del Commit Fisico sul foglio
+    FinOpsDatabase.commit();
+
+    if (typeof clearAppCache === 'function') clearAppCache(); // Svuota la cache di boot
+
+    console.log("=== API ROUTER: MASTER DATA ECOSYSTEM SYNCED SUCCESSFULLY ===");
+    return { status: "SUCCESS" };
+  } catch (error) {
+    console.error("Errore nel salvataggio dell'ecosistema anagrafiche:", error);
+    throw new Error("Master Data Sync Failure: " + error.message);
+  } finally {
+    lock.releaseLock(); // Rilascia sempre il semaforo di sicurezza
+  }
+}
+
 // ============================================================================
 // UTILITIES ESPOSTE
 // ============================================================================

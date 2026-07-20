@@ -11,7 +11,8 @@ const GLOBAL_TEST_REGISTRY = {
   contracts: [],
   initiatives: [],
   utils: [],
-  assets: []
+  assets: [],
+  budget: []
 };
 
 /**
@@ -26,7 +27,8 @@ function test_LAUNCH_ALL_SUITES() {
     ...GLOBAL_TEST_REGISTRY.contracts,
     ...GLOBAL_TEST_REGISTRY.initiatives,
     ...GLOBAL_TEST_REGISTRY.utils,
-    ...GLOBAL_TEST_REGISTRY.assets
+    ...GLOBAL_TEST_REGISTRY.assets,
+    ...GLOBAL_TEST_REGISTRY.budget
   ];
 
   runner.execute(allTests);

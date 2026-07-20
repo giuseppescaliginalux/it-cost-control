@@ -3,7 +3,23 @@
      * MODULO 1: CORE & DATA FETCHING (CON PROFILING ATTIVO)
      */
     let globalCachedData = [];
-    let windowPayload = { assets: [], contracts: [], initiatives: [], bridge: [], projections: [] };
+    let windowPayload = {
+        assets: [],
+        contracts: [],
+        initiatives: [],
+        bridge: [],
+        projections: [],
+        allocations: [],
+        // Lookup Tables Anagrafiche
+        suppliers: [],
+        legalEntities: [],
+        costCenters: [],
+        locations: [],
+        deliveryModels: [],
+        optimizationLevers: [],
+        assetCategories: [],
+        currencyExchangeRates: []
+    };
     window.hasPendingChanges = false;
     window.originalPayloadSnapshot = null;
     window.currentActiveTabId = 'tab-inventory';
@@ -58,108 +74,50 @@
     }
 
     // Avvio Iniziale (Con Radiografia)
+    // Avvio Iniziale (Con Radiografia)
     async function fetchLiveData() {
-        console.time("⏱️ TOTALE AVVIO CLIENT");
-
+        console.time("🚀 TOTALE AVVIO CLIENT");
         document.getElementById('loading-state').classList.remove('hidden');
         document.getElementById('error-state').classList.add('hidden');
         document.getElementById('dashboard-content').classList.add('hidden');
 
         try {
             // 1. Rete (Chiamata e Download)
-            console.time("🌐 1. RETE: Download dati dal Server");
-            const payload = await apiFetchFullPayload();
-            console.timeEnd("🌐 1. RETE: Download dati dal Server");
+            console.time("  1. RETE: Download dati dal Server");
+            const rawPayload = await apiFetchFullPayload();
+            console.timeEnd("  1. RETE: Download dati dal Server");
 
-            // 2. Idratazione Dati
-            console.time("💧 2. CPU: HydrationEngine (Stati contratti)");
-            const hydratedPayload = HydrationEngine.hydrateAllStatuses(payload);
-            console.timeEnd("💧 2. CPU: HydrationEngine (Stati contratti)");
+            // 2. Idratazione Dati & Calcoli (Tutta la logica di business è qui dentro)
+            windowPayload = HydrationEngine.enhancePayload(rawPayload);
 
-            // 3. Proiezioni Finanziarie
-            console.time("🧮 3. CPU: ProjectionsEngine (Calcoli mesi)");
-            hydratedPayload.projections = ProjectionsEngine.calculateAll(
-                hydratedPayload.contracts || [],
-                hydratedPayload.initiatives || [],
-                hydratedPayload.masterContracts || [],
-                hydratedPayload.ledger || []
-            );
-            console.timeEnd("🧮 3. CPU: ProjectionsEngine (Calcoli mesi)");
+            // Valorizziamo la cache globale per la UI
+            globalCachedData = windowPayload.assets;
 
-            windowPayload = hydratedPayload;
-
-            console.time("💾 4. CPU: Clonazione Snapshot (Sicurezza)");
-            window.originalPayloadSnapshot = JSON.parse(JSON.stringify(hydratedPayload));
-            console.timeEnd("💾 4. CPU: Clonazione Snapshot (Sicurezza)");
-
+            // 3. Snapshot di Sicurezza
+            console.time("  3. CPU: Clonazione Snapshot (Sicurezza)");
+            window.originalPayloadSnapshot = JSON.parse(JSON.stringify(windowPayload));
+            console.timeEnd("  3. CPU: Clonazione Snapshot (Sicurezza)");
             setPendingChanges(false);
 
-            // 4. Motore di Budgeting (NEW!)
-            console.time("💰 4. CPU: BudgetAllocationEngine");
-            // Generiamo il Variance Report al volo in RAM incrociando Allocazioni, Bridge e Proiezioni
-            if (typeof BudgetAllocationEngine !== 'undefined') {
-                windowPayload.varianceReport = BudgetAllocationEngine.calculateVariances(
-                    windowPayload.allocations || [],
-                    windowPayload.bridge || [],
-                    windowPayload.projections || []
-                );
-            } else {
-                windowPayload.varianceReport = [];
-            }
-            console.timeEnd("💰 4. CPU: BudgetAllocationEngine");
-
-            // 5. Calcoli Aggregati Finali per Asset
-            console.time("📊 5. CPU: Aggregazione Budget per Asset");
-            globalCachedData = (hydratedPayload.assets || []).filter(r => (r.name || "").toString().trim() !== "");
-            globalCachedData.forEach(asset => {
-                const assetIdStr = String(asset.id).trim();
-
-                // FIX: Filtriamo le proiezioni tramite Asset ID
-                const projForAsset = windowPayload.projections.filter(p => String(p.assetId || p["Asset ID"] || "").trim() === assetIdStr);
-                asset.fiscalProjectionFY27 = projForAsset.reduce((acc, p) => acc + (parseFloat(p["FY27 Optimized"] || p.fy27Optimized) || 0), 0);
-
-                // FIX: Filtriamo i contratti attivi tramite Asset ID
-                const activeContracts = (windowPayload.contracts || []).filter(c =>
-                    String(c.assetId || "").trim() === assetIdStr &&
-                    ["ACTIVE", "UPCOMING", "INCOMING"].includes(String(c.status || "").toUpperCase().trim())
-                );
-                asset.runRate = activeContracts.reduce((sum, c) => sum + (parseFloat(c.effectiveRunRate || c.annualValue) || 0), 0);
-
-                // Lettura dal nuovo Variance Report generato dal client
-                let effBudget = 0;
-                let variance = 0;
-                (windowPayload.varianceReport || []).forEach(v => {
-                    if (String(v.assetId || "").trim() === assetIdStr && String(v.fiscalYear || "").toUpperCase().trim() === "FY27") {
-                        effBudget += parseFloat(v.effectiveBudget) || 0;
-                        variance += parseFloat(v.variance) || 0;
-                    }
-                });
-
-                if (effBudget === 0) asset.budgetStatusFY27 = "Not Budgeted";
-                else if (variance < 0) asset.budgetStatusFY27 = "At Risk";
-                else asset.budgetStatusFY27 = "Secured";
-            });
-            console.timeEnd("📊 5. CPU: Aggregazione Budget per Asset");
-
-            // 5. Rendering HTML
-            console.time("🎨 6. GPU/UI: Rendering HTML (Disegno su schermo)");
+            // 4. Rendering UI
+            console.time("  4. GPU/UI: Rendering HTML (Disegno su schermo)");
             if (typeof InventoryController !== "undefined") InventoryController.initWorkspace();
-            if (typeof updateExecutiveDashboard === "function") updateExecutiveDashboard(hydratedPayload);
-            if (typeof renderOperationsHub === "function") renderOperationsHub(hydratedPayload);
-            if (typeof renderProjectionsHub === "function") renderProjectionsHub(hydratedPayload);
-            console.timeEnd("🎨 6. GPU/UI: Rendering HTML (Disegno su schermo)");
+            if (typeof updateExecutiveDashboard === "function") updateExecutiveDashboard(windowPayload);
+            if (typeof renderOperationsHub === "function") renderOperationsHub(windowPayload);
+            if (typeof renderProjectionsHub === "function") renderProjectionsHub(windowPayload);
+            if (typeof renderSettingsHub === "function") renderSettingsHub(windowPayload);
+            console.timeEnd("  4. GPU/UI: Rendering HTML (Disegno su schermo)");
 
             document.getElementById('loading-state').classList.add('hidden');
             document.getElementById('dashboard-content').classList.remove('hidden');
-
             window.dispatchEvent(new Event('resize'));
 
         } catch (e) {
+            console.error("Errore critico in avvio:", e);
             document.getElementById('error-message').textContent = e.toString();
             document.getElementById('error-state').classList.remove('hidden');
         }
-
-        console.timeEnd("⏱️ TOTALE AVVIO CLIENT");
+        console.timeEnd("🚀 TOTALE AVVIO CLIENT");
     }
 
     function showLoading() { document.getElementById('loading-overlay').style.display = 'flex'; }
@@ -239,16 +197,25 @@
     };
 
     window.triggerGlobalCommit = function () {
-        if (window.currentActiveTabId === 'tab-contracts' || window.currentActiveTabId === 'tab-inventory') {
+        if (window.currentActiveTabId === 'tab-inventory') {
             if (typeof saveCurrentContract === 'function') saveCurrentContract();
+
+        } else if (window.currentActiveTabId === 'tab-contracts') {
+            if (typeof saveCurrentContract === 'function') saveCurrentContract();
+
         } else if (window.currentActiveTabId === 'tab-operations') {
             if (typeof InitiativesController !== 'undefined') InitiativesController.pushKanbanArchitectureToGoogleSheets();
+
         } else if (window.currentActiveTabId === 'tab-timeline') {
             if (typeof TimelineController !== 'undefined') TimelineController.commitTimelineChanges();
+
+        } else if (window.currentActiveTabId === 'tab-settings') {
+            // ⚡ ENDPOINT PROPRIETARIO DELLA PERSISTENZA DEL MASTER DATA ECOSYSTEM
+            if (typeof SettingsController !== 'undefined') SettingsController.syncMasterDataEcosystem();
+
         } else {
             FinOpsUI.showNotificationBanner("Nessuna azione di commit mappata per questa sezione.", "warning");
         }
     };
-
     window.onload = fetchLiveData;
 </script>

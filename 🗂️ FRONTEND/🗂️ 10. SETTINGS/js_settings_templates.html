@@ -1,0 +1,134 @@
+<script>
+    /**
+     * js_settings_templates.html
+     * VIEW TEMPLATES: Layout Split Master-Detail per il Master Data Control Center.
+     */
+    const SettingsTemplates = {
+
+        // --- 1. LAYOUT PRINCIPALE (SIDEBAR + WORKSPACE) ---
+        getMainLayout: function (activeMenuKey, menuItems, crudWorkspaceHtml) {
+            const sidebarLinksHtml = menuItems.map(item => {
+                const isActive = item.key === activeMenuKey;
+                const activeClass = "bg-teal-50 border-teal-600 text-teal-950 font-black";
+                const inactiveClass = "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-bold";
+
+                return `
+                <button onclick="SettingsController.switchSettingsMenu('${item.key}')" 
+                        class="w-full text-left px-3 py-2 text-xs uppercase tracking-wider border-l-4 transition-all flex items-center justify-between rounded-r-xl cursor-pointer outline-none ${isActive ? activeClass : inactiveClass}">
+                    <span>${item.label}</span>
+                    <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200/60 text-slate-500 font-bold">${item.count}</span>
+                </button>`;
+            }).join('');
+
+            return `
+            <div class="animate-fade-in w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex gap-6 min-h-[650px]">
+                <!-- SIDEBAR ANAGRAFICHE SINISTRA (Fissa) -->
+                <div class="w-1/4 border-r border-slate-100 pr-4 flex flex-col gap-4 shrink-0 select-none">
+                    <div>
+                        <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-2">Master Data Framework</h3>
+                        <div class="flex flex-col gap-1">
+                            ${sidebarLinksHtml}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- WORKSPACE DI GESTIONE DESTRO (Dinamico) -->
+                <div class="flex-1 flex flex-col justify-between overflow-hidden">
+                    <div class="w-full overflow-y-auto pr-1 space-y-4 custom-scrollbar">
+                        ${crudWorkspaceHtml}
+                    </div>
+                </div>
+            </div>`;
+        },
+
+        // --- 2. TEMPLATE PER LE ANAGRAFICHE DIZIONARIO (CRUD) ---
+        getGenericCrudTable: function (title, description, headers, rowsHtml, entityKey) {
+            return `
+            <div class="border-b border-slate-100 pb-4 flex justify-between items-center bg-transparent mb-4">
+                <div>
+                    <h2 class="text-lg font-black text-slate-800 uppercase tracking-widest">${title}</h2>
+                    <p class="text-xs text-slate-500 mt-0.5 font-medium">${description}</p>
+                </div>
+                <button onclick="SettingsController.addNewRowInline('${entityKey}')" 
+                        class="px-4 py-2 bg-teal-800 hover:bg-teal-900 text-white text-[10px] font-black uppercase tracking-wider rounded-xl shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer">
+                    <svg class="w-3.5 h-3.5 text-teal-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
+                    Add Record
+                </button>
+            </div>
+            
+            <div class="border border-slate-200 rounded-xl overflow-hidden shadow-3xs bg-white">
+                <table class="w-full text-left text-xs border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-black uppercase tracking-widest text-[9px] select-none">
+                            ${headers.map(h => `<th class="p-3">${h}</th>`).join('')}
+                            <th class="p-3 w-16 text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 text-slate-700 font-medium" id="crud-registry-tbody">
+                        ${rowsHtml || `<tr><td colspan="${headers.length + 1}" class="p-8 text-center text-slate-400 italic text-[11px]">No operational data loaded in this registry. Click Add Record to compile.</td></tr>`}
+                    </tbody>
+                </table>
+            </div>`;
+        },
+
+        // --- 3. TEMPLATE SPECIFICI PER IL BUDGET ENGINE (Reintrodotti) ---
+        getSidebarLayout: function (rowsHtml) {
+            return `
+            <div class="border-b border-slate-100 pb-4 flex justify-between items-center bg-transparent mb-4">
+                <div>
+                    <h2 class="text-lg font-black text-slate-800 uppercase tracking-widest">Asset Budget Allocation Engine</h2>
+                    <p class="text-xs text-slate-500 mt-0.5 font-medium">Gestione degli stanziamenti pluriennali e delle coordinate contabili per asset.</p>
+                </div>
+                <button onclick="SettingsController.saveAllocationsLocally()" 
+                        class="px-4 py-2 bg-teal-800 hover:bg-teal-900 text-white text-[10px] font-black uppercase tracking-wider rounded-xl shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-teal-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                    Apply in RAM
+                </button>
+            </div>
+            <div class="space-y-4 pb-12">
+                ${rowsHtml || '<div class="p-8 text-center text-slate-400 italic text-[11px]">Nessun asset disponibile per l\'allocazione.</div>'}
+            </div>`;
+        },
+
+        getAssetRow: function (assetId, assetName, fy26, fy27, fy28, supplier, legalEntity, costCenter) {
+            return `
+            <div class="budget-row border border-slate-200 rounded-xl p-5 bg-white shadow-sm" data-asset-id="${assetId}" data-asset-name="${assetName}">
+                <div class="flex justify-between items-center mb-4">
+                    <div class="font-black text-slate-800">${assetName} <span class="text-[10px] font-mono text-slate-400 font-medium ml-2">${assetId}</span></div>
+                </div>
+                
+                <!-- Quantità (Budget) -->
+                <div class="grid grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">FY26 Budget</label>
+                        <input type="number" class="budget-input-fy26 w-full p-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-teal-500" value="${fy26}">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">FY27 Budget</label>
+                        <input type="number" class="budget-input-fy27 w-full p-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-teal-500" value="${fy27}">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">FY28 Budget</label>
+                        <input type="number" class="budget-input-fy28 w-full p-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-teal-500" value="${fy28}">
+                    </div>
+                </div>
+                
+                <!-- Coordinate Anagrafiche -->
+                <div id="detail-row-${assetId}" class="grid grid-cols-3 gap-4 border-t border-slate-100 pt-4">
+                    <div>
+                        <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Supplier</label>
+                        <input type="text" class="meta-input-supplier w-full p-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-teal-500" value="${supplier}">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Legal Entity</label>
+                        <input type="text" class="meta-input-legal w-full p-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-teal-500" value="${legalEntity}">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Cost Center</label>
+                        <input type="text" class="meta-input-cc w-full p-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-teal-500" value="${costCenter}">
+                    </div>
+                </div>
+            </div>`;
+        }
+    };
+</script>

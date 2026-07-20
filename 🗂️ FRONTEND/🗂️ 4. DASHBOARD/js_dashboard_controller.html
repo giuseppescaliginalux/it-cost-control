@@ -65,22 +65,15 @@
                     const targetAssetName = asset.name ? asset.name.toString().trim().toLowerCase() : "";
 
                     // Calcolo Budget FY27
+                    // 1. Calcolo Budget FY27 (Legge il Variance Report del motore!)
                     let bSum = 0;
-                    const assetLinks = bridge.filter(b => {
-                        const bAssetId = b.assetId ? b.assetId.toString().trim() : "";
-                        const bFy = b.fiscalYear ? b.fiscalYear.toString().toUpperCase().trim() : "";
-                        return bAssetId === targetAssetId && bFy === "FY27";
-                    });
+                    const assetVariances = (windowPayload.varianceReport || []).filter(v =>
+                        String(v.assetId).trim() === targetAssetId &&
+                        String(v.fiscalYear).toUpperCase().trim() === "FY27"
+                    );
 
-                    assetLinks.forEach(link => {
-                        const linkAllocId = link.allocationId ? link.allocationId.toString().trim() : "";
-                        const rootAlloc = allocs.find(a => {
-                            const aAllocId = a.allocationId ? a.allocationId.toString().trim() : "";
-                            return aAllocId === linkAllocId && linkAllocId !== "";
-                        });
-                        if (rootAlloc) {
-                            bSum += parseFloat(rootAlloc.amount) || 0;
-                        }
+                    assetVariances.forEach(v => {
+                        bSum += parseFloat(v.effectiveBudget) || 0;
                     });
 
                     // Calcolo Outlook FY27 (Costs)

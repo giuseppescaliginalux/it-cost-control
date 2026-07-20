@@ -20,7 +20,11 @@ const CONFIG = {
     SUPPLIERS: "Suppliers",
     LOCATIONS: "Locations",
     COST_CENTERS: "CostCenters",
-    LEGAL_ENTITIES: "LegalEntities"
+    LEGAL_ENTITIES: "LegalEntities",
+    DELIVERY_MODELS: "DeliveryModels",
+    OPTIMIZATION_LEVERS: "OptimizationLevers",
+    ASSET_CATEGORIES: "AssetCategories",
+    CURRENCY_EXCHANGE_RATES: "CurrencyExchangeRates"
   },
 
   // Impostazioni regionali e temporali

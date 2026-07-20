@@ -878,32 +878,8 @@
                         InitiativesState.loadPayload(windowPayload);
                         InitiativesState.rawInitiatives = InitiativesState.recalculateMetrics(InitiativesState.rawInitiatives, windowPayload.contracts || [], windowPayload.masterContracts || []);
 
-                        console.log("⚡ REACTIVE UPDATE: Ricalcolo Proiezioni...");
-                        windowPayload.projections = ProjectionsEngine.calculateAll(
-                            windowPayload.contracts || [],
-                            windowPayload.initiatives || [],
-                            windowPayload.masterContracts || [],
-                            windowPayload.ledger || []
-                        );
-
-                        console.log("⚡ REACTIVE UPDATE: Ricalcolo Varianze...");
-                        const varianceMap = new Map();
-                        (windowPayload.bridge || []).forEach(alloc => {
-                            const key = `${String(alloc.assetName || "").trim()}---${String(alloc.fiscalYear || "").trim().toUpperCase()}`;
-                            if (!varianceMap.has(key)) varianceMap.set(key, { assetName: alloc.assetName, fiscalYear: alloc.fiscalYear, effectiveBudget: 0, fiscalProjection: 0, variance: 0 });
-                            varianceMap.get(key).effectiveBudget += parseFloat(alloc.effectiveBudget) || 0;
-                        });
-                        (windowPayload.projections || []).forEach(proj => {
-                            const asset = String(proj["Asset Name"] || proj.assetName || "").trim();
-                            ["FY26", "FY27", "FY28"].forEach(fy => {
-                                const key = `${asset}---${fy}`;
-                                if (varianceMap.has(key)) varianceMap.get(key).fiscalProjection += parseFloat(proj[`${fy} Optimized`]) || 0;
-                            });
-                        });
-                        windowPayload.varianceReport = Array.from(varianceMap.values()).map(row => {
-                            row.variance = row.effectiveBudget - row.fiscalProjection;
-                            return row;
-                        });
+                        console.log("🔄 REACTIVE UPDATE: Ricalcolo globale tramite Hydration Engine...");
+                        window.windowPayload = HydrationEngine.enhancePayload(window.windowPayload);
 
                         InitiativesController.renderKanbanBoard(false);
 
