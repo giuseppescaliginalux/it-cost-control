@@ -55,6 +55,24 @@
             assert.equal(output[0]["FY26 Baseline"], 182500);
         });
 
+        projSuite.add("4b. Engine Orchestrator - Iniziativa IN NEGOTIATION deve essere inclusa", (assert) => {
+            const contractDto = { contractId: "CTR-A", masterId: "MCT-01", status: "IN NEGOTIATION", startDate: "2026-01-01", contractEndDate: "2026-06-30", costRecurrence: "Recurrent", annualValue: 1070000 };
+            const init = { masterId: "MCT-01", status: "IN NEGOTIATION", decision: "OPTIMIZATION", targetDate: "2026-07-01", targetSavingPct: 0.05 };
+            const output = ProjectionsEngine.calculateAll([contractDto], [init], [], []);
+
+            assert.equal(output.length, 1);
+            assert.closeTo(output[0].fy26Optimized, 535000, 1);
+            assert.closeTo(output[0].fy27Optimized, 1016500, 1);
+        });
+
+        projSuite.add("4c. Contract.exportToData - Deve preservare annualValue e status esplicito", (assert) => {
+            const contract = new Contract({ contractId: "CTR-EXPORT", status: "IN NEGOTIATION", startDate: "2026-01-01", contractEndDate: "2026-06-30", annualValue: 1070000 });
+            const exported = contract.exportToData();
+
+            assert.equal(exported.annualValue, 1070000);
+            assert.equal(exported.status, "IN NEGOTIATION");
+        });
+
         projSuite.add("5. ContractProjection - Rinnovo virtuale (Rollover) oltre la End Date", (assert) => {
             const dto = { contractId: "CTR-TDD-ROLLOVER", startDate: "2025-01-01", contractEndDate: "2026-12-31", costRecurrence: "Recurrent", annualValue: 100000 };
             const fy28 = new TimePeriod("FY28", "2027-07-01", "2028-06-30");

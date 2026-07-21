@@ -170,9 +170,9 @@ class Contract {
       endDate: formatServerDate(this.getEndDate()),
       contractTerm: this.getDurationMonths(),
       effectiveCommitment: this.getEffectiveCommitment(),
-      annualValue: this.getAnnualValue(),
+      annualValue: (this.annualValue !== undefined && this.annualValue !== null) ? parseFloat(this.annualValue) || 0 : this.getAnnualValue(),
       effectiveRunRate: this.getEffectiveRunRate(),
-      status: this.calculateStatus()
+      status: this.status !== undefined && this.status !== null ? this.status : this.calculateStatus()
     };
   }
 
