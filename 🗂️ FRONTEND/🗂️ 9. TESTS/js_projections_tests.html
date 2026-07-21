@@ -73,6 +73,14 @@
             assert.equal(exported.status, "IN NEGOTIATION");
         });
 
+        projSuite.add("4d. Contract.exportToData - Deve calcolare annualValue se il campo è vuoto", (assert) => {
+            const contract = new Contract({ contractId: "CTR-EXPORT-EMPTY-VALUE", startDate: "2026-01-01", contractEndDate: "2026-06-30", totalCommitment: 535000, annualValue: "" });
+            const exported = contract.exportToData();
+
+            assert.equal(exported.annualValue, 1070000);
+            assert.equal(exported.status, "EXPIRED");
+        });
+
         projSuite.add("5. ContractProjection - Rinnovo virtuale (Rollover) oltre la End Date", (assert) => {
             const dto = { contractId: "CTR-TDD-ROLLOVER", startDate: "2025-01-01", contractEndDate: "2026-12-31", costRecurrence: "Recurrent", annualValue: 100000 };
             const fy28 = new TimePeriod("FY28", "2027-07-01", "2028-06-30");
