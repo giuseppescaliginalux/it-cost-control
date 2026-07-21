@@ -98,7 +98,10 @@
             if (!isRecurrent || !this.contractEnd) return null;
 
             const renewalTargets = (activeInits || [])
-                .filter(init => String(init.decision || "").toUpperCase().trim() === "OPTIMIZE")
+                .filter(init => {
+                    const decision = String(init.decision || "").toUpperCase().trim();
+                    return !["TERMINATE", "REPLACE", "TRANSFER"].includes(decision);
+                })
                 .map(init => {
                     const targetDate = init.targetDate ? new Date(init.targetDate) : null;
                     return targetDate && !isNaN(targetDate.getTime()) ? targetDate : null;
