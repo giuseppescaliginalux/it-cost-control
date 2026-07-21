@@ -104,7 +104,11 @@
             if (typeof InventoryController !== "undefined") InventoryController.initWorkspace();
             if (typeof updateExecutiveDashboard === "function") updateExecutiveDashboard(windowPayload);
             if (typeof renderOperationsHub === "function") renderOperationsHub(windowPayload);
-            if (typeof renderProjectionsHub === "function") renderProjectionsHub(windowPayload);
+            if (typeof renderProjectionsHub === "function") {
+                renderProjectionsHub(windowPayload);
+            } else if (typeof ProjectionsController !== "undefined" && typeof ProjectionsController.renderProjectionsHub === "function") {
+                ProjectionsController.renderProjectionsHub(windowPayload);
+            }
             if (typeof renderSettingsHub === "function") renderSettingsHub(windowPayload);
             console.timeEnd("  4. GPU/UI: Rendering HTML (Disegno su schermo)");
 
