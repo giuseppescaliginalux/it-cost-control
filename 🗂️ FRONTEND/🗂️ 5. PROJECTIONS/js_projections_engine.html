@@ -93,6 +93,52 @@
             return isTerminated ? 0 : currentCost;
         }
 
+        _getVirtualRenewalStartDate(activeInits) {
+            const isRecurrent = String(this.contract.costRecurrence || "").toLowerCase() === "recurrent";
+            if (!isRecurrent || !this.contractEnd) return null;
+
+            const renewalTargets = (activeInits || [])
+                .filter(init => String(init.decision || "").toUpperCase().trim() === "OPTIMIZE")
+                .map(init => {
+                    const targetDate = init.targetDate ? new Date(init.targetDate) : null;
+                    return targetDate && !isNaN(targetDate.getTime()) ? targetDate : null;
+                })
+                .filter(targetDate => targetDate && targetDate > this.contractEnd);
+
+            if (renewalTargets.length === 0) return null;
+
+            renewalTargets.sort((a, b) => a - b);
+            return new Date(Math.max(renewalTargets[0], this.period.startDate));
+        }
+
+        _calculateOptimizedVirtualRenewal(activeInits) {
+            const virtualStart = this._getVirtualRenewalStartDate(activeInits);
+            if (!virtualStart) return 0;
+
+            const originalAnnualValue = parseFloat(this.contract.annualValue) || 0;
+            let totalOptimized = 0;
+            const endCursor = new Date(this.period.endDate);
+            let current = new Date(virtualStart);
+            current.setDate(1);
+
+            while (current <= endCursor) {
+                const monthStart = new Date(current.getFullYear(), current.getMonth(), 1);
+                const monthEnd = new Date(current.getFullYear(), current.getMonth() + 1, 0);
+                const overlapStart = monthStart < virtualStart ? virtualStart : monthStart;
+                const overlapEnd = monthEnd > endCursor ? endCursor : monthEnd;
+
+                if (overlapStart <= overlapEnd) {
+                    const daysInMonth = Math.round((monthEnd - monthStart) / (1000 * 60 * 60 * 24)) + 1;
+                    const monthValue = this._calculateIntervalValue(overlapStart, overlapEnd, originalAnnualValue, activeInits, 0, false, daysInMonth);
+                    totalOptimized += monthValue;
+                    this._recordMonthlySplit(this.monthlyOptimizedActual, this.monthlyOptimizedVirtual, overlapStart, monthValue);
+                }
+                current.setMonth(current.getMonth() + 1);
+            }
+
+            return parseFloat(totalOptimized.toFixed(2));
+        }
+
         calculateBaseline() {
             this.monthlyBaselineActual = {};
             this.monthlyBaselineVirtual = {};
@@ -228,11 +274,14 @@
             this.monthlyOptimizedActual = {};
             this.monthlyOptimizedVirtual = {};
 
-            if (this.daysOfCompetence <= 0) return 0;
-
             const activeInits = this.linkedInitiatives.filter(init =>
                 ["COMPLETED", "IN PROGRESS", "IDEA", "APPROVED", "PLANNED"].includes(String(init.status).toUpperCase())
             );
+
+            if (this.daysOfCompetence <= 0) {
+                const virtualRenewalValue = this._calculateOptimizedVirtualRenewal(activeInits);
+                return virtualRenewalValue;
+            }
 
             const bt = String(this.contract.billingTerms || "").toUpperCase().trim();
             const expType = String(this.contract.expenditureType || "").toUpperCase().trim();

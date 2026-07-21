@@ -64,6 +64,28 @@
             assert.equal(projection.calculateOptimized(), 100000);
         });
 
+        projSuite.add("5b. ContractProjection - Rinnovo virtuale Optimization dopo scadenza", (assert) => {
+            const dto = {
+                contractId: "CTR-EXPIRED-OPT",
+                startDate: "2024-01-01",
+                contractEndDate: "2025-06-30",
+                costRecurrence: "Recurrent",
+                annualValue: 120000
+            };
+            const fy27 = new TimePeriod("FY27", "2026-07-01", "2027-06-30");
+            const optimizationInit = {
+                status: "IN PROGRESS",
+                decision: "OPTIMIZE",
+                targetDate: "2026-07-01",
+                targetCostAnnualized: 60000
+            };
+
+            const projection = new ContractProjection(dto, fy27, [optimizationInit]);
+
+            assert.equal(projection.calculateBaseline(), 0);
+            assert.equal(projection.calculateOptimized(), 60000);
+        });
+
         projSuite.add("6. ContractProjection - Il Rollover virtuale DEVE interrompersi se esiste un Master Successore", (assert) => {
             const predDto = { contractId: "CTR-PRED-01", startDate: "2025-01-01", contractEndDate: "2026-12-31", costRecurrence: "Recurrent", annualValue: 365000 };
             const successorStartDate = new Date("2027-07-01");
