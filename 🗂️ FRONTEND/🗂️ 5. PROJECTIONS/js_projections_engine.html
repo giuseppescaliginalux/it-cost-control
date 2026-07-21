@@ -278,7 +278,7 @@
             this.monthlyOptimizedVirtual = {};
 
             const activeInits = this.linkedInitiatives.filter(init =>
-                ["COMPLETED", "IN PROGRESS", "IDEA", "APPROVED", "PLANNED"].includes(String(init.status).toUpperCase())
+                ["COMPLETED", "IN PROGRESS", "IN NEGOTIATION", "IDEA", "APPROVED", "PLANNED"].includes(String(init.status).toUpperCase())
             );
 
             if (this.daysOfCompetence <= 0) {
@@ -515,7 +515,7 @@
             const initsByMaster = new Map();
             (initiativesArray || []).forEach(i => {
                 const status = String(i.status || "").toUpperCase();
-                if (["COMPLETED", "IN PROGRESS", "IDEA", "APPROVED", "PLANNED"].includes(status)) {
+                if (["COMPLETED", "IN PROGRESS", "IN NEGOTIATION", "IDEA", "APPROVED", "PLANNED"].includes(status)) {
                     const mid = String(i.masterId || "").trim();
                     if (!initsByMaster.has(mid)) initsByMaster.set(mid, []);
                     initsByMaster.get(mid).push(i);
@@ -542,7 +542,7 @@
             // --- LOOP PRINCIPALE DI ELABORAZIONE ---
             (contractsArray || []).forEach(contract => {
                 const status = String(contract.status || "").toUpperCase();
-                if (!["ACTIVE", "EXPIRED", "UPCOMING", "INCOMING"].includes(status)) return;
+                if (!["ACTIVE", "EXPIRED", "IN NEGOTIATION", "UPCOMING", "INCOMING"].includes(status)) return;
 
                 const mId = String(contract.masterId).trim();
                 const cId = String(contract.contractId).trim();
