@@ -88,8 +88,10 @@ class Contract {
     this.billingTerms = rawBt;
     this.billingFrequency = rawBf;
     this.totalCommitment = parseFloat(this.totalCommitment) || 0;
-    this.annualValue = parseFloat(this.annualValue) || 0;
-
+    this.annualValue = (this.annualValue === "" || this.annualValue === null || this.annualValue === undefined)
+      ? this.annualValue
+      : parseFloat(this.annualValue) || 0;
+ 
     this.ledger = [];
     this.splits = [];
   }
@@ -170,9 +172,13 @@ class Contract {
       endDate: formatServerDate(this.getEndDate()),
       contractTerm: this.getDurationMonths(),
       effectiveCommitment: this.getEffectiveCommitment(),
-      annualValue: (this.annualValue !== undefined && this.annualValue !== null) ? parseFloat(this.annualValue) || 0 : this.getAnnualValue(),
+      annualValue: (this.annualValue === undefined || this.annualValue === null || String(this.annualValue).trim() === "")
+        ? this.getAnnualValue()
+        : (isNaN(parseFloat(this.annualValue)) ? this.getAnnualValue() : parseFloat(this.annualValue)),
       effectiveRunRate: this.getEffectiveRunRate(),
-      status: this.status !== undefined && this.status !== null ? this.status : this.calculateStatus()
+      status: (this.status === undefined || this.status === null || String(this.status).trim() === "")
+        ? this.calculateStatus()
+        : this.status
     };
   }
 
