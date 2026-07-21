@@ -664,12 +664,17 @@
             }
 
             const attachedLevers = (initData.optimizationLevers || "").split(',').map(l => l.trim());
-            const leversHtml = InitiativesState.optimizationLevers.map(lever => `
-            <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-100 rounded cursor-pointer font-bold text-slate-700">
-                <input type="checkbox" value="${lever}" ${attachedLevers.includes(lever) ? 'checked' : ''} class="split-lever-checkbox w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600">
-                <span class="truncate">${lever}</span>
-            </label>
-            `).join('');
+            const leversHtml = InitiativesState.optimizationLevers.map(lever => {
+                const leverLabel = (typeof lever === 'string') ? lever : (lever.lever || lever.name || lever.label || '');
+                const safeLabel = String(leverLabel || '').trim();
+                const isChecked = attachedLevers.includes(safeLabel) ? 'checked' : '';
+                return `
+                <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-100 rounded cursor-pointer font-bold text-slate-700">
+                    <input type="checkbox" value="${safeLabel}" ${isChecked} class="split-lever-checkbox w-3.5 h-3.5 text-teal-600 rounded border-slate-300 focus:ring-teal-600">
+                    <span class="truncate">${safeLabel}</span>
+                </label>
+                `;
+            }).join('');
 
             const mountPoint = document.getElementById('initiatives-modal-mount-point');
             mountPoint.innerHTML = InitiativesTemplates.getModalFormStructure(isNew, "", "", leversHtml);
