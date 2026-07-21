@@ -653,6 +653,18 @@
             }
         },
 
+        // Backwards-compatible alias: some templates reference closeAlternativeModalWindow
+        closeAlternativeModalWindow: function () {
+            // Delegate to the primary close function to keep behavior consistent
+            if (typeof this.closeInitiativeModalWindow === 'function') return this.closeInitiativeModalWindow();
+            const mountPoint = document.getElementById('initiatives-modal-mount-point');
+            if (mountPoint) {
+                mountPoint.classList.remove('flex');
+                mountPoint.classList.add('hidden');
+                mountPoint.innerHTML = '';
+            }
+        },
+
         openInitiativeModalForm: function (id) {
             const isNew = id === null;
             InitiativesState.currentEditingInitiative = id;
