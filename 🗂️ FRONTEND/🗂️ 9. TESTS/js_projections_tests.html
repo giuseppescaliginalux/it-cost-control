@@ -65,6 +65,36 @@
             assert.closeTo(output[0].fy27Optimized, 1016500, 1);
         });
 
+        projSuite.add("4bb. Engine Orchestrator - Contratto EXPIRED con initiativa di rollover deve conservare FY26 reale e proiezione FY27/FY28", (assert) => {
+            const contractDto = {
+                contractId: "CTR-HRBTS-CNTH-2025-02",
+                masterId: "MCT-HRBTS-CNTH-2025-02",
+                status: "EXPIRED",
+                startDate: "2025-12-31",
+                contractEndDate: "2026-06-30",
+                costRecurrence: "Recurrent",
+                annualValue: 1064278.07,
+                billingTerms: "Fixed Recurring",
+                billingFrequency: "Monthly",
+                totalCommitment: 535000
+            };
+            const init = {
+                masterId: "MCT-HRBTS-CNTH-2025-02",
+                status: "IN PROGRESS",
+                decision: "OPTIMIZATION",
+                targetDate: "2026-07-01",
+                targetSavingPct: 0.05,
+                targetCostAnnualized: 1011064
+            };
+            const output = ProjectionsEngine.calculateAll([contractDto], [init], [], []);
+
+            assert.equal(output.length, 1);
+            assert.closeTo(output[0].fy26Optimized, 532139.04, 1);
+            assert.closeTo(output[0].fy27Optimized, 1011064.17, 1);
+            assert.equal(Object.keys(output[0].monthlyActual || {}).length, 6);
+            assert.equal(Object.keys(output[0].monthlyVirtual || {}).length > 0, true);
+        });
+
         projSuite.add("4c. Contract.exportToData - Deve preservare annualValue e status esplicito", (assert) => {
             const contract = new Contract({ contractId: "CTR-EXPORT", status: "IN NEGOTIATION", startDate: "2026-01-01", contractEndDate: "2026-06-30", annualValue: 1070000 });
             const exported = contract.exportToData();

@@ -6,9 +6,23 @@
      */
     const ProjectionsController = {
 
+        renderProjectionsHub: function (payload) {
+            window.windowPayload = payload;
+            this.initProjectionsWorkspace(payload);
+        },
+
         initProjectionsWorkspace: function (payload) {
             const container = document.getElementById('tab-projections');
             if (!container) return;
+
+            if (typeof ProjectionsEngine !== 'undefined' && Array.isArray(payload.contracts) && Array.isArray(payload.initiatives)) {
+                payload.projections = ProjectionsEngine.calculateAll(
+                    payload.contracts,
+                    payload.initiatives,
+                    payload.masterContracts || [],
+                    payload.ledger || []
+                );
+            }
 
             ProjectionsState.loadPayload(payload);
             container.innerHTML = ProjectionsTemplates.getWorkspaceLayout();
@@ -813,6 +827,10 @@
                 }]
             });
         }
+    };
+
+    window.renderProjectionsHub = function (payload) {
+        return ProjectionsController.renderProjectionsHub(payload);
     };
 
     const olapOriginalSwitchTab = switchTab;
