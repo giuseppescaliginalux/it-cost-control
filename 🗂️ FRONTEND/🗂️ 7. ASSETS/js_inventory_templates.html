@@ -4,6 +4,18 @@
      */
     const InventoryTemplates = {
 
+        getAttachmentIconMarkup: function (count) {
+            if (!count || count <= 0) return '';
+            // 🟢 Design pulito: solo icona a graffetta ingrandita, tooltip in inglese
+            const tooltipText = count === 1 ? '1 Attachment' : count + ' Attachments';
+            return `
+        <span class="inline-flex items-center ml-1.5 text-slate-400 hover:text-indigo-500 transition-colors cursor-help" title="${tooltipText}">
+            <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0 4.5 4.5 0 010-6.364L10.94 6.697c1.171-1.17 3.072-1.17 4.242 0 1.172 1.17 1.172 3.07 0 4.242l-6.364 6.364c-.78.78-2.048.78-2.828 0-.78-.78-.78-2.047 0-2.828l6.364-6.364" />
+            </svg>
+        </span>`;
+        },
+
         getWorkspaceLayout: function () {
             return `
             <div class="mb-3">
@@ -194,6 +206,8 @@
         },
 
         getAssetRow: function (data, safeDOMId, alertClass, alertLabel, statusBadge, targetBadge, budgetBadge, financials, isEditActive) {
+            const attachmentIcon = this.getAttachmentIconMarkup(data.attachmentCount || 0);
+
             return `
             <div class="w-full border-b border-slate-100 text-xs bg-white group hover:bg-slate-50 transition-colors ${alertClass} focus-within:z-[99] relative">
                 
@@ -213,10 +227,10 @@
                                         <div class="flex items-center gap-1 shrink-0 ml-2">${alertLabel}</div>
                                     </div>
                                     <div class="mt-1" style="padding-left: 25px;">
-                                        <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest truncate leading-tight pl-[10px]">
-                                            ${data.manufacturer} <span class="text-slate-300 font-normal mx-1 select-none">•</span> <span class="text-slate-400/60 font-medium normal-case tracking-normal">for: ${data.driver}</span>
-                                        </p>
-                                        <div class="mt-1.5 flex items-center gap-3">
+                                            <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest truncate leading-tight pl-[10px] flex items-center">
+                                                ${data.manufacturer} <span class="text-slate-300 font-normal mx-1 select-none">•</span> <span class="text-slate-400/60 font-medium normal-case tracking-normal">for: ${data.driver}</span> ${attachmentIcon}
+                                            </p>
+                                            <div class="mt-1.5 flex items-center gap-3">
                                             ${statusBadge}
                                             <div class="text-[10px] font-bold text-slate-400 uppercase tracking-tight">${data.datesHtml}</div>
                                         </div>
@@ -320,6 +334,8 @@
 
             const scope = master.masterScope || "No scope provided";
             const linksArray = (master.contractLinks || "").toString().split(',').map(l => l.trim()).filter(Boolean);
+            const masterAttachCount = master.attachmentCount !== undefined ? master.attachmentCount : linksArray.length;
+            const attachmentIcon = this.getAttachmentIconMarkup(masterAttachCount);
 
             const ViewIcon = globalEditMode
                 ? `<svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>`
@@ -402,6 +418,7 @@
                         <div class="min-w-0 flex-1 flex flex-col justify-center">
                             <div class="flex items-center gap-2 flex-nowrap w-full">
                                 <span class="font-black text-slate-800 text-xs tracking-wide uppercase truncate block flex-1 min-w-0" title="${supplier}">${supplier}</span>
+                                ${attachmentIcon}
                                 ${statusBadge}
                             </div>
                             <div class="text-[10px] text-slate-500 mt-1 truncate" title="${scope}">${scope}</div>
@@ -474,6 +491,8 @@
 
             const scope = contract.scope || "No scope provided";
             const linksArray = (contract.contractLinks || "").toString().split(',').map(l => l.trim()).filter(Boolean);
+            const contractAttachCount = contract.attachmentCount !== undefined ? contract.attachmentCount : linksArray.length;
+            const attachmentIcon = this.getAttachmentIconMarkup(contractAttachCount);
 
             const ViewIcon = globalEditMode
                 ? `<svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>`
@@ -550,6 +569,7 @@
                 <div class="w-[30%] min-w-0 flex flex-col justify-center">
                     <div class="flex items-center gap-1.5 flex-nowrap w-full">
                         <div class="font-black text-slate-700 text-[10px] uppercase tracking-wide truncate flex-1 min-w-0" title="${entity}">${entity}</div>
+                        ${attachmentIcon}
                         ${statusBadge}
                     </div>
                     <div class="text-[10px] text-slate-500 mt-1 truncate" title="${scope}">${scope}</div>

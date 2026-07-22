@@ -29,6 +29,8 @@
                 const contractInstance = new Contract(c);
                 cLedger.forEach(l => contractInstance.ledger.push(new LedgerMovement(l)));
                 Object.assign(c, contractInstance.exportToData());
+                //Calcolo allegati livello Singola Linea di Contratto
+                c.attachmentCount = (c.contractLinks || "").toString().split(',').filter(l => l.trim().length > 0).length;
             });
 
             // 2. Master Contracts
@@ -44,6 +46,8 @@
                     masterInstance.addChild(childContract);
                 });
                 Object.assign(m, masterInstance.exportToData(inits));
+                //Calcolo allegati livello Master Agreement
+                m.attachmentCount = (m.contractLinks || "").toString().split(',').filter(l => l.trim().length > 0).length;
             });
 
             // 3. Asset (Macchina a Stati Finiti)
@@ -130,6 +134,16 @@
                 if (effBudget === 0) asset.budgetStatusFY27 = "Not Budgeted";
                 else if (variance < 0) asset.budgetStatusFY27 = "At Risk";
                 else asset.budgetStatusFY27 = "Secured";
+
+                // Rollup degli allegati per l'intero Asset
+                const assetMasters = (payload.masterContracts || []).filter(m => String(m.assetId || "").trim() === assetIdStr);
+                const assetContracts = (payload.contracts || []).filter(c => String(c.assetId || "").trim() === assetIdStr);
+
+                let totalAttachments = 0;
+                assetMasters.forEach(m => totalAttachments += (m.attachmentCount || 0));
+                assetContracts.forEach(c => totalAttachments += (c.attachmentCount || 0));
+
+                asset.attachmentCount = totalAttachments;
             });
             console.timeEnd("  -> Aggregazione Asset");
 

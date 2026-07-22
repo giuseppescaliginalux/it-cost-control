@@ -118,7 +118,14 @@
 
                 // FIX: Passiamo esplicitamente l'ID dell'asset al costruttore del template
                 htmlBuffer += InventoryTemplates.getAssetRow(
-                    { id: row.id, name, manufacturer, driver: businessDriver, datesHtml },
+                    {
+                        id: row.id,
+                        name,
+                        manufacturer,
+                        driver: businessDriver,
+                        datesHtml,
+                        attachmentCount: row.attachmentCount || 0
+                    },
                     safeDOMId, alertClass, alertLabel, statusBadge, targetBadge, budgetBadge, financials, isEditActive
                 );
             });

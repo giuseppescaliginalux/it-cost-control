@@ -8,13 +8,27 @@
  */
 
 /**
- * UTILITY INTERNA: Svuota la cache di boot della WebApp per forzare la rilettura
+ * INTERNAL UTILITY: Clears the WebApp boot cache to force data reload.
  */
 function clearAppCache() {
-  FinOpsCache.clear("DASHBOARD_PAYLOAD");
   try {
-    SpreadsheetApp.getActiveSpreadsheet().toast("🧹 Cache WebApp svuotata con successo.", "FinOps System");
-  } catch (e) { }
+    FinOpsCache.clear("DASHBOARD_PAYLOAD");
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (ss) {
+      ss.toast(
+        "🧹 WebApp cache successfully cleared. The next load will fetch fresh data.",
+        "FinOps System",
+        5
+      );
+    }
+  } catch (error) {
+    console.error("Critical error during cache clearing:", error);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (ss) {
+      ss.toast("Error clearing cache. Please check the logs.", "System Error", 5);
+    }
+  }
 }
 
 /**

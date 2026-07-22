@@ -91,7 +91,7 @@ class Contract {
     this.annualValue = (this.annualValue === "" || this.annualValue === null || this.annualValue === undefined)
       ? this.annualValue
       : parseFloat(this.annualValue) || 0;
- 
+
     this.ledger = [];
     this.splits = [];
   }
@@ -374,7 +374,22 @@ class MasterContract {
     contractInstance.assetName = this.assetName;
     contractInstance.assetId = this.assetId;
     contractInstance.billingChannel = this.billingChannel;
-    this.childContracts.push(contractInstance);
+
+    // 🟢 FIX ARCHITETTURALE: Prevenzione duplicati nel Dominio (Upsert)
+    // Garantisce che un Aggregato Radice non possa MAI contenere due figli con lo stesso ID
+    const existingIndex = this.childContracts.findIndex(c =>
+      c.id === contractInstance.id &&
+      c.id !== "" &&
+      !String(c.id).toUpperCase().startsWith("TMP-")
+    );
+
+    if (existingIndex > -1) {
+      // Se esiste già, lo sovrascrive (l'ultima modifica vince)
+      this.childContracts[existingIndex] = contractInstance;
+    } else {
+      // Altrimenti lo accoda
+      this.childContracts.push(contractInstance);
+    }
   }
 
   getMinStartDate() {
