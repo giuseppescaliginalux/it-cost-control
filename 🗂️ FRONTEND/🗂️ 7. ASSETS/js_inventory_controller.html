@@ -83,8 +83,8 @@
                 const costImprovement = parseFloat(row.costImprovement) || 0;
                 const fiscalProjection = parseFloat(row.fiscalProjectionFY27 || 0);
 
-                const isActiveGroup = ["RUNNING", "EXPIRED", "OPTIMIZING", "ACTIVE"].includes(status);
-                const isInactiveGroup = ["DISMISSED", "TRANSFERRED", "EXITING"].includes(status);
+                const isActiveGroup = ["RUNNING", "EXPIRED", "OPTIMIZING", "ACTIVE", "EXITING"].includes(status);
+                const isInactiveGroup = ["DISMISSED", "TRANSFERRED"].includes(status);
                 const safeDOMId = btoa(encodeURIComponent(name)).replace(/=/g, "");
 
                 const showBudgetBadge = budgetStatus && budgetStatus.toUpperCase().trim() !== "NOT BUDGETED" && budgetStatus.trim() !== "-";

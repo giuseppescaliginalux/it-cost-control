@@ -19,7 +19,31 @@
                 const budgetStatus = (row.budgetStatusFY27 || "").toUpperCase().trim();
                 const currentDriver = (row.businessDriver || "").toUpperCase().trim();
 
-                const matchesSearch = !f.search || name.includes(f.search) || manufacturer.includes(f.search);
+                // Ci serve l'ID per incrociare i contratti durante la ricerca
+                const targetAssetId = String(row.id).trim();
+
+                // 1. Ricerca base su Nome Asset e Produttore
+                let matchesSearch = !f.search || name.includes(f.search) || manufacturer.includes(f.search);
+
+                // Deep Search Relazionale
+                if (!matchesSearch && f.search) {
+                    // 2. Cerca nei Master Agreements (Fornitore e Oggetto)
+                    const relatedMasters = windowPayload.masterContracts.filter(m => String(m.assetId).trim() === targetAssetId);
+                    matchesSearch = relatedMasters.some(m =>
+                        (m.supplier || "").toLowerCase().includes(f.search) ||
+                        (m.masterScope || m.scope || "").toLowerCase().includes(f.search)
+                    );
+
+                    // 3. Se ancora non c'è match, cerca nelle Singole Linee di Contratto
+                    if (!matchesSearch) {
+                        const relatedContracts = windowPayload.contracts.filter(c => String(c.assetId).trim() === targetAssetId);
+                        matchesSearch = relatedContracts.some(c =>
+                            (c.supplier || "").toLowerCase().includes(f.search) ||
+                            (c.scope || "").toLowerCase().includes(f.search)
+                        );
+                    }
+                }
+
                 const matchesRunRate = runRate >= f.minRunRate;
                 const matchesStatus = f.status.length === 0 || f.status.includes(currentStatus);
                 const matchesBudgetStatus = f.budgetStatus.length === 0 || f.budgetStatus.includes(budgetStatus);
@@ -29,8 +53,6 @@
                 let matchesSupplier = true; let matchesCostCenter = true; let matchesLocation = true;
 
                 if (f.channel.length > 0 || f.expType.length > 0 || f.legalEntity.length > 0 || f.supplier.length > 0 || f.costCenter.length > 0 || f.location.length > 0) {
-                    // FIX: Uso dell'Asset ID per filtrare i contratti collegati
-                    const targetAssetId = String(row.id).trim();
                     const relatedContracts = windowPayload.contracts.filter(c =>
                         String(c.assetId).trim() === targetAssetId
                     );

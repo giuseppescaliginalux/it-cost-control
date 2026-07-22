@@ -90,7 +90,7 @@
       this.annualValue = (this.annualValue === "" || this.annualValue === null || this.annualValue === undefined)
         ? this.annualValue
         : parseFloat(this.annualValue) || 0;
- 
+
       this.ledger = [];
       this.splits = [];
     }
@@ -172,12 +172,12 @@
         contractTerm: this.getDurationMonths(),
         effectiveCommitment: this.getEffectiveCommitment(),
         annualValue: (this.annualValue === undefined || this.annualValue === null || String(this.annualValue).trim() === "")
-            ? this.getAnnualValue()
-            : (isNaN(parseFloat(this.annualValue)) ? this.getAnnualValue() : parseFloat(this.annualValue)),
+          ? this.getAnnualValue()
+          : (isNaN(parseFloat(this.annualValue)) ? this.getAnnualValue() : parseFloat(this.annualValue)),
         effectiveRunRate: this.getEffectiveRunRate(),
         status: (this.status === undefined || this.status === null || String(this.status).trim() === "")
-            ? this.calculateStatus()
-            : this.status
+          ? this.calculateStatus()
+          : this.status
       };
     }
 
@@ -193,7 +193,6 @@
       const finalEnd = this.getEndDate();
       let currentCursor = new Date(this.startDate.getTime());
 
-      // Configurazione step temporale in base alla Billing Frequency
       let stepMonths = 1;
       if (freq === "QUARTERLY") stepMonths = 3;
       else if (freq === "EVERY 4 MONTHS") stepMonths = 4;
@@ -212,6 +211,7 @@
             const type = String(l.type || "").toUpperCase().trim();
             if ((type !== "ACTUAL" && type !== "FORECAST" && type !== "DEBIT") || !l.startDate) return false;
             const d = new Date(l.startDate);
+            // MATCH ATOMICO: Immunità ai fusi orari
             return d.getFullYear() === chunkStart.getFullYear() && d.getMonth() === chunkStart.getMonth();
           });
 
@@ -232,16 +232,20 @@
       }
 
       if (bt.includes("PAY-AS-YOU-GO") && (pm.includes("MINIMUM") || pm.includes("CAPPED"))) {
-        // ⚡ DETRAZIONE DI TUTTE LE RIGHE REALI (COMPRESI I DEBITI DA OVERUSAGE E CREDITI)
-        const actSum = currentLedger.filter(l => String(l.type).toUpperCase().trim() === "ACTUAL").reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
-        const crSum = currentLedger.filter(l => String(l.type).toUpperCase().trim() === "CREDIT").reduce((sum, l) => sum + Math.abs(parseFloat(l.amount) || 0), 0);
-        const dbSum = currentLedger.filter(l => String(l.type).toUpperCase().trim() === "DEBIT").reduce((sum, l) => sum + Math.abs(parseFloat(l.amount) || 0), 0);
-        const fwdSum = currentLedger.filter(l => String(l.type).toUpperCase().trim() === "FORECAST").reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
 
-        const remainingCommitment = Math.max(0, this.totalCommitment - (actSum - crSum + dbSum) - fwdSum);
+        // 🟢 1. SANITIZATION: Vaporizziamo i vecchi record CALCULATED dalla memoria prima di calcolare
+        const cleanLedger = currentLedger.filter(l => String(l.type).toUpperCase().trim() !== "CALCULATED");
 
+        // 🟢 2. BURN-DOWN LOGIC: Ignoriamo i crediti. Il Gross Consumption è eroso solo da Actual, Debit e Forecast
+        const actSum = cleanLedger.filter(l => String(l.type).toUpperCase().trim() === "ACTUAL").reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
+        const dbSum = cleanLedger.filter(l => String(l.type).toUpperCase().trim() === "DEBIT").reduce((sum, l) => sum + Math.abs(parseFloat(l.amount) || 0), 0);
+        const fwdSum = cleanLedger.filter(l => String(l.type).toUpperCase().trim() === "FORECAST").reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
+
+        const remainingCommitment = Math.max(0, this.totalCommitment - (actSum + dbSum) - fwdSum);
+
+        // Estrazione ultimo mese di validità effettiva
         let lastActualEnd = new Date(this.startDate.getTime() - 86400000);
-        currentLedger.forEach(l => {
+        cleanLedger.forEach(l => {
           const type = String(l.type || "").toUpperCase().trim();
           if ((type === "ACTUAL" || type === "DEBIT") && l.endDate) {
             const d = new Date(l.endDate);
@@ -257,15 +261,17 @@
         let tempCursor = new Date(forecastStart.getTime());
         tempCursor.setDate(1);
 
-        // Conteggio intervalli frequenziali residui effettivi
+        // --- CICLO DI CONTEGGIO MESI RIMANENTI ---
         let intervalsRemaining = 0;
         while (tempCursor <= finalEnd) {
           const chunkStart = new Date(tempCursor.getTime());
-          const hasForecastInPeriod = currentLedger.some(l => {
+
+          const hasForecastInPeriod = cleanLedger.some(l => {
             const type = String(l.type || "").toUpperCase().trim();
             if (type !== "FORECAST" || !l.startDate) return false;
             const d = new Date(l.startDate);
-            return d >= chunkStart && d < new Date(chunkStart.getFullYear(), chunkStart.getMonth() + stepMonths, 1);
+            // 🟢 3. TIMEZONE IMMUNITY: Confronto basato solo su Anno e Mese assoluti
+            return d.getFullYear() === chunkStart.getFullYear() && d.getMonth() === chunkStart.getMonth();
           });
 
           if (!hasForecastInPeriod) {
@@ -277,6 +283,7 @@
         if (intervalsRemaining <= 0 || remainingCommitment <= 0) return [];
         const intervalForecastAmount = remainingCommitment / intervalsRemaining;
 
+        // --- CICLO DI GENERAZIONE DEL FORECAST ---
         let generateCursor = new Date(forecastStart.getTime());
         generateCursor.setDate(1);
 
@@ -285,11 +292,12 @@
           const chunkEnd = new Date(generateCursor.getFullYear(), generateCursor.getMonth() + stepMonths, 0);
           const actualEnd = chunkEnd > finalEnd ? finalEnd : chunkEnd;
 
-          const hasManualForecast = currentLedger.some(l => {
+          const hasManualForecast = cleanLedger.some(l => {
             const type = String(l.type || "").toUpperCase().trim();
             if (type !== "FORECAST" || !l.startDate) return false;
             const d = new Date(l.startDate);
-            return d >= chunkStart && d <= actualEnd;
+            // 🟢 3. TIMEZONE IMMUNITY: Replicato sulla generazione
+            return d.getFullYear() === chunkStart.getFullYear() && d.getMonth() === chunkStart.getMonth();
           });
 
           if (!hasManualForecast) {

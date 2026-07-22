@@ -18,16 +18,26 @@ class Asset {
     this.transferDate = this.transferDate || "";
     this.initiativeTargetDate = this.initiativeTargetDate || "";
     this.lastEndDate = this.lastEndDate || "";
+    this.attachmentCount = parseInt(this.attachmentCount) || 0;
   }
 
   injectContext(assetProjections, assetContracts, assetInits, assetVariances) {
     let activeRunRate = 0;
+    let historicalRunRate = 0;
+    let aliveContracts = [];
+
+    // 1. Lettura Contratti (Separazione Attivi vs Storici)
     assetContracts.forEach(c => {
-      const cStatus = String(c.status || "ACTIVE").toUpperCase();
+      const cStatus = String(c.status || "ACTIVE").toUpperCase().trim();
+      let eff = c.effectiveRunRate !== undefined ? c.effectiveRunRate : null;
+      let ann = c.annualValue !== undefined ? c.annualValue : 0;
+      let val = parseFloat(eff !== null && eff !== "" ? eff : ann) || 0;
+
       if (["ACTIVE", "UPCOMING", "INCOMING"].includes(cStatus)) {
-        let eff = c.effectiveRunRate !== undefined ? c.effectiveRunRate : null;
-        let ann = c.annualValue !== undefined ? c.annualValue : 0;
-        activeRunRate += parseFloat(eff !== null && eff !== "" ? eff : ann);
+        activeRunRate += val;
+        aliveContracts.push(c); // Nodo vitale
+      } else if (["EXPIRED", "TERMINATED", "DISMISSED"].includes(cStatus)) {
+        historicalRunRate += val; // Nodo morto
       }
     });
     this.runRate = parseFloat(activeRunRate.toFixed(2));
@@ -42,82 +52,102 @@ class Asset {
     });
     this.lastEndDate = maxEndDate ? formatServerDate(maxEndDate) : "";
 
-    let costImprovementSum = 0;
+    // 2. Lettura Iniziative (Mapping per Copertura)
     let strategy = "RETAIN";
     let exitDateStr = ""; let transferDateStr = ""; let initTargetDateStr = "";
-    let hasTerminate = false; let hasTransfer = false; let hasOptimize = false;
+
+    let hasCompletedTransfer = false;
+    let hasCompletedExit = false;
+    let inProgressExitInits = [];
+    let inProgressOptInits = [];
 
     assetInits.forEach(init => {
-      const initStatus = String(init.status || "").toUpperCase();
-      const decision = String(init.decision || "").toUpperCase();
+      const initStatus = String(init.status || "").toUpperCase().trim();
+      const decision = String(init.decision || "").toUpperCase().trim();
 
-      if (["COMPLETED", "IN PROGRESS"].includes(initStatus)) {
-        costImprovementSum += parseFloat(init.actualSavingAnnualized || init.targetSavingAnnualized || 0);
-
-        const tDateRaw = init.targetDate;
-        if (tDateRaw) {
-          const dTarget = new Date(tDateRaw);
-          if (!isNaN(dTarget.getTime())) initTargetDateStr = formatServerDate(dTarget);
+      if (initStatus === "COMPLETED") {
+        if (decision === "TRANSFER") {
+          hasCompletedTransfer = true; strategy = "HANDOVER";
+        } else if (["TERMINATE", "REPLACE"].includes(decision)) {
+          hasCompletedExit = true; strategy = "EXIT";
         }
-
-        if (["TERMINATE", "REPLACE"].includes(decision)) {
-          hasTerminate = true; strategy = "EXIT";
-          const dEff = init.actualDate || init.targetDate;
-          if (dEff) {
-            const d = new Date(dEff);
-            if (!isNaN(d.getTime())) exitDateStr = formatServerDate(d);
-          }
-        } else if (decision === "TRANSFER") {
-          hasTransfer = true; strategy = "HANDOVER";
-          const dEff = init.actualDate || init.targetDate;
-          if (dEff) {
-            const d = new Date(dEff);
-            if (!isNaN(d.getTime())) transferDateStr = formatServerDate(d);
-          }
+      } else if (initStatus === "IN PROGRESS") {
+        if (["TERMINATE", "REPLACE", "TRANSFER"].includes(decision)) {
+          inProgressExitInits.push(init);
+          strategy = decision === "TRANSFER" ? "HANDOVER" : "EXIT";
+        } else if (["OPTIMIZATION", "OPTIMIZE"].includes(decision)) {
+          inProgressOptInits.push(init);
         }
       }
 
-      // FIX: L'asset è "OPTIMIZING" *SOLO* se c'è un'iniziativa di ottimizzazione attivamente "IN PROGRESS".
-      if (initStatus === "IN PROGRESS" && ["OPTIMIZATION", "OPTIMIZE"].includes(decision)) {
-        hasOptimize = true;
+      // Estrazione date
+      if (["COMPLETED", "IN PROGRESS"].includes(initStatus)) {
+        if (init.targetDate) {
+          const dTarget = new Date(init.targetDate);
+          if (!isNaN(dTarget.getTime())) initTargetDateStr = formatServerDate(dTarget);
+        }
+        if (["TERMINATE", "REPLACE"].includes(decision) && (init.actualDate || init.targetDate)) {
+          exitDateStr = formatServerDate(new Date(init.actualDate || init.targetDate));
+        } else if (decision === "TRANSFER" && (init.actualDate || init.targetDate)) {
+          transferDateStr = formatServerDate(new Date(init.actualDate || init.targetDate));
+        }
       }
     });
 
-    this.costImprovement = parseFloat(costImprovementSum.toFixed(2));
     this.targetStatus = strategy;
     this.exitDate = exitDateStr;
     this.transferDate = transferDateStr;
     this.initiativeTargetDate = initTargetDateStr;
 
+    // 3. Calcolo Copertura (Coverage Logic)
+    const isCoveredBy = (contract, initsArray) => {
+      return initsArray.some(init =>
+        (init.masterId && String(init.masterId).trim() === String(contract.masterId).trim()) ||
+        (init.contractId && String(init.contractId).trim() === String(contract.id || contract.contractId).trim()) ||
+        (init.assetId && String(init.assetId).trim() === String(this.id).trim())
+      );
+    };
+
+    const allAliveCoveredByExit = aliveContracts.length > 0 && aliveContracts.every(c => isCoveredBy(c, inProgressExitInits));
+    const anyAliveCoveredByOpt = aliveContracts.length > 0 && aliveContracts.some(c => isCoveredBy(c, inProgressOptInits));
+
+    // 4. Macchina a Stati FinOps
     let computedStatus = "RUNNING";
     const today = new Date(); today.setHours(0, 0, 0, 0);
 
-    if (hasTransfer) computedStatus = "TRANSFERRED";
-    else if (hasTerminate) computedStatus = (exitDateStr && new Date(exitDateStr) <= today) ? "DISMISSED" : "EXITING";
-    else if (hasOptimize) computedStatus = "OPTIMIZING";
-    else if (maxEndDate && maxEndDate < today) computedStatus = "EXPIRED";
+    if (hasCompletedTransfer) {
+      computedStatus = "TRANSFERRED"; // Regola 1: Stickiness permanente
+    } else if (aliveContracts.length === 0) {
+      // Regola 4: 0 Contratti + Iniziativa Completata
+      if (hasCompletedExit) computedStatus = "DISMISSED";
+      else if (maxEndDate && maxEndDate < today) computedStatus = "EXPIRED";
+      else computedStatus = "EXPIRED"; // Fallback se muore naturalmente
+    } else {
+      // Alive > 0
+      if (allAliveCoveredByExit) computedStatus = "EXITING";      // Regola 2: 100% Copertura
+      else if (anyAliveCoveredByOpt) computedStatus = "OPTIMIZING"; // Regola 3: >0% Copertura
+      else computedStatus = "RUNNING";
+    }
 
     this.currentStatus = computedStatus;
 
+    // 5. Cost Improvement: si sblocca SOLO se l'asset è ufficialmente morto/ceduto
+    if (computedStatus === "DISMISSED" || computedStatus === "TRANSFERRED") {
+      this.costImprovement = parseFloat(historicalRunRate.toFixed(2));
+    } else {
+      this.costImprovement = 0;
+    }
+
+    // 6. Budget Status
     if (assetVariances && assetVariances.length > 0) {
-      const v = assetVariances.find(vari => String(vari.fiscalYear || vari["Fiscal Year"] || "").includes("FY27")) || assetVariances[0];
-
-      // FIX TDD: Aggiunto fallback per "Variance" con la V maiuscola
-      const rawBudget = v.effectiveBudget !== undefined ? v.effectiveBudget : (v.budget !== undefined ? v.budget : (v["Effective Budget"] !== undefined ? v["Effective Budget"] : "0"));
-      const rawVariance = v.variance !== undefined ? v.variance : (v.netVariance !== undefined ? v.netVariance : (v["Net Variance"] !== undefined ? v["Net Variance"] : (v["Variance"] !== undefined ? v["Variance"] : "0")));
-
+      const v = assetVariances.find(vari => String(vari.fiscalYear || "").includes("FY27")) || assetVariances[0];
+      const rawBudget = v.effectiveBudget !== undefined ? v.effectiveBudget : "0";
+      const rawVariance = v.variance !== undefined ? v.variance : "0";
       const budgetVal = parseFloat(String(rawBudget).replace(/[^0-9.-]/g, ''));
       const varianceVal = parseFloat(String(rawVariance).replace(/[^0-9.-]/g, ''));
 
-      if (budgetVal > 0) {
-        if (varianceVal < 0) {
-          this.budgetStatusFY27 = "At Risk";
-        } else {
-          this.budgetStatusFY27 = "Secured";
-        }
-      } else {
-        this.budgetStatusFY27 = "Not Budgeted";
-      }
+      if (budgetVal > 0) this.budgetStatusFY27 = varianceVal < 0 ? "At Risk" : "Secured";
+      else this.budgetStatusFY27 = "Not Budgeted";
     }
   }
 
